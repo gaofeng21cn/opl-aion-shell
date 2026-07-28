@@ -547,6 +547,14 @@ export type IOplRuntimeActionRequest = {
   payloadJson?: Record<string, unknown>;
 };
 
+export type IOplPackageContributionRequest = {
+  packageId: string;
+  ref: string;
+  operation: 'read' | 'execute';
+  input?: Record<string, unknown>;
+  confirmed?: boolean;
+};
+
 export type IOplOfficialProfileApplyRequest = {
   intent: 'first_install' | 'explicit_restore';
 };
@@ -603,6 +611,8 @@ export type IOplRuntimeCommandResult = {
     | 'runtime_summary'
     | 'runtime_full'
     | 'app_action'
+    | 'package_contribution_read'
+    | 'package_contribution_execute'
     | 'system_initialize'
     | 'install_prep'
     | 'configure_codex'
@@ -750,6 +760,10 @@ export const oplRuntime = {
   executeAction: runtimeProvider<IOplRuntimeCommandResult, IOplRuntimeActionRequest>(
     'opl-runtime.execute-action',
     '/api/opl-runtime/execute-action'
+  ),
+  runPackageContribution: runtimeProvider<IOplRuntimeCommandResult, IOplPackageContributionRequest>(
+    'opl-runtime.run-package-contribution',
+    '/api/opl-runtime/package-contribution'
   ),
   applyOfficialProfile: runtimeProvider<IOplRuntimeCommandResult, IOplOfficialProfileApplyRequest>(
     'opl-runtime.apply-official-profile',

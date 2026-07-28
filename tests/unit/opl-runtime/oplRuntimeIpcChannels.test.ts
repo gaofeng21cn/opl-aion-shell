@@ -59,6 +59,7 @@ describe('OPL runtime IPC channel contract', () => {
 
     const channels = platformMocks.buildProvider.mock.calls.map(([channel]) => channel);
     expect(channels).toContain('opl-runtime.read-domain-detail-view');
+    expect(channels).toContain('opl-runtime.run-package-contribution');
     expect(channels).not.toEqual(
       expect.arrayContaining(['opl-runtime.read-domain-artifact', 'opl-runtime.read-domain-path'])
     );

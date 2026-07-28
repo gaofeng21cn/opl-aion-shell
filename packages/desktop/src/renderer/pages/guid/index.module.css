@@ -40,6 +40,121 @@
   margin: 0 auto;
 }
 
+.packageContributionNavigation {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.packageContributionNavigationItem:global(.arco-btn) {
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+  color: var(--color-text-2);
+  font-size: 13px;
+}
+
+.packageContributionPage {
+  width: min(880px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 24px 0 48px;
+}
+
+.packageContributionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.packageContributionTitle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.packageContributionTitle :global(.arco-typography) {
+  margin: 0;
+}
+
+.packageContributionState,
+.packageContributionContent,
+.packageContributionCommandResult {
+  border: 1px solid var(--color-border-2);
+  border-radius: 6px;
+  background: var(--color-bg-2);
+  padding: 16px;
+}
+
+.packageContributionState {
+  display: flex;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+}
+
+.packageContributionFields {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.packageContributionField {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.28fr) minmax(0, 1fr);
+  gap: 12px;
+  margin: 0;
+}
+
+.packageContributionField dt {
+  color: var(--color-text-3);
+  overflow-wrap: anywhere;
+}
+
+.packageContributionField dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.packageContributionScalar {
+  white-space: pre-wrap;
+}
+
+.packageContributionList {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.packageContributionCommands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.packageContributionCommandResult {
+  margin-top: 16px;
+}
+
+@media (max-width: 600px) {
+  .packageContributionPage {
+    width: min(100% - 24px, 880px);
+    padding-top: 16px;
+  }
+
+  .packageContributionField {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
 .homeStarterGrid {
   display: flex;
   flex-wrap: wrap;

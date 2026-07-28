@@ -23,6 +23,7 @@ import GuidInputCard from './components/GuidInputCard';
 import GuidWorkspaceContextBar from './components/GuidWorkspaceContextBar';
 import GuidModelSelector from './components/GuidModelSelector';
 import HomeStarters from './components/HomeStarters';
+import PackageContributionNavigation from './components/PackageContributionNavigation';
 import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
 import MentionDropdown from './components/MentionDropdown';
 import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
@@ -34,7 +35,11 @@ import { useGuidSend } from './hooks/useGuidSend';
 import { useTypewriterPlaceholder } from './hooks/useTypewriterPlaceholder';
 import { buildAssistantScopedSkillMenuItems, mergeRequiredSkills } from './utils/assistantSkillMenu';
 import { resolveOplActiveShortcut, type OplActiveShortcut } from './utils/activeShortcut';
-import { resolveOplHomeAssistants, resolveOplProfessionalAgentAssistants } from './utils/oplHomeAssistants';
+import {
+  resolveOplHomeAppContributions,
+  resolveOplHomeAssistants,
+  resolveOplProfessionalAgentAssistants,
+} from './utils/oplHomeAssistants';
 import { resolveOplHomeComposerSurface } from './utils/composerSurface';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { ensureBackendMcpCatalog } from '@/renderer/hooks/mcp/catalog';
@@ -280,6 +285,7 @@ const GuidPage: React.FC = () => {
     () => resolveOplHomeAssistants(agentSelection.assistants, appState),
     [agentSelection.assistants, appState]
   );
+  const homeContributions = useMemo(() => resolveOplHomeAppContributions(appState), [appState]);
   const selectedAssistantRecord = useMemo(() => {
     if (!activeShortcut) return undefined;
     return professionalAssistants.find((item) => item.id === activeShortcut.package_id);
@@ -892,6 +898,17 @@ const GuidPage: React.FC = () => {
                 handleSelectShortcut(null);
                 guidInput.handleTextareaFocus();
               }}
+            />
+            <PackageContributionNavigation
+              contributions={homeContributions}
+              localeKey={localeKey}
+              onOpen={(contribution) =>
+                void navigate(
+                  `/guid/contribution/${encodeURIComponent(contribution.package_id)}/${encodeURIComponent(
+                    contribution.navigation_id
+                  )}`
+                )
+              }
             />
           </div>
 

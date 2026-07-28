@@ -18,6 +18,7 @@ import type {
   IOplGatewayAccountLoginRequest,
   IOplGatewayAccountMutationResult,
   IOplOfficialProfileApplyRequest,
+  IOplPackageContributionRequest,
   IOplRuntimeActionRequest,
   IOplAppStateProfile,
   IOplRuntimeCommandResult,
@@ -134,6 +135,8 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app state --profile full --json',
     'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+    'opl app contribution read --package-id <package_id> --ref <data_ref> --input-stdin --json',
+    'opl app contribution execute --package-id <package_id> --ref <action_ref> --confirm --input-stdin --json',
   ],
   diagnosticExceptionSurfaces: [
     'opl runtime app-operator-drilldown --json',
@@ -144,6 +147,8 @@ const OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT = {
     'opl app state --profile full --json',
     'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
     'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+    'opl app contribution read --package-id <package_id> --ref <data_ref> --input-stdin --json',
+    'opl app contribution execute --package-id <package_id> --ref <action_ref> --confirm --input-stdin --json',
     'opl runtime app-operator-drilldown --json',
     'opl runtime app-operator-drilldown --detail full --json',
     'opl system initialize --events --json',
@@ -236,6 +241,25 @@ function assertActionId(actionId: string): string {
     throw new Error('Invalid OPL runtime action id');
   }
   return normalized;
+}
+
+function assertPackageContributionId(value: string, field: 'package id' | 'ref'): string {
+  const normalized = value.trim();
+  const pattern =
+    field === 'package id'
+      ? /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/
+      : /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?(?:#[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?)?$/;
+  if (!pattern.test(normalized)) {
+    throw new Error(`Invalid OPL package contribution ${field}`);
+  }
+  return normalized;
+}
+
+function assertPackageContributionInput(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('OPL package contribution input must be an object');
+  }
+  return value as Record<string, unknown>;
 }
 
 function assertDomainDetailItemId(itemId: string): string {
@@ -357,6 +381,24 @@ function buildActionCommand(request: IOplRuntimeActionRequest): RuntimeCommandSp
           redactedCommand: `opl app action execute --action ${assertActionId(request.actionId)} --payload-stdin --json`,
         }
       : {}),
+  };
+}
+
+function buildPackageContributionCommand(request: IOplPackageContributionRequest): RuntimeCommandSpec {
+  if (request.operation !== 'read' && request.operation !== 'execute') {
+    throw new Error('Unsupported OPL package contribution operation');
+  }
+  const packageId = assertPackageContributionId(request.packageId, 'package id');
+  const ref = assertPackageContributionId(request.ref, 'ref');
+  const input = assertPackageContributionInput(request.input ?? {});
+  const args = ['app', 'contribution', request.operation, '--package-id', packageId, '--ref', ref];
+  if (request.operation === 'execute' && request.confirmed === true) args.push('--confirm');
+  args.push('--input-stdin', '--json');
+  return {
+    surface: request.operation === 'read' ? 'package_contribution_read' : 'package_contribution_execute',
+    args,
+    stdin: JSON.stringify(input),
+    redactedCommand: `opl app contribution ${request.operation} --package-id ${packageId} --ref ${ref} --input-stdin --json`,
   };
 }
 
@@ -1844,6 +1886,9 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
+  ipcBridge.oplRuntime.runPackageContribution.provider((request) =>
+    runOplCommand(buildPackageContributionCommand(request))
+  );
   ipcBridge.oplRuntime.applyOfficialProfile.provider((request) =>
     runSpawnJsonCommand(buildOfficialProfileApplyCommand(request))
   );
@@ -1861,6 +1906,7 @@ export function initOplRuntimeBridge(): void {
 export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
+  assertPackageContributionId,
   assertDomainDetailItemId,
   assertDomainDetailViewId,
   assertDomainDetailRevision,
@@ -1868,6 +1914,7 @@ export const __oplRuntimeBridgeTest = {
   assertApplyUpdateComponentId,
   assertUpdateReceiptId,
   buildActionCommand,
+  buildPackageContributionCommand,
   buildOfficialProfileApplyCommand,
   buildAppStateCommand,
   buildDomainDetailViewCommand,
