@@ -14,8 +14,23 @@ import {
 
 const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const receipt = JSON.parse(fs.readFileSync(path.join(repoRoot, 'contracts', 'aionui-upstream-intake.json'), 'utf8'));
+const reusableBuildWorkflow = fs.readFileSync(
+  path.join(repoRoot, '.github', 'workflows', '_build-reusable.yml'),
+  'utf8'
+);
 
 describe('AionUI upstream currentness', () => {
+  it('preserves full Git ancestry for the reusable code-quality checkout', () => {
+    const codeQualityJob = reusableBuildWorkflow.slice(
+      reusableBuildWorkflow.indexOf('  code-quality:'),
+      reusableBuildWorkflow.indexOf('\n  build:')
+    );
+
+    expect(codeQualityJob).toMatch(
+      /uses: actions\/checkout@v6[\s\S]*?ref: \$\{\{ inputs\.ref \}\}[\s\S]*?fetch-depth: 0/
+    );
+  });
+
   it('accepts the checked-in machine receipt without hard-coding it in the validator', () => {
     expect(validateAionuiIntakeReceipt(receipt)).toBe(receipt);
     expect(validateReceiptAgainstCheckout(receipt, repoRoot)).toBe(receipt);
