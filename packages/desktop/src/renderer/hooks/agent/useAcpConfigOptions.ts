@@ -164,6 +164,8 @@ export function useAcpConfigOptions({
   prepareRuntime?: () => Promise<EnsureConversationRuntimeResponse | void>;
   enabled?: boolean;
 }) {
+  const activeConversationIdRef = useRef(conversation_id);
+  activeConversationIdRef.current = conversation_id;
   const [setStatus, setSetStatus] = useState<AcpConfigSetStatus>(() => getConversationSetStatus(conversation_id));
   const optionsRef = useRef<AcpConfigOptionDto[] | null>(null);
   const key = useMemo(() => getConfigOptionsKey(conversation_id), [conversation_id]);
@@ -192,6 +194,7 @@ export function useAcpConfigOptions({
   const reload = useCallback(
     async (options?: { preferPreparedSnapshot?: boolean }) => {
       const prepared = await prepareRuntime?.();
+      if (activeConversationIdRef.current !== conversation_id) return null;
       if (options?.preferPreparedSnapshot !== false && prepared) {
         replaceSnapshot(prepared.config_options);
         return prepared.config_options;
@@ -200,7 +203,7 @@ export function useAcpConfigOptions({
       if (next) replaceSnapshot(next);
       return next;
     },
-    [key, prepareRuntime, replaceSnapshot]
+    [conversation_id, key, prepareRuntime, replaceSnapshot]
   );
 
   const setConfigOption = useCallback(
@@ -211,6 +214,9 @@ export function useAcpConfigOptions({
       setConversationSetStatus(conversation_id, { state: 'setting', optionId, requestedValue: value });
       try {
         await prepareRuntime?.();
+        if (activeConversationIdRef.current !== conversation_id) {
+          throw new Error('conversation_changed');
+        }
         const response = await ipcBridge.acpConversation.setConfigOption.invoke({
           conversation_id,
           option_id: optionId,

@@ -238,16 +238,28 @@ export const useAcpModelInfo = ({
   onSelectModelSuccess?: (model_id: string) => void;
   onSelectModelFailed?: (model_id: string, error: unknown) => void;
 }): UseAcpModelInfoResult => {
-  const prepareRuntimePromiseRef = useRef<Promise<EnsureConversationRuntimeResponse | void> | null>(null);
+  const activeConversationIdRef = useRef(conversation_id);
+  activeConversationIdRef.current = conversation_id;
+  const prepareRuntimePromiseRef = useRef<{
+    conversationId: string;
+    promise: Promise<EnsureConversationRuntimeResponse | void>;
+  } | null>(null);
   const prepareRuntimeOnce = useCallback(async () => {
     if (!prepareRuntime) return undefined;
-    if (!prepareRuntimePromiseRef.current) {
-      prepareRuntimePromiseRef.current = prepareRuntime().finally(() => {
-        prepareRuntimePromiseRef.current = null;
+    if (prepareRuntimePromiseRef.current?.conversationId !== conversation_id) {
+      let trackedPromise: Promise<EnsureConversationRuntimeResponse | void>;
+      trackedPromise = prepareRuntime().finally(() => {
+        if (prepareRuntimePromiseRef.current?.promise === trackedPromise) {
+          prepareRuntimePromiseRef.current = null;
+        }
       });
+      prepareRuntimePromiseRef.current = {
+        conversationId: conversation_id,
+        promise: trackedPromise,
+      };
     }
-    return await prepareRuntimePromiseRef.current;
-  }, [prepareRuntime]);
+    return await prepareRuntimePromiseRef.current.promise;
+  }, [conversation_id, prepareRuntime]);
   const { thoughtLevel, setStatus, setConfigOption } = useAcpConfigOptions({
     conversation_id,
     prepareRuntime: prepareRuntimeOnce,
@@ -354,6 +366,7 @@ export const useAcpModelInfo = ({
         });
         return false;
       }
+      if (activeConversationIdRef.current !== conversation_id) return false;
 
       const preparedModelInfo =
         options?.preferPreparedSnapshot !== false && prepared
@@ -586,6 +599,9 @@ export const useAcpModelInfo = ({
       let confirmedModelInfo: AcpModelInfo | null = null;
       try {
         await prepareRuntimeOnce();
+        if (activeConversationIdRef.current !== conversation_id) {
+          throw new Error('conversation_changed');
+        }
         const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
         confirmedModelInfo = confirmed.model_info ?? null;
         if (confirmedModelInfo) {

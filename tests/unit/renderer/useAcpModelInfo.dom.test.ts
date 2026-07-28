@@ -226,6 +226,72 @@ describe('useAcpModelInfo', () => {
     expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
   });
 
+  it('does not reuse an in-flight runtime snapshot after the conversation changes', async () => {
+    const firstPreparation = deferred<EnsureConversationRuntimeResponse>();
+    const secondPreparation = deferred<EnsureConversationRuntimeResponse>();
+    const snapshot = (modelId: string, reasoningEffort: string): EnsureConversationRuntimeResponse => ({
+      recovered: true,
+      config_options: [
+        ...buildConfigOptions(modelId),
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: reasoningEffort,
+          options: [
+            { value: 'low', label: 'Low' },
+            { value: 'high', label: 'High' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    });
+    const prepareRuntime = vi
+      .fn()
+      .mockReturnValueOnce(firstPreparation.promise)
+      .mockReturnValueOnce(secondPreparation.promise);
+
+    const { result, rerender } = renderHook(
+      ({ conversationId }) =>
+        useAcpModelInfo({
+          conversation_id: conversationId,
+          backend: 'claude',
+          prepareRuntime,
+        }),
+      {
+        initialProps: { conversationId: 'conv-1' },
+        wrapper: createSwrWrapper(),
+      }
+    );
+
+    await waitFor(() => expect(prepareRuntime).toHaveBeenCalledTimes(1));
+    rerender({ conversationId: 'conv-2' });
+    await waitFor(() => expect(prepareRuntime).toHaveBeenCalledTimes(2));
+
+    secondPreparation.resolve(snapshot('opus-4', 'high'));
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('opus-4');
+      expect(result.current.thoughtLevel?.currentValue).toBe('high');
+    });
+
+    firstPreparation.resolve(snapshot('sonnet-4', 'low'));
+    await act(async () => {
+      await firstPreparation.promise;
+      await Promise.resolve();
+    });
+    expect(result.current.model_info?.current_model_id).toBe('opus-4');
+    expect(result.current.thoughtLevel?.currentValue).toBe('high');
+    expect(getModelInvokeMock).not.toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+    expect(getConfigOptionsInvokeMock).not.toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
   it('uses the runtime preparation snapshot without issuing pre-session model or config GETs', async () => {
     const prepared: EnsureConversationRuntimeResponse = {
       recovered: true,
