@@ -1760,10 +1760,18 @@ describe('Agents and capabilities settings', () => {
   });
 
   it('distinguishes loading, refreshing, canonical empty, failed, and stale-with-last-good states', () => {
+    appStateOverrides.appState = { agent_packages: { storage_inventory: { status: 'available' } } };
+    const unknownView = renderCapabilities(<AgentPackagesSettingsContent />);
+    expect(screen.getByTestId('settings-agents-loading')).toHaveAttribute('data-state', 'loading');
+    expect(screen.queryByTestId('capability-summary-grid')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
+    unknownView.unmount();
+
     appStateOverrides.appState = appStateWithDirectory([]);
     appStateOverrides.loading = true;
     const loadingView = renderCapabilities(<AgentPackagesSettingsContent />);
     expect(screen.getByTestId('settings-agents-loading')).toHaveAttribute('data-state', 'loading');
+    expect(screen.queryByTestId('capability-summary-grid')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
     loadingView.unmount();
 
@@ -1787,6 +1795,8 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.error = 'app state unavailable';
     const failedView = renderCapabilities(<AgentPackagesSettingsContent />);
     expect(screen.getByTestId('settings-agents-error')).toHaveTextContent('app state unavailable');
+    expect(screen.queryByTestId('capability-summary-grid')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-retry'));
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true });
     failedView.unmount();
