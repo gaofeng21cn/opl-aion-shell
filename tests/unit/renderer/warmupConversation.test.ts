@@ -6,6 +6,7 @@ import {
   warmupConversation,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { BackendHttpError } from '@/common/adapter/httpBridge';
+import type { EnsureConversationRuntimeResponse } from '@/common/types/platform/acpTypes';
 
 const { ensureRuntimeInvokeMock } = vi.hoisted(() => ({
   ensureRuntimeInvokeMock: vi.fn(),
@@ -20,15 +21,43 @@ vi.mock('@/common/adapter/httpBridge', async (importOriginal) => {
 });
 
 describe('warmupConversation', () => {
+  const snapshot: EnsureConversationRuntimeResponse = {
+    recovered: true,
+    config_options: [
+      {
+        id: 'model',
+        category: 'model',
+        option_type: 'select',
+        current_value: 'gpt-5.6-sol',
+        options: [{ value: 'gpt-5.6-sol', label: '5.6 Sol' }],
+      },
+      {
+        id: 'mode',
+        category: 'mode',
+        option_type: 'select',
+        current_value: 'agent',
+        options: [{ value: 'agent', label: 'Agent' }],
+      },
+    ],
+    runtime: {
+      state: 'idle',
+      can_send_message: true,
+      has_task: false,
+      is_processing: false,
+      pending_confirmations: 0,
+      turn_id: null,
+    },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     resetWarmupConversationStateForTests();
   });
 
   it('coalesces concurrent warmups for the same conversation', async () => {
-    let resolveWarmup: (() => void) | undefined;
+    let resolveWarmup: ((value: EnsureConversationRuntimeResponse) => void) | undefined;
     ensureRuntimeInvokeMock.mockReturnValue(
-      new Promise<void>((resolve) => {
+      new Promise<EnsureConversationRuntimeResponse>((resolve) => {
         resolveWarmup = resolve;
       })
     );
@@ -39,26 +68,32 @@ describe('warmupConversation', () => {
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(1);
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
 
-    resolveWarmup?.();
-    await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+    resolveWarmup?.(snapshot);
+    await expect(Promise.all([first, second])).resolves.toEqual([snapshot, snapshot]);
   });
 
   it('retries after a failed warmup', async () => {
-    ensureRuntimeInvokeMock.mockRejectedValueOnce(new Error('runtime ensure failed')).mockResolvedValueOnce(undefined);
+    ensureRuntimeInvokeMock.mockRejectedValueOnce(new Error('runtime ensure failed')).mockResolvedValueOnce(snapshot);
 
     await expect(warmupConversation('conv-1')).rejects.toThrow('runtime ensure failed');
-    await expect(warmupConversation('conv-1')).resolves.toBeUndefined();
+    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
 
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
   });
 
-  it('skips repeated warmup after a conversation is already ready', async () => {
-    ensureRuntimeInvokeMock.mockResolvedValue(undefined);
+  it('re-probes completed warmups instead of reusing a stale snapshot', async () => {
+    const updatedSnapshot = {
+      ...snapshot,
+      config_options: snapshot.config_options.map((option) =>
+        option.id === 'mode' ? { ...option, current_value: 'full-access' } : option
+      ),
+    };
+    ensureRuntimeInvokeMock.mockResolvedValueOnce(snapshot).mockResolvedValueOnce(updatedSnapshot);
 
-    await expect(warmupConversation('conv-1')).resolves.toBeUndefined();
-    await expect(warmupConversation('conv-1')).resolves.toBeUndefined();
+    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
+    await expect(warmupConversation('conv-1')).resolves.toEqual(updatedSnapshot);
 
-    expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(1);
+    expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
   });
 
   it('does not turn a missing runtime ensure route into ready state', async () => {
@@ -68,10 +103,10 @@ describe('warmupConversation', () => {
       status: 404,
       body: { success: false, error: 'Route not found', code: 'NOT_FOUND' },
     });
-    ensureRuntimeInvokeMock.mockRejectedValueOnce(error).mockResolvedValueOnce(undefined);
+    ensureRuntimeInvokeMock.mockRejectedValueOnce(error).mockResolvedValueOnce(snapshot);
 
     await expect(warmupConversation('conv-1')).rejects.toBe(error);
-    await expect(warmupConversation('conv-2')).resolves.toBeUndefined();
+    await expect(warmupConversation('conv-2')).resolves.toEqual(snapshot);
 
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
     expect(getWarmupConversationStatus('conv-1')).toMatchObject({ phase: 'error', attempt: 1 });
@@ -91,10 +126,10 @@ describe('warmupConversation', () => {
   });
 
   it('re-probes runtime readiness after test state is reset', async () => {
-    ensureRuntimeInvokeMock.mockResolvedValue(undefined);
-    await expect(warmupConversation('conv-1')).resolves.toBeUndefined();
+    ensureRuntimeInvokeMock.mockResolvedValue(snapshot);
+    await expect(warmupConversation('conv-1')).resolves.toEqual(snapshot);
     resetWarmupConversationStateForTests();
-    await expect(warmupConversation('conv-2')).resolves.toBeUndefined();
+    await expect(warmupConversation('conv-2')).resolves.toEqual(snapshot);
 
     expect(ensureRuntimeInvokeMock).toHaveBeenCalledTimes(2);
   });

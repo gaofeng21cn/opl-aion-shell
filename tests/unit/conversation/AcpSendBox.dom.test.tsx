@@ -1,8 +1,9 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import AcpSendBox from '@/renderer/pages/conversation/platforms/acp/AcpSendBox';
 import type { UseAcpMessageReturn } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
+import type { EnsureConversationRuntimeResponse } from '@/common/types/platform/acpTypes';
 
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
@@ -16,6 +17,8 @@ const acpModelInfoMocks = vi.hoisted(() => ({
   setConfigOption: vi.fn(),
   configSet: vi.fn(),
   configSetLocal: vi.fn(),
+  getMode: vi.fn(),
+  warmupConversation: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -29,7 +32,7 @@ vi.mock('@/common', () => ({
     },
     acpConversation: {
       sendMessage: { invoke: vi.fn().mockResolvedValue({ msg_id: 'message-id' }) },
-      getMode: { invoke: vi.fn().mockResolvedValue({ initialized: true, mode: 'full-access' }) },
+      getMode: { invoke: acpModelInfoMocks.getMode },
       setMode: { invoke: vi.fn().mockResolvedValue(undefined) },
       getModel: { invoke: vi.fn().mockResolvedValue(null) },
       setModel: { invoke: vi.fn().mockResolvedValue(undefined) },
@@ -307,6 +310,14 @@ vi.mock('@/renderer/pages/conversation/platforms/acp/useAcpInitialMessage', () =
   useAcpInitialMessage: vi.fn(),
 }));
 
+vi.mock('@/renderer/pages/conversation/utils/warmupConversation', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/renderer/pages/conversation/utils/warmupConversation')>();
+  return {
+    ...actual,
+    warmupConversation: acpModelInfoMocks.warmupConversation,
+  };
+});
+
 const messageState = (): UseAcpMessageReturn =>
   ({
     running: false,
@@ -326,6 +337,8 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     acpModelInfoMocks.selectAutoModel.mockResolvedValue(undefined);
     acpModelInfoMocks.setConfigOption.mockResolvedValue([]);
     acpModelInfoMocks.configSet.mockResolvedValue(undefined);
+    acpModelInfoMocks.getMode.mockResolvedValue({ initialized: true, mode: 'full-access' });
+    acpModelInfoMocks.warmupConversation.mockResolvedValue(undefined);
   });
 
   it('shows the permission mode selector for ordinary Codex conversations', () => {
@@ -453,6 +466,110 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
         .getByTestId('mobile-action-sheet-reset-session-defaults-trailing-icon')
         .querySelector('[data-icon="refresh"], .i-icon-refresh')
     ).not.toBeNull();
+  });
+
+  it('uses the prepared runtime snapshot without issuing a mode GET when the mobile sheet opens', async () => {
+    isMobileLayout = true;
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'mode',
+          category: 'mode',
+          option_type: 'select',
+          current_value: 'full-access',
+          options: [{ value: 'full-access', label: 'Full access' }],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    acpModelInfoMocks.warmupConversation.mockResolvedValue(prepared);
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    await waitFor(() => expect(acpModelInfoMocks.warmupConversation).toHaveBeenCalledWith('codex-conversation'));
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-permission-full-access')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
+    expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
+  });
+
+  it('uses a prepared mobile mode that is absent from the cached and static catalogs', async () => {
+    isMobileLayout = true;
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'mode',
+          category: 'mode',
+          option_type: 'select',
+          current_value: 'runtime-agent',
+          options: [{ value: 'runtime-agent', label: 'Runtime Agent' }],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    acpModelInfoMocks.warmupConversation.mockResolvedValue(prepared);
+    acpModelInfoMocks.getMode.mockRejectedValue(new Error('session mode is not initialized'));
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-session-modes-mode-runtime-agent')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
+    expect(screen.queryByTestId('mobile-action-sheet-option-permission-full-access')).not.toBeInTheDocument();
+    expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
+  });
+
+  it('uses the live mode endpoint when the prepared mobile snapshot has no mode', async () => {
+    isMobileLayout = true;
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    acpModelInfoMocks.warmupConversation.mockResolvedValue(prepared);
+    acpModelInfoMocks.getMode.mockResolvedValue({ initialized: true, mode: 'full-access' });
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-permission-full-access')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
+    expect(acpModelInfoMocks.getMode).toHaveBeenCalledWith({ conversation_id: 'codex-conversation' });
   });
 
   it('delegates model Auto and Reset to the shared Auto action', () => {

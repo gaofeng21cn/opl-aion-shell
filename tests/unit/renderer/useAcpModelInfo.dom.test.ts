@@ -9,7 +9,11 @@ import { createElement, type PropsWithChildren } from 'react';
 import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
-import type { AcpConfigOptionDto, AcpModelInfo } from '@/common/types/platform/acpTypes';
+import type {
+  AcpConfigOptionDto,
+  AcpModelInfo,
+  EnsureConversationRuntimeResponse,
+} from '@/common/types/platform/acpTypes';
 import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 
 const {
@@ -220,6 +224,275 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info?.current_model_id).toBe('opus-4');
     });
     expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('does not reuse an in-flight runtime snapshot after the conversation changes', async () => {
+    const firstPreparation = deferred<EnsureConversationRuntimeResponse>();
+    const secondPreparation = deferred<EnsureConversationRuntimeResponse>();
+    const snapshot = (modelId: string, reasoningEffort: string): EnsureConversationRuntimeResponse => ({
+      recovered: true,
+      config_options: [
+        ...buildConfigOptions(modelId),
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: reasoningEffort,
+          options: [
+            { value: 'low', label: 'Low' },
+            { value: 'high', label: 'High' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    });
+    const prepareRuntime = vi
+      .fn()
+      .mockReturnValueOnce(firstPreparation.promise)
+      .mockReturnValueOnce(secondPreparation.promise);
+
+    const { result, rerender } = renderHook(
+      ({ conversationId }) =>
+        useAcpModelInfo({
+          conversation_id: conversationId,
+          backend: 'claude',
+          prepareRuntime,
+        }),
+      {
+        initialProps: { conversationId: 'conv-1' },
+        wrapper: createSwrWrapper(),
+      }
+    );
+
+    await waitFor(() => expect(prepareRuntime).toHaveBeenCalledTimes(1));
+    rerender({ conversationId: 'conv-2' });
+    await waitFor(() => expect(prepareRuntime).toHaveBeenCalledTimes(2));
+
+    secondPreparation.resolve(snapshot('opus-4', 'high'));
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('opus-4');
+      expect(result.current.thoughtLevel?.currentValue).toBe('high');
+    });
+
+    firstPreparation.resolve(snapshot('sonnet-4', 'low'));
+    await act(async () => {
+      await firstPreparation.promise;
+      await Promise.resolve();
+    });
+    expect(result.current.model_info?.current_model_id).toBe('opus-4');
+    expect(result.current.thoughtLevel?.currentValue).toBe('high');
+    expect(getModelInvokeMock).not.toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+    expect(getConfigOptionsInvokeMock).not.toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('uses the runtime preparation snapshot without issuing pre-session model or config GETs', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: buildConfigOptions('opus-4'),
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('opus-4');
+    });
+    expect(result.current.model_info?.current_model_label).toBe('Claude Opus 4');
+    expect(getModelInvokeMock).not.toHaveBeenCalled();
+    expect(getConfigOptionsInvokeMock).not.toHaveBeenCalled();
+
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'sonnet-4' }) });
+    vi.useFakeTimers();
+    await act(async () => {
+      responseStreamHandlerRef.current?.({
+        type: 'start',
+        conversation_id: 'conv-1',
+      } as unknown as IResponseMessage);
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+    vi.clearAllTimers();
+  });
+
+  it('uses the live model endpoint when the prepared snapshot has no model option', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'sonnet-4' }) });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('sonnet-4');
+    });
+    expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('uses the live Codex catalog when prepared model choices omit Auto metadata', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'model',
+          category: 'model',
+          option_type: 'select',
+          current_value: 'gpt-6',
+          options: [
+            { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { value: 'gpt-6', label: 'GPT-6' },
+          ],
+        },
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-6',
+        current_model_label: 'GPT-6',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          {
+            id: 'gpt-6',
+            label: 'GPT-6',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+            defaultReasoningEffort: 'xhigh',
+          },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'future-codex-conversation',
+      backend: 'codex',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'future-codex-conversation' });
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6');
+      expect(result.current.model_info?.catalog_models).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'gpt-6',
+            isDefault: true,
+            supportedReasoningEfforts: [
+              { reasoningEffort: 'xhigh', description: undefined },
+              { reasoningEffort: 'ultra', description: undefined },
+            ],
+          }),
+        ])
+      );
+    });
+    await waitFor(() => {
+      expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'future-codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'ultra',
+      });
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves the prepared Codex model when the live catalog is not active yet', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'model',
+          category: 'model',
+          option_type: 'select',
+          current_value: 'gpt-6',
+          options: [
+            { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { value: 'gpt-6', label: 'GPT-6' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockRejectedValue({
+      name: 'BackendHttpError',
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'no active session',
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'cold-codex-conversation',
+      backend: 'codex',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'cold-codex-conversation' });
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6');
+    });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
   });
 
   it('does not request model info when runtime preparation fails', async () => {

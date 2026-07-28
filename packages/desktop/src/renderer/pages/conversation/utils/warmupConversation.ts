@@ -9,12 +9,20 @@ export type WarmupConversationStatus = {
   errorMessage?: string;
 };
 
+export type PreparedConversationRuntime = EnsureConversationRuntimeResponse | void;
+
+export type PreparedRuntimeModeOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
 const IDLE_STATUS: WarmupConversationStatus = {
   phase: 'idle',
   attempt: 0,
 };
 
-const warmupByConversation = new Map<string, Promise<void>>();
+const warmupByConversation = new Map<string, Promise<EnsureConversationRuntimeResponse>>();
 const statusByConversation = new Map<string, WarmupConversationStatus>();
 const listenersByConversation = new Map<string, Set<() => void>>();
 const ensureConversationRuntime = httpPost<EnsureConversationRuntimeResponse, { conversation_id: string }>(
@@ -55,16 +63,40 @@ export function subscribeWarmupConversation(conversation_id: string, listener: (
   };
 }
 
-export function warmupConversation(conversation_id: string): Promise<void> {
+export function getPreparedRuntimeMode(snapshot: PreparedConversationRuntime): string | null {
+  if (!snapshot) return null;
+  const modeOption = snapshot.config_options.find((option) => option.category === 'mode' || option.id === 'mode');
+  return modeOption?.current_value?.trim() || null;
+}
+
+export function getPreparedRuntimeModes(snapshot: PreparedConversationRuntime): PreparedRuntimeModeOption[] {
+  if (!snapshot) return [];
+  const modeOption = snapshot.config_options.find((option) => option.category === 'mode' || option.id === 'mode');
+  const modes = (modeOption?.options ?? []).flatMap((option) => {
+    const value = option.value.trim();
+    if (!value) return [];
+    return [
+      {
+        value,
+        label: option.name?.trim() || option.label?.trim() || value,
+        ...(option.description?.trim() ? { description: option.description.trim() } : {}),
+      },
+    ];
+  });
+  const currentMode = modeOption?.current_value?.trim();
+  if (currentMode && !modes.some((mode) => mode.value === currentMode)) {
+    modes.unshift({ value: currentMode, label: currentMode });
+  }
+  return modes;
+}
+
+export function warmupConversation(conversation_id: string): Promise<EnsureConversationRuntimeResponse> {
   const existing = warmupByConversation.get(conversation_id);
   if (existing) {
     return existing;
   }
 
   const previous = getWarmupConversationStatus(conversation_id);
-  if (previous.phase === 'ready') {
-    return Promise.resolve();
-  }
   const nextAttempt = previous.attempt + 1;
   setWarmupStatus(conversation_id, {
     phase: 'preparing',
@@ -73,11 +105,12 @@ export function warmupConversation(conversation_id: string): Promise<void> {
 
   const promise = ensureConversationRuntime
     .invoke({ conversation_id })
-    .then(() => {
+    .then((snapshot) => {
       setWarmupStatus(conversation_id, {
         phase: 'ready',
         attempt: nextAttempt,
       });
+      return snapshot;
     })
     .catch((error: unknown) => {
       const errorMessage = error instanceof Error ? error.message : String(error);

@@ -53,7 +53,11 @@ import {
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getConversationRuntimeWorkspaceErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
-import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
+import {
+  getPreparedRuntimeMode,
+  getPreparedRuntimeModes,
+  warmupConversation,
+} from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
@@ -196,11 +200,15 @@ const AcpSendBox: React.FC<{
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [currentMode, setCurrentMode] = useState<string | undefined>(session_mode);
+  const [preparedModes, setPreparedModes] = useState<ReturnType<typeof getPreparedRuntimeModes>>([]);
+  useEffect(() => {
+    setPreparedModes([]);
+  }, [backend, conversation_id]);
   const prepareRuntimeSync = useCallback(async () => {
     if (teamPermission) {
       await teamPermission.warmupSession();
     }
-    await warmupConversation(conversation_id);
+    return await warmupConversation(conversation_id);
   }, [conversation_id, teamPermission]);
 
   const {
@@ -220,7 +228,11 @@ const AcpSendBox: React.FC<{
     onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
     onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
   });
-  const availableAgentModes = useAgentModesForBackend(backend);
+  const cachedAgentModes = useAgentModesForBackend(backend);
+  const availableAgentModes = useMemo(() => {
+    if (preparedModes.length === 0) return cachedAgentModes;
+    return preparedModes;
+  }, [cachedAgentModes, preparedModes]);
   const sessionModes = useMemo(() => filterNonPermissionAccessModes(availableAgentModes), [availableAgentModes]);
   const isModeSurfaceOpen = isMobile ? isMobileSheetOpen : isPaletteOpen;
   // Mirror AgentModeSelector's getMode sync so both compact surfaces show the live mode.
@@ -228,15 +240,23 @@ const AcpSendBox: React.FC<{
     if (!isModeSurfaceOpen) return;
     if (!conversation_id) return;
     let cancelled = false;
-    void prepareRuntimeSync()
-      .then(() => ipcBridge.acpConversation.getMode.invoke({ conversation_id }))
-      .then((result) => {
-        if (cancelled || !result) return;
-        if (result.initialized !== false) {
-          setCurrentMode(result.mode);
+    void (async () => {
+      const prepared = await prepareRuntimeSync();
+      if (prepared) {
+        const preparedMode = getPreparedRuntimeMode(prepared);
+        const runtimeModes = getPreparedRuntimeModes(prepared);
+        if (cancelled) return;
+        if (preparedMode) {
+          setPreparedModes(runtimeModes);
+          setCurrentMode(preparedMode);
+          return;
         }
-      })
-      .catch(() => {});
+      }
+      const result = await ipcBridge.acpConversation.getMode.invoke({ conversation_id });
+      if (!cancelled && result?.initialized !== false) {
+        setCurrentMode(result.mode);
+      }
+    })().catch(() => {});
     return () => {
       cancelled = true;
     };
