@@ -348,7 +348,10 @@ export const useAcpModelInfo = ({
         return false;
       }
 
-      if (options?.preferPreparedSnapshot !== false && prepared) {
+      // Codex Auto depends on catalog-only default and reasoning metadata that
+      // ACP config-option choices cannot represent, so always read its live
+      // model catalog after runtime preparation.
+      if (options?.preferPreparedSnapshot !== false && prepared && backend !== 'codex') {
         const preparedModelInfo = buildModelInfoFromPreparedConfigOptions(prepared.config_options);
         if (preparedModelInfo) {
           updateModelInfo(preparedModelInfo);

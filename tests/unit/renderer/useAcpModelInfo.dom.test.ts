@@ -297,6 +297,90 @@ describe('useAcpModelInfo', () => {
     expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
   });
 
+  it('uses the live Codex catalog when prepared model choices omit Auto metadata', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'model',
+          category: 'model',
+          option_type: 'select',
+          current_value: 'gpt-6',
+          options: [
+            { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { value: 'gpt-6', label: 'GPT-6' },
+          ],
+        },
+        {
+          id: 'reasoning_effort',
+          category: 'thought_level',
+          option_type: 'select',
+          current_value: 'xhigh',
+          options: [
+            { value: 'xhigh', label: 'Extra high' },
+            { value: 'ultra', label: 'Ultra' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockResolvedValue({
+      model_info: {
+        current_model_id: 'gpt-6',
+        current_model_label: 'GPT-6',
+        available_models: [
+          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          {
+            id: 'gpt-6',
+            label: 'GPT-6',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }, { reasoningEffort: 'ultra' }],
+            defaultReasoningEffort: 'xhigh',
+          },
+        ],
+      },
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'future-codex-conversation',
+      backend: 'codex',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'future-codex-conversation' });
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6');
+      expect(result.current.model_info?.catalog_models).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'gpt-6',
+            isDefault: true,
+            supportedReasoningEfforts: [
+              { reasoningEffort: 'xhigh', description: undefined },
+              { reasoningEffort: 'ultra', description: undefined },
+            ],
+          }),
+        ])
+      );
+    });
+    await waitFor(() => {
+      expect(setConfigOptionInvokeMock).toHaveBeenCalledWith({
+        conversation_id: 'future-codex-conversation',
+        option_id: 'reasoning_effort',
+        value: 'ultra',
+      });
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+  });
+
   it('does not request model info when runtime preparation fails', async () => {
     const prepareRuntime = vi.fn().mockRejectedValue(new Error('warmup failed'));
 
