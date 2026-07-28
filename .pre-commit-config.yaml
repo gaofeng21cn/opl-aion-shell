@@ -67,6 +67,7 @@ repos:
         entry: bun run format
         language: system
         files: \.(ts|tsx|js|jsx|json|css|md|yaml|yml|toml)$
+        exclude: ^packages/desktop/src/common/config/oplProductProfile/oplProductProfile\.generated\.json$
         pass_filenames: true
 
   # i18n translation files validation
