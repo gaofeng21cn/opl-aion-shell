@@ -7,9 +7,9 @@
   "guest_user": "opl",
   "codex_home": "/home/opl/.codex",
   "workspace_root": "/home/opl/code",
-  "framework_ref": "8be1f2bb40c3cc36a8cb5bf5e39eb274bba615ea",
-  "framework_install_script_url": "https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/8be1f2bb40c3cc36a8cb5bf5e39eb274bba615ea/install.sh",
-  "framework_source_archive_url": "https://github.com/gaofeng21cn/one-person-lab/archive/8be1f2bb40c3cc36a8cb5bf5e39eb274bba615ea.tar.gz",
+  "framework_ref": "81c65f304d5dc58518dbffa89ba709a185f0f376",
+  "framework_install_script_url": "https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/81c65f304d5dc58518dbffa89ba709a185f0f376/install.sh",
+  "framework_source_archive_url": "https://github.com/gaofeng21cn/one-person-lab/archive/81c65f304d5dc58518dbffa89ba709a185f0f376.tar.gz",
   "native_windows_executor_fallback_allowed": false,
   "allowed_programs": ["aioncore", "codex-app-server", "opl-cli"]
 }

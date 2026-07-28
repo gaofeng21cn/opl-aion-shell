@@ -17,6 +17,20 @@ afterEach(() => {
 });
 
 describe('Windows RC build cohort', () => {
+  it('keeps the packaged Framework URLs bound to the exact product ref', () => {
+    const product = JSON.parse(
+      fs.readFileSync(path.resolve(__dirname, '../../../resources/opl-linux/product.json'), 'utf8')
+    );
+
+    expect(product.framework_ref).toMatch(/^[0-9a-f]{40}$/);
+    expect(product.framework_install_script_url).toBe(
+      `https://raw.githubusercontent.com/gaofeng21cn/one-person-lab/${product.framework_ref}/install.sh`
+    );
+    expect(product.framework_source_archive_url).toBe(
+      `https://github.com/gaofeng21cn/one-person-lab/archive/${product.framework_ref}.tar.gz`
+    );
+  });
+
   it('seals exact source, installer, packaged tree, and WSL2 runtime identities', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'windows-rc-cohort-'));
     roots.push(root);
