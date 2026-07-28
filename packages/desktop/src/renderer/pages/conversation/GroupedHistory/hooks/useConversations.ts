@@ -21,7 +21,6 @@ import {
 export const filterConversationsForHistorySurface = (
   conversations: TChatConversation[],
   archived: boolean,
-  canonicalDirectoryAvailable: boolean,
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>
 ): TChatConversation[] => {
   return conversations.filter((conversation) => {
@@ -30,7 +29,6 @@ export const filterConversationsForHistorySurface = (
 
     const canonicalArchived = canonicalArchiveStateByThreadId.get(threadId);
     if (canonicalArchived !== undefined) return canonicalArchived === archived;
-    if (!canonicalDirectoryAvailable) return false;
     return isConversationArchived(conversation) === archived;
   });
 };
@@ -71,7 +69,6 @@ export const useConversations = (archived = false) => {
     setActiveConversation,
     groupedHistory,
     archivedHistory,
-    canonicalDirectoryAvailable,
     canonicalArchiveStateByThreadId,
   } = useConversationHistoryContext();
 
@@ -126,7 +123,6 @@ export const useConversations = (archived = false) => {
   const visibleConversations = filterConversationsForHistorySurface(
     conversations,
     archived,
-    canonicalDirectoryAvailable,
     canonicalArchiveStateByThreadId
   );
   const visibleConversationIds = new Set(visibleConversations.map((conversation) => conversation.id));

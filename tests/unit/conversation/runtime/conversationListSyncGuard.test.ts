@@ -362,16 +362,16 @@ describe('canonical archive surface fallback', () => {
     },
   } as TChatConversation;
 
-  it('does not classify a local Codex cache row on either surface after canonical timeout', () => {
-    expect(filterConversationsForHistorySurface([cachedCodexThread], false, false, new Map())).toEqual([]);
-    expect(filterConversationsForHistorySurface([cachedCodexThread], true, false, new Map())).toEqual([]);
+  it('uses the cached archive state while the first canonical directory request is unavailable', () => {
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, new Map())).toEqual([cachedCodexThread]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, new Map())).toEqual([]);
   });
 
   it('uses the last known canonical archive state after a later timeout', () => {
     const canonicalArchiveState = new Map([['thread-1', true]]);
 
-    expect(filterConversationsForHistorySurface([cachedCodexThread], false, false, canonicalArchiveState)).toEqual([]);
-    expect(filterConversationsForHistorySurface([cachedCodexThread], true, false, canonicalArchiveState)).toEqual([
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, canonicalArchiveState)).toEqual([]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, canonicalArchiveState)).toEqual([
       cachedCodexThread,
     ]);
   });

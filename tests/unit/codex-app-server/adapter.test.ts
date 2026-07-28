@@ -133,6 +133,11 @@ describe('CodexAppServerAdapter', () => {
     expect(request.mock.calls[0]?.[1]).not.toHaveProperty('sourceKinds');
     expect(request).toHaveBeenNthCalledWith(2, 'thread/list', expect.objectContaining({ cursor: 'next' }));
     expect(request).toHaveBeenNthCalledWith(3, 'thread/list', expect.objectContaining({ archived: true }));
+    for (const [method, params] of request.mock.calls) {
+      if (method !== 'thread/list') continue;
+      expect(params).toMatchObject({ useStateDbOnly: true });
+      expect(params).not.toHaveProperty('sourceKinds');
+    }
   });
 
   it('returns the bounded recent directory instead of clearing history when more pages remain', async () => {

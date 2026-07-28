@@ -104,7 +104,6 @@ type ConversationListSyncSnapshot = {
   conversations: TChatConversation[];
   generatingConversationIds: Set<string>;
   completionUnreadConversationIds: Set<string>;
-  canonicalDirectoryAvailable: boolean;
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
 
@@ -117,7 +116,6 @@ let completionUnreadConversationIdsState = new Set<string>();
 let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
 let pendingCanonicalConversationIdsState = new Set<string>();
-let canonicalDirectoryAvailableState = false;
 let canonicalArchiveStateByThreadIdState = new Map<string, boolean>();
 let refreshSequenceState = 0;
 let activeConversationIdState: string | null = null;
@@ -125,7 +123,6 @@ let snapshotState: ConversationListSyncSnapshot = {
   conversations: conversationsState,
   generatingConversationIds: generatingConversationIdsState,
   completionUnreadConversationIds: completionUnreadConversationIdsState,
-  canonicalDirectoryAvailable: canonicalDirectoryAvailableState,
   canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
 };
 
@@ -134,7 +131,6 @@ const emitStoreChange = () => {
     conversations: conversationsState,
     generatingConversationIds: generatingConversationIdsState,
     completionUnreadConversationIds: completionUnreadConversationIdsState,
-    canonicalDirectoryAvailable: canonicalDirectoryAvailableState,
     canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
   };
   listeners.forEach((listener) => listener());
@@ -232,8 +228,7 @@ const refreshConversations = (createdConversation?: TChatConversation) => {
       return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
     });
     const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
-    canonicalDirectoryAvailableState = canonicalDirectory !== null && canonicalDirectory.host !== 'webui-local-cache';
-    if (canonicalDirectoryAvailableState) {
+    if (canonicalDirectory && canonicalDirectory.host !== 'webui-local-cache') {
       const nextArchiveStateByThreadId = canonicalDirectory.complete
         ? new Map<string, boolean>()
         : new Map(canonicalArchiveStateByThreadIdState);
@@ -436,7 +431,6 @@ export const useConversationListSync = () => {
     conversations,
     isConversationGenerating,
     hasCompletionUnread,
-    canonicalDirectoryAvailable: snapshotState.canonicalDirectoryAvailable,
     canonicalArchiveStateByThreadId: snapshotState.canonicalArchiveStateByThreadId,
     clearCompletionUnread,
     setActiveConversation,
