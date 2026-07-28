@@ -75,6 +75,22 @@ describe('prepare-aioncore compatibility gate', () => {
     ).toThrow(/only be skipped for a cross-platform target/);
   });
 
+  it('keeps the native Linux probe available for Windows cross-builds from Linux', () => {
+    const calls: string[][] = [];
+    expect(() =>
+      __test__.resolveAioncoreCompatibility('/tmp/linux-aioncore', 'v0.1.50', {
+        skipHostProbe: false,
+        targetPlatform: 'linux',
+        hostPlatform: 'linux',
+        execFileSync(_command: string, args: string[]) {
+          calls.push(args);
+          return args[0] === '--version' ? 'aioncore 0.1.50\n' : 'Options:\n  --recover-corrupted-database\n';
+        },
+      })
+    ).not.toThrow();
+    expect(calls).toEqual([['--version'], ['--help']]);
+  });
+
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 
