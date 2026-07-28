@@ -269,6 +269,34 @@ describe('useAcpModelInfo', () => {
     vi.clearAllTimers();
   });
 
+  it('uses the live model endpoint when the prepared snapshot has no model option', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'sonnet-4' }) });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('sonnet-4');
+    });
+    expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
   it('does not request model info when runtime preparation fails', async () => {
     const prepareRuntime = vi.fn().mockRejectedValue(new Error('warmup failed'));
 

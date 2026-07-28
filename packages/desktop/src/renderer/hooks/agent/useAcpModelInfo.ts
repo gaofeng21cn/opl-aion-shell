@@ -354,7 +354,6 @@ export const useAcpModelInfo = ({
           updateModelInfo(preparedModelInfo);
           return true;
         }
-        return loadFallbackModelInfo(options);
       }
 
       const { model_info: info, missing_active_session: missingActiveSession } =
