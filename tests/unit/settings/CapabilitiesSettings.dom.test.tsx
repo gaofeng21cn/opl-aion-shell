@@ -2058,7 +2058,7 @@ describe('Agents and capabilities settings', () => {
     expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
-  it('renders canonical recommended update, repair, and registry refresh actions on package rows', async () => {
+  it('renders canonical recommended update and repair actions without routing registry refresh', async () => {
     const updateAction = actionFixture('agent_package_update', { package_id: 'mag' }, ['package_id']);
     const repairAction = actionFixture('agent_package_repair', { package_id: 'rca' }, ['package_id']);
     const refreshAction = actionFixture('refresh_registry', { registry_url: 'https://example.test/registry.json' }, [
@@ -2108,14 +2108,7 @@ describe('Agents and capabilities settings', () => {
         payloadRefsOnlyJson: { package_id: 'rca' },
       })
     );
-    fireEvent.click(screen.getByTestId('agent-package-refresh-example-agent'));
-    await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'refresh_registry',
-        dryRun: false,
-        payloadRefsOnlyJson: { registry_url: 'https://example.test/registry.json' },
-      })
-    );
+    expect(screen.queryByTestId('agent-package-refresh-example-agent')).not.toBeInTheDocument();
   });
 
   it('does not route workspace-scoped activation through global Workspace settings', () => {
@@ -2641,7 +2634,7 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
-  it('verifies Home shortcut visibility/order and routes registry/install through App actions', async () => {
+  it('verifies Home shortcut visibility/order, refreshes the projection, and routes manifest install through App actions', async () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
@@ -2680,14 +2673,13 @@ describe('Agents and capabilities settings', () => {
     );
 
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-mas'));
+    bridgeMocks.executeActionInvoke.mockClear();
+    bridgeMocks.loadAppState.mockClear();
     fireEvent.click(screen.getByTestId('agent-package-refresh-registry'));
     await waitFor(() =>
-      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'refresh_registry',
-        dryRun: false,
-        payloadRefsOnlyJson: undefined,
-      })
+      expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { showRefreshing: true, forceFresh: true })
     );
+    expect(bridgeMocks.executeActionInvoke).not.toHaveBeenCalled();
 
     bridgeMocks.executeActionInvoke.mockResolvedValueOnce({
       ok: true,
@@ -3211,7 +3203,7 @@ describe('Agents and capabilities settings', () => {
       expect(screen.getByTestId('agent-package-uninstall-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-home-toggle-details-mag')).toBeDisabled();
       expect(screen.getByTestId('agent-package-home-down-details-mag')).toBeDisabled();
-      expect(screen.getByTestId('agent-package-refresh-registry')).toBeDisabled();
+      expect(screen.getByTestId('agent-package-refresh-registry')).not.toBeDisabled();
       expect(screen.getByTestId('agent-package-install-manifest')).toBeDisabled();
     });
     expect(screen.getByTestId('capability-open-details-mas')).not.toBeDisabled();
