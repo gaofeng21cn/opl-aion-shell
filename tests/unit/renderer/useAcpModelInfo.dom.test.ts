@@ -381,6 +381,54 @@ describe('useAcpModelInfo', () => {
     expect(setModelInvokeMock).not.toHaveBeenCalled();
   });
 
+  it('preserves the prepared Codex model when the live catalog is not active yet', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'model',
+          category: 'model',
+          option_type: 'select',
+          current_value: 'gpt-6',
+          options: [
+            { value: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+            { value: 'gpt-6', label: 'GPT-6' },
+          ],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+    getModelInvokeMock.mockRejectedValue({
+      name: 'BackendHttpError',
+      status: 404,
+      code: 'NOT_FOUND',
+      message: 'no active session',
+    });
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'cold-codex-conversation',
+      backend: 'codex',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'cold-codex-conversation' });
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6');
+    });
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+    expect(setModelInvokeMock).not.toHaveBeenCalled();
+  });
+
   it('does not request model info when runtime preparation fails', async () => {
     const prepareRuntime = vi.fn().mockRejectedValue(new Error('warmup failed'));
 

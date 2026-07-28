@@ -261,6 +261,7 @@ export const useAcpModelInfo = ({
   const attemptedAutoResolutionKeysRef = useRef(new Set<string>());
   const autoSelectionRunningRef = useRef(false);
   const [autoSelectionRevision, setAutoSelectionRevision] = useState(0);
+  const usingPreparedCodexModelFallbackRef = useRef(false);
   const scheduledReloadTimersRef = useRef<number[]>([]);
   const modelInfoKey = useMemo(() => getAcpModelInfoKey(conversation_id), [conversation_id]);
   const {
@@ -288,6 +289,12 @@ export const useAcpModelInfo = ({
     },
     [backend, mutateModelInfo]
   );
+
+  const setUsingPreparedCodexModelFallback = useCallback((active: boolean) => {
+    if (usingPreparedCodexModelFallbackRef.current === active) return;
+    usingPreparedCodexModelFallbackRef.current = active;
+    setAutoSelectionRevision((revision) => revision + 1);
+  }, []);
 
   const agentsData = useManagedAgentRuntimeCatalog();
   const handshakeModelInfo = useMemo<AcpModelInfo | null>(() => {
@@ -348,21 +355,22 @@ export const useAcpModelInfo = ({
         return false;
       }
 
+      const preparedModelInfo =
+        options?.preferPreparedSnapshot !== false && prepared
+          ? buildModelInfoFromPreparedConfigOptions(prepared.config_options)
+          : null;
       // Codex Auto depends on catalog-only default and reasoning metadata that
-      // ACP config-option choices cannot represent, so always read its live
-      // model catalog after runtime preparation.
-      if (options?.preferPreparedSnapshot !== false && prepared && backend !== 'codex') {
-        const preparedModelInfo = buildModelInfoFromPreparedConfigOptions(prepared.config_options);
-        if (preparedModelInfo) {
-          updateModelInfo(preparedModelInfo);
-          return true;
-        }
+      // ACP config-option choices cannot represent, so prefer its live catalog.
+      if (preparedModelInfo && backend !== 'codex') {
+        updateModelInfo(preparedModelInfo);
+        return true;
       }
 
       const { model_info: info, missing_active_session: missingActiveSession } =
         await fetchAcpModelInfoResult(modelInfoKey);
 
       if (info && (backend === 'codex' || info.available_models.length > 0)) {
+        if (backend === 'codex') setUsingPreparedCodexModelFallback(false);
         // Backend's `current_model_id` is the source of truth for an active
         // session. Only fall back to `initialModelId` when the backend has
         // no current model yet (genuine pre-handshake case); never
@@ -386,6 +394,12 @@ export const useAcpModelInfo = ({
           }
         }
         updateModelInfo(info);
+        return true;
+      }
+
+      if (backend === 'codex' && missingActiveSession && preparedModelInfo) {
+        setUsingPreparedCodexModelFallback(true);
+        updateModelInfo(preparedModelInfo);
         return true;
       }
 
@@ -415,6 +429,7 @@ export const useAcpModelInfo = ({
       loadFallbackModelInfo,
       modelInfoKey,
       prepareRuntimeOnce,
+      setUsingPreparedCodexModelFallback,
       updateModelInfo,
     ]
   );
@@ -453,6 +468,7 @@ export const useAcpModelInfo = ({
       hasUserChangedModel.current = false;
       reportedCodexCurrentModelIdRef.current = null;
       attemptedAutoResolutionKeysRef.current.clear();
+      usingPreparedCodexModelFallbackRef.current = false;
       prevConversationIdRef.current = conversation_id;
     }
     void reloadModelInfo({ preserveInitialModel: true }).catch(() => {});
@@ -506,6 +522,7 @@ export const useAcpModelInfo = ({
       if (message.type === 'acp_model_info' && message.data) {
         const incoming = normalizeAcpModelInfo(message.data);
         if (!incoming) return;
+        if (backend === 'codex') setUsingPreparedCodexModelFallback(false);
         // Same rule as reloadModelInfo: backend's current_model_id wins.
         // Only honor initialModelId when the stream payload has none.
         if (
@@ -545,7 +562,15 @@ export const useAcpModelInfo = ({
       }
     };
     return ipcBridge.acpConversation.responseStream.on(handler);
-  }, [conversation_id, enabled, initialModelId, scheduleModelInfoReload, updateModelInfo]);
+  }, [
+    backend,
+    conversation_id,
+    enabled,
+    initialModelId,
+    scheduleModelInfoReload,
+    setUsingPreparedCodexModelFallback,
+    updateModelInfo,
+  ]);
 
   const requestModelSelection = useCallback(
     async (model_id: string, persistFixedPreference: boolean): Promise<string> => {
@@ -746,6 +771,7 @@ export const useAcpModelInfo = ({
       !enabled ||
       backend !== 'codex' ||
       !model_info ||
+      usingPreparedCodexModelFallbackRef.current ||
       hasUserChangedModel.current ||
       autoSelectionRunningRef.current
     )
