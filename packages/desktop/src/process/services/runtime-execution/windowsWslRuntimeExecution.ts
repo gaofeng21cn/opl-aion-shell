@@ -57,6 +57,7 @@ export class WindowsWslRuntimeExecution {
   private readonly provisioner: WindowsWslProvisioner;
   private readonly spawnProcess: typeof spawn;
   private readonly activeHandles = new Map<string, WindowsWslProcessHandle>();
+  private readonly terminationByToken = new Map<string, Promise<void>>();
 
   constructor(options: RuntimeOptions) {
     this.platform = options.platform ?? process.platform;
@@ -126,6 +127,35 @@ export class WindowsWslRuntimeExecution {
     };
   }
 
+  private terminateOperation(operationTokenValue: string, graceMs = 5000): Promise<void> {
+    const token = requireToken(operationTokenValue);
+    const inFlight = this.terminationByToken.get(token);
+    if (inFlight) return inFlight;
+
+    const control = this.buildControlCommand(token, graceMs);
+    const termination = new Promise<void>((resolve, reject) => {
+      const process = this.spawnProcess(control.command, control.args, {
+        windowsHide: true,
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      let stderr = '';
+      process.stderr?.on('data', (chunk) => {
+        stderr = `${stderr}${String(chunk)}`.slice(-4096);
+      });
+      process.once('error', reject);
+      process.once('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(`WSL runtime control failed (${String(code)}): ${stderr}`))
+      );
+    });
+    this.terminationByToken.set(token, termination);
+    void termination.then(
+      () => this.terminationByToken.delete(token),
+      () => this.terminationByToken.delete(token)
+    );
+    return termination;
+  }
+
   spawn(request: WindowsWslSpawnRequest): WindowsWslProcessHandle {
     const command = this.buildSpawnCommand(request);
     const child = this.spawnProcess(command.command, command.args, {
@@ -137,28 +167,16 @@ export class WindowsWslRuntimeExecution {
     const handle: WindowsWslProcessHandle = {
       child,
       operationToken: command.operationToken,
-      terminate: async (graceMs = 5000) => {
-        const control = this.buildControlCommand(command.operationToken, graceMs);
-        await new Promise<void>((resolve, reject) => {
-          const process = this.spawnProcess(control.command, control.args, {
-            windowsHide: true,
-            shell: false,
-            stdio: ['ignore', 'pipe', 'pipe'],
-          });
-          let stderr = '';
-          process.stderr?.on('data', (chunk) => {
-            stderr = `${stderr}${String(chunk)}`.slice(-4096);
-          });
-          process.once('error', reject);
-          process.once('close', (code) =>
-            code === 0 ? resolve() : reject(new Error(`WSL runtime control failed (${String(code)}): ${stderr}`))
-          );
-        });
-      },
+      terminate: async (graceMs = 5000) => await this.terminateOperation(command.operationToken, graceMs),
     };
     this.activeHandles.set(command.operationToken, handle);
     child.once('close', () => {
-      this.activeHandles.delete(command.operationToken);
+      // A Windows wsl.exe child can close before the guest launcher has removed
+      // its owner-bound record. Reconcile the exact token before forgetting it.
+      void this.terminateOperation(command.operationToken).then(
+        () => this.activeHandles.delete(command.operationToken),
+        () => this.activeHandles.delete(command.operationToken)
+      );
     });
     return handle;
   }

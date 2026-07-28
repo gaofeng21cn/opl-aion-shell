@@ -68,6 +68,18 @@ describe('OPL Linux guest bootstrap', () => {
     expect(script).not.toContain('[inputs]');
   });
 
+  it('reconciles only a proven-stale owner-bound runtime record', () => {
+    const script = read('opl-runtime-control');
+    expect(script).toContain('Runtime operation record is invalid or not owned by OPL Linux.');
+    expect(script).toContain('if [[ ! -r "/proc/$pid/stat" ]]; then');
+    expect(script).toContain('mapfile -t operation_pids < <(collect_operation_pids)');
+    expect(script).toContain('rm -f "$record"');
+    expect(script).toContain('--arg status stale_record_reconciled --argjson survivors 0');
+    expect(script.indexOf('if [[ ! -r "/proc/$pid/stat" ]]; then')).toBeLessThan(
+      script.indexOf('kill -TERM -- "-$expected_pgid"')
+    );
+  });
+
   it('projects the exact installed runtime entrypoint cohort in guest identity', () => {
     const script = read('opl-runtime-inspect');
     expect(script).toContain('for name in opl-runtime-control opl-runtime-exec opl-runtime-inspect; do');
