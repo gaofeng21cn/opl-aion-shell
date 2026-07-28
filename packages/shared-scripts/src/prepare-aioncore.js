@@ -294,14 +294,19 @@ function nodeExecutableRelativePath(platform) {
 }
 
 function removePathIfPresent(targetPath) {
+  let stat;
   try {
-    fs.lstatSync(targetPath);
+    stat = fs.lstatSync(targetPath);
   } catch (error) {
     if (error?.code === 'ENOENT') return false;
     throw error;
   }
 
-  fs.rmSync(targetPath, { recursive: true, force: true });
+  if (stat.isDirectory() && !stat.isSymbolicLink()) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+  } else {
+    fs.unlinkSync(targetPath);
+  }
   return true;
 }
 
