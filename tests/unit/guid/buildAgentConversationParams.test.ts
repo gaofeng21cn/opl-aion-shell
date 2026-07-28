@@ -138,4 +138,32 @@ describe('buildAgentConversationParams OPL flow context', () => {
       }).extra.pending_config_options
     ).toEqual({ reasoning_effort: 'high' });
   });
+
+  it('persists authoritative OPL ownership and temporary-workspace metadata', () => {
+    const temporary = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Projectless task',
+      workspace: '/managed/conversation/workspace',
+      model,
+      custom_workspace: false,
+    });
+    const explicit = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'Project task',
+      workspace: '/Users/example/project',
+      model,
+      custom_workspace: true,
+    });
+
+    expect(temporary.extra).toMatchObject({
+      opl_session_origin: 'opl_app',
+      is_temporary_workspace: true,
+      workspace_affinity: 'temporary',
+    });
+    expect(explicit.extra).toMatchObject({
+      opl_session_origin: 'opl_app',
+      is_temporary_workspace: false,
+      workspace_affinity: 'explicit',
+    });
+  });
 });

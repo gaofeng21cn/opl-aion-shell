@@ -269,6 +269,46 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh', { id: 'conversation-1' });
   });
 
+  it('marks a directly created projectless AionRS conversation as an OPL temporary session', async () => {
+    const deps = buildDeps();
+    deps.dir = '';
+    deps.selectedAgent = 'aionrs';
+    deps.selectedAgentKey = 'aionrs';
+    deps.selectedAgentInfo = {
+      id: 'aionrs',
+      agent_type: 'aionrs',
+      backend: 'aionrs',
+      name: 'Aion CLI',
+    };
+    deps.is_presetAgent = false;
+    deps.activeShortcut = null;
+    deps.getEffectiveAgentType = vi.fn().mockReturnValue({
+      agent_type: 'aionrs',
+      isFallback: false,
+      originalType: 'aionrs',
+      isAvailable: true,
+    });
+
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'aionrs',
+        extra: expect.objectContaining({
+          workspace: '',
+          custom_workspace: false,
+          opl_session_origin: 'opl_app',
+          is_temporary_workspace: true,
+          workspace_affinity: 'temporary',
+        }),
+      })
+    );
+  });
+
   it('preserves the Home draft when conversation creation returns no conversation', async () => {
     mocks.createConversation.mockResolvedValue(null);
     const deps = buildDeps();

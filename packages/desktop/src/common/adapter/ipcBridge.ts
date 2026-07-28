@@ -2092,6 +2092,9 @@ export interface ICreateConversationParams {
   extra: {
     workspace?: string;
     custom_workspace?: boolean;
+    opl_session_origin?: 'opl_app';
+    is_temporary_workspace?: boolean;
+    workspace_affinity?: 'explicit' | 'temporary' | 'none' | 'legacy_unknown';
     default_files?: string[];
     backend?: string;
     cli_path?: string;

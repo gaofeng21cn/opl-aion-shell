@@ -6,11 +6,6 @@
 
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
-import type { CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
-import {
-  canonicalCodexThreadId,
-  projectCanonicalCodexThread,
-} from '@/renderer/pages/conversation/GroupedHistory/hooks/canonicalThreadLifecycle';
 import { addEventListener } from '@/renderer/utils/emitter';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 
@@ -114,7 +109,6 @@ let generatingConversationIdsState = new Set<string>();
 let completionUnreadConversationIdsState = new Set<string>();
 let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
-let pendingCanonicalConversationIdsState = new Set<string>();
 let refreshSequenceState = 0;
 let activeConversationIdState: string | null = null;
 let snapshotState: ConversationListSyncSnapshot = {
@@ -141,76 +135,22 @@ const subscribeConversationListSync = (listener: () => void) => {
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
 
-/**
- * Codex app-server owns task identity and lifecycle. Shell rows only add local
- * UI preferences or provide a lazy, rebuildable projection for unseen tasks.
- */
-export const mergeCanonicalThreadDirectory = (
-  localConversations: TChatConversation[],
-  directory: CodexThreadDirectory | null,
-  preserveLocalConversationIds: ReadonlySet<string> = new Set()
-): TChatConversation[] => {
-  if (!directory) return localConversations;
-
-  const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
-  const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
-  const unmatchedLocal = localConversations.filter((conversation) => {
-    const threadId = canonicalCodexThreadId(conversation);
-    if (threadId && returnedThreadIds.has(threadId)) {
-      cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
-      return false;
-    }
-
-    // Pre-canonical AionUI conversations have no App Server join key. A
-    // complete canonical directory cannot prove those local user records are
-    // stale, so keep them visible as legacy conversations.
-    if (!threadId) return true;
-
-    // Only a complete overview may retire unmatched Codex cache rows. A bounded
-    // recent directory remains useful without turning older local rows into ghosts.
-    if (!directory.complete) return true;
-    if (preserveLocalConversationIds.has(conversation.id)) return true;
-    return conversation.type !== 'acp' || conversation.extra.backend !== 'codex';
-  });
-
-  directory.threads.forEach((thread) => {
-    const cached = cachedByThreadId.get(thread.id);
-    if (!cached) return;
-    const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
-    cachedByThreadId.set(thread.id, {
-      ...cached,
-      extra: {
-        ...cached.extra,
-        workspace: thread.workspace,
-        custom_workspace: hasCanonicalRecordedCwd,
-      },
-    });
-  });
-
-  return [
-    ...unmatchedLocal,
-    ...directory.threads.map((thread) => projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id))),
-  ];
-};
-
 export const visibleConversationIds = (conversations: TChatConversation[]): Set<string> => {
   return new Set(conversations.map((conversation) => conversation.id));
 };
 
-const refreshConversations = (createdConversation?: TChatConversation) => {
-  if (
-    createdConversation?.type === 'acp' &&
-    createdConversation.extra.backend === 'codex' &&
-    canonicalCodexThreadId(createdConversation)
-  ) {
-    pendingCanonicalConversationIdsState = new Set(pendingCanonicalConversationIdsState).add(createdConversation.id);
-  }
+/**
+ * The ordinary OPL rail is owned by the OPL conversation store. Canonical
+ * Codex projections are opened explicitly from their parent task and must not
+ * be imported into ordinary local history.
+ */
+export const buildOplConversationHistory = (conversations: TChatConversation[]): TChatConversation[] => {
+  return conversations.filter((conversation) => conversation.source !== 'codex-app-server');
+};
 
+const refreshConversations = (_createdConversation?: TChatConversation) => {
   const refreshSequence = ++refreshSequenceState;
-  void Promise.allSettled([
-    ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
-    ipcBridge.codexThreads.list.invoke({ includeArchived: true }),
-  ]).then(([localResult, canonicalResult]) => {
+  void Promise.allSettled([ipcBridge.database.getUserConversations.invoke({ limit: 10000 })]).then(([localResult]) => {
     if (refreshSequence !== refreshSequenceState) return;
 
     const items =
@@ -218,34 +158,14 @@ const refreshConversations = (createdConversation?: TChatConversation) => {
     if (localResult.status === 'rejected') {
       console.error('[WorkspaceGroupedHistory] Failed to load shell conversation cache:', localResult.reason);
     }
-    if (canonicalResult.status === 'rejected') {
-      console.error('[WorkspaceGroupedHistory] Failed to load canonical Codex task directory:', canonicalResult.reason);
-    }
-
     const filteredData = items.filter((conv) => {
       // Legacy rows from the pre-provider-probe health check flow are hidden
       // from normal history. New health checks must not create conversations.
       const extra = conv.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
       return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
     });
-    const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
-    conversationsState = mergeCanonicalThreadDirectory(
-      filteredData,
-      canonicalDirectory,
-      pendingCanonicalConversationIdsState
-    );
+    conversationsState = buildOplConversationHistory(filteredData);
     conversation_idsState = visibleConversationIds(conversationsState);
-
-    if (canonicalDirectory) {
-      const returnedThreadIds = new Set(canonicalDirectory.threads.map((thread) => thread.id));
-      const localById = new Map(items.map((conversation) => [conversation.id, conversation]));
-      pendingCanonicalConversationIdsState = new Set(
-        [...pendingCanonicalConversationIdsState].filter((conversationId) => {
-          const threadId = canonicalCodexThreadId(localById.get(conversationId));
-          return Boolean(threadId && !returnedThreadIds.has(threadId));
-        })
-      );
-    }
     emitStoreChange();
   });
 };
@@ -336,9 +256,6 @@ const initializeConversationListSyncStore = () => {
       clearGenerating(event.conversation_id);
       clearCompletionUnreadState(event.conversation_id);
       clearCompleted(event.conversation_id);
-      const nextPendingIds = new Set(pendingCanonicalConversationIdsState);
-      nextPendingIds.delete(event.conversation_id);
-      pendingCanonicalConversationIdsState = nextPendingIds;
     }
     refreshConversations();
   });

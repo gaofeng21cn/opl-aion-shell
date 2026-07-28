@@ -58,4 +58,18 @@ describe('conversation history archive grouping', () => {
       })
     ).toEqual(['pinned', 'ordinary']);
   });
+
+  it('does not create a project group from legacy inferred workspace affinity', () => {
+    const legacy = conversation('legacy', {
+      workspace: '/legacy/unknown-affinity',
+      custom_workspace: true,
+      workspace_affinity: 'legacy_unknown',
+    });
+
+    const result = buildGroupedHistory([legacy], t);
+
+    expect(result.timelineSections[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: legacy }),
+    ]);
+  });
 });

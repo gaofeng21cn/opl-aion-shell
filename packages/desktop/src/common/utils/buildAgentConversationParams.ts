@@ -86,6 +86,11 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
       user_agents_policy: oplFlowContextPolicy.user_agents_policy,
     },
     ...extraOverrides,
+    // These fields are App-owned provenance and cannot be overridden by a
+    // selected Agent or package contribution.
+    opl_session_origin: 'opl_app',
+    is_temporary_workspace: !custom_workspace,
+    workspace_affinity: custom_workspace ? 'explicit' : 'temporary',
   };
 
   if (is_preset) {

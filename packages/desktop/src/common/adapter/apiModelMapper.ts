@@ -95,10 +95,20 @@ export function fromApiConversation<T>(raw: T): T {
   const extra = r.extra;
   if (extra && typeof extra === 'object' && !('custom_workspace' in extra)) {
     const workspace = typeof extra.workspace === 'string' ? extra.workspace : '';
+    const hasTemporaryAuthority = typeof extra.is_temporary_workspace === 'boolean';
     const isTemporary = extra.is_temporary_workspace === true;
     next.extra = {
       ...extra,
-      custom_workspace: workspace.length > 0 && !isTemporary,
+      // A non-empty path alone cannot prove that the user selected a Project.
+      // Only explicit backend metadata may establish project affinity.
+      custom_workspace: hasTemporaryAuthority && workspace.length > 0 && !isTemporary,
+      workspace_affinity: hasTemporaryAuthority
+        ? isTemporary
+          ? 'temporary'
+          : workspace.length > 0
+            ? 'explicit'
+            : 'none'
+        : 'legacy_unknown',
     };
   }
 

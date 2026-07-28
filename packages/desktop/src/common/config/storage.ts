@@ -278,6 +278,12 @@ export type TChatConversation =
           backend: string;
           cli_path?: string;
           custom_workspace?: boolean;
+          /** Authoritative creator identity for conversations created by One Person Lab App. */
+          opl_session_origin?: 'opl_app';
+          /** True when the App provisioned the workspace only as runtime storage. */
+          is_temporary_workspace?: boolean;
+          /** Explicit affinity provenance; legacy_unknown never forms a Project group. */
+          workspace_affinity?: 'explicit' | 'temporary' | 'none' | 'legacy_unknown';
           agent_name?: string;
           custom_agent_id?: string; // UUID for identifying specific custom agent
           preset_context?: string; // 智能助手的预设规则/提示词 / Preset context from smart assistant

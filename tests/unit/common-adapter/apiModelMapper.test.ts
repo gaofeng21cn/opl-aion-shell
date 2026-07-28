@@ -248,6 +248,24 @@ describe('apiModelMapper', () => {
       expect(result.extra?.custom_workspace).toBe(true);
     });
 
+    it('marks a workspace affinity inferred from legacy data as non-authoritative', () => {
+      const result = fromApiConversation({
+        id: 'legacy-workspace',
+        name: 'Legacy workspace',
+        type: 'acp',
+        created_at: 1,
+        extra: {
+          backend: 'codex',
+          workspace: '/legacy/workspace',
+        },
+      } as never);
+
+      expect(result.extra).toMatchObject({
+        custom_workspace: false,
+        workspace_affinity: 'legacy_unknown',
+      });
+    });
+
     it('infers custom_workspace=false when is_temporary_workspace=true', () => {
       const raw = {
         id: 'conv1',

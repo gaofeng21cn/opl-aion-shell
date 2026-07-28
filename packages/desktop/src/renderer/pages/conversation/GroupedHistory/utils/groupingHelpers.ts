@@ -45,8 +45,9 @@ export const groupConversationsByWorkspace = (
   conversations.forEach((conv) => {
     const workspace = conv.extra?.workspace;
     const custom_workspace = conv.extra?.custom_workspace;
+    const workspaceAffinity = (conv.extra as { workspace_affinity?: string } | undefined)?.workspace_affinity;
 
-    if (custom_workspace && workspace) {
+    if (custom_workspace && workspace && workspaceAffinity !== 'legacy_unknown') {
       if (!allWorkspaceGroups.has(workspace)) {
         allWorkspaceGroups.set(workspace, []);
       }

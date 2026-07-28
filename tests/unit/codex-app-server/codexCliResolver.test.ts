@@ -40,4 +40,26 @@ describe('resolveCodexCliPath', () => {
     );
     expect(() => resolveCodexCliPath({ ...base, isExecutable: () => false })).toThrow(/not found/i);
   });
+
+  it('uses the OPL-managed runtime on macOS without depending on the GUI process PATH', () => {
+    const managedOplCodex = path.join(
+      '/Users/operator',
+      'Library',
+      'Application Support',
+      'OPL',
+      'runtime',
+      'current',
+      'bin',
+      'codex'
+    );
+
+    expect(
+      resolveCodexCliPath({
+        env: { PATH: '/usr/bin:/bin' },
+        homeDir: '/Users/operator',
+        platform: 'darwin',
+        isExecutable: (candidate) => candidate === managedOplCodex,
+      })
+    ).toBe(managedOplCodex);
+  });
 });
