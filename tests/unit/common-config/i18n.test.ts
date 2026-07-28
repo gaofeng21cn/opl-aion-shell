@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveInitialLanguage } from '@/common/config/i18n';
+import { isSameLanguageCode, resolveInitialLanguage } from '@/common/config/i18n';
 
 describe('resolveInitialLanguage', () => {
   it('uses the OS locale for a fresh desktop profile', () => {
@@ -21,7 +21,23 @@ describe('resolveInitialLanguage', () => {
     ).toBe('zh-CN');
   });
 
+  it('keeps a backend preference authoritative over the startup mirror', () => {
+    expect(
+      resolveInitialLanguage({
+        storedLanguage: 'en-US',
+        injectedLanguage: 'zh-CN',
+        systemLanguage: 'zh-CN',
+      })
+    ).toBe('en-US');
+  });
+
   it('falls back to the supported default for an unsupported OS locale', () => {
     expect(resolveInitialLanguage({ systemLanguage: 'ja-JP' })).toBe('en-US');
+  });
+
+  it('treats normalized aliases as the same language', () => {
+    expect(isSameLanguageCode('zh-Hans-CN', 'zh-CN')).toBe(true);
+    expect(isSameLanguageCode('en-GB', 'en-US')).toBe(true);
+    expect(isSameLanguageCode('zh-CN', 'en-US')).toBe(false);
   });
 });

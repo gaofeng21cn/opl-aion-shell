@@ -668,10 +668,12 @@ function isWebUiBrowserMode(): boolean {
 function runtimeProvider<Data, Params>(
   channel: string,
   webRoute: string,
-  mapBody?: (params: Params) => unknown
+  mapBody?: (params: Params) => unknown,
+  webMethod: 'POST' | 'PATCH' = 'POST'
 ): BridgeProvider<Data, Params> {
   const electronProvider = bridge.buildProvider<Data, Params>(channel);
-  const webProvider = httpPost<Data, Params>(webRoute, mapBody);
+  const webProvider =
+    webMethod === 'PATCH' ? httpPatch<Data, Params>(webRoute, mapBody) : httpPost<Data, Params>(webRoute, mapBody);
   return {
     provider: electronProvider.provider,
     invoke: ((params?: Params) => {
@@ -1759,8 +1761,16 @@ export const systemSettings = {
   })),
   getKeepAwake: httpGet<boolean, void>('/api/settings/client?key=keepAwake'),
   setKeepAwake: httpPut<void, { enabled: boolean }>('/api/settings/client', (p) => ({ keepAwake: p.enabled })),
-  changeLanguage: httpPatch<void, { language: string }>('/api/settings', (p) => ({ language: p.language })),
-  languageChanged: wsEmitter<{ language: string }>('system-settings:language-changed'),
+  changeLanguage: runtimeProvider<void, { language: string }>(
+    'system-settings:change-language',
+    '/api/settings',
+    (p) => ({ language: p.language }),
+    'PATCH'
+  ),
+  languageChanged: runtimeEmitter<{ language: string }>(
+    'system-settings:language-changed',
+    'system-settings:language-changed'
+  ),
   getSaveUploadToWorkspace: httpGet<boolean, void>('/api/settings/client?key=saveUploadToWorkspace'),
   setSaveUploadToWorkspace: httpPut<void, { enabled: boolean }>('/api/settings/client', (p) => ({
     saveUploadToWorkspace: p.enabled,
