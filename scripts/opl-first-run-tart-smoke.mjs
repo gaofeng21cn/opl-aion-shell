@@ -119,6 +119,8 @@ const DEFAULT_HOMEBREW_INSTALL_MAX_ATTEMPTS = 3;
 const DEFAULT_HOMEBREW_INSTALL_RETRY_DELAY_MS = 15_000;
 const SIGNAL_GUEST_ARTIFACT_COPY_TIMEOUT_MS = 30_000;
 const TART_CLEANUP_COMMAND_TIMEOUT_MS = 30_000;
+const LOWERCASE_GIT_SHA = /^[0-9a-f]{40}$/;
+const PUBLISHED_ARTIFACT_IDENTITY_FILE = 'published-artifact-identity.json';
 
 const runtimeState = {
   options: null,
@@ -215,6 +217,9 @@ Options:
                            First-run package profile to verify: full or standard. Default: full.
                            Use standard for the public macOS app DMG when Full-only bundled
                            module/skill equivalence is not expected.
+  --expected-framework-sha <sha>
+                           Exact published-cohort Framework commit. When omitted, the harness
+                           derives it from published-artifact-identity.json in --artifacts.
   --install-mode <mode>     Install mode: dmg or homebrew-cask. Default: dmg.
   --require-gatekeeper      Preserve quarantine and require Gatekeeper in the guest smoke.
   --homebrew-tap <tap>      Homebrew tap for --install-mode homebrew-cask. Default: gaofeng21cn/one-person-lab.
@@ -253,6 +258,31 @@ Options:
 `);
 }
 
+function readPublishedArtifactExpectedFrameworkSha(artifactsDir) {
+  const identityPath = path.join(artifactsDir, PUBLISHED_ARTIFACT_IDENTITY_FILE);
+  const stat = fs.lstatSync(identityPath, { throwIfNoEntry: false });
+  if (!stat) return null;
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size <= 0) {
+    throw new Error(`${PUBLISHED_ARTIFACT_IDENTITY_FILE} must be a nonempty regular non-symlink file.`);
+  }
+  let identity;
+  try {
+    identity = JSON.parse(fs.readFileSync(identityPath, 'utf8'));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${PUBLISHED_ARTIFACT_IDENTITY_FILE} is not valid JSON: ${message}`);
+  }
+  const frameworkSha = identity?.cohort?.framework_sha;
+  if (
+    identity?.schema !== 'opl_app_post_publication_artifact_identity.v1' ||
+    identity?.verified !== true ||
+    !LOWERCASE_GIT_SHA.test(frameworkSha ?? '')
+  ) {
+    throw new Error(`${PUBLISHED_ARTIFACT_IDENTITY_FILE} does not bind a verified exact Framework SHA.`);
+  }
+  return frameworkSha;
+}
+
 function parseArgs(argv) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const options = {
@@ -285,6 +315,7 @@ function parseArgs(argv) {
     codexAiSelfCheckTimeoutMs: 120_000,
     cdpPort: 9230,
     runtimeProfile: 'full',
+    expectedFrameworkSha: '',
     requireGatekeeper: false,
     installMode: 'dmg',
     homebrewTap: 'gaofeng21cn/one-person-lab',
@@ -451,6 +482,9 @@ function parseArgs(argv) {
     } else if (arg === '--runtime-profile') {
       options.runtimeProfile = value;
       explicit.add('runtimeProfile');
+    } else if (arg === '--expected-framework-sha') {
+      options.expectedFrameworkSha = value;
+      explicit.add('expectedFrameworkSha');
     } else if (arg === '--install-mode') {
       options.installMode = value;
       explicit.add('installMode');
@@ -556,6 +590,14 @@ function parseArgs(argv) {
   if (!['full', 'standard'].includes(options.runtimeProfile)) {
     throw new Error('--runtime-profile must be one of: full, standard.');
   }
+  const publishedFrameworkSha = readPublishedArtifactExpectedFrameworkSha(options.artifacts);
+  if (options.expectedFrameworkSha && publishedFrameworkSha && options.expectedFrameworkSha !== publishedFrameworkSha) {
+    throw new Error('--expected-framework-sha does not match published-artifact-identity.json.');
+  }
+  options.expectedFrameworkSha = options.expectedFrameworkSha || publishedFrameworkSha || '';
+  if (options.expectedFrameworkSha && !LOWERCASE_GIT_SHA.test(options.expectedFrameworkSha)) {
+    throw new Error('--expected-framework-sha must be a lowercase 40-character Git commit SHA.');
+  }
   if (!['diagnose', 'fix'].includes(options.codexAiSelfCheckMode)) {
     throw new Error('--codex-ai-self-check-mode must be one of: diagnose, fix.');
   }
@@ -642,6 +684,7 @@ function buildDryRunPlan(options) {
     homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
     install_origin: isHomebrewFullCaskSmoke(options) ? 'homebrew_full_cask' : options.installMode,
     official_profile_desired_roots: isHomebrewFullCaskSmoke(options) ? officialProfileDesiredRoots() : [],
+    expected_framework_sha: options.expectedFrameworkSha || null,
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
     mas_study_provisioning: resolveMasProvisioningTransport(options, false),
@@ -2081,6 +2124,7 @@ function guestSmokeCommand(
       ? `--cdp-port ${shellQuote(String(options.cdpPort))}`
       : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
+    options.expectedFrameworkSha ? `--expected-framework-sha ${shellQuote(options.expectedFrameworkSha)}` : '',
     homebrewInstallOrigin ? `--install-origin ${homebrewInstallOrigin}` : '',
     homebrewCaskSmoke ? `--homebrew-cask ${shellQuote(homebrewCaskToken(options.homebrewCask))}` : '',
     homebrewFormulaStatePath ? `--homebrew-formula-state ${shellQuote(homebrewFormulaStatePath)}` : '',
@@ -2230,7 +2274,60 @@ function readGuestSmokeSummary(hostArtifactsDir) {
   return JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
 }
 
-function assertGuestSmokeSummary(options, guestSummary) {
+function readGuestSourceIdentityArtifact(hostArtifactsDir, fileName) {
+  const identityPath = path.join(hostArtifactsDir, 'artifacts', fileName);
+  let stat;
+  try {
+    stat = fs.lstatSync(identityPath);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Guest source identity artifact is missing: ${fileName} (${message})`);
+  }
+  if (stat.isSymbolicLink() || !stat.isFile() || stat.size <= 0) {
+    throw new Error(`Guest source identity artifact must be a nonempty regular non-symlink file: ${fileName}`);
+  }
+  const parsed = JSON.parse(fs.readFileSync(identityPath, 'utf8'));
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Guest source identity artifact must contain a JSON object: ${fileName}`);
+  }
+  return parsed;
+}
+
+function assertGuestReleaseSourceIdentity(options, guestSummary, hostArtifactsDir = null) {
+  if (!options.expectedFrameworkSha) return;
+  const common = (identity, schema) => {
+    if (
+      identity?.schema !== schema ||
+      identity?.status !== 'passed' ||
+      identity?.expected_framework_sha !== options.expectedFrameworkSha ||
+      identity?.observed_framework_sha !== options.expectedFrameworkSha ||
+      identity?.exact_match !== true
+    ) {
+      throw new Error('Guest release source identity does not match the expected Framework cohort.');
+    }
+  };
+  const isStandard = options.runtimeProfile === 'standard';
+  const field = isStandard ? 'installed_framework_source_identity' : 'full_runtime_source_identity';
+  const fileName = isStandard ? 'installed-framework-source-identity.json' : 'full-runtime-source-identity.json';
+  const schema = isStandard ? 'opl_framework_installed_source_identity.v1' : 'opl_full_runtime_source_identity.v1';
+  const identity = guestSummary[field];
+  common(identity, schema);
+  if (isStandard && identity.install_mode !== 'archive') {
+    throw new Error('Guest Standard source identity must report install_mode=archive.');
+  }
+  if (!isStandard && identity.source !== 'packaged_app_resource') {
+    throw new Error('Guest Full source identity must come from the packaged App resource manifest.');
+  }
+  if (hostArtifactsDir) {
+    const artifactIdentity = readGuestSourceIdentityArtifact(hostArtifactsDir, fileName);
+    common(artifactIdentity, schema);
+    if (JSON.stringify(artifactIdentity) !== JSON.stringify(identity)) {
+      throw new Error(`Guest source identity summary and ${fileName} do not match.`);
+    }
+  }
+}
+
+function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null) {
   if (!guestSummary) {
     throw new Error('Guest smoke summary is missing from copied artifacts.');
   }
@@ -2244,6 +2341,7 @@ function assertGuestSmokeSummary(options, guestSummary) {
       }`
     );
   }
+  assertGuestReleaseSourceIdentity(options, guestSummary, hostArtifactsDir);
   const providerConfiguration = guestSummary.provider_configuration;
   const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
   const expectedCredentialSource = providerCredentialRequested
@@ -2414,7 +2512,7 @@ function assertGuestSmokeSummary(options, guestSummary) {
 
 function writeSummary(options, ip, guestArtifactDir) {
   const guestSummary = readGuestSmokeSummary(options.artifacts);
-  assertGuestSmokeSummary(options, guestSummary);
+  assertGuestSmokeSummary(options, guestSummary, options.artifacts);
   const summary = {
     surface_id: 'opl_tart_gui_first_run_smoke',
     status: 'passed',
@@ -2454,6 +2552,8 @@ function writeSummary(options, ip, guestArtifactDir) {
     vm_cleanup: runtimeState.vmCleanupReceipt,
     stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
     guest_summary: guestSummary,
+    installed_framework_source_identity: guestSummary?.installed_framework_source_identity ?? null,
+    full_runtime_source_identity: guestSummary?.full_runtime_source_identity ?? null,
   };
   fs.writeFileSync(path.join(options.artifacts, 'tart-smoke-summary.json'), JSON.stringify(summary, null, 2));
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
@@ -2665,7 +2765,7 @@ async function main() {
     copiedArtifacts = true;
     runtimeState.copiedArtifacts = true;
     setStage('validate_guest_summary');
-    assertGuestSmokeSummary(options, readGuestSmokeSummary(options.artifacts));
+    assertGuestSmokeSummary(options, readGuestSmokeSummary(options.artifacts), options.artifacts);
   } catch (error) {
     primaryError = error;
   }
@@ -2706,6 +2806,7 @@ export const __test =
   process.env.NODE_ENV === 'test'
     ? {
         assertGuestSmokeSummary,
+        assertGuestReleaseSourceIdentity,
         __resetRuntimeStateForTest: resetRuntimeStateForTest,
         __setRuntimeStateForTest: setRuntimeStateForTest,
         buildStageTimingSummary,
@@ -2732,6 +2833,7 @@ export const __test =
         isMainModule,
         officialProfileDesiredRoots,
         parseArgs,
+        readPublishedArtifactExpectedFrameworkSha,
         resolveMasProvisioningTransport,
         recordStageEvent,
         resolveGuestSmokeScriptPath,
