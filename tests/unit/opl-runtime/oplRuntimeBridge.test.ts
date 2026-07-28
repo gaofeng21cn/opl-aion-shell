@@ -91,6 +91,8 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app state --profile full --json',
         'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+        'opl app contribution read --package-id <package_id> --ref <data_ref> --input-stdin --json',
+        'opl app contribution execute --package-id <package_id> --ref <action_ref> --confirm --input-stdin --json',
       ],
       diagnosticExceptionSurfaces: [
         'opl runtime app-operator-drilldown --json',
@@ -101,6 +103,8 @@ describe('OPL runtime bridge command whitelist', () => {
         'opl app state --profile full --json',
         'opl app view read --item-id <canonical-item-id> --view-id <view-id> [--if-revision <revision>] --json',
         'opl app action execute --action <id> [--payload refs-only-json] [--dry-run] --json',
+        'opl app contribution read --package-id <package_id> --ref <data_ref> --input-stdin --json',
+        'opl app contribution execute --package-id <package_id> --ref <action_ref> --confirm --input-stdin --json',
         'opl runtime app-operator-drilldown --json',
         'opl runtime app-operator-drilldown --detail full --json',
         'opl system initialize --events --json',
@@ -225,6 +229,52 @@ describe('OPL runtime bridge command whitelist', () => {
         '--json',
       ],
     });
+  });
+
+  it('routes descriptor-owned contributions through a constrained generic bridge', () => {
+    expect(
+      __oplRuntimeBridgeTest.buildPackageContributionCommand({
+        packageId: 'future.carrier.package',
+        ref: 'future.data.v1#recent',
+        operation: 'read',
+      })
+    ).toEqual({
+      surface: 'package_contribution_read',
+      args: [
+        'app',
+        'contribution',
+        'read',
+        '--package-id',
+        'future.carrier.package',
+        '--ref',
+        'future.data.v1#recent',
+        '--input-stdin',
+        '--json',
+      ],
+      stdin: '{}',
+      redactedCommand:
+        'opl app contribution read --package-id future.carrier.package --ref future.data.v1#recent --input-stdin --json',
+    });
+    expect(
+      __oplRuntimeBridgeTest.buildPackageContributionCommand({
+        packageId: 'future.carrier.package',
+        ref: 'future.data.v1#publish',
+        operation: 'execute',
+        confirmed: true,
+        input: { mode: 'publish' },
+      })
+    ).toMatchObject({
+      surface: 'package_contribution_execute',
+      args: expect.arrayContaining(['--confirm']),
+      stdin: '{"mode":"publish"}',
+    });
+    expect(() =>
+      __oplRuntimeBridgeTest.buildPackageContributionCommand({
+        packageId: '../registry-cache',
+        ref: 'future.data.v1#recent',
+        operation: 'read',
+      })
+    ).toThrow(/Invalid OPL package contribution package id/);
   });
 
   it('sends user-authored action payloads over stdin with a redacted command', () => {
