@@ -16,6 +16,7 @@ import {
   filterConversationsForHistorySurface,
   filterHistoryToConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversations';
+import { groupConversationsByWorkspace } from '@/renderer/pages/conversation/GroupedHistory/utils/groupingHelpers';
 
 const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDescriptor => ({
   id: 'thread-1',
@@ -92,6 +93,16 @@ describe('mergeCanonicalThreadDirectory', () => {
         custom_workspace: true,
       },
     });
+  });
+
+  it('projects a managed Documents Codex task as a projectless sidebar row', () => {
+    const workspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
+
+    expect(projected.extra).toMatchObject({ workspace, custom_workspace: false });
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: projected }),
+    ]);
   });
 
   it('preserves an explicitly projectless marker until the canonical cwd is adopted', () => {

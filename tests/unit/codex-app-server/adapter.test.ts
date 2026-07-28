@@ -1,5 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -226,6 +228,7 @@ describe('CodexAppServerAdapter', () => {
   });
 
   it('keeps directories distinct even when threads share one Git origin', async () => {
+    const managedProjectlessWorkspace = path.join(os.homedir(), 'Documents', 'Codex', '2026-07-28', 'temporary-task');
     request.mockResolvedValueOnce({
       data: [
         rawThread('bound', {
@@ -240,6 +243,14 @@ describe('CodexAppServerAdapter', () => {
           cwd: undefined,
           gitInfo: { originUrl: 'https://example.com/shared.git' },
         }),
+        rawThread('managed-projectless', {
+          cwd: managedProjectlessWorkspace,
+          gitInfo: { originUrl: 'https://example.com/shared.git' },
+        }),
+        rawThread('documents-sibling', {
+          cwd: path.join(os.homedir(), 'Documents', 'Codex-project'),
+          gitInfo: { originUrl: 'https://example.com/shared.git' },
+        }),
       ],
       nextCursor: null,
     });
@@ -250,6 +261,12 @@ describe('CodexAppServerAdapter', () => {
       { id: 'bound', projectId: '/workspace/bound', workspace: '/workspace/bound' },
       { id: 'other-bound', projectId: '/workspace/other', workspace: '/workspace/other' },
       { id: 'projectless', projectId: '', workspace: '' },
+      { id: 'managed-projectless', projectId: '', workspace: managedProjectlessWorkspace },
+      {
+        id: 'documents-sibling',
+        projectId: path.join(os.homedir(), 'Documents', 'Codex-project'),
+        workspace: path.join(os.homedir(), 'Documents', 'Codex-project'),
+      },
     ]);
   });
 

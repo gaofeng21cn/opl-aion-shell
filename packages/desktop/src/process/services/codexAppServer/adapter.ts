@@ -6,6 +6,7 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import os from 'node:os';
+import path from 'node:path';
 import type {
   CodexReviewStartRequest,
   CodexReviewStartResult,
@@ -195,8 +196,16 @@ function activeTurnId(turns: JsonRecord[]): string | null {
   return active && typeof active.id === 'string' ? active.id : null;
 }
 
+function isManagedProjectlessWorkspace(workspace: string): boolean {
+  if (!workspace || !path.isAbsolute(workspace)) return false;
+  const managedRoot = path.join(os.homedir(), 'Documents', 'Codex');
+  const relative = path.relative(managedRoot, workspace);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
 function projectId(raw: JsonRecord): string {
-  return recordedCwd(raw.cwd);
+  const workspace = recordedCwd(raw.cwd);
+  return isManagedProjectlessWorkspace(workspace) ? '' : workspace;
 }
 
 function ancestorsFor(thread: RawThread, byId: Map<string, RawThread>): string[] {
