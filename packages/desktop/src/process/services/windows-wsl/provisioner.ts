@@ -452,14 +452,37 @@ export class WindowsWslProvisioner {
       : null;
   }
 
+  private async inspectGuestIdentity(): Promise<WindowsWslGuestIdentity> {
+    const result = await this.wsl([
+      '--distribution',
+      OPL_WSL_DISTRIBUTION,
+      '--user',
+      OPL_WSL_GUEST_USER,
+      '--exec',
+      OPL_WSL_RUNTIME_INSPECT,
+      '--json',
+    ]);
+    await this.requireSuccess(result, 'repair_required', 'runtime_inspection_failed');
+    return validateWindowsWslGuestIdentity(parseJsonObject(result.stdout));
+  }
+
   private async assertOwnedDistributionLocation(): Promise<void> {
     const registeredBasePath = await this.inspectRegisteredDistributionBasePath();
-    if (!registeredBasePath || !sameWindowsPath(registeredBasePath, this.installLocation())) {
+    if (registeredBasePath && sameWindowsPath(registeredBasePath, this.installLocation())) return;
+
+    // A prior App install may have registered the same logical distro under an
+    // older task-owned path. Reuse it only after the guest proves the OPL
+    // identity contract; arbitrary same-name WSL distributions remain blocked.
+    try {
+      await this.inspectGuestIdentity();
+      return;
+    } catch (error) {
       throw new WindowsWslProvisioningError(
         'The OPL-Linux name is already registered outside the current App-owned data directory.',
         {
           stage: 'repair_required',
           code: 'same_name_foreign_distribution',
+          cause: error,
         }
       );
     }
@@ -574,17 +597,7 @@ export class WindowsWslProvisioner {
   }
 
   async inspect(): Promise<WindowsWslGuestIdentity> {
-    const result = await this.wsl([
-      '--distribution',
-      OPL_WSL_DISTRIBUTION,
-      '--user',
-      OPL_WSL_GUEST_USER,
-      '--exec',
-      OPL_WSL_RUNTIME_INSPECT,
-      '--json',
-    ]);
-    await this.requireSuccess(result, 'validating_routes', 'runtime_inspection_failed');
-    const identity = validateWindowsWslGuestIdentity(parseJsonObject(result.stdout));
+    const identity = await this.inspectGuestIdentity();
     if (identity.bootstrap_digest !== this.expectedBootstrapDigest) {
       throw new WindowsWslProvisioningError(
         'The installed OPL Linux runtime entrypoints do not match the packaged App cohort.',

@@ -321,6 +321,56 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     ).toBe(false);
   });
 
+  it('rebinds a prior task-owned path when the existing guest proves the OPL identity contract', async () => {
+    let inspectCalls = 0;
+    let bootstrapCalls = 0;
+    const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
+      if (command === 'powershell.exe') {
+        return result(
+          0,
+          JSON.stringify({
+            distribution_name: 'OPL-Linux',
+            base_path: 'C:\\Users\\gaofe\\AppData\\Local\\OPL-RC-Acceptance\\30286627648\\wsl\\OPL-Linux',
+          })
+        );
+      }
+      if (args.join(' ') === '--status') return result(0);
+      if (args.join(' ') === '--list --verbose') {
+        return result(0, 'NAME          STATE           VERSION\r\nOPL-Linux     Stopped         2\r\n');
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-runtime-inspect')) {
+        inspectCalls += 1;
+        return result(
+          0,
+          JSON.stringify({
+            ...identity(),
+            bootstrap_digest: inspectCalls === 1 ? `sha256:${'9'.repeat(64)}` : packagedBootstrapDigest,
+          })
+        );
+      }
+      if (args.includes('wslpath')) {
+        return result(0, `/mnt/d/opl/${path.basename(args.at(-1) ?? 'resource')}\n`);
+      }
+      if (args.some((value) => value.endsWith('/install-opl-linux.sh'))) {
+        bootstrapCalls += 1;
+        return result(0);
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-install.sh')) return result(0);
+      throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+    });
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand,
+    });
+
+    await expect(provisioner.ensureReady()).resolves.toMatchObject({
+      bootstrap_digest: packagedBootstrapDigest,
+    });
+    expect(bootstrapCalls).toBe(1);
+  });
+
   it('reports restart_required only when WSL remains unavailable after enablement', async () => {
     const runCommand = vi.fn(
       async (command: string): Promise<WindowsWslCommandResult> =>
