@@ -411,7 +411,8 @@ function normalizeInternalSymlinks(rootDir, options = {}, currentDir = rootDir, 
 }
 
 function materializeInternalFileSymlinks(rootDir) {
-  const resolvedRootDir = fs.realpathSync(rootDir);
+  const logicalRootDir = path.resolve(rootDir);
+  const resolvedRootDir = fs.realpathSync(logicalRootDir);
   const result = {
     materialized: [],
     hardLinked: [],
@@ -423,10 +424,10 @@ function materializeInternalFileSymlinks(rootDir) {
     for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
       const absolutePath = path.join(currentDir, entry.name);
       if (entry.isSymbolicLink()) {
-        const relativePath = path.relative(rootDir, absolutePath).split(path.sep).join('/');
+        const relativePath = path.relative(logicalRootDir, absolutePath).split(path.sep).join('/');
         const linkTarget = fs.readlinkSync(absolutePath);
         const unresolvedTarget = path.resolve(path.dirname(absolutePath), linkTarget);
-        if (!isPathInside(unresolvedTarget, resolvedRootDir)) {
+        if (!isPathInside(unresolvedTarget, logicalRootDir)) {
           throw new Error(`Managed resource symlink points outside the bundle: ${relativePath}`);
         }
         let resolvedTarget;
@@ -472,7 +473,7 @@ function materializeInternalFileSymlinks(rootDir) {
     }
   }
 
-  visit(rootDir);
+  visit(logicalRootDir);
   return result;
 }
 

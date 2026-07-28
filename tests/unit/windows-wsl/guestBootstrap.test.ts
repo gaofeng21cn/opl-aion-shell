@@ -37,7 +37,7 @@ describe('OPL Linux guest bootstrap', () => {
     expect(runtimeExec).toContain('codex="$OPL_CODEX_BIN"');
   });
 
-  it('preserves stdin for detached runtime programs', () => {
+  it.skipIf(process.platform !== 'linux')('preserves stdin for detached runtime programs', () => {
     const runtimeExec = read('opl-runtime-exec');
     expect(runtimeExec).toContain('setsid "$program" "$@" <&0 &');
 
