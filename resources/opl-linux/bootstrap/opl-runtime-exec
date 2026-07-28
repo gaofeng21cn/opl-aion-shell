@@ -45,19 +45,24 @@ codex="$OPL_CODEX_BIN"
 case "$kind" in
   aioncore)
     program="$carrier/aioncore"
+    expected_executable="$(readlink -f "$program")"
     ;;
   codex-app-server)
     program="$codex"
+    expected_executable="$(readlink -f "$program")"
     ;;
   opl-cli)
     program="$(command -v opl || true)"
+    node_path="$(command -v node || true)"
+    expected_executable="$(readlink -f "$node_path")"
     ;;
   *)
     printf 'Unsupported runtime program.\n' >&2
     exit 64
     ;;
 esac
-if [[ -z "$program" ]] || [[ ! -x "$program" ]]; then
+if [[ -z "$program" ]] || [[ ! -x "$program" ]] || [[ -z "$expected_executable" ]] ||
+  [[ ! -x "$expected_executable" ]]; then
   printf 'Runtime program is unavailable: %s\n' "$kind" >&2
   exit 69
 fi
@@ -69,12 +74,37 @@ if [[ -e "$record" ]]; then
   printf 'Operation token is already active.\n' >&2
   exit 73
 fi
+cleanup_record() {
+  rm -f "$record.pending" "$record"
+}
+trap cleanup_record EXIT
 
 setsid "$program" "$@" <&0 &
 child_pid=$!
+
+identity_deadline=$((SECONDS + 5))
+while [[ -r "/proc/$child_pid/stat" ]] &&
+  [[ "$(readlink -f "/proc/$child_pid/exe")" != "$expected_executable" ]] &&
+  [[ "$SECONDS" -lt "$identity_deadline" ]]; do
+  sleep 0.01
+done
+if [[ ! -r "/proc/$child_pid/stat" ]]; then
+  set +e
+  wait "$child_pid"
+  exit_code=$?
+  set -e
+  exit "$exit_code"
+fi
+program_realpath="$(readlink -f "/proc/$child_pid/exe")"
+if [[ "$program_realpath" != "$expected_executable" ]]; then
+  kill -TERM -- "-$(ps -o pgid= -p "$child_pid" | tr -d ' ')" 2>/dev/null || true
+  wait "$child_pid" 2>/dev/null || true
+  printf 'Runtime program did not reach its expected executable identity: %s\n' "$kind" >&2
+  exit 70
+fi
+
 child_starttime="$(awk '{print $22}' "/proc/$child_pid/stat")"
 child_pgid="$(ps -o pgid= -p "$child_pid" | tr -d ' ')"
-program_realpath="$(readlink -f "/proc/$child_pid/exe")"
 program_sha256="$(sha256sum "$program_realpath" | awk '{print $1}')"
 
 jq -n \
@@ -109,5 +139,4 @@ set +e
 wait "$child_pid"
 exit_code=$?
 set -e
-rm -f "$record"
 exit "$exit_code"

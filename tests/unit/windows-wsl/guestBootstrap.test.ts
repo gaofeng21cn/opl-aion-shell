@@ -68,16 +68,15 @@ describe('OPL Linux guest bootstrap', () => {
     expect(script).not.toContain('[inputs]');
   });
 
-  it('reconciles only a proven-stale owner-bound runtime record', () => {
-    const script = read('opl-runtime-control');
-    expect(script).toContain('Runtime operation record is invalid or not owned by OPL Linux.');
-    expect(script).toContain('if [[ ! -r "/proc/$pid/stat" ]]; then');
-    expect(script).toContain('mapfile -t operation_pids < <(collect_operation_pids)');
-    expect(script).toContain('rm -f "$record"');
-    expect(script).toContain('--arg status stale_record_reconciled --argjson survivors 0');
-    expect(script.indexOf('if [[ ! -r "/proc/$pid/stat" ]]; then')).toBeLessThan(
-      script.indexOf('kill -TERM -- "-$expected_pgid"')
-    );
+  it('records the final Framework executable identity and keeps stale cleanup fail-closed', () => {
+    const runtimeExec = read('opl-runtime-exec');
+    expect(runtimeExec).toContain('expected_executable="$(readlink -f "$node_path")"');
+    expect(runtimeExec).toContain('"$(readlink -f "/proc/$child_pid/exe")" != "$expected_executable"');
+    expect(runtimeExec).toContain('trap cleanup_record EXIT');
+
+    const runtimeControl = read('opl-runtime-control');
+    expect(runtimeControl).toContain('Runtime operation identity no longer matches the live process.');
+    expect(runtimeControl).not.toContain('stale_record_reconciled');
   });
 
   it('projects the exact installed runtime entrypoint cohort in guest identity', () => {

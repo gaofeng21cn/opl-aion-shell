@@ -27,6 +27,7 @@ export type WindowsWslProcessHandle = {
   child: ChildProcessWithoutNullStreams;
   operationToken: string;
   terminate: (graceMs?: number) => Promise<void>;
+  finalize: () => Promise<void>;
 };
 
 type RuntimeOptions = {
@@ -164,20 +165,20 @@ export class WindowsWslRuntimeExecution {
       stdio: ['pipe', 'pipe', 'pipe'],
     }) as ChildProcessWithoutNullStreams;
     if (request.stdin !== undefined) child.stdin.end(request.stdin);
+    let finalization: Promise<void> | null = null;
+    const finalize = (graceMs = 5000): Promise<void> => {
+      finalization ??= this.terminateOperation(command.operationToken, graceMs).finally(() => {
+        this.activeHandles.delete(command.operationToken);
+      });
+      return finalization;
+    };
     const handle: WindowsWslProcessHandle = {
       child,
       operationToken: command.operationToken,
-      terminate: async (graceMs = 5000) => await this.terminateOperation(command.operationToken, graceMs),
+      terminate: finalize,
+      finalize: () => finalize(),
     };
     this.activeHandles.set(command.operationToken, handle);
-    child.once('close', () => {
-      // A Windows wsl.exe child can close before the guest launcher has removed
-      // its owner-bound record. Reconcile the exact token before forgetting it.
-      void this.terminateOperation(command.operationToken).then(
-        () => this.activeHandles.delete(command.operationToken),
-        () => this.activeHandles.delete(command.operationToken)
-      );
-    });
     return handle;
   }
 

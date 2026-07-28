@@ -188,6 +188,7 @@ type SpawnCommandSpec = {
   launch?: () => {
     child: ChildProcessWithoutNullStreams;
     terminate: (graceMs?: number) => Promise<void>;
+    finalize?: () => Promise<void>;
   };
 };
 
@@ -1493,7 +1494,7 @@ async function runSpawnJsonCommand(
   const displayCommand = commandSpec.redactedCommand;
   const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
   return new Promise((resolve, reject) => {
-    const launched =
+    const launched: ReturnType<NonNullable<SpawnCommandSpec['launch']>> =
       commandSpec.launch?.() ??
       (() => {
         const child = spawn(commandSpec.command, commandSpec.args, {
@@ -1544,21 +1545,24 @@ async function runSpawnJsonCommand(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      if (code !== 0) {
-        reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
-        return;
-      }
-      try {
-        resolve({
-          surface: commandSpec.surface,
-          command: displayCommand,
-          stdout,
-          ok: true,
-          parsed: commandSpec.parseOutput === false ? null : parseJson(stdout),
-        });
-      } catch (error) {
-        reject(error);
-      }
+      void (async () => {
+        try {
+          await launched.finalize?.();
+          if (code !== 0) {
+            reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
+            return;
+          }
+          resolve({
+            surface: commandSpec.surface,
+            command: displayCommand,
+            stdout,
+            ok: true,
+            parsed: commandSpec.parseOutput === false ? null : parseJson(stdout),
+          });
+        } catch (error) {
+          reject(error);
+        }
+      })();
     });
   });
 }
@@ -1575,7 +1579,7 @@ async function runInitializeEventsCommand(
   const displayCommand = commandSpec.redactedCommand;
   const maxStdoutBytes = commandSpec.maxStdoutBytes ?? MAX_STDOUT_BYTES;
   return new Promise((resolve, reject) => {
-    const launched =
+    const launched: ReturnType<NonNullable<SpawnCommandSpec['launch']>> =
       commandSpec.launch?.() ??
       (() => {
         const child = spawn(commandSpec.command, commandSpec.args, {
@@ -1647,22 +1651,25 @@ async function runInitializeEventsCommand(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      try {
-        consumeLine(pendingLine);
-        if (code !== 0) {
-          reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
-          return;
+      void (async () => {
+        try {
+          await launched.finalize?.();
+          consumeLine(pendingLine);
+          if (code !== 0) {
+            reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
+            return;
+          }
+          resolve({
+            surface: commandSpec.surface,
+            command: displayCommand,
+            stdout,
+            ok: true,
+            parsed,
+          });
+        } catch (error) {
+          reject(error);
         }
-        resolve({
-          surface: commandSpec.surface,
-          command: displayCommand,
-          stdout,
-          ok: true,
-          parsed,
-        });
-      } catch (error) {
-        reject(error);
-      }
+      })();
     });
   });
 }
@@ -1732,6 +1739,7 @@ function buildRuntimeOplSpawnCommand(
       return {
         child: handle.child,
         terminate: handle.terminate,
+        finalize: handle.finalize,
       };
     },
   };
@@ -2050,6 +2058,7 @@ export const __oplRuntimeBridgeTest = {
   resolveDeveloperModeCheckoutRoot,
   resolveOplPackageRootFromExecutable,
   parseJson,
+  runSpawnJsonCommand,
   runInitializeEventsCommand,
   runOplCommand,
   runStandardBootstrapSingleFlight,

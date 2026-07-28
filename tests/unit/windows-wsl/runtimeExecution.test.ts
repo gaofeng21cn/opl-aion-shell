@@ -14,14 +14,8 @@ function asChildProcess(process: FakeProcess): ChildProcessWithoutNullStreams {
   return process as unknown as ChildProcessWithoutNullStreams;
 }
 
-async function flushMicrotasks(): Promise<void> {
-  for (let index = 0; index < 6; index += 1) {
-    await Promise.resolve();
-  }
-}
-
 describe('Windows WSL runtime execution', () => {
-  it('reconciles an exact owner token when the host WSL child closes', async () => {
+  it('finalizes an exact owner token once before releasing the handle', async () => {
     const runtimeChild = new FakeProcess();
     const controlChild = new FakeProcess();
     const spawnProcess = vi.fn((command: string, args: string[]) => {
@@ -45,8 +39,9 @@ describe('Windows WSL runtime execution', () => {
       args: ['app', 'state', '--profile', 'fast', '--json'],
       operationToken: 'app-close-reconcile-test',
     });
-    runtimeChild.emit('close', 0);
-    await flushMicrotasks();
+    await handle.finalize();
+    await handle.finalize();
+    await handle.terminate();
 
     expect(handle.operationToken).toBe('app-close-reconcile-test');
     expect(spawnProcess).toHaveBeenNthCalledWith(

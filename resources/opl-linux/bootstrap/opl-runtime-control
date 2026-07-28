@@ -34,21 +34,6 @@ if [[ ! -f "$record" ]]; then
   exit 0
 fi
 
-collect_operation_pids() {
-  local env_file process_id process_uid
-  for env_file in /proc/[0-9]*/environ; do
-    process_id="${env_file#/proc/}"
-    process_id="${process_id%/environ}"
-    [[ "$process_id" != "$$" ]] || continue
-    process_uid="$(stat -c '%u' "/proc/$process_id" 2>/dev/null || true)"
-    [[ "$process_uid" == "$(id -u)" ]] || continue
-    if { tr '\0' '\n' <"$env_file"; } 2>/dev/null |
-      grep -Fx "OPL_OPERATION_TOKEN=$operation_token" >/dev/null 2>&1; then
-      printf '%s\n' "$process_id"
-    fi
-  done
-}
-
 pid="$(jq -r '.pid' "$record")"
 expected_starttime="$(jq -r '.starttime' "$record")"
 expected_pgid="$(jq -r '.process_group' "$record")"
@@ -57,28 +42,8 @@ expected_sha256="$(jq -r '.executable_sha256' "$record")"
 expected_carrier="$(jq -r '.carrier_id' "$record")"
 
 if [[ "$expected_carrier" != "OPL-Linux" ]] ||
-  [[ ! "$pid" =~ ^[1-9][0-9]*$ ]] ||
-  [[ ! "$expected_starttime" =~ ^[0-9]+$ ]] ||
-  [[ ! "$expected_pgid" =~ ^[1-9][0-9]*$ ]] ||
-  [[ "$expected_executable" != /* ]] ||
-  [[ ! "$expected_sha256" =~ ^[0-9a-f]{64}$ ]]; then
-  printf 'Runtime operation record is invalid or not owned by OPL Linux.\n' >&2
-  exit 65
-fi
-
-if [[ ! -r "/proc/$pid/stat" ]]; then
-  mapfile -t operation_pids < <(collect_operation_pids)
-  if [[ "${#operation_pids[@]}" -eq 0 ]]; then
-    rm -f "$record"
-    jq -n --arg status stale_record_reconciled --argjson survivors 0 \
-      '{status: $status, survivors: $survivors}'
-    exit 0
-  fi
-  printf 'Runtime operation identity no longer matches the live process.\n' >&2
-  exit 65
-fi
-
-if [[ "$(awk '{print $22}' "/proc/$pid/stat")" != "$expected_starttime" ]] ||
+  [[ ! -r "/proc/$pid/stat" ]] ||
+  [[ "$(awk '{print $22}' "/proc/$pid/stat")" != "$expected_starttime" ]] ||
   [[ "$(ps -o pgid= -p "$pid" | tr -d ' ')" != "$expected_pgid" ]] ||
   [[ "$(readlink -f "/proc/$pid/exe")" != "$expected_executable" ]] ||
   [[ "$(sha256sum "$expected_executable" | awk '{print $1}')" != "$expected_sha256" ]]; then
@@ -94,6 +59,21 @@ done
 if [[ -e "/proc/$pid" ]]; then
   kill -KILL -- "-$expected_pgid" 2>/dev/null || true
 fi
+
+collect_operation_pids() {
+  local env_file process_id process_uid
+  for env_file in /proc/[0-9]*/environ; do
+    process_id="${env_file#/proc/}"
+    process_id="${process_id%/environ}"
+    [[ "$process_id" != "$$" ]] || continue
+    process_uid="$(stat -c '%u' "/proc/$process_id" 2>/dev/null || true)"
+    [[ "$process_uid" == "$(id -u)" ]] || continue
+    if { tr '\0' '\n' <"$env_file"; } 2>/dev/null |
+      grep -Fx "OPL_OPERATION_TOKEN=$operation_token" >/dev/null 2>&1; then
+      printf '%s\n' "$process_id"
+    fi
+  done
+}
 
 mapfile -t operation_pids < <(collect_operation_pids)
 if [[ "${#operation_pids[@]}" -gt 0 ]]; then
