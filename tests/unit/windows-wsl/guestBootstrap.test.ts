@@ -68,15 +68,18 @@ describe('OPL Linux guest bootstrap', () => {
     expect(script).not.toContain('[inputs]');
   });
 
-  it('records the final Framework executable identity and keeps stale cleanup fail-closed', () => {
+  it('records the final Framework executable identity and reconciles only verified stale records', () => {
     const runtimeExec = read('opl-runtime-exec');
     expect(runtimeExec).toContain('expected_executable="$(readlink -f "$node_path")"');
     expect(runtimeExec).toContain('"$(readlink -f "/proc/$child_pid/exe")" != "$expected_executable"');
     expect(runtimeExec).toContain('trap cleanup_record EXIT');
 
     const runtimeControl = read('opl-runtime-control');
+    expect(runtimeControl).toContain('Runtime operation record is invalid or not owned by OPL Linux.');
+    expect(runtimeControl).toContain('[[ ! -r "/proc/$pid/stat" ]]');
+    expect(runtimeControl).toContain('collect_operation_pids');
+    expect(runtimeControl).toContain('stale_record_reconciled');
     expect(runtimeControl).toContain('Runtime operation identity no longer matches the live process.');
-    expect(runtimeControl).not.toContain('stale_record_reconciled');
   });
 
   it('projects the exact installed runtime entrypoint cohort in guest identity', () => {
