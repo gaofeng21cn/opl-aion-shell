@@ -6,14 +6,59 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import type { TChatConversation } from '@/common/config/storage';
 import { useConversationHistoryContext } from '@/renderer/hooks/context/ConversationHistoryContext';
 import { isConversationArchived } from '../utils/groupingHelpers';
+import type { GroupedHistoryResult } from '../types';
+import { canonicalCodexThreadId } from './canonicalThreadLifecycle';
 import {
   dispatchWorkspaceExpansionChange,
   readExpandedWorkspaces,
   ARCHIVED_WORKSPACE_EXPANSION_STORAGE_KEY,
   WORKSPACE_EXPANSION_STORAGE_KEY,
 } from './useWorkspaceExpansionState';
+
+export const filterConversationsForHistorySurface = (
+  conversations: TChatConversation[],
+  archived: boolean,
+  canonicalDirectoryAvailable: boolean,
+  canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>
+): TChatConversation[] => {
+  return conversations.filter((conversation) => {
+    const threadId = canonicalCodexThreadId(conversation);
+    if (!threadId) return isConversationArchived(conversation) === archived;
+
+    const canonicalArchived = canonicalArchiveStateByThreadId.get(threadId);
+    if (canonicalArchived !== undefined) return canonicalArchived === archived;
+    if (!canonicalDirectoryAvailable) return false;
+    return isConversationArchived(conversation) === archived;
+  });
+};
+
+export const filterHistoryToConversationIds = (
+  history: GroupedHistoryResult,
+  visibleConversationIds: ReadonlySet<string>
+): GroupedHistoryResult => ({
+  pinnedConversations: history.pinnedConversations.filter((conversation) =>
+    visibleConversationIds.has(conversation.id)
+  ),
+  timelineSections: history.timelineSections
+    .map((section) => ({
+      ...section,
+      items: section.items.flatMap((item) => {
+        if (item.type === 'workspace' && item.workspaceGroup) {
+          const conversations = item.workspaceGroup.conversations.filter((conversation) =>
+            visibleConversationIds.has(conversation.id)
+          );
+          return conversations.length > 0
+            ? [{ ...item, workspaceGroup: { ...item.workspaceGroup, conversations } }]
+            : [];
+        }
+        return item.conversation && visibleConversationIds.has(item.conversation.id) ? [item] : [];
+      }),
+    }))
+    .filter((section) => section.items.length > 0),
+});
 
 export const useConversations = (archived = false) => {
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<string[]>(() => readExpandedWorkspaces(archived));
@@ -26,6 +71,8 @@ export const useConversations = (archived = false) => {
     setActiveConversation,
     groupedHistory,
     archivedHistory,
+    canonicalDirectoryAvailable,
+    canonicalArchiveStateByThreadId,
   } = useConversationHistoryContext();
 
   // Track whether auto-expand has already been performed to avoid
@@ -76,10 +123,15 @@ export const useConversations = (archived = false) => {
     dispatchWorkspaceExpansionChange(expandedWorkspaces, archived);
   }, [archived, expandedWorkspaces]);
 
-  const { pinnedConversations, timelineSections } = archived ? archivedHistory : groupedHistory;
-  const visibleConversations = conversations.filter(
-    (conversation) => isConversationArchived(conversation) === archived
+  const visibleConversations = filterConversationsForHistorySurface(
+    conversations,
+    archived,
+    canonicalDirectoryAvailable,
+    canonicalArchiveStateByThreadId
   );
+  const visibleConversationIds = new Set(visibleConversations.map((conversation) => conversation.id));
+  const history = filterHistoryToConversationIds(archived ? archivedHistory : groupedHistory, visibleConversationIds);
+  const { pinnedConversations, timelineSections } = history;
 
   // Auto-expand all workspaces on first load only (#1156)
   useEffect(() => {

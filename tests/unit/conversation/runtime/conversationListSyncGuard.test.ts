@@ -12,6 +12,10 @@ import {
   mergeCanonicalThreadDirectory,
   visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
+import {
+  filterConversationsForHistorySurface,
+  filterHistoryToConversationIds,
+} from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversations';
 
 const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDescriptor => ({
   id: 'thread-1',
@@ -342,5 +346,60 @@ describe('mergeCanonicalThreadDirectory', () => {
   it('falls back to shell cache when the canonical directory is unavailable', () => {
     const cached = { id: 'local-1' } as TChatConversation;
     expect(mergeCanonicalThreadDirectory([cached], null)).toEqual([cached]);
+  });
+});
+
+describe('canonical archive surface fallback', () => {
+  const cachedCodexThread = {
+    id: 'local-1',
+    name: 'Cached task',
+    created_at: 1,
+    type: 'acp',
+    extra: {
+      backend: 'codex',
+      canonical_thread_id: 'thread-1',
+      archived: false,
+    },
+  } as TChatConversation;
+
+  it('does not classify a local Codex cache row on either surface after canonical timeout', () => {
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, false, new Map())).toEqual([]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, false, new Map())).toEqual([]);
+  });
+
+  it('uses the last known canonical archive state after a later timeout', () => {
+    const canonicalArchiveState = new Map([['thread-1', true]]);
+
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, false, canonicalArchiveState)).toEqual([]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, false, canonicalArchiveState)).toEqual([
+      cachedCodexThread,
+    ]);
+  });
+
+  it('removes timeout-hidden rows from workspace timeline groups', () => {
+    const history = {
+      pinnedConversations: [cachedCodexThread],
+      timelineSections: [
+        {
+          timeline: 'Recents',
+          items: [
+            {
+              type: 'workspace' as const,
+              time: 1,
+              workspaceGroup: {
+                workspace: '/tmp/project',
+                display_name: 'Project',
+                conversations: [cachedCodexThread],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(filterHistoryToConversationIds(history, new Set())).toEqual({
+      pinnedConversations: [],
+      timelineSections: [],
+    });
   });
 });
