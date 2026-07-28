@@ -11,6 +11,12 @@ export type WarmupConversationStatus = {
 
 export type PreparedConversationRuntime = EnsureConversationRuntimeResponse | void;
 
+export type PreparedRuntimeModeOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
 const IDLE_STATUS: WarmupConversationStatus = {
   phase: 'idle',
   attempt: 0,
@@ -61,6 +67,27 @@ export function getPreparedRuntimeMode(snapshot: PreparedConversationRuntime): s
   if (!snapshot) return null;
   const modeOption = snapshot.config_options.find((option) => option.category === 'mode' || option.id === 'mode');
   return modeOption?.current_value?.trim() || null;
+}
+
+export function getPreparedRuntimeModes(snapshot: PreparedConversationRuntime): PreparedRuntimeModeOption[] {
+  if (!snapshot) return [];
+  const modeOption = snapshot.config_options.find((option) => option.category === 'mode' || option.id === 'mode');
+  const modes = (modeOption?.options ?? []).flatMap((option) => {
+    const value = option.value.trim();
+    if (!value) return [];
+    return [
+      {
+        value,
+        label: option.name?.trim() || option.label?.trim() || value,
+        ...(option.description?.trim() ? { description: option.description.trim() } : {}),
+      },
+    ];
+  });
+  const currentMode = modeOption?.current_value?.trim();
+  if (currentMode && !modes.some((mode) => mode.value === currentMode)) {
+    modes.unshift({ value: currentMode, label: currentMode });
+  }
+  return modes;
 }
 
 export function warmupConversation(conversation_id: string): Promise<EnsureConversationRuntimeResponse> {

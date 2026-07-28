@@ -505,6 +505,43 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
   });
 
+  it('uses a prepared mobile mode that is absent from the cached and static catalogs', async () => {
+    isMobileLayout = true;
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: [
+        {
+          id: 'mode',
+          category: 'mode',
+          option_type: 'select',
+          current_value: 'runtime-agent',
+          options: [{ value: 'runtime-agent', label: 'Runtime Agent' }],
+        },
+      ],
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    acpModelInfoMocks.warmupConversation.mockResolvedValue(prepared);
+    acpModelInfoMocks.getMode.mockRejectedValue(new Error('session mode is not initialized'));
+
+    render(<AcpSendBox conversation_id='codex-conversation' backend='codex' messageState={messageState()} />);
+    fireEvent.click(screen.getByTestId('mobile-plus-button'));
+
+    await waitFor(() =>
+      expect(screen.getByTestId('mobile-action-sheet-option-session-modes-mode-runtime-agent')).toHaveAttribute(
+        'data-active',
+        'true'
+      )
+    );
+    expect(acpModelInfoMocks.getMode).not.toHaveBeenCalled();
+  });
+
   it('uses the live mode endpoint when the prepared mobile snapshot has no mode', async () => {
     isMobileLayout = true;
     const prepared: EnsureConversationRuntimeResponse = {

@@ -10,6 +10,7 @@ import type { AcpSessionConfigOption } from '@/common/types/platform/acpTypes';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import {
   getPreparedRuntimeMode,
+  getPreparedRuntimeModes,
   type PreparedConversationRuntime,
 } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
@@ -106,6 +107,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   const layout = useLayoutContext();
   const isMobile = Boolean(layout?.isMobile);
   const [cachedModes, setCachedModes] = useState<AgentModeOption[]>([]);
+  const [preparedModes, setPreparedModes] = useState<AgentModeOption[]>([]);
 
   // Load modes from cache: try top-level `acp.cachedModes` first (qoder, opencode),
   // then fall back to `acp.cached_config_options` category=mode (codex)
@@ -134,12 +136,19 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     }
   }, [backend]);
 
-  // Priority: dynamicModes (runtime) > cachedModes (from cache) > getAgentModes (static fallback)
+  // The prepared runtime catalog is current for this conversation. Keep cached
+  // or static entries only as additional choices until the next live refresh.
   const modes = useMemo(() => {
-    if (dynamicModes && dynamicModes.length > 0) return dynamicModes;
-    if (cachedModes.length > 0) return cachedModes;
-    return getAgentModes(backend);
-  }, [dynamicModes, cachedModes, backend]);
+    const fallbackModes =
+      dynamicModes && dynamicModes.length > 0
+        ? dynamicModes
+        : cachedModes.length > 0
+          ? cachedModes
+          : getAgentModes(backend);
+    if (preparedModes.length === 0) return fallbackModes;
+    const preparedValues = new Set(preparedModes.map((mode) => mode.value));
+    return [...preparedModes, ...fallbackModes.filter((mode) => !preparedValues.has(mode.value))];
+  }, [dynamicModes, cachedModes, backend, preparedModes]);
   const defaultMode = modes[0]?.value ?? 'default';
   // Validate initialMode against available modes; fall back to backend's default
   // when the provided value doesn't match (e.g. opencode has 'build'/'plan', not 'default')
@@ -152,6 +161,10 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     [modeLabelFormatter]
   );
 
+  useEffect(() => {
+    setPreparedModes([]);
+  }, [backend, conversation_id]);
+
   const can_switchMode = (supportsModeSwitch(backend) || modes.length > 0) && (conversation_id || onModeSelect);
   // Mobile conversation header agent pill is display-only by design.
   const canInteract = can_switchMode && !(compact && compactLabelType === 'agent');
@@ -160,11 +173,12 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
   // Validate against available modes to handle backends with non-standard default
   // (e.g. opencode uses 'build' instead of 'default').
   useEffect(() => {
+    if (preparedModes.length > 0) return;
     if (initialMode !== undefined) {
       const valid = modes.some((m) => m.value === initialMode) ? initialMode : defaultMode;
       setCurrentMode(valid);
     }
-  }, [initialMode, modes, defaultMode]);
+  }, [initialMode, modes, defaultMode, preparedModes]);
 
   // Sync mode from backend when mounting or switching conversation tabs
   useEffect(() => {
@@ -175,8 +189,10 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
       const prepared = await beforeRuntimeSync?.();
       if (prepared) {
         const preparedMode = getPreparedRuntimeMode(prepared);
+        const runtimeModes = getPreparedRuntimeModes(prepared);
         if (cancelled) return;
-        if (preparedMode && modes.some((mode) => mode.value === preparedMode)) {
+        if (preparedMode) {
+          setPreparedModes(runtimeModes);
           setCurrentMode(preparedMode);
           return;
         }
@@ -193,7 +209,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, can_switchMode, beforeRuntimeSync, modes]);
+  }, [conversation_id, can_switchMode, beforeRuntimeSync]);
 
   const handleModeChange = useCallback(
     async (mode: string) => {

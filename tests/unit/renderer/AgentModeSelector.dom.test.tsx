@@ -71,7 +71,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const preparedRuntime = (mode: string): EnsureConversationRuntimeResponse => ({
+const preparedRuntime = (mode: string, label = mode): EnsureConversationRuntimeResponse => ({
   recovered: true,
   config_options: [
     {
@@ -79,7 +79,7 @@ const preparedRuntime = (mode: string): EnsureConversationRuntimeResponse => ({
       category: 'mode',
       option_type: 'select',
       current_value: mode,
-      options: [{ value: mode, label: mode }],
+      options: [{ value: mode, label }],
     },
   ],
   runtime: {
@@ -113,6 +113,27 @@ describe('AgentModeSelector runtime preparation', () => {
     await waitFor(() => expect(beforeRuntimeSync).toHaveBeenCalledTimes(1));
     expect(getModeInvokeMock).not.toHaveBeenCalled();
     expect(screen.getByTestId('mode-selector')).toHaveAttribute('data-current-mode', 'full-access');
+  });
+
+  it('accepts a prepared mode that is absent from the cached and static catalogs', async () => {
+    const beforeRuntimeSync = vi.fn().mockResolvedValue(preparedRuntime('runtime-agent', 'Runtime Agent'));
+    getModeInvokeMock.mockRejectedValue(new Error('session mode is not initialized'));
+
+    render(
+      <AgentModeSelector
+        backend='codex'
+        conversation_id='conv-1'
+        compact
+        initialMode='full-access'
+        beforeRuntimeSync={beforeRuntimeSync}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mode-selector')).toHaveAttribute('data-current-mode', 'runtime-agent');
+    });
+    expect(screen.getByTestId('mode-selector')).toHaveTextContent('Runtime Agent');
+    expect(getModeInvokeMock).not.toHaveBeenCalled();
   });
 
   it('uses the live mode endpoint when runtime preparation has no snapshot', async () => {
