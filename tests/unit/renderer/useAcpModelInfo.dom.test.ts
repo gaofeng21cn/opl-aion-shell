@@ -9,7 +9,11 @@ import { createElement, type PropsWithChildren } from 'react';
 import { SWRConfig } from 'swr';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
-import type { AcpConfigOptionDto, AcpModelInfo } from '@/common/types/platform/acpTypes';
+import type {
+  AcpConfigOptionDto,
+  AcpModelInfo,
+  EnsureConversationRuntimeResponse,
+} from '@/common/types/platform/acpTypes';
 import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
 
 const {
@@ -220,6 +224,49 @@ describe('useAcpModelInfo', () => {
       expect(result.current.model_info?.current_model_id).toBe('opus-4');
     });
     expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+  });
+
+  it('uses the runtime preparation snapshot without issuing pre-session model or config GETs', async () => {
+    const prepared: EnsureConversationRuntimeResponse = {
+      recovered: true,
+      config_options: buildConfigOptions('opus-4'),
+      runtime: {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      },
+    };
+    const prepareRuntime = vi.fn().mockResolvedValue(prepared);
+
+    const { result } = renderUseAcpModelInfo({
+      conversation_id: 'conv-1',
+      backend: 'claude',
+      prepareRuntime,
+    });
+
+    await waitFor(() => {
+      expect(result.current.model_info?.current_model_id).toBe('opus-4');
+    });
+    expect(result.current.model_info?.current_model_label).toBe('Claude Opus 4');
+    expect(getModelInvokeMock).not.toHaveBeenCalled();
+    expect(getConfigOptionsInvokeMock).not.toHaveBeenCalled();
+
+    getModelInvokeMock.mockResolvedValue({ model_info: buildModelInfo({ current_model_id: 'sonnet-4' }) });
+    vi.useFakeTimers();
+    await act(async () => {
+      responseStreamHandlerRef.current?.({
+        type: 'start',
+        conversation_id: 'conv-1',
+      } as unknown as IResponseMessage);
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+    });
+
+    expect(getModelInvokeMock).toHaveBeenCalledWith({ conversation_id: 'conv-1' });
+    vi.clearAllTimers();
   });
 
   it('does not request model info when runtime preparation fails', async () => {

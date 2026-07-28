@@ -17,12 +17,22 @@ import {
   normalizeCodexModelInfo,
   resolveOplCodexAutoSelection,
 } from '@/common/types/codex/codexModels';
-import type { AcpAvailableModel, AcpModelInfo } from '@/common/types/platform/acpTypes';
+import type {
+  AcpAvailableModel,
+  AcpConfigOptionDto,
+  AcpModelInfo,
+  EnsureConversationRuntimeResponse,
+} from '@/common/types/platform/acpTypes';
 import { configService } from '@/common/config/configService';
 import { savePreferredCodexSelection, savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
-import { type AcpConfigSetStatus, type AcpDerivedOption, useAcpConfigOptions } from './useAcpConfigOptions';
+import {
+  findConfigOption,
+  type AcpConfigSetStatus,
+  type AcpDerivedOption,
+  useAcpConfigOptions,
+} from './useAcpConfigOptions';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import useSWR from 'swr';
 
@@ -128,6 +138,23 @@ function normalizeAcpModelInfo(value: unknown): AcpModelInfo | null {
   };
 }
 
+function buildModelInfoFromPreparedConfigOptions(configOptions: AcpConfigOptionDto[]): AcpModelInfo | null {
+  const modelOption = findConfigOption(configOptions, 'model', ['model']);
+  if (!modelOption || (modelOption.option_type ?? modelOption.type) !== 'select') return null;
+  const availableModels = modelOption.options.map((option) => ({
+    id: option.value,
+    label: option.name || option.label || option.value,
+  }));
+  if (availableModels.length === 0) return null;
+  const currentModelId = modelOption.current_value?.trim() || null;
+  return {
+    current_model_id: currentModelId,
+    current_model_label:
+      (currentModelId && availableModels.find((model) => model.id === currentModelId)?.label) || currentModelId,
+    available_models: availableModels,
+  };
+}
+
 const logAcpModelInfo = (event: string, data: Record<string, unknown>) => {
   const entry = { event, ...data };
   console.info('[useAcpModelInfo]', entry);
@@ -206,20 +233,20 @@ export const useAcpModelInfo = ({
   conversation_id: string;
   backend?: string;
   initialModelId?: string;
-  prepareRuntime?: () => Promise<void>;
+  prepareRuntime?: () => Promise<EnsureConversationRuntimeResponse | void>;
   enabled?: boolean;
   onSelectModelSuccess?: (model_id: string) => void;
   onSelectModelFailed?: (model_id: string, error: unknown) => void;
 }): UseAcpModelInfoResult => {
-  const prepareRuntimePromiseRef = useRef<Promise<void> | null>(null);
+  const prepareRuntimePromiseRef = useRef<Promise<EnsureConversationRuntimeResponse | void> | null>(null);
   const prepareRuntimeOnce = useCallback(async () => {
-    if (!prepareRuntime) return;
+    if (!prepareRuntime) return undefined;
     if (!prepareRuntimePromiseRef.current) {
       prepareRuntimePromiseRef.current = prepareRuntime().finally(() => {
         prepareRuntimePromiseRef.current = null;
       });
     }
-    await prepareRuntimePromiseRef.current;
+    return await prepareRuntimePromiseRef.current;
   }, [prepareRuntime]);
   const { thoughtLevel, setStatus, setConfigOption } = useAcpConfigOptions({
     conversation_id,
@@ -307,10 +334,11 @@ export const useAcpModelInfo = ({
   );
 
   const reloadModelInfo = useCallback(
-    async (options?: { preserveInitialModel?: boolean }): Promise<boolean> => {
+    async (options?: { preserveInitialModel?: boolean; preferPreparedSnapshot?: boolean }): Promise<boolean> => {
       if (!enabled) return false;
+      let prepared: EnsureConversationRuntimeResponse | void;
       try {
-        await prepareRuntimeOnce();
+        prepared = await prepareRuntimeOnce();
       } catch (error) {
         logAcpModelInfo('prepare_runtime_failed_before_model_reload', {
           conversation_id,
@@ -318,6 +346,15 @@ export const useAcpModelInfo = ({
           error: error instanceof Error ? error.message : String(error),
         });
         return false;
+      }
+
+      if (options?.preferPreparedSnapshot !== false && prepared) {
+        const preparedModelInfo = buildModelInfoFromPreparedConfigOptions(prepared.config_options);
+        if (preparedModelInfo) {
+          updateModelInfo(preparedModelInfo);
+          return true;
+        }
+        return loadFallbackModelInfo(options);
       }
 
       const { model_info: info, missing_active_session: missingActiveSession } =
@@ -390,7 +427,7 @@ export const useAcpModelInfo = ({
       clearScheduledReloads();
       scheduledReloadTimersRef.current = delays.map((delay) =>
         window.setTimeout(() => {
-          void reloadModelInfo().catch(() => {});
+          void reloadModelInfo({ preferPreparedSnapshot: false }).catch(() => {});
         }, delay)
       );
     },
@@ -434,7 +471,7 @@ export const useAcpModelInfo = ({
     if (backend !== 'claude') return;
     if (model_info) return;
     const refresh = () => {
-      void reloadModelInfo().catch(() => {});
+      void reloadModelInfo({ preferPreparedSnapshot: false }).catch(() => {});
     };
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') refresh();
@@ -540,7 +577,7 @@ export const useAcpModelInfo = ({
         } else {
           void mutateModelInfo(null, false);
         }
-        void reloadModelInfo().catch(() => {});
+        void reloadModelInfo({ preferPreparedSnapshot: false }).catch(() => {});
         throw error;
       }
 
@@ -550,7 +587,7 @@ export const useAcpModelInfo = ({
         requested_model_id: model_id,
         confirmed_model_info: summarizeModelInfo(confirmedModelInfo),
       });
-      const refreshed = await reloadModelInfo().catch(() => false);
+      const refreshed = await reloadModelInfo({ preferPreparedSnapshot: false }).catch(() => false);
       logAcpModelInfo('select_model_refresh_completed', {
         conversation_id,
         backend,

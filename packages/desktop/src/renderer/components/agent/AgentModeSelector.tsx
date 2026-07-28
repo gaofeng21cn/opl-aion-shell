@@ -8,6 +8,10 @@ import { ipcBridge } from '@/common';
 import { configService } from '@/common/config/configService';
 import type { AcpSessionConfigOption } from '@/common/types/platform/acpTypes';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
+import {
+  getPreparedRuntimeMode,
+  type PreparedConversationRuntime,
+} from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/renderer/utils/model/agentModes';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { AgentLogoIcon } from './AgentBadge';
@@ -68,7 +72,7 @@ export interface AgentModeSelectorProps {
   /** Dynamic modes from capabilities (overrides static list when non-empty) */
   dynamicModes?: AgentModeOption[];
   /** Optional runtime preparation before reading active-session mode. */
-  beforeRuntimeSync?: () => Promise<void>;
+  beforeRuntimeSync?: () => Promise<PreparedConversationRuntime>;
 }
 
 /**
@@ -168,27 +172,27 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
     let cancelled = false;
 
     void (async () => {
-      await beforeRuntimeSync?.();
-      return ipcBridge.acpConversation.getMode.invoke({ conversation_id });
-    })()
-      .then((result) => {
-        if (!cancelled && result) {
-          // Only sync from backend when manager is initialized;
-          // before first message, getMode returns { mode: 'default', initialized: false }
-          // which would overwrite the correct initialMode (e.g. opencode has no 'default').
-          if (result.initialized !== false) {
-            setCurrentMode(result.mode);
-          }
+      const prepared = await beforeRuntimeSync?.();
+      if (prepared) {
+        const preparedMode = getPreparedRuntimeMode(prepared);
+        if (!cancelled && preparedMode && modes.some((mode) => mode.value === preparedMode)) {
+          setCurrentMode(preparedMode);
         }
-      })
-      .catch(() => {
-        // Silent fail, keep current state
-      });
+        return;
+      }
+
+      const result = await ipcBridge.acpConversation.getMode.invoke({ conversation_id });
+      if (!cancelled && result?.initialized !== false) {
+        setCurrentMode(result.mode);
+      }
+    })().catch(() => {
+      // Silent fail, keep current state
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, can_switchMode, beforeRuntimeSync]);
+  }, [conversation_id, can_switchMode, beforeRuntimeSync, modes]);
 
   const handleModeChange = useCallback(
     async (mode: string) => {

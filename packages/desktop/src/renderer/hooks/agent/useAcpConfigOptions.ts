@@ -10,6 +10,7 @@ import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type {
   AcpConfigOptionDto,
   AcpConfigSelectOptionDto,
+  EnsureConversationRuntimeResponse,
   SetConfigOptionResponse,
 } from '@/common/types/platform/acpTypes';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -160,7 +161,7 @@ export function useAcpConfigOptions({
   enabled = true,
 }: {
   conversation_id: string;
-  prepareRuntime?: () => Promise<void>;
+  prepareRuntime?: () => Promise<EnsureConversationRuntimeResponse | void>;
   enabled?: boolean;
 }) {
   const [setStatus, setSetStatus] = useState<AcpConfigSetStatus>(() => getConversationSetStatus(conversation_id));
@@ -188,12 +189,19 @@ export function useAcpConfigOptions({
     [mutate]
   );
 
-  const reload = useCallback(async () => {
-    await prepareRuntime?.();
-    const next = await fetchConfigOptionsOnce(key);
-    if (next) replaceSnapshot(next);
-    return next;
-  }, [key, prepareRuntime, replaceSnapshot]);
+  const reload = useCallback(
+    async (options?: { preferPreparedSnapshot?: boolean }) => {
+      const prepared = await prepareRuntime?.();
+      if (options?.preferPreparedSnapshot !== false && prepared) {
+        replaceSnapshot(prepared.config_options);
+        return prepared.config_options;
+      }
+      const next = await fetchConfigOptionsOnce(key);
+      if (next) replaceSnapshot(next);
+      return next;
+    },
+    [key, prepareRuntime, replaceSnapshot]
+  );
 
   const setConfigOption = useCallback(
     async (optionId: string, value: string) => {
@@ -239,7 +247,9 @@ export function useAcpConfigOptions({
       }
       if (message.type === 'agent_status') {
         const payload = message.data as { status?: string } | undefined;
-        if (payload?.status === 'session_active') void reload().catch(() => {});
+        if (payload?.status === 'session_active') {
+          void reload({ preferPreparedSnapshot: false }).catch(() => {});
+        }
       }
     };
     return ipcBridge.acpConversation.responseStream.on(handler);

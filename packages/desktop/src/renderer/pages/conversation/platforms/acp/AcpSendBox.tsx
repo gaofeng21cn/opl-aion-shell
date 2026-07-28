@@ -53,7 +53,7 @@ import {
 import { usePreviewContext } from '@/renderer/pages/conversation/Preview';
 import { useConversationRuntimeView } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getConversationRuntimeWorkspaceErrorMessage } from '@/renderer/pages/conversation/utils/conversationCreateError';
-import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
+import { getPreparedRuntimeMode, warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
@@ -200,7 +200,7 @@ const AcpSendBox: React.FC<{
     if (teamPermission) {
       await teamPermission.warmupSession();
     }
-    await warmupConversation(conversation_id);
+    return await warmupConversation(conversation_id);
   }, [conversation_id, teamPermission]);
 
   const {
@@ -228,19 +228,24 @@ const AcpSendBox: React.FC<{
     if (!isModeSurfaceOpen) return;
     if (!conversation_id) return;
     let cancelled = false;
-    void prepareRuntimeSync()
-      .then(() => ipcBridge.acpConversation.getMode.invoke({ conversation_id }))
-      .then((result) => {
-        if (cancelled || !result) return;
-        if (result.initialized !== false) {
-          setCurrentMode(result.mode);
+    void (async () => {
+      const prepared = await prepareRuntimeSync();
+      if (prepared) {
+        const preparedMode = getPreparedRuntimeMode(prepared);
+        if (!cancelled && preparedMode && sessionModes.some((mode) => mode.value === preparedMode)) {
+          setCurrentMode(preparedMode);
         }
-      })
-      .catch(() => {});
+        return;
+      }
+      const result = await ipcBridge.acpConversation.getMode.invoke({ conversation_id });
+      if (!cancelled && result?.initialized !== false) {
+        setCurrentMode(result.mode);
+      }
+    })().catch(() => {});
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
+  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync, sessionModes]);
 
   const handlePaletteModeChange = useCallback(
     async (mode: string) => {
