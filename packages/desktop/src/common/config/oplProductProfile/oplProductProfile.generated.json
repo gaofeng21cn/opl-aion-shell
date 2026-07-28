@@ -4021,8 +4021,8 @@
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Agents renders every Framework directory entry, keeps static professional package data as metadata only, and owns package search, role/status/source filters, registry refresh, projected lifecycle actions, Developer Mode, and Home visibility.",
-                "next_action": "search or filter the directory, refresh it, or execute the package row action projected by Framework",
+                "normal_summary": "Agents renders every Framework directory entry, keeps static professional package data as metadata only, and owns package search, role/status/source filters, dynamic directory reload from fresh App state, projected lifecycle actions, Developer Mode, and Home visibility.",
+                "next_action": "search or filter the directory, reload its fresh App-state projection, or execute the package row action projected by Framework",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_agents",
                 "editable_reason": "Framework owns directory and action truth; the App only renders canonical payloads and routes missing workspace activation to Workspace",
                 "surface_class": "configuration",
@@ -4814,7 +4814,7 @@
             "primary_information": [
               "all discoverable Agent, Framework capability, and workflow profile packages from app_state.agent_packages.directory.entries",
               "dedicated package catalog search with package role, availability status, and source filters",
-              "visible registry refresh and projected per-row non-activation lifecycle actions",
+              "visible dynamic directory reload from fresh App state and projected per-row non-activation lifecycle actions",
               "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
               "owner-projected display metadata and shortcuts from app_state.agent_packages.directory.entries",
               "global automatic, managed, or developer source mode with selected workspace and authority summary",
@@ -4833,7 +4833,7 @@
               "projected_action_semantic_source": "app_state.agent_packages.directory.entries[].available_actions[].semantic",
               "action_id_allowlist_allowed": false,
               "catalog_search_is_settings_global_search": false,
-              "registry_refresh_visibility": "ordinary_visible_action",
+              "dynamic_directory_reload": "ordinary_visible_fresh_fast_app_state_readback_without_registry_cache_authority",
               "projected_action_policy": "execute only Framework action_id and payload; never infer status, readiness, action ids, or payload fields in the Shell",
               "raw_source_fallback_allowed": false,
               "diagnostic_refs_location": "diagnostics_modal",
@@ -4895,7 +4895,7 @@
               ],
               "action": [
                 {
-                  "id": "agent_registry_refresh",
+                  "id": "agent_dynamic_directory_reload",
                   "owner": "agents"
                 },
                 {
@@ -4911,11 +4911,11 @@
               ]
             },
             "primary_action": {
-              "id": "refresh_agent_registry",
+              "id": "reload_dynamic_directory",
               "availability": "always",
               "max_visible": 1,
-              "label_zh": "刷新目录",
-              "label_en": "Refresh catalog"
+              "label_zh": "重新载入目录",
+              "label_en": "Reload directory"
             },
             "tab_contract": {
               "surface_label_zh": "智能体",
@@ -4934,7 +4934,7 @@
                 "settings-agents-role-filter",
                 "settings-agents-status-filter",
                 "settings-agents-source-filter",
-                "settings-agents-registry-refresh",
+                "settings-agents-reload-dynamic-directory",
                 "settings-agents-technical-details",
                 "settings-agents-primary-action",
                 "opl-developer-profile-control"
