@@ -1099,7 +1099,7 @@ function prepareAioncore(options) {
     removeDirectorySafe(targetDir);
     copyDirectorySafe(sourceDir, targetDir);
     try {
-      assertPreparedRuntimeManifestCompatibility(targetDir, platform, arch, tag);
+      assertPreparedRuntimeManifestCompatibility(targetDir, platform, arch, tag || version);
       const verification = verifyBundledAioncoreResources({
         resourcesDir: path.join(projectRoot, 'resources'),
         electronPlatformName: platform,

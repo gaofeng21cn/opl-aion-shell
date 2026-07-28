@@ -82,7 +82,7 @@ describe('prepare-aioncore compatibility gate', () => {
       })
     );
 
-    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toEqual({
+    expect(__test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', '0.1.50')).toEqual({
       version: '0.1.50',
       requiredOptions: ['--recover-corrupted-database'],
     });
