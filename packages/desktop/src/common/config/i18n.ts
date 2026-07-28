@@ -39,6 +39,10 @@ export function normalizeLanguageCode(language: string): SupportedLanguage {
   }
 }
 
+export function isSameLanguageCode(left: string, right: string): boolean {
+  return normalizeLanguageCode(left) === normalizeLanguageCode(right);
+}
+
 export type InitialLanguageHints = {
   storedLanguage?: string | null;
   injectedLanguage?: string | null;

@@ -862,7 +862,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = Boolean(useLayoutContext()?.isMobile);
-  const appStateQuery = useOplAppState('fast');
+  const appStateQuery = useOplAppState('fast', { requireLive: true });
   const [manifestUrl, setManifestUrl] = useState('');
   const [manifestTrustTier, setManifestTrustTier] = useState<ManifestTrustTier | ''>('');
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -922,6 +922,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const manifestInstallConfirmationRequired = manifestInstallAction.confirmation_required === true;
   const agentPackages = oplRecord(appStateQuery.appState.agent_packages);
   const directory = oplRecord(agentPackages.directory);
+  const directoryReported = Array.isArray(directory.entries);
   const directoryStatus = oplString(directory.status);
   const directoryStatusReadError = (() => {
     const value = directory.status_read_error;
@@ -933,9 +934,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const catalogReadError = appStateQuery.error ?? directoryError ?? null;
   const catalogError = purposeCapabilities.length === 0 ? catalogReadError : null;
   const catalogStaleReason = purposeCapabilities.length > 0 ? catalogReadError : null;
-  const catalogLoading = appStateQuery.loading && purposeCapabilities.length === 0;
+  const catalogLoading =
+    purposeCapabilities.length === 0 && !catalogReadError && (appStateQuery.loading || !directoryReported);
   const catalogRefreshing = appStateQuery.refreshing;
-  const catalogEmpty = !catalogLoading && !catalogError && purposeCapabilities.length === 0;
+  const catalogEmpty = directoryReported && !catalogLoading && !catalogError && purposeCapabilities.length === 0;
   const roleOptions = React.useMemo(() => {
     const roles = [
       ...new Set(
@@ -1891,38 +1893,40 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               </Button>
             </div>
           )}
-          <div
-            className='flex flex-wrap items-center gap-x-18px gap-y-6px py-10px text-12px text-t-secondary'
-            data-testid='capability-summary-grid'
-          >
-            <span data-testid='capability-summary-catalog'>
-              {t('settings.capabilitiesPage.packageManager.packageCount', {
-                count: visibleCapabilities.length,
-                total: purposeCapabilities.length,
-              })}
-            </span>
-            <span data-testid='capability-summary-composition'>
-              {t('settings.capabilitiesPage.packageManager.composition', {
-                agents: String(catalogAgentCount),
-                workflows: String(catalogWorkflowCount),
-                supporting: String(catalogSupportingCount),
-              })}
-            </span>
-            <span data-testid='capability-summary-conversation'>
-              {t('settings.capabilitiesPage.visibility.conversation')}: {conversationReadyCount} /{' '}
-              {purposeCapabilities.length}
-            </span>
-            <span data-testid='capability-summary-home'>
-              {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {purposeCapabilities.length}
-            </span>
-            <span
-              className={`opl-settings-status ${
-                hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
-              }`}
+          {!catalogLoading && !catalogError && (
+            <div
+              className='flex flex-wrap items-center gap-x-18px gap-y-6px py-10px text-12px text-t-secondary'
+              data-testid='capability-summary-grid'
             >
-              {t(`settings.capabilitiesPage.status.${hasCapabilityIssue ? 'attention' : 'ready'}`)}
-            </span>
-          </div>
+              <span data-testid='capability-summary-catalog'>
+                {t('settings.capabilitiesPage.packageManager.packageCount', {
+                  count: visibleCapabilities.length,
+                  total: purposeCapabilities.length,
+                })}
+              </span>
+              <span data-testid='capability-summary-composition'>
+                {t('settings.capabilitiesPage.packageManager.composition', {
+                  agents: String(catalogAgentCount),
+                  workflows: String(catalogWorkflowCount),
+                  supporting: String(catalogSupportingCount),
+                })}
+              </span>
+              <span data-testid='capability-summary-conversation'>
+                {t('settings.capabilitiesPage.visibility.conversation')}: {conversationReadyCount} /{' '}
+                {purposeCapabilities.length}
+              </span>
+              <span data-testid='capability-summary-home'>
+                {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {purposeCapabilities.length}
+              </span>
+              <span
+                className={`opl-settings-status ${
+                  hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
+                }`}
+              >
+                {t(`settings.capabilitiesPage.status.${hasCapabilityIssue ? 'attention' : 'ready'}`)}
+              </span>
+            </div>
+          )}
 
           <div className='opl-settings-agent-groups' data-testid='settings-agents-catalog-groups'>
             {catalogGroups.map((group) => {

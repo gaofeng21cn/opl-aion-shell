@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import LoginPage from '@/renderer/pages/login';
 
 const navigateMock = vi.hoisted(() => vi.fn());
+const changeLanguageMock = vi.hoisted(() => vi.fn(async () => undefined));
 const authState = vi.hoisted(() => ({
   status: 'checking' as 'checking' | 'authenticated' | 'unauthenticated',
   login: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 vi.mock('@/renderer/services/i18n', () => ({
-  changeLanguage: vi.fn(),
+  changeLanguage: changeLanguageMock,
 }));
 
 vi.mock('react-i18next', () => ({
@@ -128,6 +129,22 @@ describe('LoginPage', () => {
 
     expect(screen.getByRole('button', { name: 'login.hidePassword' })).toHaveAttribute('aria-pressed', 'true');
     expect(passwordInput).toHaveAttribute('type', 'text');
+  });
+
+  it('persists language only after a real selection that changes the current locale', () => {
+    authState.status = 'unauthenticated';
+
+    render(<LoginPage />);
+
+    const languageSelect = screen.getByRole('combobox', { name: 'login.languageToggle' });
+    expect(changeLanguageMock).not.toHaveBeenCalled();
+
+    fireEvent.change(languageSelect, { target: { value: 'en-US' } });
+    expect(changeLanguageMock).not.toHaveBeenCalled();
+
+    fireEvent.change(languageSelect, { target: { value: 'zh-CN' } });
+    expect(changeLanguageMock).toHaveBeenCalledOnce();
+    expect(changeLanguageMock).toHaveBeenCalledWith('zh-CN');
   });
 
   it('announces validation errors and focuses the first invalid field', async () => {

@@ -13,9 +13,10 @@
  */
 
 import { ipcBridge } from '@/common';
+import { httpRequest } from '@/common/adapter/httpBridge';
 import { getPlatformServices } from '@/common/platform';
 import { ProcessConfig } from '@process/utils/initStorage';
-import { changeLanguage } from '@process/services/i18n';
+import { changeLanguage, normalizeLanguageCode } from '@process/services/i18n';
 import type { PetSize } from '@process/pet/petTypes';
 import { createOrUpdateTray, destroyTray, setCloseToTrayEnabled } from '@process/utils/tray';
 import { readCloseToTraySetting, writeCloseToTraySetting } from '@process/utils/closeToTraySetting';
@@ -61,19 +62,15 @@ export function initSystemSettingsBridge(): void {
     }
   });
 
-  // 语言变更通知，同步主进程 i18n 并通知托盘重建
-  // Language change notification, sync main process i18n and notify tray rebuild
+  // Backend client settings own the persisted preference. ProcessConfig is
+  // only the synchronous startup mirror used before the backend is ready.
   ipcBridge.systemSettings.changeLanguage.provider(async ({ language }) => {
-    // Broadcast to all renderers FIRST (desktop + WebUI) for real-time sync.
-    // This must happen before the potentially slow main-process i18n switch.
-    ipcBridge.systemSettings.languageChanged.emit({ language });
-
-    // Update main process i18n (non-blocking – don't let a hang here block the provider)
-    changeLanguage(language)
-      .then(() => _languageChangeListener?.())
-      .catch((error) => {
-        console.error('[SystemSettings] Main process changeLanguage failed:', error);
-      });
+    const normalized = normalizeLanguageCode(language);
+    await ProcessConfig.set('language', normalized);
+    await httpRequest<void>('PATCH', '/api/settings', { language: normalized });
+    await changeLanguage(normalized);
+    ipcBridge.systemSettings.languageChanged.emit({ language: normalized });
+    _languageChangeListener?.();
   });
 
   // Restore keep-awake state on startup

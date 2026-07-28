@@ -6,6 +6,7 @@ import { ipcBridge } from '@/common';
 import i18nConfig from '@/common/config/i18n-config.json';
 import {
   DEFAULT_LANGUAGE,
+  isSameLanguageCode,
   normalizeLanguageCode,
   resolveInitialLanguage,
   mergeWithFallback,
@@ -124,7 +125,11 @@ async function initLanguage(): Promise<void> {
   try {
     await configService.whenReady();
     const savedLanguage = configService.get('language');
-    const language = savedLanguage || normalizeLanguageCode(navigator.language || DEFAULT_LANGUAGE);
+    const language = resolveInitialLanguage({
+      storedLanguage: savedLanguage,
+      injectedLanguage: getInjectedLanguageHint(),
+      systemLanguage: getElectronSystemLanguageHint() || navigator.language || DEFAULT_LANGUAGE,
+    });
     await ensureAndSwitch(i18n, language, loadLocaleModules);
     // Sync to localStorage so next page load can use it as a fast hint
     if (typeof localStorage !== 'undefined') {
@@ -168,15 +173,17 @@ ipcBridge.systemSettings.languageChanged.on(async ({ language }) => {
  * Change language with lazy loading.
  */
 export async function changeLanguage(lang: string): Promise<void> {
-  await ensureAndSwitch(i18n, lang, loadLocaleModules);
   const normalized = normalizeLanguageCode(lang);
+  if (isSameLanguageCode(i18n.language, normalized)) return;
+
+  await ensureAndSwitch(i18n, normalized, loadLocaleModules);
   await configService.set('language', normalized);
   // Keep localStorage in sync so WebUI can use it as a fast hint on next load
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('i18nextLng', normalized);
   }
   // Notify main process to sync i18n (for tray menu, etc.)
-  ipcBridge.systemSettings.changeLanguage.invoke({ language: normalized }).catch(() => {});
+  await ipcBridge.systemSettings.changeLanguage.invoke({ language: normalized });
 }
 
 // Clear translation cache (useful for development/testing)

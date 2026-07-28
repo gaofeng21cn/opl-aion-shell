@@ -6,7 +6,7 @@ import { changeLanguage } from '@/renderer/services/i18n';
 import { useNavigate } from 'react-router-dom';
 import AppLoader from '@renderer/components/layout/AppLoader';
 import { useAuth } from '../../hooks/context/AuthContext';
-import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '@/common/config/i18n';
+import { isSameLanguageCode, LANGUAGE_LABELS, SUPPORTED_LANGUAGES } from '@/common/config/i18n';
 import './LoginPage.css';
 
 type MessageState = {
@@ -145,12 +145,16 @@ const LoginPage: React.FC = () => {
     []
   );
 
-  const handleLanguageChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    const nextLanguage = event.target.value;
-    changeLanguage(nextLanguage).catch((error: Error) => {
-      console.error('Failed to change language:', error);
-    });
-  }, []);
+  const handleLanguageChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const nextLanguage = event.target.value;
+      if (isSameLanguageCode(i18n.language, nextLanguage)) return;
+      changeLanguage(nextLanguage).catch((error: Error) => {
+        console.error('Failed to change language:', error);
+      });
+    },
+    [i18n.language]
+  );
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent) => {
