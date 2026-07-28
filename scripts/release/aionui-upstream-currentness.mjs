@@ -112,8 +112,8 @@ export function parseRemoteTagCommit(output, tag) {
 
 export function validateAionuiIntakeReceipt(value) {
   const receipt = requireObject(value, 'AionUI intake receipt');
-  if (receipt.schema !== 'opl_aionui_upstream_intake.v1') {
-    throw new Error('AionUI intake receipt schema must be opl_aionui_upstream_intake.v1');
+  if (receipt.schema !== 'opl_aionui_upstream_intake.v2') {
+    throw new Error('AionUI intake receipt schema must be opl_aionui_upstream_intake.v2');
   }
   if (receipt.upstream_repository !== 'https://github.com/iOfficeAI/AionUi.git') {
     throw new Error('AionUI intake receipt repository is not the official upstream');
@@ -173,12 +173,23 @@ export function validateAionuiIntakeReceipt(value) {
   if (!parseStableTag(aioncore.version)) throw new Error('managed_runtime.aioncore.version must be semantic');
   requireSha(aioncore.commit, 'managed_runtime.aioncore.commit');
   requireDigest(aioncore.archive_sha256, 'managed_runtime.aioncore.archive_sha256');
-  requireDigest(runtime.managed_resources_manifest_sha256, 'managed_runtime.managed_resources_manifest_sha256');
-  const codexAcp = requireObject(runtime.codex_acp, 'managed_runtime.codex_acp');
-  if (codexAcp.package !== '@agentclientprotocol/codex-acp' || !/^\d+\.\d+\.\d+$/.test(codexAcp.version)) {
-    throw new Error('managed_runtime.codex_acp must identify an exact official package version');
+  if (runtime.managed_resources_schema !== 2) {
+    throw new Error('managed_runtime.managed_resources_schema must be 2');
   }
-  requireDigest(codexAcp.package_lock_sha256, 'managed_runtime.codex_acp.package_lock_sha256');
+  requireDigest(runtime.managed_resources_manifest_sha256, 'managed_runtime.managed_resources_manifest_sha256');
+  if (runtime.codex_acp !== undefined) {
+    throw new Error('managed_runtime.codex_acp is forbidden for schema v2 direct-CLI resources');
+  }
+  const nodeRuntime = requireObject(runtime.node_runtime, 'managed_runtime.node_runtime');
+  if (!/^\d+\.\d+\.\d+$/.test(nodeRuntime.version)) {
+    throw new Error('managed_runtime.node_runtime must identify an exact version');
+  }
+  requireDigest(nodeRuntime.binary_sha256, 'managed_runtime.node_runtime.binary_sha256');
+  const claudeCli = requireObject(runtime.claude_cli, 'managed_runtime.claude_cli');
+  if (claudeCli.package !== '@anthropic-ai/claude-code' || !/^\d+\.\d+\.\d+$/.test(claudeCli.version)) {
+    throw new Error('managed_runtime.claude_cli must identify an exact official package version');
+  }
+  requireDigest(claudeCli.binary_sha256, 'managed_runtime.claude_cli.binary_sha256');
   const codexCli = requireObject(runtime.codex_cli, 'managed_runtime.codex_cli');
   if (codexCli.package !== '@openai/codex' || !/^\d+\.\d+\.\d+$/.test(codexCli.version)) {
     throw new Error('managed_runtime.codex_cli must identify an exact official package version');

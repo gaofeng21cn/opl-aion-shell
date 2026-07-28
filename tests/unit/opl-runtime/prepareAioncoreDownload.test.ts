@@ -117,34 +117,34 @@ describe('prepare-aioncore compatibility gate', () => {
   it('accepts the pinned version only when the recovery flag is available', () => {
     const calls: string[][] = [];
 
-    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
+    const result = __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.53', {
       execFileSync(_command: string, args: string[]) {
         calls.push(args);
         return args[0] === '--version'
-          ? 'aioncore 0.1.50\n'
+          ? 'aioncore 0.1.53\n'
           : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
       },
     });
 
-    expect(result.version).toBe('0.1.50');
+    expect(result.version).toBe('0.1.53');
     expect(calls).toEqual([['--version'], ['--help']]);
   });
 
   it('rejects a binary whose reported version does not match the package pin', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.53', {
         execFileSync() {
           return 'aioncore 0.1.28\n';
         },
       })
-    ).toThrow(/expected 0\.1\.50, reported 0\.1\.28/);
+    ).toThrow(/expected 0\.1\.53, reported 0\.1\.28/);
   });
 
   it('rejects a binary that does not expose database recovery', () => {
     expect(() =>
-      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.50', {
+      __test__.assertAioncoreCompatibility('/tmp/aioncore', 'v0.1.53', {
         execFileSync(_command: string, args: string[]) {
-          return args[0] === '--version' ? 'aioncore 0.1.50\n' : 'Options:\n  -V, --version\n';
+          return args[0] === '--version' ? 'aioncore 0.1.53\n' : 'Options:\n  -V, --version\n';
         },
       })
     ).toThrow(/missing required option --recover-corrupted-database/);
@@ -228,6 +228,54 @@ describe('prepare-aioncore compatibility gate', () => {
     expect(() => __test__.assertPreparedRuntimeManifestCompatibility(runtimeDir, 'linux', 'x64', 'v0.1.50')).toThrow(
       /missing required option --recover-corrupted-database/
     );
+  });
+});
+
+describe('prepare-aioncore local-development source gate', () => {
+  it('requires complete exact source provenance for a local binary', () => {
+    const binaryPath = path.join(makeTempDir(), 'aioncore');
+    fs.writeFileSync(binaryPath, 'binary');
+
+    expect(() => __test__.resolveLocalAioncoreSource({ localBinaryPath: binaryPath })).toThrow(
+      /requires binary path, HTTPS source URL, exact 40-character commit, and exact 40-character tree/
+    );
+  });
+
+  it('binds a local binary to an exact commit and tree', () => {
+    const binaryPath = path.join(makeTempDir(), 'aioncore');
+    fs.writeFileSync(binaryPath, 'binary');
+    const commit = 'a'.repeat(40);
+    const tree = 'b'.repeat(40);
+
+    expect(
+      __test__.resolveLocalAioncoreSource({
+        localBinaryPath: binaryPath,
+        localSourceUrl: `https://github.com/gaofeng21cn/AionCore/commit/${commit}`,
+        localSourceRef: commit,
+        localSourceTree: tree,
+      })
+    ).toEqual({
+      binaryPath: fs.realpathSync(binaryPath),
+      sourceDetail: {
+        url: `https://github.com/gaofeng21cn/AionCore/commit/${commit}`,
+        commit,
+        tree,
+      },
+    });
+  });
+
+  it('rejects non-HTTPS or abbreviated source identities', () => {
+    const binaryPath = path.join(makeTempDir(), 'aioncore');
+    fs.writeFileSync(binaryPath, 'binary');
+
+    expect(() =>
+      __test__.resolveLocalAioncoreSource({
+        localBinaryPath: binaryPath,
+        localSourceUrl: 'file:///tmp/AionCore',
+        localSourceRef: 'abc123',
+        localSourceTree: 'def456',
+      })
+    ).toThrow(/source URL must use HTTPS/);
   });
 });
 
@@ -412,13 +460,13 @@ describe('prepare-aioncore prepared runtime cache', () => {
       __test__.writePreparedRuntimeManifest(targetDir, {
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.50',
+        version: 'v0.1.53',
         sourceType: 'download',
         sourceDetail: {
-          url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.50/aioncore-v0.1.50-aarch64-apple-darwin.tar.gz',
+          url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.53/aioncore-v0.1.53-aarch64-apple-darwin.tar.gz',
         },
         compatibility: {
-          version: '0.1.50',
+          version: '0.1.53',
           requiredOptions: ['--recover-corrupted-database'],
         },
         binaryName: 'aioncore',
@@ -445,7 +493,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
       path.join(homeDir, 'Library', 'Caches', 'One Person Lab', 'aioncore')
     );
 
-    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.50');
+    const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.53');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
   });
 
@@ -453,7 +501,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.50', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.53', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
 
     fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
@@ -465,8 +513,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
       JSON.stringify({
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.50',
-        compatibility: { reportedVersion: '0.1.50' },
+        version: 'v0.1.53',
+        compatibility: { reportedVersion: '0.1.53' },
       })
     );
     fs.writeFileSync(
@@ -479,106 +527,45 @@ describe('prepare-aioncore prepared runtime cache', () => {
     );
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const codexRoot = path.join(managedResourcesDir, 'acp', 'codex-acp', '1.1.2', 'darwin-arm64');
-    const codexEntrypoint = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
-    const codexPlatformExecutable = 'node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex';
-    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'dist'), {
-      recursive: true,
-    });
-    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@openai', 'codex'), { recursive: true });
-    fs.mkdirSync(path.join(codexRoot, 'node_modules', '@openai', 'codex-darwin-arm64'), { recursive: true });
-    fs.mkdirSync(path.join(codexRoot, 'node_modules', '.bin'), { recursive: true });
-    fs.mkdirSync(path.join(codexRoot, ...codexPlatformExecutable.split('/').slice(0, -1)), { recursive: true });
-    fs.writeFileSync(
-      path.join(codexRoot, 'manifest.json'),
-      JSON.stringify({ entrypoint: codexEntrypoint, path_entries: ['node_modules/.bin'] })
-    );
-    fs.writeFileSync(
-      path.join(codexRoot, 'package.json'),
-      JSON.stringify({ dependencies: { '@agentclientprotocol/codex-acp': '1.1.2' } })
-    );
-    fs.writeFileSync(
-      path.join(codexRoot, 'package-lock.json'),
-      JSON.stringify({
-        name: 'aioncore-managed-codex-acp',
-        lockfileVersion: 3,
-        requires: true,
-        packages: {
-          '': { dependencies: { '@agentclientprotocol/codex-acp': '1.1.2' } },
-          'node_modules/@agentclientprotocol/codex-acp': {
-            version: '1.1.2',
-            integrity: 'sha512-fixture',
-          },
-          'node_modules/@openai/codex': {
-            version: '0.144.6',
-            integrity: 'sha512-codex-fixture',
-            optionalDependencies: {
-              '@openai/codex-darwin-arm64': 'npm:@openai/codex@0.144.6-darwin-arm64',
-            },
-          },
-          'node_modules/@openai/codex-darwin-arm64': {
-            name: '@openai/codex',
-            version: '0.144.6-darwin-arm64',
-            integrity: 'sha512-codex-platform-fixture',
-          },
-        },
-      })
-    );
-    fs.writeFileSync(path.join(codexRoot, ...codexEntrypoint.split('/')), 'console.log("ok")');
-    fs.writeFileSync(
-      path.join(codexRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json'),
-      JSON.stringify({
-        name: '@agentclientprotocol/codex-acp',
-        version: '1.1.2',
-        bin: { 'codex-acp': 'dist/index.js' },
-      })
-    );
-    fs.writeFileSync(
-      path.join(codexRoot, 'node_modules', '@openai', 'codex', 'package.json'),
-      JSON.stringify({
-        name: '@openai/codex',
-        version: '0.144.6',
-        optionalDependencies: {
-          '@openai/codex-darwin-arm64': 'npm:@openai/codex@0.144.6-darwin-arm64',
-        },
-      })
-    );
-    fs.writeFileSync(
-      path.join(codexRoot, 'node_modules', '@openai', 'codex-darwin-arm64', 'package.json'),
-      JSON.stringify({ name: '@openai/codex', version: '0.144.6-darwin-arm64' })
-    );
-    fs.writeFileSync(path.join(codexRoot, ...codexPlatformExecutable.split('/')), 'codex');
-    const claudeRoot = path.join(managedResourcesDir, 'acp', 'claude-agent-acp', '0.58.1', 'darwin-arm64');
+    const claudeRoot = path.join(managedResourcesDir, 'cli', 'claude', '2.1.215', 'darwin-arm64');
+    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.144.6', 'darwin-arm64');
+    const codexExecutable = 'vendor/aarch64-apple-darwin/bin/codex';
     fs.mkdirSync(claudeRoot, { recursive: true });
-    fs.writeFileSync(path.join(claudeRoot, 'manifest.json'), JSON.stringify({ entrypoint: 'index.js' }));
-    fs.writeFileSync(path.join(claudeRoot, 'index.js'), 'console.log("ok")');
+    fs.mkdirSync(path.join(codexRoot, ...codexExecutable.split('/').slice(0, -1)), { recursive: true });
+    fs.writeFileSync(path.join(claudeRoot, 'claude'), 'claude');
+    fs.writeFileSync(path.join(codexRoot, ...codexExecutable.split('/')), 'codex');
     fs.writeFileSync(
       path.join(managedResourcesDir, 'manifest.json'),
       JSON.stringify({
-        schemaVersion: 1,
+        schemaVersion: 2,
         runtimeKey: 'darwin-arm64',
-        acpTools: [
+        node: {
+          version: '24.11.0',
+          root: 'node/node-v24.11.0-darwin-arm64',
+          executable: 'bin/node',
+        },
+        clis: [
           {
-            slug: 'codex-acp',
-            version: '1.1.2',
-            packageName: '@agentclientprotocol/codex-acp',
-            root: 'acp/codex-acp/1.1.2/darwin-arm64',
+            name: 'claude',
+            version: '2.1.215',
+            root: 'cli/claude/2.1.215/darwin-arm64',
             platformDirectory: 'darwin-arm64',
-            manifest: 'manifest.json',
-            entrypoint: codexEntrypoint,
-            pathEntries: ['node_modules/.bin'],
-            requiredFiles: ['package.json', 'package-lock.json'],
-            requiredDirectories: ['node_modules'],
-            platformExecutable: codexPlatformExecutable,
+            executable: 'claude',
+            requiredFiles: [],
+            requiredDirectories: [],
+          },
+          {
+            name: 'codex',
+            version: '0.144.6',
+            root: 'cli/codex/0.144.6/darwin-arm64',
+            platformDirectory: 'darwin-arm64',
+            executable: codexExecutable,
+            requiredFiles: [],
+            requiredDirectories: ['vendor/aarch64-apple-darwin'],
           },
         ],
       })
     );
-    const codexShimPath = path.join(codexRoot, 'node_modules', '.bin', 'codex-acp');
-    if (process.platform !== 'win32') {
-      fs.symlinkSync('../@agentclientprotocol/codex-acp/dist/index.js', codexShimPath);
-    }
-
     const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
     process.env.AIONUI_AIONCORE_CACHE_DIR = cacheRoot;
     try {
@@ -586,10 +573,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.50',
+        version: 'v0.1.53',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.50\n'
+            ? 'aioncore 0.1.53\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });
@@ -602,23 +589,22 @@ describe('prepare-aioncore prepared runtime cache', () => {
       expect(
         fs.existsSync(path.join(targetDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'))
       ).toBe(true);
-      if (process.platform !== 'win32') {
-        expect(
-          fs.readlinkSync(
-            path.join(
-              targetDir,
-              'managed-resources',
-              'acp',
-              'codex-acp',
-              '1.1.2',
-              'darwin-arm64',
-              'node_modules',
-              '.bin',
-              'codex-acp'
-            )
+      expect(
+        fs.existsSync(path.join(targetDir, 'managed-resources', 'cli', 'claude', '2.1.215', 'darwin-arm64', 'claude'))
+      ).toBe(true);
+      expect(
+        fs.existsSync(
+          path.join(
+            targetDir,
+            'managed-resources',
+            'cli',
+            'codex',
+            '0.144.6',
+            'darwin-arm64',
+            ...codexExecutable.split('/')
           )
-        ).toBe('../@agentclientprotocol/codex-acp/dist/index.js');
-      }
+        )
+      ).toBe(true);
     } finally {
       if (previousCacheDir === undefined) {
         delete process.env.AIONUI_AIONCORE_CACHE_DIR;

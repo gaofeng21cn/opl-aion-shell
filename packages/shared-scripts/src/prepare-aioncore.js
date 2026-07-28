@@ -2,8 +2,9 @@
  * Prepare aioncore binary for packaging.
  *
  * Resolution order:
- *  1. GitHub Actions artifact download when AIONUI_BACKEND_RUN_ID is set
- *  2. GitHub release download (requires version or defaults to "latest")
+ *  1. Exact local-development binary with source commit/tree provenance
+ *  2. GitHub Actions artifact download when AIONUI_BACKEND_RUN_ID is set
+ *  3. GitHub release download (requires version or defaults to "latest")
  *
  * Output: {projectRoot}/resources/bundled-aioncore/{platform}-{arch}/
  *   - aioncore[.exe]
@@ -138,6 +139,36 @@ function writePreparedRuntimeManifest(targetDir, input) {
 
   writeJson(path.join(targetDir, 'manifest.json'), manifest);
   return manifest;
+}
+
+function resolveLocalAioncoreSource(options = {}) {
+  const values = [options.localBinaryPath, options.localSourceUrl, options.localSourceRef, options.localSourceTree].map(
+    (value) => (typeof value === 'string' ? value.trim() : '')
+  );
+  if (values.every((value) => !value)) return null;
+  if (values.some((value) => !value)) {
+    throw new Error(
+      'Local AionCore requires binary path, HTTPS source URL, exact 40-character commit, and exact 40-character tree.'
+    );
+  }
+
+  const [binaryPath, sourceUrl, sourceRef, sourceTree] = values;
+  if (!path.isAbsolute(binaryPath)) throw new Error('Local AionCore binary path must be absolute.');
+  let resolvedBinary;
+  try {
+    resolvedBinary = fs.realpathSync(binaryPath);
+  } catch {
+    throw new Error(`Local AionCore binary does not exist: ${binaryPath}`);
+  }
+  if (!fs.statSync(resolvedBinary).isFile()) throw new Error('Local AionCore binary path must identify a file.');
+  if (!sourceUrl.startsWith('https://')) throw new Error('Local AionCore source URL must use HTTPS.');
+  if (!/^[0-9a-f]{40}$/.test(sourceRef)) throw new Error('Local AionCore source commit must be an exact SHA.');
+  if (!/^[0-9a-f]{40}$/.test(sourceTree)) throw new Error('Local AionCore source tree must be an exact SHA.');
+
+  return {
+    binaryPath: resolvedBinary,
+    sourceDetail: { url: sourceUrl, commit: sourceRef, tree: sourceTree },
+  };
 }
 
 function safeCacheSegment(value) {
@@ -1056,6 +1087,14 @@ function prepareAioncore(options) {
   } = options;
   const runtimeKey = `${platform}-${arch}`;
   const actionsRunId = (process.env.AIONUI_BACKEND_RUN_ID || '').trim();
+  const localSource = resolveLocalAioncoreSource(options);
+
+  if (localSource && actionsRunId) {
+    throw new Error('Local AionCore binary and Actions run id are mutually exclusive.');
+  }
+  if (localSource && version === 'latest') {
+    throw new Error('Local AionCore binary requires an explicit expected version.');
+  }
 
   let tag = null;
   if (!actionsRunId) {
@@ -1123,6 +1162,7 @@ function prepareAioncore(options) {
   }
 
   if (
+    !localSource &&
     restorePreparedRuntimeFromCache({
       cacheRuntimeDir: cachePaths.runtimeDir,
       targetDir,
@@ -1147,8 +1187,15 @@ function prepareAioncore(options) {
   let sourceDetail = {};
   let tempDir = null;
 
+  if (localSource) {
+    sourcePath = localSource.binaryPath;
+    sourceType = 'local-development';
+    sourceDetail = localSource.sourceDetail;
+    console.log('  Using source-bound local AionCore binary');
+  }
+
   // 1. Download from GitHub Actions artifacts when manual build run id is provided.
-  if (actionsRunId) {
+  if (!sourcePath && actionsRunId) {
     const result = downloadAndExtractActionsArtifact(platform, arch, actionsRunId);
     sourcePath = result.binaryPath;
     tempDir = result.tempDir;
@@ -1222,7 +1269,7 @@ function prepareAioncore(options) {
         ].join(', ')}`
       );
     }
-    savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir: cachePaths.runtimeDir });
+    if (!localSource) savePreparedRuntimeToCache({ targetDir, cacheRuntimeDir: cachePaths.runtimeDir });
     console.log(
       `  Bundled aioncore prepared: resources/bundled-aioncore/${runtimeKey}/${binaryName} [source=${sourceType}]`
     );
@@ -1274,6 +1321,7 @@ module.exports = {
     normalizeInternalSymlinks,
     prepareAioncore,
     prepareManagedResources,
+    resolveLocalAioncoreSource,
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,

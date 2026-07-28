@@ -34,10 +34,18 @@ describe('AionUI upstream currentness', () => {
   it('accepts the checked-in machine receipt without hard-coding it in the validator', () => {
     expect(validateAionuiIntakeReceipt(receipt)).toBe(receipt);
     expect(validateReceiptAgainstCheckout(receipt, repoRoot)).toBe(receipt);
-    expect(receipt.reviewed_release.tag).toBe('v2.1.41');
+    expect(receipt.schema).toBe('opl_aionui_upstream_intake.v2');
+    expect(receipt.reviewed_release.tag).toBe('v2.1.42');
     expect(receipt.reviewed_release.disposition).toBe('reviewed_deferred');
     expect(receipt.absorbed_release.tag).toBe('v2.1.39');
     expect(receipt.absorbed_release.commit).toBe('1b215f2fcb9d220bc66bf3b4961835ded07d5797');
+    expect(receipt.managed_runtime).not.toHaveProperty('codex_acp');
+    expect(receipt.managed_runtime).toMatchObject({
+      managed_resources_schema: 2,
+      node_runtime: { version: '24.11.0' },
+      claude_cli: { package: '@anthropic-ai/claude-code', version: '2.1.215' },
+      codex_cli: { package: '@openai/codex', version: '0.144.6' },
+    });
   });
 
   it('selects only the highest official stable semantic release', () => {
@@ -112,17 +120,17 @@ describe('AionUI upstream currentness', () => {
 
   it('turns a newer stable release into a review event without mutation', () => {
     const result = evaluateAionuiCurrentness(receipt, {
-      tag: 'v2.1.42',
+      tag: 'v2.1.43',
       commit: 'c'.repeat(40),
       published_at: '2026-07-28T01:00:00Z',
       draft: false,
       prerelease: false,
-      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.42',
+      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.43',
     });
     expect(result).toMatchObject({
       status: 'review_required',
       release_mutation_performed: false,
-      observed_release: { tag: 'v2.1.42' },
+      observed_release: { tag: 'v2.1.43' },
     });
   });
 
