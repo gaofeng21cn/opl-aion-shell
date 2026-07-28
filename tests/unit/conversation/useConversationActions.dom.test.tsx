@@ -257,8 +257,8 @@ describe('conversation archive actions', () => {
       },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
@@ -293,6 +293,47 @@ describe('conversation archive actions', () => {
     expect(result.current.projectAdoptionConversation).toBeNull();
   });
 
+  it('adopts a managed Documents Codex projectless task into a selected project', async () => {
+    const managedWorkspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
+    const projectless = {
+      id: 'conv-managed-projectless',
+      name: 'Managed projectless task',
+      type: 'acp',
+      created_at: 1,
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-managed-projectless',
+        workspace: managedWorkspace,
+        custom_workspace: false,
+      },
+    } as TChatConversation;
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: managedWorkspace, projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(true);
+    mocks.get.mockResolvedValue({
+      ...projectless,
+      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [projectless],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(true);
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-managed-projectless',
+      cwd: '/workspace/project',
+    });
+  });
+
   it('updates the App Server cwd before committing the local affinity projection', async () => {
     const projectless = {
       id: 'conv-order',
@@ -302,8 +343,8 @@ describe('conversation archive actions', () => {
       extra: { backend: 'codex', canonical_thread_id: 'thread-order', custom_workspace: false },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
@@ -349,8 +390,8 @@ describe('conversation archive actions', () => {
       },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(false);
     const { result } = renderHook(() =>
@@ -384,8 +425,8 @@ describe('conversation archive actions', () => {
       },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     mocks.createWithConversation.mockRejectedValue(new Error('local projection unavailable'));
     const { result } = renderHook(() =>
@@ -414,8 +455,8 @@ describe('conversation archive actions', () => {
       extra: { backend: 'codex', canonical_thread_id: 'thread-mismatch', custom_workspace: false },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/other' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/other', projectId: '/workspace/other' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       useConversationActions({
@@ -443,8 +484,8 @@ describe('conversation archive actions', () => {
       extra: { backend: 'codex', canonical_thread_id: 'thread-exact-mismatch', custom_workspace: false },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project/' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project/', projectId: '/workspace/project/' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     const { result } = renderHook(() =>
       useConversationActions({
@@ -470,7 +511,9 @@ describe('conversation archive actions', () => {
       created_at: 1,
       extra: { backend: 'codex', canonical_thread_id: 'thread-bound', custom_workspace: false },
     } as TChatConversation;
-    mocks.threadRead.mockResolvedValueOnce({ thread: { workspace: '/workspace/project-a' } });
+    mocks.threadRead.mockResolvedValueOnce({
+      thread: { workspace: '/workspace/project-a', projectId: '/workspace/project-a' },
+    });
     const { result } = renderHook(() =>
       useConversationActions({
         batchMode: false,
@@ -496,8 +539,8 @@ describe('conversation archive actions', () => {
       extra: { backend: 'codex', canonical_thread_id: 'thread-boundary', custom_workspace: false },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project' } });
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
     mocks.threadUpdateSettings.mockResolvedValue(undefined);
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({

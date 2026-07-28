@@ -104,6 +104,7 @@ type ConversationListSyncSnapshot = {
   conversations: TChatConversation[];
   generatingConversationIds: Set<string>;
   completionUnreadConversationIds: Set<string>;
+  canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
 
 const listeners = new Set<() => void>();
@@ -115,12 +116,14 @@ let completionUnreadConversationIdsState = new Set<string>();
 let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
 let pendingCanonicalConversationIdsState = new Set<string>();
+let canonicalArchiveStateByThreadIdState = new Map<string, boolean>();
 let refreshSequenceState = 0;
 let activeConversationIdState: string | null = null;
 let snapshotState: ConversationListSyncSnapshot = {
   conversations: conversationsState,
   generatingConversationIds: generatingConversationIdsState,
   completionUnreadConversationIds: completionUnreadConversationIdsState,
+  canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
 };
 
 const emitStoreChange = () => {
@@ -128,6 +131,7 @@ const emitStoreChange = () => {
     conversations: conversationsState,
     generatingConversationIds: generatingConversationIdsState,
     completionUnreadConversationIds: completionUnreadConversationIdsState,
+    canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
   };
   listeners.forEach((listener) => listener());
 };
@@ -171,13 +175,13 @@ export const mergeCanonicalThreadDirectory = (
   directory.threads.forEach((thread) => {
     const cached = cachedByThreadId.get(thread.id);
     if (!cached) return;
-    const hasCanonicalRecordedCwd = Boolean(thread.workspace.trim());
+    const hasCanonicalProjectAffinity = Boolean(thread.projectId.trim());
     cachedByThreadId.set(thread.id, {
       ...cached,
       extra: {
         ...cached.extra,
         workspace: thread.workspace,
-        custom_workspace: hasCanonicalRecordedCwd,
+        custom_workspace: hasCanonicalProjectAffinity,
       },
     });
   });
@@ -224,6 +228,15 @@ const refreshConversations = (createdConversation?: TChatConversation) => {
       return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
     });
     const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
+    if (canonicalDirectory && canonicalDirectory.host !== 'webui-local-cache') {
+      const nextArchiveStateByThreadId = canonicalDirectory.complete
+        ? new Map<string, boolean>()
+        : new Map(canonicalArchiveStateByThreadIdState);
+      canonicalDirectory.threads.forEach((thread) => {
+        nextArchiveStateByThreadId.set(thread.id, thread.archived);
+      });
+      canonicalArchiveStateByThreadIdState = nextArchiveStateByThreadId;
+    }
     conversationsState = mergeCanonicalThreadDirectory(
       filteredData,
       canonicalDirectory,
@@ -418,6 +431,7 @@ export const useConversationListSync = () => {
     conversations,
     isConversationGenerating,
     hasCompletionUnread,
+    canonicalArchiveStateByThreadId: snapshotState.canonicalArchiveStateByThreadId,
     clearCompletionUnread,
     setActiveConversation,
   };

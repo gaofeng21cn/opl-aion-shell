@@ -12,6 +12,11 @@ import {
   mergeCanonicalThreadDirectory,
   visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
+import {
+  filterConversationsForHistorySurface,
+  filterHistoryToConversationIds,
+} from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversations';
+import { groupConversationsByWorkspace } from '@/renderer/pages/conversation/GroupedHistory/utils/groupingHelpers';
 
 const thread = (overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDescriptor => ({
   id: 'thread-1',
@@ -88,6 +93,16 @@ describe('mergeCanonicalThreadDirectory', () => {
         custom_workspace: true,
       },
     });
+  });
+
+  it('projects a managed Documents Codex task as a projectless sidebar row', () => {
+    const workspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
+
+    expect(projected.extra).toMatchObject({ workspace, custom_workspace: false });
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: projected }),
+    ]);
   });
 
   it('preserves an explicitly projectless marker until the canonical cwd is adopted', () => {
@@ -342,5 +357,60 @@ describe('mergeCanonicalThreadDirectory', () => {
   it('falls back to shell cache when the canonical directory is unavailable', () => {
     const cached = { id: 'local-1' } as TChatConversation;
     expect(mergeCanonicalThreadDirectory([cached], null)).toEqual([cached]);
+  });
+});
+
+describe('canonical archive surface fallback', () => {
+  const cachedCodexThread = {
+    id: 'local-1',
+    name: 'Cached task',
+    created_at: 1,
+    type: 'acp',
+    extra: {
+      backend: 'codex',
+      canonical_thread_id: 'thread-1',
+      archived: false,
+    },
+  } as TChatConversation;
+
+  it('uses the cached archive state while the first canonical directory request is unavailable', () => {
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, new Map())).toEqual([cachedCodexThread]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, new Map())).toEqual([]);
+  });
+
+  it('uses the last known canonical archive state after a later timeout', () => {
+    const canonicalArchiveState = new Map([['thread-1', true]]);
+
+    expect(filterConversationsForHistorySurface([cachedCodexThread], false, canonicalArchiveState)).toEqual([]);
+    expect(filterConversationsForHistorySurface([cachedCodexThread], true, canonicalArchiveState)).toEqual([
+      cachedCodexThread,
+    ]);
+  });
+
+  it('removes timeout-hidden rows from workspace timeline groups', () => {
+    const history = {
+      pinnedConversations: [cachedCodexThread],
+      timelineSections: [
+        {
+          timeline: 'Recents',
+          items: [
+            {
+              type: 'workspace' as const,
+              time: 1,
+              workspaceGroup: {
+                workspace: '/tmp/project',
+                display_name: 'Project',
+                conversations: [cachedCodexThread],
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    expect(filterHistoryToConversationIds(history, new Set())).toEqual({
+      pinnedConversations: [],
+      timelineSections: [],
+    });
   });
 });
