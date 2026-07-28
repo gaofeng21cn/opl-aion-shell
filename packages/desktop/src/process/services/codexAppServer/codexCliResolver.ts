@@ -34,8 +34,13 @@ export function resolveCodexCliPath(options: ResolverOptions = {}): string {
     .map((entry) => entry?.trim())
     .filter((entry): entry is string => Boolean(entry));
   const codexHome = env.CODEX_HOME?.trim() || path.join(homeDir, '.codex');
+  const oplManagedRuntime =
+    platform === 'darwin'
+      ? [path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current', 'bin', executableName)]
+      : [];
   const managed = [
     path.join(codexHome, 'packages', 'standalone', 'current', executableName),
+    ...oplManagedRuntime,
     path.join(homeDir, '.local', 'bin', executableName),
   ];
   const fromPath = (env.PATH ?? '')
@@ -45,6 +50,8 @@ export function resolveCodexCliPath(options: ResolverOptions = {}): string {
     .map((entry) => path.join(entry, executableName));
   const candidates = [...new Set([...explicit, ...managed, ...fromPath])];
   const resolved = candidates.find(isExecutable);
-  if (!resolved) throw new Error('Codex CLI executable was not found in OPL_CODEX_BIN, CODEX_HOME, or PATH.');
+  if (!resolved) {
+    throw new Error('Codex CLI executable was not found in OPL_CODEX_BIN, CODEX_HOME, OPL runtime, or PATH.');
+  }
   return resolved;
 }
