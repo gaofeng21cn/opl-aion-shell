@@ -159,7 +159,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
 
       const paths = await ipcBridge.fs.getSkillPaths.invoke();
       setSkillPaths(paths);
-
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       Message.error(t('settings.skillsHub.fetchError', { defaultValue: 'Failed to fetch skills' }));
@@ -572,7 +571,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 </div>
               </div>
             )}
-
           </>
         )}
       </div>

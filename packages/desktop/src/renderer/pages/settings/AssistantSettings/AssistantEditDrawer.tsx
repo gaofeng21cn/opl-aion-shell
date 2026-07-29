@@ -149,15 +149,10 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   const builtinStatusDotColor = builtinActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const extensionStatusDotColor = extensionActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const totalSkillsCount =
-    pendingSkills.length +
-    customSkillItems.length +
-    builtinSkillItems.length +
-    extensionSkillItems.length;
-  const totalActiveSkillsCount =
-    selectedSkills.filter(
-      (name) =>
-        pendingSkills.some((skill) => skill.name === name) || availableSkills.some((skill) => skill.name === name)
-    ).length;
+    pendingSkills.length + customSkillItems.length + builtinSkillItems.length + extensionSkillItems.length;
+  const totalActiveSkillsCount = selectedSkills.filter(
+    (name) => pendingSkills.some((skill) => skill.name === name) || availableSkills.some((skill) => skill.name === name)
+  ).length;
   const isBuiltin = activeAssistant?.source === 'builtin';
   const isRuleEditable = !isBuiltin;
   const isSkillsEditable = isCreating || !isBuiltin;
@@ -718,7 +713,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                     </div>
                   </Collapse.Item>
                 )}
-
               </Collapse>
             </div>
           )}
