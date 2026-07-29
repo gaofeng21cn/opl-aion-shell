@@ -52,6 +52,25 @@ install -d -o "$guest_user" -g "$guest_user" -m 0700 \
 runtime_manifest_sha256="$(sha256sum "$runtime_source/manifest.json" | awk '{print $1}')"
 activation="$carrier_root/store/sha256/$runtime_manifest_sha256"
 
+managed_codex_path() {
+  local root="$1"
+  local manifest="$root/managed-resources/manifest.json"
+  local relative_path
+  [[ -f "$manifest" ]] || return 1
+  relative_path="$(
+    jq -er '
+      select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+      | [.clis[]? | select(.name == "codex")] as $matches
+      | select($matches | length == 1)
+      | $matches[0]
+      | select(.platformDirectory == "linux-x64")
+      | (.root + "/" + .executable)
+      | select(test("^cli/codex/[0-9]+\\.[0-9]+\\.[0-9]+/linux-x64/vendor/[A-Za-z0-9._-]+/bin/codex$"))
+    ' "$manifest"
+  )" || return 1
+  printf '%s/%s\n' "$root/managed-resources" "$relative_path"
+}
+
 runtime_activation_complete() {
   local root="$1"
   local managed_node managed_node_bin codex_path
@@ -62,12 +81,7 @@ runtime_activation_complete() {
   [[ -n "$managed_node" ]] && [[ -x "$managed_node" ]] || return 1
   managed_node_bin="$(dirname "$managed_node")"
   [[ -x "$managed_node_bin/npm" ]] && [[ -x "$managed_node_bin/npx" ]] || return 1
-  codex_path="$(
-    find "$root/managed-resources" \
-      -type f \
-      -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
-      -print -quit 2>/dev/null
-  )"
+  codex_path="$(managed_codex_path "$root")" || return 1
   [[ -n "$codex_path" ]] && [[ -x "$codex_path" ]]
 }
 
@@ -82,12 +96,7 @@ if ! runtime_activation_complete "$activation"; then
   cp -a "$runtime_source/." "$pending/"
   pending_node="$(find "$pending/managed-resources/node" -type f -path '*/bin/node' -print -quit 2>/dev/null)"
   pending_node_bin="$(dirname "${pending_node:-/missing}")"
-  pending_codex="$(
-    find "$pending/managed-resources" \
-      -type f \
-      -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
-      -print -quit 2>/dev/null
-  )"
+  pending_codex="$(managed_codex_path "$pending")" || pending_codex=''
   if [[ -z "$pending_node" ]] ||
     [[ ! -f "$pending_node_bin/npm" ]] ||
     [[ ! -f "$pending_node_bin/npx" ]] ||
@@ -147,12 +156,7 @@ if [[ -z "$guest_install_id" ]]; then
 fi
 
 aioncore_sha256="$(sha256sum "$carrier_root/current/aioncore" | awk '{print $1}')"
-codex_path="$(
-  find "$carrier_root/current/managed-resources" \
-    -type f \
-    -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
-    -print -quit
-)"
+codex_path="$(managed_codex_path "$carrier_root/current")" || codex_path=''
 if [[ -z "$codex_path" ]] || [[ ! -x "$codex_path" ]]; then
   printf 'The packaged Linux Codex executable is missing.\n' >&2
   exit 1
