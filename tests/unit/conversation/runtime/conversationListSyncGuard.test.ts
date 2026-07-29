@@ -95,16 +95,13 @@ describe('mergeCanonicalThreadDirectory', () => {
     });
   });
 
-  it('groups a managed Documents Codex task from its canonical recorded cwd', () => {
+  it('projects a managed Documents Codex task as a projectless sidebar row', () => {
     const workspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
 
-    expect(projected.extra).toMatchObject({ workspace, custom_workspace: true });
+    expect(projected.extra).toMatchObject({ workspace, custom_workspace: false });
     expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
-      expect.objectContaining({
-        type: 'workspace',
-        workspaceGroup: expect.objectContaining({ workspace, conversations: [projected] }),
-      }),
+      expect.objectContaining({ type: 'conversation', conversation: projected }),
     ]);
   });
 

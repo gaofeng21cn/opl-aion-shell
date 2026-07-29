@@ -192,8 +192,19 @@ export const conversation = {
   ),
   createWithConversation: withResponseMap(
     httpPost<TChatConversation, { conversation: TChatConversation }>('/api/conversations/clone', (p) => {
+      const extra = p.conversation.extra as Record<string, unknown> | undefined;
+      const canonicalThreadId = typeof extra?.canonical_thread_id === 'string' ? extra.canonical_thread_id.trim() : '';
+      const projectedSessionId = typeof extra?.acp_session_id === 'string' ? extra.acp_session_id.trim() : '';
+      const isCanonicalCodexTask =
+        p.conversation.type === 'acp' && extra?.backend === 'codex' && canonicalThreadId.length > 0;
+      if (isCanonicalCodexTask && projectedSessionId && projectedSessionId !== canonicalThreadId) {
+        throw new Error('Canonical Codex task identity does not match its projected ACP session.');
+      }
       return {
-        conversation: buildCreateConversationBody(p.conversation as CreateConversationBodyInput),
+        conversation: {
+          ...buildCreateConversationBody(p.conversation as CreateConversationBodyInput),
+          ...(isCanonicalCodexTask ? { resume_session_id: canonicalThreadId } : {}),
+        },
       };
     }),
     fromApiConversation

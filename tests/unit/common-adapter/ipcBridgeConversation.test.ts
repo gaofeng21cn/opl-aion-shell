@@ -85,6 +85,7 @@ describe('ipcBridge conversation clone payload', () => {
         extra: {
           backend: 'codex',
           workspace: '/tmp/project',
+          acp_session_id: 'canonical-thread-1',
           canonical_thread_id: 'canonical-thread-1',
         },
       } as never,
@@ -102,8 +103,10 @@ describe('ipcBridge conversation clone payload', () => {
         extra: {
           backend: 'codex',
           workspace: '/tmp/project',
+          acp_session_id: 'canonical-thread-1',
           canonical_thread_id: 'canonical-thread-1',
         },
+        resume_session_id: 'canonical-thread-1',
       },
     });
     expect(call?.body).not.toHaveProperty('conversation.source');
@@ -112,5 +115,41 @@ describe('ipcBridge conversation clone payload', () => {
     expect(call?.body).not.toHaveProperty('conversation.modified_at');
     expect(call?.body).not.toHaveProperty('conversation.status');
     expect(call?.body).not.toHaveProperty('conversation.runtime');
+  });
+
+  it('does not resume a backend session for an ordinary ACP clone', async () => {
+    const { conversation } = await import('@/common/adapter/ipcBridge');
+
+    await conversation.createWithConversation.invoke({
+      conversation: {
+        id: 'local-conversation',
+        created_at: 1700000000000,
+        type: 'acp',
+        name: 'New task',
+        extra: { backend: 'codex', workspace: '/tmp/project' },
+      } as never,
+    });
+
+    expect(httpBridgeMocks.calls.at(-1)?.body).not.toHaveProperty('conversation.resume_session_id');
+  });
+
+  it('rejects a canonical task whose projected ACP session identity drifted', async () => {
+    const { conversation } = await import('@/common/adapter/ipcBridge');
+
+    await expect(
+      conversation.createWithConversation.invoke({
+        conversation: {
+          id: 'canonical-thread-1',
+          created_at: 1700000000000,
+          type: 'acp',
+          name: 'Canonical task',
+          extra: {
+            backend: 'codex',
+            acp_session_id: 'stale-thread',
+            canonical_thread_id: 'canonical-thread-1',
+          },
+        } as never,
+      })
+    ).rejects.toThrow('Canonical Codex task identity does not match');
   });
 });

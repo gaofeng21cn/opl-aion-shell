@@ -1,11 +1,21 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_AIONCORE_VERSION = 'v0.1.50';
-const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.50';
-const MANAGED_CODEX_ACP_PACKAGE = '@agentclientprotocol/codex-acp';
-const LEGACY_CODEX_ACP_PACKAGE = '@zed-industries/codex-acp';
-const MANAGED_CODEX_ACP_ENTRYPOINT = 'node_modules/@agentclientprotocol/codex-acp/dist/index.js';
+const REQUIRED_AIONCORE_VERSION = 'v0.1.53';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.53';
+const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
+const REQUIRED_MANAGED_CLIS = {
+  claude: { version: '2.1.215' },
+  codex: { version: '0.144.6' },
+};
+const CODEX_EXECUTABLE_BY_RUNTIME = {
+  'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
+  'darwin-x64': 'vendor/x86_64-apple-darwin/bin/codex',
+  'linux-arm64': 'vendor/aarch64-unknown-linux-musl/bin/codex',
+  'linux-x64': 'vendor/x86_64-unknown-linux-musl/bin/codex',
+  'win32-arm64': 'vendor/aarch64-pc-windows-msvc/bin/codex.exe',
+  'win32-x64': 'vendor/x86_64-pc-windows-msvc/bin/codex.exe',
+};
 
 function backendBinaryName(platform) {
   return platform === 'win32' ? 'aioncore.exe' : 'aioncore';
@@ -184,61 +194,41 @@ function requireAioncoreManifestContract(baseDir, runtimeKey, platform, arch, in
   }
 }
 
-function requireManagedAcpTool(baseDir, runtimeKey, toolId, checked, missing) {
-  const toolRoot = path.join(baseDir, 'managed-resources', 'acp', toolId);
-  const versions = readDirectories(toolRoot);
+function hasSafeContractPath(value) {
+  if (typeof value !== 'string' || !value || value.includes('\\') || path.posix.isAbsolute(value)) return false;
+  return value.split('/').every((part) => part && part !== '.' && part !== '..');
+}
 
-  if (versions.length === 0) {
-    const relativePath = bundledPath(runtimeKey, 'managed-resources', 'acp', toolId, '*', runtimeKey, 'manifest.json');
-    checked.push(relativePath);
-    missing.push(relativePath);
+function requireContractEntry(root, relativePath, displayRoot, runtimeKey, kind, checked, missing, invalid) {
+  const checkedPath = bundledPath(runtimeKey, 'managed-resources', displayRoot, relativePath || '<missing>');
+  checked.push(checkedPath);
+  if (!hasSafeContractPath(relativePath)) {
+    invalid.push(`${checkedPath}: invalid relative contract path`);
     return;
   }
 
-  for (const version of versions) {
-    const platformRoot = path.join(toolRoot, version, runtimeKey);
-    const manifestRelativePath = bundledPath(
-      runtimeKey,
-      'managed-resources',
-      'acp',
-      toolId,
-      '*',
-      runtimeKey,
-      'manifest.json'
-    );
-    checked.push(manifestRelativePath);
-
-    const manifestPath = path.join(platformRoot, 'manifest.json');
-    if (!isFile(manifestPath)) {
-      missing.push(manifestRelativePath);
-      continue;
-    }
-
-    const manifest = readManifest(manifestPath);
-    const entrypoint = typeof manifest?.entrypoint === 'string' ? manifest.entrypoint : null;
-    if (!entrypoint) {
-      missing.push(bundledPath(runtimeKey, 'managed-resources', 'acp', toolId, version, runtimeKey, '<entrypoint>'));
-      continue;
-    }
-
-    const entrypointRelativePath = bundledPath(
-      runtimeKey,
-      'managed-resources',
-      'acp',
-      toolId,
-      version,
-      runtimeKey,
-      entrypoint
-    );
-    checked.push(entrypointRelativePath);
-
-    if (!isFile(path.join(platformRoot, entrypoint))) {
-      missing.push(entrypointRelativePath);
-    }
+  const absolutePath = path.resolve(root, ...relativePath.split('/'));
+  if (!isPathInside(absolutePath, root)) {
+    invalid.push(`${checkedPath}: path escapes managed resource root`);
+    return;
   }
+  const present = fs.existsSync(absolutePath);
+  const matchesKind =
+    present && (kind === 'directory' ? fs.statSync(absolutePath).isDirectory() : isFile(absolutePath));
+  if (!matchesKind) missing.push(checkedPath);
 }
 
-function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, invalid) {
+function expectedNodeRoot(runtimeKey) {
+  const suffix = runtimeKey.startsWith('win32-') ? runtimeKey.replace(/^win32-/, 'win-') : runtimeKey;
+  return `node/node-v${REQUIRED_MANAGED_NODE_VERSION}-${suffix}`;
+}
+
+function expectedCliExecutable(name, runtimeKey) {
+  if (name === 'claude') return runtimeKey.startsWith('win32-') ? 'claude.exe' : 'claude';
+  return CODEX_EXECUTABLE_BY_RUNTIME[runtimeKey] || '';
+}
+
+function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, invalid) {
   const managedResourcesDir = path.join(baseDir, 'managed-resources');
   const rootManifestPath = path.join(managedResourcesDir, 'manifest.json');
   const rootManifestRelativePath = bundledPath(runtimeKey, 'managed-resources', 'manifest.json');
@@ -249,197 +239,82 @@ function requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, i
   }
 
   const rootManifest = readManifest(rootManifestPath);
-  if (!rootManifest || rootManifest.schemaVersion !== 1 || rootManifest.runtimeKey !== runtimeKey) {
+  if (!rootManifest || rootManifest.schemaVersion !== 2 || rootManifest.runtimeKey !== runtimeKey) {
     invalid.push(`${rootManifestRelativePath}: schemaVersion/runtimeKey mismatch`);
     return;
   }
 
-  const codexTools = Array.isArray(rootManifest.acpTools)
-    ? rootManifest.acpTools.filter((tool) => tool?.slug === 'codex-acp')
-    : [];
-  if (codexTools.length !== 1) {
-    invalid.push(`${rootManifestRelativePath}: expected exactly one codex-acp tool`);
-    return;
-  }
-
-  const tool = codexTools[0];
-  const managedAcpVersion = typeof tool.version === 'string' ? tool.version.trim() : '';
-  const expectedRoot = path.posix.join('acp', 'codex-acp', managedAcpVersion, runtimeKey);
-  const platformPackageName = `@openai/codex-${runtimeKey}`;
-  const platformPackageRoot = `node_modules/${platformPackageName}`;
+  const expectedNode = {
+    version: REQUIRED_MANAGED_NODE_VERSION,
+    root: expectedNodeRoot(runtimeKey),
+    executable: runtimeKey.startsWith('win32-') ? 'node.exe' : 'bin/node',
+  };
   if (
-    !/^\d+\.\d+\.\d+$/.test(managedAcpVersion) ||
-    tool.packageName !== MANAGED_CODEX_ACP_PACKAGE ||
-    tool.root !== expectedRoot ||
-    tool.platformDirectory !== runtimeKey ||
-    tool.manifest !== 'manifest.json' ||
-    tool.entrypoint !== MANAGED_CODEX_ACP_ENTRYPOINT ||
-    !hasExactStringEntries(tool.pathEntries, ['node_modules/.bin']) ||
-    !Array.isArray(tool.requiredFiles) ||
-    !tool.requiredFiles.includes('package.json') ||
-    !tool.requiredFiles.includes('package-lock.json') ||
-    !Array.isArray(tool.requiredDirectories) ||
-    !tool.requiredDirectories.includes('node_modules') ||
-    typeof tool.platformExecutable !== 'string' ||
-    !tool.platformExecutable.startsWith(`${platformPackageRoot}/`)
+    rootManifest.node?.version !== expectedNode.version ||
+    rootManifest.node?.root !== expectedNode.root ||
+    rootManifest.node?.executable !== expectedNode.executable
   ) {
-    invalid.push(`${rootManifestRelativePath}: invalid maintained Codex ACP identity`);
+    invalid.push(`${rootManifestRelativePath}: invalid managed Node identity`);
+  } else {
+    requireContractEntry(
+      managedResourcesDir,
+      path.posix.join(expectedNode.root, expectedNode.executable),
+      '',
+      runtimeKey,
+      'file',
+      checked,
+      missing,
+      invalid
+    );
+  }
+
+  const clis = Array.isArray(rootManifest.clis) ? rootManifest.clis : [];
+  const names = clis.map((entry) => entry?.name).sort();
+  if (!hasExactStringEntries(names, Object.keys(REQUIRED_MANAGED_CLIS).sort())) {
+    invalid.push(`${rootManifestRelativePath}: expected exactly claude and codex direct CLIs`);
     return;
   }
 
-  const toolRoot = path.resolve(managedResourcesDir, ...expectedRoot.split('/'));
-  if (!isPathInside(toolRoot, managedResourcesDir)) {
-    invalid.push(`${rootManifestRelativePath}: codex-acp root escapes managed-resources`);
-    return;
-  }
-
-  const versionRoot = path.join(managedResourcesDir, 'acp', 'codex-acp');
-  const installedVersions = readDirectories(versionRoot);
-  if (installedVersions.length !== 1 || installedVersions[0] !== managedAcpVersion) {
-    invalid.push(`${rootManifestRelativePath}: codex-acp directory versions do not match ${managedAcpVersion}`);
-  }
-
-  const requiredFiles = [tool.manifest, tool.entrypoint, tool.platformExecutable, ...tool.requiredFiles];
-  for (const relativePath of new Set(requiredFiles)) {
-    if (typeof relativePath !== 'string' || !relativePath.trim()) {
-      invalid.push(`${rootManifestRelativePath}: codex-acp required file contract is incomplete`);
+  for (const [name, requirement] of Object.entries(REQUIRED_MANAGED_CLIS)) {
+    const cli = clis.find((entry) => entry?.name === name);
+    const expectedRoot = `cli/${name}/${requirement.version}/${runtimeKey}`;
+    const expectedExecutable = expectedCliExecutable(name, runtimeKey);
+    const expectedDirectories = name === 'codex' ? [expectedExecutable.split('/').slice(0, 2).join('/')] : [];
+    if (
+      cli.version !== requirement.version ||
+      cli.root !== expectedRoot ||
+      cli.platformDirectory !== runtimeKey ||
+      cli.executable !== expectedExecutable ||
+      !hasExactStringEntries(cli.requiredFiles, []) ||
+      !hasExactStringEntries(cli.requiredDirectories, expectedDirectories)
+    ) {
+      invalid.push(`${rootManifestRelativePath}: invalid managed ${name} CLI identity`);
       continue;
     }
-    const absolutePath = path.resolve(toolRoot, ...relativePath.split('/'));
-    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
-    checked.push(checkedPath);
-    if (!isPathInside(absolutePath, toolRoot)) {
-      invalid.push(`${checkedPath}: path escapes codex-acp root`);
-    } else if (!isFile(absolutePath)) {
-      missing.push(checkedPath);
+
+    const versionRoot = path.join(managedResourcesDir, 'cli', name);
+    if (!hasExactStringEntries(readDirectories(versionRoot), [requirement.version])) {
+      invalid.push(`${rootManifestRelativePath}: ${name} CLI directory versions do not match ${requirement.version}`);
     }
-  }
-  for (const relativePath of tool.requiredDirectories) {
-    if (typeof relativePath !== 'string' || !relativePath.trim()) {
-      invalid.push(`${rootManifestRelativePath}: codex-acp required directory contract is incomplete`);
-      continue;
+    const runtimeRoot = path.join(versionRoot, requirement.version);
+    if (!hasExactStringEntries(readDirectories(runtimeRoot), [runtimeKey])) {
+      invalid.push(`${rootManifestRelativePath}: ${name} CLI runtime directories do not match ${runtimeKey}`);
     }
-    const absolutePath = path.resolve(toolRoot, ...relativePath.split('/'));
-    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
-    checked.push(checkedPath);
-    if (!isPathInside(absolutePath, toolRoot)) {
-      invalid.push(`${checkedPath}: path escapes codex-acp root`);
-    } else if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isDirectory()) {
-      missing.push(checkedPath);
+
+    const cliRoot = path.join(managedResourcesDir, ...expectedRoot.split('/'));
+    requireContractEntry(cliRoot, cli.executable, expectedRoot, runtimeKey, 'file', checked, missing, invalid);
+    for (const relativePath of cli.requiredFiles) {
+      requireContractEntry(cliRoot, relativePath, expectedRoot, runtimeKey, 'file', checked, missing, invalid);
+    }
+    for (const relativePath of cli.requiredDirectories) {
+      requireContractEntry(cliRoot, relativePath, expectedRoot, runtimeKey, 'directory', checked, missing, invalid);
     }
   }
 
-  const localManifest = readManifest(path.join(toolRoot, 'manifest.json'));
-  if (
-    !localManifest ||
-    localManifest.entrypoint !== MANAGED_CODEX_ACP_ENTRYPOINT ||
-    !hasExactStringEntries(localManifest.path_entries, ['node_modules/.bin'])
-  ) {
-    invalid.push(`${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'manifest.json')}: contract mismatch`);
+  if (fs.existsSync(path.join(managedResourcesDir, 'acp'))) {
+    invalid.push(`${rootManifestRelativePath}: legacy managed ACP directory is forbidden`);
   }
-
-  const packageMetadata = [
-    ['package.json', 'managed root'],
-    [`node_modules/${MANAGED_CODEX_ACP_PACKAGE}/package.json`, 'maintained ACP package'],
-    ['node_modules/@openai/codex/package.json', 'Codex package'],
-    [`${platformPackageRoot}/package.json`, 'Codex platform package'],
-  ];
-  for (const [relativePath] of packageMetadata) {
-    const checkedPath = bundledPath(runtimeKey, 'managed-resources', expectedRoot, relativePath);
-    checked.push(checkedPath);
-    if (!isFile(path.join(toolRoot, ...relativePath.split('/')))) {
-      missing.push(checkedPath);
-    }
-  }
-
-  const packageJson = readManifest(path.join(toolRoot, 'package.json'));
-  if (
-    packageJson?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== managedAcpVersion ||
-    packageJson?.dependencies?.[LEGACY_CODEX_ACP_PACKAGE]
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package.json')}: package/version mismatch`
-    );
-  }
-
-  const packageLock = readManifest(path.join(toolRoot, 'package-lock.json'));
-  const lockedAcpPackage = packageLock?.packages?.[`node_modules/${MANAGED_CODEX_ACP_PACKAGE}`];
-  const lockedCodexPackage = packageLock?.packages?.['node_modules/@openai/codex'];
-  const lockedPlatformPackage = packageLock?.packages?.[platformPackageRoot];
-  const lockedCodexVersion =
-    typeof lockedCodexPackage?.version === 'string' && /^\d+\.\d+\.\d+$/.test(lockedCodexPackage.version)
-      ? lockedCodexPackage.version
-      : '';
-  if (
-    !Number.isInteger(packageLock?.lockfileVersion) ||
-    packageLock.lockfileVersion < 2 ||
-    packageLock?.packages?.['']?.dependencies?.[MANAGED_CODEX_ACP_PACKAGE] !== managedAcpVersion ||
-    lockedAcpPackage?.version !== managedAcpVersion ||
-    typeof lockedAcpPackage?.integrity !== 'string' ||
-    !lockedAcpPackage.integrity.startsWith('sha512-')
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package-lock.json')}: package/version lock mismatch`
-    );
-  }
-  if (
-    !lockedCodexVersion ||
-    typeof lockedCodexPackage?.integrity !== 'string' ||
-    !lockedCodexPackage.integrity.startsWith('sha512-') ||
-    lockedCodexPackage?.optionalDependencies?.[platformPackageName] !==
-      `npm:@openai/codex@${lockedCodexVersion}-${runtimeKey}` ||
-    lockedPlatformPackage?.name !== '@openai/codex' ||
-    lockedPlatformPackage?.version !== `${lockedCodexVersion}-${runtimeKey}` ||
-    typeof lockedPlatformPackage?.integrity !== 'string' ||
-    !lockedPlatformPackage.integrity.startsWith('sha512-')
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'package-lock.json')}: Codex lock contract mismatch`
-    );
-  }
-
-  const acpPackageJson = readManifest(
-    path.join(toolRoot, 'node_modules', '@agentclientprotocol', 'codex-acp', 'package.json')
-  );
-  if (
-    acpPackageJson?.name !== MANAGED_CODEX_ACP_PACKAGE ||
-    acpPackageJson?.version !== managedAcpVersion ||
-    acpPackageJson?.bin?.['codex-acp'] !== 'dist/index.js'
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', MANAGED_CODEX_ACP_PACKAGE, 'package.json')}: maintained ACP package mismatch`
-    );
-  }
-
-  const codexPackageJson = readManifest(path.join(toolRoot, 'node_modules', '@openai', 'codex', 'package.json'));
-  if (
-    codexPackageJson?.name !== '@openai/codex' ||
-    !lockedCodexVersion ||
-    codexPackageJson?.version !== lockedCodexVersion ||
-    codexPackageJson?.optionalDependencies?.[platformPackageName] !==
-      `npm:@openai/codex@${lockedCodexVersion}-${runtimeKey}`
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, 'node_modules', '@openai/codex', 'package.json')}: expected locked Codex ${lockedCodexVersion || '<missing>'} for ${runtimeKey}`
-    );
-  }
-
-  const platformPackageJson = readManifest(
-    path.join(toolRoot, 'node_modules', '@openai', `codex-${runtimeKey}`, 'package.json')
-  );
-  if (
-    platformPackageJson?.name !== '@openai/codex' ||
-    !lockedCodexVersion ||
-    platformPackageJson?.version !== `${lockedCodexVersion}-${runtimeKey}`
-  ) {
-    invalid.push(
-      `${bundledPath(runtimeKey, 'managed-resources', expectedRoot, platformPackageRoot, 'package.json')}: expected locked Codex platform package ${lockedCodexVersion || '<missing>'}-${runtimeKey}`
-    );
-  }
-
-  if (fs.existsSync(path.join(toolRoot, 'node_modules', '@zed-industries', 'codex-acp'))) {
-    invalid.push(`${bundledPath(runtimeKey, 'managed-resources', expectedRoot)}: legacy Codex ACP is forbidden`);
-  }
+  addInvalidSymlinks(managedResourcesDir, baseDir, runtimeKey, missing);
 }
 
 function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, targetArch }) {
@@ -455,21 +330,11 @@ function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, ta
   requireRelativePath(baseDir, runtimeKey, ['managed-resources'], checked, missing);
   requireAioncoreManifestContract(baseDir, runtimeKey, electronPlatformName, targetArch, invalid);
   requireManagedNode(baseDir, runtimeKey, electronPlatformName, checked, missing);
-  requireManagedAcpTool(baseDir, runtimeKey, 'codex-acp', checked, missing);
-  requireManagedAcpTool(baseDir, runtimeKey, 'claude-agent-acp', checked, missing);
-  requireManagedCodexAcpContract(baseDir, runtimeKey, checked, missing, invalid);
+  requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, invalid);
   addSizeAccounting(sizeAccounting, runtimeKey, 'aioncore-binary', baseDir, backendBinaryName(electronPlatformName));
   addSizeAccounting(sizeAccounting, runtimeKey, 'managed-node', baseDir, 'managed-resources', 'node');
-  addSizeAccounting(sizeAccounting, runtimeKey, 'codex-acp', baseDir, 'managed-resources', 'acp', 'codex-acp');
-  addSizeAccounting(
-    sizeAccounting,
-    runtimeKey,
-    'claude-agent-acp',
-    baseDir,
-    'managed-resources',
-    'acp',
-    'claude-agent-acp'
-  );
+  addSizeAccounting(sizeAccounting, runtimeKey, 'claude-cli', baseDir, 'managed-resources', 'cli', 'claude');
+  addSizeAccounting(sizeAccounting, runtimeKey, 'codex-cli', baseDir, 'managed-resources', 'cli', 'codex');
 
   return { runtimeKey, checked, missing, invalid, sizeAccounting };
 }

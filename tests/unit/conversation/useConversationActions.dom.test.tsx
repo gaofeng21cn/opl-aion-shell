@@ -295,7 +295,7 @@ describe('conversation archive actions', () => {
     expect(result.current.projectAdoptionConversation).toBeNull();
   });
 
-  it('does not adopt a managed Documents Codex task with a canonical recorded cwd', async () => {
+  it('adopts a managed Documents Codex projectless task into a selected project', async () => {
     const managedWorkspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
     const projectless = {
       id: 'conv-managed-projectless',
@@ -309,7 +309,15 @@ describe('conversation archive actions', () => {
         custom_workspace: false,
       },
     } as TChatConversation;
-    mocks.threadRead.mockResolvedValueOnce({ thread: { workspace: managedWorkspace, projectId: '' } });
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: managedWorkspace, projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.update.mockResolvedValue(true);
+    mocks.get.mockResolvedValue({
+      ...projectless,
+      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+    });
     const { result } = renderHook(() =>
       useConversationActions({
         batchMode: false,
@@ -321,8 +329,11 @@ describe('conversation archive actions', () => {
       })
     );
 
-    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(false);
-    expect(mocks.threadUpdateSettings).not.toHaveBeenCalled();
+    expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(true);
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-managed-projectless',
+      cwd: '/workspace/project',
+    });
   });
 
   it('updates the App Server cwd before committing the local affinity projection', async () => {
