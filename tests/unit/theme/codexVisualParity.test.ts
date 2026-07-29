@@ -335,6 +335,7 @@ describe('Codex visual parity overlay', () => {
   it('keeps the agent directory readable at compact desktop widths without raw package enums', () => {
     const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
     const capabilities = read('packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx');
+    const capabilityProjection = read('packages/desktop/src/renderer/pages/settings/capabilitiesProjection.ts');
 
     expect(settingsStyles).toMatch(
       /\.opl-settings-capability-row\s*{[^}]*grid-template-columns:\s*minmax\(0, 1fr\) max-content;[^}]*align-items:\s*flex-start;/
@@ -354,6 +355,9 @@ describe('Codex visual parity overlay', () => {
     expect(capabilities).toContain('{selectedSourceLabel}');
     expect(capabilities).toContain('data-testid={`capability-conversation-${item.key}`}');
     expect(capabilities).not.toContain('formatCapabilityDisplayToken(item.trustState)');
+    expect(capabilities).not.toMatch(/item\.key === '(?:mas|mag|rca|obf)'/);
+    expect(capabilityProjection).not.toContain('DISPLAY_TOKEN_LABELS');
+    expect(capabilityProjection).not.toContain('formatCapabilityDisplayToken');
   });
 
   it('resets unused border sides before drawing Settings separators', () => {
