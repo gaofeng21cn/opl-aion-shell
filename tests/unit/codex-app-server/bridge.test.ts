@@ -18,6 +18,7 @@ const bridgeMocks = vi.hoisted(() => {
       fork: provider('fork'),
       rename: provider('rename'),
       updateSettings: provider('updateSettings'),
+      assignProjectAffinity: provider('assignProjectAffinity'),
       archive: provider('archive'),
       unarchive: provider('unarchive'),
       delete: provider('delete'),
@@ -73,5 +74,19 @@ describe('codexAppServerBridge', () => {
 
     disposeCodexAppServerBridge();
     expect(adapter.dispose).toHaveBeenCalledOnce();
+  });
+
+  it('routes explicit affinity assignment to the adapter', async () => {
+    const assigned = { id: 'thread-1', projectId: '/projects/selected', workspace: '/runtime/cwd' };
+    const adapter = {
+      assignProjectAffinity: vi.fn(async () => assigned),
+      dispose: vi.fn(),
+    };
+    bridgeMocks.createProductionAdapter.mockReturnValue(adapter);
+    initCodexAppServerBridge();
+
+    const assign = bridgeMocks.handlers.get('assignProjectAffinity');
+    await expect(assign?.({ threadId: 'thread-1', projectId: '/projects/selected' })).resolves.toBe(assigned);
+    expect(adapter.assignProjectAffinity).toHaveBeenCalledWith('thread-1', '/projects/selected');
   });
 });

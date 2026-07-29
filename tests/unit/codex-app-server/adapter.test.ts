@@ -1,7 +1,5 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import os from 'node:os';
-import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -228,16 +226,17 @@ describe('CodexAppServerAdapter', () => {
     expect(result.threads[0]?.title).toBe('Fix history');
   });
 
-  it('keeps directories distinct even when threads share one Git origin', async () => {
-    const managedProjectlessWorkspace = path.join(os.homedir(), 'Documents', 'Codex', '2026-07-28', 'temporary-task');
+  it('projects only explicit project ids and keeps recorded cwd independent', async () => {
+    const managedProjectlessWorkspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
     request.mockResolvedValueOnce({
       data: [
-        rawThread('bound', {
-          cwd: '/workspace/bound',
+        rawThread('normal-cwd', {
+          cwd: '/workspace/runtime-only',
           gitInfo: { originUrl: 'https://example.com/shared.git' },
         }),
-        rawThread('other-bound', {
-          cwd: '/workspace/other',
+        rawThread('bound', {
+          cwd: '/workspace/runtime-scratch',
+          projectId: '/projects/selected',
           gitInfo: { originUrl: 'https://example.com/shared.git' },
         }),
         rawThread('projectless', {
@@ -248,10 +247,6 @@ describe('CodexAppServerAdapter', () => {
           cwd: managedProjectlessWorkspace,
           gitInfo: { originUrl: 'https://example.com/shared.git' },
         }),
-        rawThread('documents-sibling', {
-          cwd: path.join(os.homedir(), 'Documents', 'Codex-project'),
-          gitInfo: { originUrl: 'https://example.com/shared.git' },
-        }),
       ],
       nextCursor: null,
     });
@@ -259,16 +254,45 @@ describe('CodexAppServerAdapter', () => {
     const result = await adapter.listThreads({ includeArchived: false });
 
     expect(result.threads).toMatchObject([
-      { id: 'bound', projectId: '/workspace/bound', workspace: '/workspace/bound' },
-      { id: 'other-bound', projectId: '/workspace/other', workspace: '/workspace/other' },
+      { id: 'normal-cwd', projectId: '', workspace: '/workspace/runtime-only' },
+      { id: 'bound', projectId: '/projects/selected', workspace: '/workspace/runtime-scratch' },
       { id: 'projectless', projectId: '', workspace: '' },
       { id: 'managed-projectless', projectId: '', workspace: managedProjectlessWorkspace },
-      {
-        id: 'documents-sibling',
-        projectId: path.join(os.homedir(), 'Documents', 'Codex-project'),
-        workspace: path.join(os.homedir(), 'Documents', 'Codex-project'),
-      },
     ]);
+  });
+
+  it('assigns explicit project affinity once without changing the recorded cwd', async () => {
+    const runtimeWorkspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/read') {
+        return { thread: rawThread('projectless', { cwd: runtimeWorkspace }) };
+      }
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    const assigned = await adapter.assignProjectAffinity('projectless', '/projects/selected');
+    const readback = await adapter.readThread('projectless');
+
+    expect(assigned).toMatchObject({
+      id: 'projectless',
+      projectId: '/projects/selected',
+      workspace: runtimeWorkspace,
+    });
+    expect(readback.thread).toMatchObject({
+      id: 'projectless',
+      projectId: '/projects/selected',
+      workspace: runtimeWorkspace,
+    });
+    expect(request.mock.calls.map(([method]) => method)).not.toContain('thread/settings/update');
+  });
+
+  it('rejects project affinity reassignment', async () => {
+    request.mockResolvedValue({ thread: rawThread('bound', { projectId: '/projects/original' }) });
+
+    await expect(adapter.assignProjectAffinity('bound', '/projects/replacement')).rejects.toThrow(
+      'already has explicit project affinity'
+    );
   });
 
   it('rejects malformed canonical cwd instead of treating it as projectless', async () => {

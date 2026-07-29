@@ -89,4 +89,18 @@ describe('ipcBridge Codex thread directory routing', () => {
     });
     expect(platformMocks.invokes.get('codex-threads.list')).toHaveBeenCalledWith({ includeArchived: true });
   });
+
+  it('exposes a dedicated Desktop project affinity channel', async () => {
+    const { codexThreads } = await import('@/common/adapter/ipcBridge');
+
+    await codexThreads.assignProjectAffinity.invoke({
+      threadId: 'thread-1',
+      projectId: '/projects/selected',
+    });
+
+    expect(platformMocks.invokes.get('codex-threads.assign-project-affinity')).toHaveBeenCalledWith({
+      threadId: 'thread-1',
+      projectId: '/projects/selected',
+    });
+  });
 });

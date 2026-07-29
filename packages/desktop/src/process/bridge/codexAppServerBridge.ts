@@ -35,6 +35,9 @@ export function initCodexAppServerBridge(adapter?: CodexAppServerAdapter): void 
   ipcBridge.codexThreads.updateSettings.provider(({ threadId, cwd }) =>
     getActiveAdapter().updateThreadSettings(threadId, cwd)
   );
+  ipcBridge.codexThreads.assignProjectAffinity.provider(({ threadId, projectId }) =>
+    getActiveAdapter().assignProjectAffinity(threadId, projectId)
+  );
   ipcBridge.codexThreads.archive.provider(({ threadId }) => getActiveAdapter().archiveThread(threadId));
   ipcBridge.codexThreads.unarchive.provider(({ threadId }) => getActiveAdapter().unarchiveThread(threadId));
   ipcBridge.codexThreads.delete.provider(({ threadId }) => getActiveAdapter().deleteThread(threadId));

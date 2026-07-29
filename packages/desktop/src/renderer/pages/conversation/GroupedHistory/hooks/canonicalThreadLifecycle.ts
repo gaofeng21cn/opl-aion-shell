@@ -17,6 +17,10 @@ type CanonicalProjectAdoptionOptions = {
   allowExistingWorkspace?: boolean;
 };
 
+function canonicalProjectId(conversation: TChatConversation | null | undefined): string {
+  return (conversation?.extra as { canonical_project_id?: string } | undefined)?.canonical_project_id?.trim() ?? '';
+}
+
 export function canonicalCodexThreadId(conversation: TChatConversation | null | undefined): string | null {
   if (conversation?.type !== 'acp' || conversation.extra.backend !== 'codex') return null;
   return conversation.extra.canonical_thread_id?.trim() || conversation.extra.acp_session_id?.trim() || null;
@@ -25,9 +29,7 @@ export function canonicalCodexThreadId(conversation: TChatConversation | null | 
 export function isProjectlessCanonicalConversation(
   conversation: TChatConversation | null | undefined
 ): conversation is Extract<TChatConversation, { type: 'acp' }> {
-  const explicitlyProjectless = conversation?.extra.custom_workspace === false;
-  const missingRecordedCwd = !conversation?.extra.workspace?.trim();
-  return canonicalCodexThreadId(conversation) !== null && (explicitlyProjectless || missingRecordedCwd);
+  return canonicalCodexThreadId(conversation) !== null && !canonicalProjectId(conversation);
 }
 
 export function projectCanonicalCodexThread(
@@ -37,7 +39,7 @@ export function projectCanonicalCodexThread(
 ): Extract<TChatConversation, { type: 'acp' }> {
   const parsedTimestamp = Date.parse(thread.updatedAt);
   const modifiedAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
-  const hasCanonicalProjectWorkspace = Boolean(thread.projectId.trim() && thread.workspace.trim());
+  const explicitProjectId = thread.projectId.trim() || canonicalProjectId(cached);
   return {
     ...(cached ?? {
       id: thread.id,
@@ -54,7 +56,8 @@ export function projectCanonicalCodexThread(
       ...cached?.extra,
       backend: 'codex',
       workspace: thread.workspace,
-      custom_workspace: hasCanonicalProjectWorkspace,
+      custom_workspace: Boolean(explicitProjectId),
+      canonical_project_id: explicitProjectId || undefined,
       acp_session_id: thread.id,
       canonical_thread_id: thread.id,
       canonical_thread_stub: cached ? false : options.materialized !== true,
@@ -70,45 +73,42 @@ export async function adoptProjectlessCanonicalConversation(
   workspace: string,
   options: CanonicalProjectAdoptionOptions = {}
 ): Promise<boolean> {
+  void options;
   if (canonicalCodexThreadId(conversation) === null) return false;
   const canonicalConversation = conversation as Extract<TChatConversation, { type: 'acp' }>;
-  const canAdoptProjectless = isProjectlessCanonicalConversation(conversation);
-  const canRepairRecordedWorkspace = options.allowExistingWorkspace === true;
-  if (!canAdoptProjectless && !canRepairRecordedWorkspace) return false;
+  if (!isProjectlessCanonicalConversation(conversation)) return false;
   const threadId = canonicalCodexThreadId(canonicalConversation);
   const selectedWorkspace = workspace.trim();
   if (!threadId || !selectedWorkspace) return false;
 
   try {
     const canonicalBefore = await ipcBridge.codexThreads.read.invoke({ threadId });
-    if (canRepairRecordedWorkspace) {
-      const recordedWorkspace = canonicalConversation.extra.workspace?.trim();
-      if (
-        !recordedWorkspace ||
-        canonicalBefore.thread.workspace !== recordedWorkspace ||
-        canonicalBefore.thread.projectId !== recordedWorkspace
-      ) {
-        return false;
-      }
-    } else if (canonicalBefore.thread.projectId.trim()) {
-      return false;
+    if (canonicalBefore.thread.projectId.trim()) return false;
+    const assigned = await ipcBridge.codexThreads.assignProjectAffinity.invoke({
+      threadId,
+      projectId: selectedWorkspace,
+    });
+    if (
+      assigned.id !== threadId ||
+      assigned.projectId !== selectedWorkspace ||
+      assigned.workspace !== canonicalBefore.thread.workspace
+    ) {
+      throw new Error('Canonical project affinity assignment readback did not match the selected project.');
     }
-
-    await ipcBridge.codexThreads.updateSettings.invoke({ threadId, cwd: selectedWorkspace });
     const canonicalReadback = await ipcBridge.codexThreads.read.invoke({ threadId });
     if (
-      canonicalReadback.thread.workspace !== selectedWorkspace ||
-      canonicalReadback.thread.projectId !== selectedWorkspace
+      canonicalReadback.thread.projectId !== selectedWorkspace ||
+      canonicalReadback.thread.workspace !== canonicalBefore.thread.workspace
     ) {
-      throw new Error('Canonical thread cwd readback did not match the selected project.');
+      throw new Error('Canonical project affinity readback did not match the selected project.');
     }
 
     const nextConversation = {
       ...canonicalConversation,
       extra: {
         ...canonicalConversation.extra,
-        workspace: selectedWorkspace,
         custom_workspace: true,
+        canonical_project_id: selectedWorkspace,
         canonical_thread_stub: false,
       },
     };
@@ -124,8 +124,8 @@ export async function adoptProjectlessCanonicalConversation(
           id: canonicalConversation.id,
           updates: {
             extra: {
-              workspace: selectedWorkspace,
               custom_workspace: true,
+              canonical_project_id: selectedWorkspace,
             },
           } as Partial<TChatConversation>,
           merge_extra: true,
@@ -136,13 +136,14 @@ export async function adoptProjectlessCanonicalConversation(
       const localReadback = await ipcBridge.conversation.get.invoke({ id: localConversationId });
       if (
         canonicalCodexThreadId(localReadback) !== threadId ||
-        localReadback.extra.workspace !== selectedWorkspace ||
+        canonicalProjectId(localReadback) !== selectedWorkspace ||
+        localReadback.extra.workspace !== canonicalConversation.extra.workspace ||
         localReadback.extra.custom_workspace !== true
       ) {
-        throw new Error('Local project affinity projection readback did not match the canonical cwd.');
+        throw new Error('Local project affinity projection readback did not match the canonical project.');
       }
     } catch (error) {
-      console.warn('Canonical cwd changed, but its rebuildable shell affinity projection could not be updated:', error);
+      console.warn('Canonical affinity changed, but its rebuildable shell projection could not be updated:', error);
     }
     return true;
   } catch (error) {

@@ -6,7 +6,6 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import os from 'node:os';
-import path from 'node:path';
 import type {
   CodexReviewStartRequest,
   CodexReviewStartResult,
@@ -199,16 +198,8 @@ function activeTurnId(turns: JsonRecord[]): string | null {
   return active && typeof active.id === 'string' ? active.id : null;
 }
 
-function isManagedProjectlessWorkspace(workspace: string): boolean {
-  if (!workspace || !path.isAbsolute(workspace)) return false;
-  const managedRoot = path.join(os.homedir(), 'Documents', 'Codex');
-  const relative = path.relative(managedRoot, workspace);
-  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
-}
-
 function projectId(raw: JsonRecord): string {
-  const workspace = recordedCwd(raw.cwd);
-  return isManagedProjectlessWorkspace(workspace) ? '' : workspace;
+  return optionalString(raw.projectId)?.trim() ?? '';
 }
 
 function ancestorsFor(thread: RawThread, byId: Map<string, RawThread>): string[] {
@@ -229,7 +220,8 @@ function mapThread(
   archived: boolean,
   ancestors: string[],
   host: string,
-  goal: string | null = null
+  goal: string | null = null,
+  explicitProjectId?: string
 ): CodexThreadDescriptor {
   const turns = raw.turns.filter(isRecord);
   return {
@@ -237,7 +229,7 @@ function mapThread(
     title: optionalString(raw.name) ?? optionalString(raw.preview)?.slice(0, 80) ?? raw.id,
     summary: optionalString(raw.preview) ?? '',
     status: statusFromRaw(raw.status, archived),
-    projectId: projectId(raw),
+    projectId: explicitProjectId ?? projectId(raw),
     workspace: recordedCwd(raw.cwd),
     host,
     owner: optionalString(raw.agentRole) ?? optionalString(raw.agentNickname),
@@ -428,6 +420,7 @@ export class CodexAppServerAdapter {
   private readonly host: string;
   private readonly pageSize: number;
   private readonly maxPages: number;
+  private readonly assignedProjectAffinities = new Map<string, string>();
 
   constructor(options: AdapterOptions) {
     this.rpc = options.rpc;
@@ -466,7 +459,16 @@ export class CodexAppServerAdapter {
           }
         }
       }
-      descriptors.push(mapThread(hydrated, archived, ancestorsFor(thread, byId), this.host));
+      descriptors.push(
+        mapThread(
+          hydrated,
+          archived,
+          ancestorsFor(thread, byId),
+          this.host,
+          null,
+          this.assignedProjectAffinities.get(thread.id)
+        )
+      );
     }
     return {
       schema: 'opl_codex_thread_directory.v1',
@@ -485,7 +487,10 @@ export class CodexAppServerAdapter {
     } catch {
       // Goal read is optional across app-server versions.
     }
-    return { thread: mapThread(raw, false, [], this.host, goal), history: historyFromTurns(raw.turns) };
+    return {
+      thread: mapThread(raw, false, [], this.host, goal, this.assignedProjectAffinities.get(threadId)),
+      history: historyFromTurns(raw.turns),
+    };
   }
 
   async startThread(request: CodexThreadStartRequest): Promise<CodexThreadDescriptor> {
@@ -526,6 +531,16 @@ export class CodexAppServerAdapter {
     });
   }
 
+  async assignProjectAffinity(threadId: string, projectIdValue: string): Promise<CodexThreadDescriptor> {
+    const raw = await this.readRawThread(threadId);
+    const existingProjectId = this.assignedProjectAffinities.get(threadId) ?? projectId(raw);
+    if (existingProjectId) throw new Error('Canonical thread already has explicit project affinity.');
+
+    const selectedProjectId = requiredString(projectIdValue, 'thread project affinity').trim();
+    this.assignedProjectAffinities.set(threadId, selectedProjectId);
+    return mapThread(raw, false, [], this.host, null, selectedProjectId);
+  }
+
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
   }
@@ -540,6 +555,7 @@ export class CodexAppServerAdapter {
 
   async deleteThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/delete', { threadId });
+    this.assignedProjectAffinities.delete(threadId);
   }
 
   async startReview(request: CodexReviewStartRequest): Promise<CodexReviewStartResult> {
@@ -559,6 +575,7 @@ export class CodexAppServerAdapter {
   }
 
   dispose(): void {
+    this.assignedProjectAffinities.clear();
     this.rpc.dispose();
   }
 

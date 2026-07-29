@@ -310,6 +310,8 @@ export type TChatConversation =
           canonical_thread_stub?: boolean;
           /** Host that reported the canonical thread; informational and never an authorization boundary. */
           canonical_thread_host?: string;
+          /** Explicit sidebar project affinity. Independent of the canonical thread runtime cwd. */
+          canonical_project_id?: string;
           /** Last context usage from usage_update */
           last_token_usage?: TokenUsageData;
           /** Context window capacity from usage_update */

@@ -16,7 +16,7 @@ const mocks = vi.hoisted(() => ({
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   threadRead: vi.fn(),
-  threadUpdateSettings: vi.fn(),
+  threadAssignProjectAffinity: vi.fn(),
   threadRename: vi.fn(),
   threadArchive: vi.fn(),
   threadUnarchive: vi.fn(),
@@ -34,7 +34,7 @@ vi.mock('@/common', () => ({
     },
     codexThreads: {
       read: { invoke: mocks.threadRead },
-      updateSettings: { invoke: mocks.threadUpdateSettings },
+      assignProjectAffinity: { invoke: mocks.threadAssignProjectAffinity },
       rename: { invoke: mocks.threadRename },
       archive: { invoke: mocks.threadArchive },
       unarchive: { invoke: mocks.threadUnarchive },
@@ -99,7 +99,7 @@ describe('conversation archive actions', () => {
     mocks.messageError.mockClear();
     mocks.messageSuccess.mockClear();
     mocks.threadRead.mockReset();
-    mocks.threadUpdateSettings.mockReset();
+    mocks.threadAssignProjectAffinity.mockReset();
     mocks.threadRename.mockReset();
     mocks.threadArchive.mockReset();
     mocks.threadUnarchive.mockReset();
@@ -195,7 +195,7 @@ describe('conversation archive actions', () => {
     expect(markAsRead).toHaveBeenCalledWith('local-conversation-1');
   });
 
-  it('opens project selection for a stale canonical workspace and materializes only after cwd readback', async () => {
+  it('opens project selection for an unbound canonical workspace and materializes after affinity readback', async () => {
     const staleWorkspace = '/workspace/removed-project';
     const selectedWorkspace = '/workspace/recovered-project';
     const canonicalStub = {
@@ -223,16 +223,20 @@ describe('conversation archive actions', () => {
       .mockRejectedValueOnce(workspaceError)
       .mockResolvedValueOnce({ id: 'local-recovered-conversation' });
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: staleWorkspace } })
-      .mockResolvedValueOnce({ thread: { workspace: selectedWorkspace, projectId: selectedWorkspace } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: selectedWorkspace } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-stale-workspace',
+      workspace: staleWorkspace,
+      projectId: selectedWorkspace,
+    });
     mocks.get.mockResolvedValue({
       ...canonicalStub,
       id: 'local-recovered-conversation',
       extra: {
         ...canonicalStub.extra,
-        workspace: selectedWorkspace,
         custom_workspace: true,
+        canonical_project_id: selectedWorkspace,
         canonical_thread_stub: false,
       },
     });
@@ -253,15 +257,16 @@ describe('conversation archive actions', () => {
 
     await act(() => result.current.handleProjectAdoption(canonicalStub, selectedWorkspace));
 
-    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+    expect(mocks.threadAssignProjectAffinity).toHaveBeenCalledWith({
       threadId: 'thread-stale-workspace',
-      cwd: selectedWorkspace,
+      projectId: selectedWorkspace,
     });
     expect(mocks.threadRead).toHaveBeenCalledTimes(2);
     expect(mocks.createWithConversation).toHaveBeenLastCalledWith({
       conversation: expect.objectContaining({
         extra: expect.objectContaining({
-          workspace: selectedWorkspace,
+          workspace: staleWorkspace,
+          canonical_project_id: selectedWorkspace,
           canonical_thread_stub: false,
         }),
       }),
@@ -333,12 +338,20 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-projectless',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
       ...projectless,
-      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+      extra: {
+        ...projectless.extra,
+        canonical_project_id: '/workspace/project',
+        custom_workspace: true,
+      },
     });
     const { result } = renderHook(() =>
       useConversationActions({
@@ -354,13 +367,13 @@ describe('conversation archive actions', () => {
     act(() => result.current.handleMoveToProject(projectless));
     await act(() => result.current.handleProjectAdoptionConfirm(['/workspace/project']));
 
-    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+    expect(mocks.threadAssignProjectAffinity).toHaveBeenCalledWith({
       threadId: 'thread-projectless',
-      cwd: '/workspace/project',
+      projectId: '/workspace/project',
     });
     expect(mocks.update).toHaveBeenCalledWith({
       id: 'conv-projectless',
-      updates: { extra: { workspace: '/workspace/project', custom_workspace: true } },
+      updates: { extra: { canonical_project_id: '/workspace/project', custom_workspace: true } },
       merge_extra: true,
     });
     expect(mocks.get).toHaveBeenCalledWith({ id: 'conv-projectless' });
@@ -384,12 +397,20 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: managedWorkspace, projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: managedWorkspace, projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-managed-projectless',
+      workspace: managedWorkspace,
+      projectId: '/workspace/project',
+    });
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
       ...projectless,
-      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+      extra: {
+        ...projectless.extra,
+        canonical_project_id: '/workspace/project',
+        custom_workspace: true,
+      },
     });
     const { result } = renderHook(() =>
       useConversationActions({
@@ -403,13 +424,13 @@ describe('conversation archive actions', () => {
     );
 
     expect(await result.current.handleProjectAdoption(projectless, '/workspace/project')).toBe(true);
-    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+    expect(mocks.threadAssignProjectAffinity).toHaveBeenCalledWith({
       threadId: 'thread-managed-projectless',
-      cwd: '/workspace/project',
+      projectId: '/workspace/project',
     });
   });
 
-  it('updates the App Server cwd before committing the local affinity projection', async () => {
+  it('assigns App Server project affinity before committing the local projection', async () => {
     const projectless = {
       id: 'conv-order',
       name: 'Projectless task',
@@ -419,12 +440,20 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-order',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
       ...projectless,
-      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+      extra: {
+        ...projectless.extra,
+        canonical_project_id: '/workspace/project',
+        custom_workspace: true,
+      },
     });
     const { result } = renderHook(() =>
       useConversationActions({
@@ -439,14 +468,14 @@ describe('conversation archive actions', () => {
 
     await act(() => result.current.handleProjectAdoption(projectless, '/workspace/project'));
 
-    expect(mocks.threadUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.threadAssignProjectAffinity.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.update.mock.invocationCallOrder[0]
     );
     expect(mocks.threadRead).toHaveBeenCalledTimes(2);
     expect(mocks.threadRead.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.threadUpdateSettings.mock.invocationCallOrder[0]
+      mocks.threadAssignProjectAffinity.mock.invocationCallOrder[0]
     );
-    expect(mocks.threadUpdateSettings.mock.invocationCallOrder[0]).toBeLessThan(
+    expect(mocks.threadAssignProjectAffinity.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.threadRead.mock.invocationCallOrder[1]
     );
     expect(mocks.threadRead.mock.invocationCallOrder[1]).toBeLessThan(mocks.update.mock.invocationCallOrder[0]);
@@ -466,8 +495,12 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-local-projection-failure',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     mocks.update.mockResolvedValue(false);
     const { result } = renderHook(() =>
       useConversationActions({
@@ -501,8 +534,12 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-stub-projection-failure',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     mocks.createWithConversation.mockRejectedValue(new Error('local projection unavailable'));
     const { result } = renderHook(() =>
       useConversationActions({
@@ -536,15 +573,19 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-stub',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     mocks.createWithConversation.mockResolvedValue({ id: 'local-stub-conversation' });
     mocks.get.mockResolvedValue({
       ...projectlessStub,
       id: 'local-stub-conversation',
       extra: {
         ...projectlessStub.extra,
-        workspace: '/workspace/project',
+        canonical_project_id: '/workspace/project',
         custom_workspace: true,
         canonical_thread_stub: false,
       },
@@ -564,7 +605,7 @@ describe('conversation archive actions', () => {
     expect(mocks.get).toHaveBeenCalledWith({ id: 'local-stub-conversation' });
   });
 
-  it('keeps the conversation projectless when canonical cwd readback does not match', async () => {
+  it('keeps the conversation projectless when assignment changes canonical cwd', async () => {
     const projectless = {
       id: 'conv-mismatch',
       name: 'Projectless task',
@@ -574,8 +615,12 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/other', projectId: '/workspace/other' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '/workspace/other', projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-mismatch',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     const { result } = renderHook(() =>
       useConversationActions({
         batchMode: false,
@@ -593,7 +638,7 @@ describe('conversation archive actions', () => {
     expect(mocks.messageError).toHaveBeenCalledWith('conversation.history.moveToProjectFailed');
   });
 
-  it('requires an exact canonical cwd readback instead of path-normalized equivalence', async () => {
+  it('requires exact projectId readback instead of path-normalized equivalence', async () => {
     const projectless = {
       id: 'conv-exact-mismatch',
       name: 'Projectless task',
@@ -603,8 +648,12 @@ describe('conversation archive actions', () => {
     } as TChatConversation;
     mocks.threadRead
       .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project/', projectId: '/workspace/project/' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '/workspace/project/' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-exact-mismatch',
+      workspace: '',
+      projectId: '/workspace/project',
+    });
     const { result } = renderHook(() =>
       useConversationActions({
         batchMode: false,
@@ -621,7 +670,7 @@ describe('conversation archive actions', () => {
     expect(mocks.createWithConversation).not.toHaveBeenCalled();
   });
 
-  it('blocks reassignment after a canonical cwd is recorded', async () => {
+  it('blocks reassignment after canonical project affinity is recorded', async () => {
     const staleProjectless = {
       id: 'conv-stale',
       name: 'Stale projectless projection',
@@ -644,11 +693,12 @@ describe('conversation archive actions', () => {
     );
 
     expect(await result.current.handleProjectAdoption(staleProjectless, '/workspace/project-b')).toBe(false);
-    expect(mocks.threadUpdateSettings).not.toHaveBeenCalled();
+    expect(mocks.threadAssignProjectAffinity).not.toHaveBeenCalled();
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it('does not change turn pwd or sandbox writable roots during adoption', async () => {
+    const runtimeWorkspace = '/runtime/scratch';
     const projectless = {
       id: 'conv-boundary',
       name: 'Projectless task',
@@ -657,13 +707,21 @@ describe('conversation archive actions', () => {
       extra: { backend: 'codex', canonical_thread_id: 'thread-boundary', custom_workspace: false },
     } as TChatConversation;
     mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: '', projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: '/workspace/project', projectId: '/workspace/project' } });
-    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+      .mockResolvedValueOnce({ thread: { workspace: runtimeWorkspace, projectId: '' } })
+      .mockResolvedValueOnce({ thread: { workspace: runtimeWorkspace, projectId: '/workspace/project' } });
+    mocks.threadAssignProjectAffinity.mockResolvedValue({
+      id: 'thread-boundary',
+      workspace: runtimeWorkspace,
+      projectId: '/workspace/project',
+    });
     mocks.update.mockResolvedValue(true);
     mocks.get.mockResolvedValue({
       ...projectless,
-      extra: { ...projectless.extra, workspace: '/workspace/project', custom_workspace: true },
+      extra: {
+        ...projectless.extra,
+        canonical_project_id: '/workspace/project',
+        custom_workspace: true,
+      },
     });
     const { result } = renderHook(() =>
       useConversationActions({
@@ -678,11 +736,11 @@ describe('conversation archive actions', () => {
 
     await result.current.handleProjectAdoption(projectless, '/workspace/project');
 
-    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+    expect(mocks.threadAssignProjectAffinity).toHaveBeenCalledWith({
       threadId: 'thread-boundary',
-      cwd: '/workspace/project',
+      projectId: '/workspace/project',
     });
-    expect(JSON.stringify(mocks.threadUpdateSettings.mock.calls)).not.toMatch(/pwd|writable|sandbox/i);
+    expect(JSON.stringify(mocks.threadAssignProjectAffinity.mock.calls)).not.toMatch(/cwd|pwd|writable|sandbox/i);
   });
 
   it('routes the open canonical task title rename through thread/name/set', async () => {
