@@ -18,6 +18,45 @@ if [[ ! -f "$identity" ]]; then
   exit 69
 fi
 
+managed_resources=/opt/opl/carrier/current/managed-resources
+managed_manifest="$managed_resources/manifest.json"
+if [[ ! -f "$managed_manifest" ]]; then
+  printf 'The packaged Linux managed-resources manifest is missing: %s\n' "$managed_manifest" >&2
+  exit 69
+fi
+if ! managed_node_root="$(jq -er '.node.root | select(type == "string")' "$managed_manifest")" ||
+  [[ ! "$managed_node_root" =~ ^node/node-v[0-9]+\.[0-9]+\.[0-9]+-linux-x64$ ]]; then
+  printf 'The packaged Linux managed Node.js root is invalid.\n' >&2
+  exit 65
+fi
+if ! managed_node_executable="$(jq -er '.node.executable | select(type == "string" and . == "bin/node")' "$managed_manifest")"; then
+  printf 'The packaged Linux managed Node.js executable contract is invalid.\n' >&2
+  exit 65
+fi
+if ! managed_node_version="$(jq -er '.node.version | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))' "$managed_manifest")"; then
+  printf 'The packaged Linux managed Node.js version contract is invalid.\n' >&2
+  exit 65
+fi
+managed_node="$managed_resources/$managed_node_root/$managed_node_executable"
+managed_node_bin="$(dirname "$managed_node")"
+if [[ ! -x "$managed_node" ]]; then
+  printf 'The packaged Linux managed Node.js executable is unavailable: %s\n' "$managed_node" >&2
+  exit 69
+fi
+for command_name in npm npx; do
+  command_path="$managed_node_bin/$command_name"
+  if [[ ! -x "$command_path" ]]; then
+    printf 'The packaged Linux managed Node.js command is unavailable: %s\n' "$command_path" >&2
+    exit 69
+  fi
+done
+actual_node_version="$("$managed_node" --version 2>/dev/null || true)"
+if [[ "$actual_node_version" != "v$managed_node_version" ]]; then
+  printf 'The packaged Linux managed Node.js version is invalid: expected v%s, got %s\n' \
+    "$managed_node_version" "${actual_node_version:-unavailable}" >&2
+  exit 65
+fi
+
 identity_codex_realpath="$(jq -er '.codex_realpath' "$identity")"
 identity_codex_digest="$(jq -er '.codex_digest' "$identity")"
 codex_command_path="$(command -v codex || true)"

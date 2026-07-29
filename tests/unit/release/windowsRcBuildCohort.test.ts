@@ -56,6 +56,7 @@ describe('Windows RC build cohort', () => {
     write(root, 'resources/bundled-aioncore/linux-x64/aioncore', 'aioncore');
     write(root, 'resources/bundled-aioncore/linux-x64/manifest.json', '{}');
     write(root, 'resources/bundled-aioncore/linux-x64/managed-resources/manifest.json', '{}');
+    write(root, 'resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64/bin/node', 'node');
     write(
       root,
       'resources/bundled-aioncore/linux-x64/managed-resources/acp/codex-acp/1/linux-x64/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex',
@@ -116,6 +117,11 @@ describe('Windows RC build cohort', () => {
       file_count: 2,
       digest_contract: 'sha256(relative_path+NUL+size+NUL+file_sha256+LF)',
     });
+    expect(cohort.runtime.managed_node).toMatchObject({
+      path: 'resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64/bin/node',
+      size_bytes: 4,
+    });
+    expect(cohort.runtime.managed_node.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(cohort.runtime.codex.path).toContain('@openai/codex-linux-x64/vendor/');
 
     write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, '');

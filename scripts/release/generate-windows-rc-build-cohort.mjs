@@ -128,6 +128,11 @@ export function generateWindowsRcBuildCohort({
   const aioncorePath = path.join(runtimeRoot, 'aioncore');
   const runtimeManifestPath = path.join(runtimeRoot, 'manifest.json');
   const managedManifestPath = path.join(runtimeRoot, 'managed-resources', 'manifest.json');
+  const managedNodePath = findSingleFile(
+    path.join(runtimeRoot, 'managed-resources', 'node'),
+    (candidate) => candidate.replaceAll(path.sep, '/').endsWith('/bin/node'),
+    'managed Node executable'
+  );
   const codexPath = findSingleFile(
     path.join(runtimeRoot, 'managed-resources'),
     (candidate) =>
@@ -166,6 +171,7 @@ export function generateWindowsRcBuildCohort({
       aioncore: fileIdentity(rootDir, aioncorePath),
       runtime_manifest: fileIdentity(rootDir, runtimeManifestPath),
       managed_resources_manifest: fileIdentity(rootDir, managedManifestPath),
+      managed_node: fileIdentity(rootDir, managedNodePath),
       codex: fileIdentity(rootDir, codexPath),
     },
     actions: {
