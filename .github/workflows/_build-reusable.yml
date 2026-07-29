@@ -124,6 +124,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify prepared Linux managed Node runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          managed_resources=resources/bundled-aioncore/linux-x64/managed-resources
+          managed_manifest="$managed_resources/manifest.json"
+          node_root="$(jq -er '
+            select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+            | .node.root
+            | select(type == "string" and test("^node/node-v[0-9]+\\.[0-9]+\\.[0-9]+-linux-x64$"))
+          ' "$managed_manifest")"
+          node_version="$(jq -er '.node.version | select(type == "string")' "$managed_manifest")"
+          node_bin="$managed_resources/$node_root/bin"
+          test -x "$node_bin/node"
+          test -x "$node_bin/npm"
+          test -x "$node_bin/npx"
+          test -f "$managed_resources/$node_root/lib/node_modules/npm/bin/npm-cli.js"
+          test -f "$managed_resources/$node_root/lib/node_modules/npm/bin/npx-cli.js"
+          test -f "$managed_resources/$node_root/lib/node_modules/npm/lib/cli.js"
+          test "$("$node_bin/node" --version)" = "v$node_version"
+          npm_version="$(PATH="$node_bin:$PATH" "$node_bin/npm" --version)"
+          npx_version="$(PATH="$node_bin:$PATH" "$node_bin/npx" --version)"
+          [[ "$npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]
+          test "$npx_version" = "$npm_version"
+          printf 'Managed Node runtime verified: node=%s npm=%s npx=%s\n' \
+            "v$node_version" "$npm_version" "$npx_version"
+
       - name: Upload prepared Linux AionCore runtime
         uses: actions/upload-artifact@v7
         with:

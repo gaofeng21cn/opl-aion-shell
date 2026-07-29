@@ -79,12 +79,6 @@ export function treeIdentity(rootDir, treePath) {
   };
 }
 
-function findSingleFile(rootDir, predicate, label) {
-  const matches = walkFiles(rootDir).filter(predicate);
-  if (matches.length !== 1) throw new Error(`Expected one ${label}, found ${matches.length}`);
-  return matches[0];
-}
-
 function isSafeContractPath(value) {
   return (
     typeof value === 'string' &&
@@ -95,13 +89,42 @@ function isSafeContractPath(value) {
   );
 }
 
-function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runtimeKey) {
-  let manifest;
+function readManagedManifest(managedManifestPath) {
   try {
-    manifest = JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
+    return JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
   } catch (error) {
     throw new Error(`Managed resources manifest is not valid JSON: ${error.message}`);
   }
+}
+
+function resolveManagedNodeRuntime(managedResourcesRoot, managedManifestPath, runtimeKey) {
+  const manifest = readManagedManifest(managedManifestPath);
+  const expectedRoot = 'node/node-v24.11.0-linux-x64';
+  if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
+    throw new Error(`Managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
+  }
+  if (
+    manifest.node?.version !== '24.11.0' ||
+    manifest.node?.root !== expectedRoot ||
+    manifest.node?.executable !== 'bin/node'
+  ) {
+    throw new Error(`Managed Node runtime identity is inconsistent with the schema-v2 layout for ${runtimeKey}`);
+  }
+
+  const root = path.resolve(managedResourcesRoot, ...expectedRoot.split('/'));
+  return {
+    root,
+    executable: path.join(root, 'bin', 'node'),
+    npmLauncher: path.join(root, 'bin', 'npm'),
+    npxLauncher: path.join(root, 'bin', 'npx'),
+    npmCli: path.join(root, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
+    npxCli: path.join(root, 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js'),
+    npmRuntime: path.join(root, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'),
+  };
+}
+
+function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runtimeKey) {
+  const manifest = readManagedManifest(managedManifestPath);
 
   if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
     throw new Error(`Managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
@@ -164,7 +187,8 @@ export function generateWindowsRcBuildCohort({
   const installerName = `One-Person-Lab-${releaseVersion}-win-x64.exe`;
   const installerPath = path.join(outDir, installerName);
   const packagedTreePath = path.join(outDir, 'win-unpacked');
-  const productPath = path.join(rootDir, 'resources', 'opl-linux', 'product.json');
+  const packagedResourcesPath = path.join(packagedTreePath, 'resources');
+  const productPath = path.join(packagedResourcesPath, 'opl-linux', 'product.json');
   const product = JSON.parse(fs.readFileSync(productPath, 'utf8'));
   const frameworkSha = product.framework_ref;
   if (
@@ -175,17 +199,13 @@ export function generateWindowsRcBuildCohort({
     throw new Error('OPL Linux product manifest is incompatible with the Windows RC contract');
   }
 
-  const runtimeRoot = path.join(rootDir, 'resources', 'bundled-aioncore', 'linux-x64');
+  const runtimeRoot = path.join(packagedResourcesPath, 'bundled-aioncore', 'linux-x64');
   const aioncorePath = path.join(runtimeRoot, 'aioncore');
   const runtimeManifestPath = path.join(runtimeRoot, 'manifest.json');
   const managedResourcesRoot = path.join(runtimeRoot, 'managed-resources');
   const managedManifestPath = path.join(managedResourcesRoot, 'manifest.json');
   const managedManifestIdentity = fileIdentity(rootDir, managedManifestPath);
-  const managedNodePath = findSingleFile(
-    path.join(managedResourcesRoot, 'node'),
-    (candidate) => candidate.replaceAll(path.sep, '/').endsWith('/bin/node'),
-    'managed Node executable'
-  );
+  const managedNode = resolveManagedNodeRuntime(managedResourcesRoot, managedManifestPath, 'linux-x64');
   const codexPath = resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, 'linux-x64');
 
   return {
@@ -218,7 +238,13 @@ export function generateWindowsRcBuildCohort({
       aioncore: fileIdentity(rootDir, aioncorePath),
       runtime_manifest: fileIdentity(rootDir, runtimeManifestPath),
       managed_resources_manifest: managedManifestIdentity,
-      managed_node: fileIdentity(rootDir, managedNodePath),
+      managed_node: fileIdentity(rootDir, managedNode.executable),
+      managed_node_tree: treeIdentity(rootDir, managedNode.root),
+      managed_npm_launcher: fileIdentity(rootDir, managedNode.npmLauncher),
+      managed_npx_launcher: fileIdentity(rootDir, managedNode.npxLauncher),
+      managed_npm_cli: fileIdentity(rootDir, managedNode.npmCli),
+      managed_npx_cli: fileIdentity(rootDir, managedNode.npxCli),
+      managed_npm_runtime: fileIdentity(rootDir, managedNode.npmRuntime),
       codex: fileIdentity(rootDir, codexPath),
     },
     actions: {

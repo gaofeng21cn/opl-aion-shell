@@ -503,10 +503,11 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const cacheRoot = path.join(dir, 'cache');
     const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.53', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
+    const cachedNodeRoot = path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64');
 
-    fs.mkdirSync(path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin'), {
-      recursive: true,
-    });
+    fs.mkdirSync(path.join(cachedNodeRoot, 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
+    fs.mkdirSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib'), { recursive: true });
     fs.writeFileSync(path.join(cacheRuntimeDir, 'aioncore'), 'binary');
     fs.writeFileSync(
       path.join(cacheRuntimeDir, 'manifest.json'),
@@ -517,14 +518,12 @@ describe('prepare-aioncore prepared runtime cache', () => {
         compatibility: { reportedVersion: '0.1.53' },
       })
     );
-    fs.writeFileSync(
-      path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'node'),
-      'node'
-    );
-    fs.writeFileSync(
-      path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64', 'bin', 'npm'),
-      'npm'
-    );
+    fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'node'), 'node');
+    fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'npm'), 'npm');
+    fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'npx'), 'npx');
+    fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'), 'npm');
+    fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'bin', 'npx-cli.js'), 'npx');
+    fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'), 'npm runtime');
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
     const claudeRoot = path.join(managedResourcesDir, 'cli', 'claude', '2.1.215', 'darwin-arm64');

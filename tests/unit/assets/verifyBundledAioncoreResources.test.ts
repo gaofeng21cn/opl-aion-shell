@@ -42,6 +42,17 @@ function npmExecutable(runtimeKey: string): string {
   return runtimeKey.startsWith('win32-') ? 'npm.cmd' : 'bin/npm';
 }
 
+function nodeNpmRuntimeFiles(runtimeKey: string): string[] {
+  const npmRoot = runtimeKey.startsWith('win32-') ? 'node_modules/npm' : 'lib/node_modules/npm';
+  return [
+    npmExecutable(runtimeKey),
+    runtimeKey.startsWith('win32-') ? 'npx.cmd' : 'bin/npx',
+    `${npmRoot}/bin/npm-cli.js`,
+    `${npmRoot}/bin/npx-cli.js`,
+    `${npmRoot}/lib/cli.js`,
+  ];
+}
+
 function claudeExecutable(runtimeKey: string): string {
   return runtimeKey.startsWith('win32-') ? 'claude.exe' : 'claude';
 }
@@ -75,7 +86,9 @@ function writeManagedResources(managedResourcesDir: string, runtimeKey: string):
   const clis = [directCliContract('claude', runtimeKey), directCliContract('codex', runtimeKey)];
 
   writeFile(join(managedResourcesDir, ...node.root.split('/'), ...node.executable.split('/')), 'node');
-  writeFile(join(managedResourcesDir, ...node.root.split('/'), ...npmExecutable(runtimeKey).split('/')), 'npm');
+  for (const relativePath of nodeNpmRuntimeFiles(runtimeKey)) {
+    writeFile(join(managedResourcesDir, ...node.root.split('/'), ...relativePath.split('/')), relativePath);
+  }
   for (const cli of clis) {
     const cliRoot = join(managedResourcesDir, ...cli.root.split('/'));
     writeFile(join(cliRoot, ...cli.executable.split('/')), cli.name);
@@ -188,6 +201,23 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.missing).toContain('bundled-aioncore/win32-x64/managed-resources/node/*/npm.cmd');
+  });
+
+  it('reports an incomplete managed npm runtime library', () => {
+    rmSync(join(managedResourcesDir, ...nodeRoot('win32-x64').split('/'), 'node_modules/npm/lib/cli.js'));
+
+    const result = verifyBundledAioncoreResources({
+      resourcesDir,
+      electronPlatformName: 'win32',
+      targetArch: 'x64',
+    });
+
+    expect(result.missing).toEqual(
+      expect.arrayContaining([
+        'bundled-aioncore/win32-x64/managed-resources/node/*/node_modules/npm/lib/cli.js',
+        'bundled-aioncore/win32-x64/managed-resources/node/node-v24.11.0-win-x64/node_modules/npm/lib/cli.js',
+      ])
+    );
   });
 
   it.skipIf(process.platform === 'win32')('reports dangling managed-resource symlinks', () => {

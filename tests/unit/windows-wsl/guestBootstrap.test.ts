@@ -68,6 +68,10 @@ describe('OPL Linux guest bootstrap', () => {
     const installer = read('install-opl-linux.sh');
     expect(installer).toContain('if ! runtime_activation_complete "$activation"; then');
     expect(installer).toContain('Repairing incomplete packaged Linux runtime activation');
+    expect(installer).toContain('normalize_managed_node_launchers "$pending"');
+    expect(installer).toContain('ln -s "$command_target" "$managed_node_bin/$command_name"');
+    expect(installer).toContain('"$managed_node_bin/npm" --version');
+    expect(installer).toContain('"$managed_node_bin/npx" --version');
     expect(installer).toContain('chmod 0755 \\');
     expect(installer).toContain('if ! runtime_activation_complete "$pending"; then');
 
@@ -76,6 +80,8 @@ describe('OPL Linux guest bootstrap', () => {
     expect(inspect).toContain('if [[ ! -x "$managed_node" ]]; then');
     expect(inspect).toContain('actual_node_version="$("$managed_node" --version 2>/dev/null || true)"');
     expect(inspect).toContain('for command_name in npm npx; do');
+    expect(inspect).toContain('managed_npm_version: $managed_npm_version');
+    expect(inspect).toContain('managed_npx_version: $managed_npx_version');
   });
 
   it('counts operation records without feeding filenames into jq', () => {
