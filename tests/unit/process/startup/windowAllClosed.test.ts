@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { shouldQuitAfterAllWindowsClosed } from '@/process/startup/windowAllClosed';
+import { shouldQuitAfterAllWindowsClosed } from '@/process/startup/runtime/windowAllClosed';
 
 describe('shouldQuitAfterAllWindowsClosed', () => {
   it('keeps startup alive while a temporary provisioning window closes', () => {

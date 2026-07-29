@@ -13,7 +13,7 @@ import { captureBackendStartupFailure, initSentry, scheduleStartupLogReport, set
 initSentry();
 
 import './process/utils/configureConsoleLog';
-import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeImage, powerMonitor, shell } from 'electron';
 import fixPath from 'fix-path';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -25,8 +25,10 @@ import { assertStartupArchitectureCompatible } from './process/startup/architect
 import { classifyBackendStartupFailure } from './process/startup/backendStartupFailure';
 import { shouldRegisterBackendStartup } from './process/startup/singleInstanceGating';
 import { installQuitCleanup } from './process/startup/quitCleanup';
-import { initializeTrayForDesktopMode } from './process/startup/trayStartup';
-import { shouldQuitAfterAllWindowsClosed } from './process/startup/windowAllClosed';
+import { createAutoUpdaterBootstrap } from './process/startup/runtime/autoUpdaterBootstrap';
+import { presentPackagedWebui } from './process/startup/runtime/packagedWebuiMode';
+import { initializeTrayForDesktopMode } from './process/startup/runtime/trayStartup';
+import { shouldQuitAfterAllWindowsClosed } from './process/startup/runtime/windowAllClosed';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
 import { registerWindowMaximizeListeners } from '@process/bridge';
@@ -59,7 +61,11 @@ import {
   showAndFocusMainWindow,
   showOrCreateMainWindow,
 } from './process/utils/mainWindowLifecycle';
-import { resolvePreloadScriptPath, resolveRendererIndexPath } from './process/utils/rendererPath';
+import {
+  resolvePreloadScriptPath,
+  resolveRendererIndexPath,
+  resolveRendererOutDir,
+} from './process/utils/rendererPath';
 import {
   loadUserWebUIConfig,
   resolveRemoteAccess,
@@ -203,6 +209,7 @@ const isWebUIMode = hasSwitch('webui');
 const isRemoteMode = hasSwitch('remote');
 const isResetPasswordMode = hasCommand('--resetpass');
 const isVersionMode = hasCommand('--version') || hasCommand('-v');
+const initializeAutoUpdaterForRuntime = createAutoUpdaterBootstrap();
 
 // Flag to distinguish intentional quit from unexpected exit in WebUI mode
 let isExplicitQuit = false;
@@ -485,30 +492,6 @@ const createWindow = ({ showOnReady = true }: { showOnReady?: boolean } = {}): v
   registerWindowMaximizeListeners(mainWindow);
   attachWindowBoundsPersistence(mainWindow, (bounds) => ProcessConfig.set('window.bounds', bounds));
 
-  // Initialize auto-updater service (skip when disabled via env, e.g. E2E / CI)
-  // 初始化自动更新服务（通过环境变量禁用时跳过，例如 E2E / CI 场景）
-  const isCiRuntime = process.env.CI === 'true' || process.env.CI === '1' || process.env.GITHUB_ACTIONS === 'true';
-  const disableAutoUpdater =
-    process.env.AIONUI_DISABLE_AUTO_UPDATE === '1' || process.env.AIONUI_E2E_TEST === '1' || isCiRuntime;
-  if (!disableAutoUpdater) {
-    Promise.all([import('./process/services/autoUpdaterService'), import('./process/bridge/updateBridge')])
-      .then(([{ autoUpdaterService }, { createAutoUpdateStatusBroadcast }]) => {
-        // Create status broadcast callback that emits via ipcBridge (pure emitter, no window binding)
-        const statusBroadcast = createAutoUpdateStatusBroadcast();
-        autoUpdaterService.initialize(statusBroadcast);
-        // Check for updates after 3 seconds delay
-        // 3秒后检查更新
-        setTimeout(() => {
-          void autoUpdaterService.checkForUpdatesAndNotify();
-        }, 3000);
-      })
-      .catch((error) => {
-        console.error('[App] Failed to initialize autoUpdaterService:', error);
-      });
-  } else {
-    console.log('[AionUi] Auto-updater disabled via env/CI guard');
-  }
-
   // Load the renderer: dev server URL in development, built HTML file in production
   const rendererUrl = process.env['ELECTRON_RENDERER_URL'];
   const fallbackFile = resolveRendererIndexPath(__dirname);
@@ -775,7 +758,7 @@ const handleAppReady = async (): Promise<void> => {
           // reads the same file.
           userDataPath: getDataPath(),
         },
-        staticDir: path.join(__dirname, '../renderer'),
+        staticDir: resolveRendererOutDir(__dirname),
         port: resolvedPort,
         allowRemote,
         dataDir: getDataPath(),
@@ -814,7 +797,23 @@ const handleAppReady = async (): Promise<void> => {
           })(),
         },
       });
-      console.log(`[WebUI] Headless server started (port=${handle.port}, backendPort=${handle.backendPort})`);
+      console.log(`[WebUI] Browser server started (port=${handle.port}, backendPort=${handle.backendPort})`);
+      await presentPackagedWebui(
+        handle.localUrl,
+        {
+          allowRemote,
+          env: process.env,
+          isPackaged: app.isPackaged,
+          noOpenFlag: hasSwitch('no-open'),
+          openFlag: hasSwitch('open'),
+          platform: process.platform,
+        },
+        {
+          openExternal: (url) => shell.openExternal(url),
+          log: console.log,
+          warn: console.warn,
+        }
+      );
     } catch (err) {
       console.error(`[WebUI] Failed to start server on port ${resolvedPort}:`, err);
       app.exit(1);
@@ -885,6 +884,10 @@ const handleAppReady = async (): Promise<void> => {
         console.error('[WebUI] Failed to auto-restore:', error);
       });
     }
+  }
+
+  if (!isResetPasswordMode) {
+    void initializeAutoUpdaterForRuntime();
   }
 
   // Verify CDP is ready and log status
