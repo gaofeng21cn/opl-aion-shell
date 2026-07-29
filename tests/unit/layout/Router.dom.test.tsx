@@ -5,9 +5,17 @@ import { Outlet } from 'react-router-dom';
 import Router from '@/renderer/components/layout/Router';
 
 const authState = vi.hoisted(() => ({ status: 'authenticated' as 'authenticated' | 'unauthenticated' }));
+const loginPageRenderMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/renderer/hooks/context/AuthContext', () => ({
   useAuth: () => authState,
+}));
+
+vi.mock('@/renderer/pages/login', () => ({
+  default: () => {
+    loginPageRenderMock();
+    return <div data-testid='login-route-page'>Login route rendered</div>;
+  },
 }));
 
 vi.mock('@/renderer/pages/guid', () => ({
@@ -16,6 +24,7 @@ vi.mock('@/renderer/pages/guid', () => ({
 
 describe('ordinary startup routes', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     authState.status = 'authenticated';
   });
 
@@ -25,7 +34,6 @@ describe('ordinary startup routes', () => {
 
   it.each([
     ['the root route', '#/'],
-    ['an authenticated login route', '#/login'],
     ['the legacy startup gate route', '#/startup-gate'],
     ['an unknown authenticated route', '#/not-a-real-route'],
   ])('sends %s directly to Guid', async (_label, initialHash) => {
@@ -35,5 +43,16 @@ describe('ordinary startup routes', () => {
 
     expect(await screen.findByTestId('guid-route-page')).toBeInTheDocument();
     await waitFor(() => expect(window.location.hash).toBe('#/guid'));
+  });
+
+  it('lets LoginPage preserve the fresh-login setup-check intent before entering Guid', async () => {
+    window.location.hash = '#/login';
+
+    render(<Router layout={<Outlet />} />);
+
+    expect(await screen.findByTestId('login-route-page')).toBeInTheDocument();
+    expect(loginPageRenderMock).toHaveBeenCalled();
+    expect(screen.queryByTestId('guid-route-page')).not.toBeInTheDocument();
+    expect(window.location.hash).toBe('#/login');
   });
 });
