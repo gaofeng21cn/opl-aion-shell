@@ -143,6 +143,18 @@ export function useSlashCommandController(options: UseSlashCommandControllerOpti
         return true;
       }
 
+      if (event.key === 'Home') {
+        event.preventDefault();
+        setActiveIndex(0);
+        return true;
+      }
+
+      if (event.key === 'End') {
+        event.preventDefault();
+        setActiveIndex(filteredCommands.length - 1);
+        return true;
+      }
+
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         return executeCommand(activeIndex);
