@@ -118,7 +118,21 @@ describe('managed update projection public lifecycle ids', () => {
               component_id: 'opl_packages',
               package_id: 'oma',
               state: 'failed_with_repair',
+              safe_to_apply: true,
               repair_allowed: true,
+              rollback_allowed: true,
+              receipt: {
+                last_receipt_ref: 'receipt://opl_packages/failed-sync',
+                rollback_ref: 'rollback://opl_packages/previous',
+                repair_action: 'agent_package_reconcile_and_skill_sync_only',
+              },
+              repair_actions: [
+                {
+                  component_id: 'opl_packages',
+                  receipt_ref: 'receipt://opl_packages/failed-sync',
+                  action_ref: 'repair://opl_packages/sync',
+                },
+              ],
               projection_status: { state: 'needs_reload', summary: 'Refresh Codex plugin cache.' },
               profile_migration_status: 'manual_required',
             },
@@ -139,12 +153,18 @@ describe('managed update projection public lifecycle ids', () => {
     expect(plane.components.find((component) => component.id === 'opl_packages')).toMatchObject({
       id: 'opl_packages',
       packageId: 'oma',
-      repairAllowed: true,
+      safeToApply: false,
+      repairAllowed: false,
+      rollbackAllowed: false,
       substatuses: [
         { id: 'projection_status', state: 'needs_reload' },
         { id: 'profile_migration_status', state: 'manual_required' },
       ],
     });
+    expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('receiptRef');
+    expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('repairAction');
+    expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('repairReceiptId');
+    expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('rollbackRef');
   });
 
   it('projects verified external owner updates under OPL Base without inventing a Flow catalog', () => {

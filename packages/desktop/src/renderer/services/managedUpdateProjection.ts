@@ -124,7 +124,7 @@ const MANAGED_UPDATE_LABELS: Record<ManagedUpdateComponentId, string> = {
 };
 
 const MUTATION_FORBIDDEN_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_app']);
-const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base', 'opl_packages']);
+const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base']);
 const MANAGED_UPDATE_SUBSTATUS_IDS: Record<ManagedUpdateComponentId, ManagedUpdateSubstatus['id'][]> = {
   opl_base: ['dependency_status', 'integration_status'],
   opl_app: [],
@@ -435,8 +435,9 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
   }
   const components = MANAGED_UPDATE_COMPONENT_IDS.map((id) => {
     const component = byId.get(id) ?? {};
-    const receipt = oplRecord(component.receipt ?? component.receipts);
-    const repairAction = findRepairAction(root, id);
+    const consumesPackageLifecycleDiagnostics = id === 'opl_packages';
+    const receipt = consumesPackageLifecycleDiagnostics ? {} : oplRecord(component.receipt ?? component.receipts);
+    const repairAction = consumesPackageLifecycleDiagnostics ? {} : findRepairAction(root, id);
     const repairActionSourceId = firstOplString(repairAction.component_id, repairAction.componentId);
     const canonicalRepairActionSource = !repairActionSourceId || repairActionSourceId === id;
     const state = firstOplString(component.state, component.status, component.health_status) ?? 'unknown';
@@ -465,12 +466,14 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
     const rawSafeToApply =
       oplBoolean(component.safe_to_apply) || oplBoolean(component.apply_allowed) || oplBoolean(component.can_apply);
     const rawRepairAllowed =
-      oplBoolean(component.repair_allowed) ||
-      oplBoolean(component.can_repair) ||
-      state === 'failed_with_repair' ||
-      Boolean(currentRepairActionRef);
+      !consumesPackageLifecycleDiagnostics &&
+      (oplBoolean(component.repair_allowed) ||
+        oplBoolean(component.can_repair) ||
+        state === 'failed_with_repair' ||
+        Boolean(currentRepairActionRef));
     const rawRollbackAllowed =
-      oplBoolean(component.rollback_allowed) || oplBoolean(component.can_rollback) || Boolean(rollbackRef);
+      !consumesPackageLifecycleDiagnostics &&
+      (oplBoolean(component.rollback_allowed) || oplBoolean(component.can_rollback) || Boolean(rollbackRef));
     const source = firstOplString(component.source, component.install_origin, component.checkout_source);
     const manualGuidance = firstOplString(
       component.manual_guidance,
@@ -507,10 +510,14 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       conditions: readManagedUpdateConditions(component.conditions, id),
       substatuses: readManagedUpdateSubstatuses(component, id),
       packageId,
-      receiptRef,
-      repairAction: repairActionRef,
-      repairReceiptId,
-      rollbackRef,
+      ...(consumesPackageLifecycleDiagnostics
+        ? {}
+        : {
+            receiptRef,
+            repairAction: repairActionRef,
+            repairReceiptId,
+            rollbackRef,
+          }),
       ...readVersionDetail(component),
       needsRestart: oplBoolean(component.needs_restart) || oplBoolean(component.restart_required),
       needsReload: oplBoolean(component.needs_reload) || oplBoolean(component.reload_required),
@@ -528,6 +535,7 @@ export function readManagedUpdatePlane(parsed: unknown, appState: Record<string,
       developerCheckout,
       dirtyCheckout,
       safeToApply:
+        !consumesPackageLifecycleDiagnostics &&
         rawSafeToApply &&
         packageTargetReady &&
         !mutationBlocked &&

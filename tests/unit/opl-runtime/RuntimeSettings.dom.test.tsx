@@ -617,11 +617,14 @@ describe('RuntimeSettings app state bridge usage', () => {
       screen.getByTestId('opl-managed-update-advanced').querySelector('.arco-collapse-item-header') as HTMLElement
     );
     const oplBaseRow = screen.getByTestId('opl-managed-update-opl_base');
+    const oplPackagesRow = screen.getByTestId('opl-managed-update-opl_packages');
     expect(screen.getByTestId('opl-managed-update-apply-opl_base')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-apply-opl_packages')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-repair-opl_packages')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-opl_base')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-managed-update-rollback-opl_packages')).not.toBeInTheDocument();
+    expect(oplPackagesRow).not.toHaveTextContent('receipt://opl_packages/failed-sync');
+    expect(oplPackagesRow).not.toHaveTextContent('agent_package_reconcile_and_skill_sync_only');
     const componentDetails = within(oplBaseRow).getByRole('button', {
       name: 'settings.oplEnvironmentPage.updates.diagnostics.componentDetails',
     });
