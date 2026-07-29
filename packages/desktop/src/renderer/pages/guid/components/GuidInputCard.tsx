@@ -44,6 +44,8 @@ type GuidInputCardProps = {
   // Action row
   actionRow: React.ReactNode;
   slashCommandMenu?: React.ReactNode;
+  slashCommandListboxId?: string;
+  slashCommandActiveOptionId?: string;
   fileAccessEnabled?: boolean;
 };
 
@@ -67,6 +69,8 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
   onRemoveFile,
   actionRow,
   slashCommandMenu,
+  slashCommandListboxId,
+  slashCommandActiveOptionId,
   fileAccessEnabled = true,
 }) => {
   const layout = useLayoutContext();
@@ -116,6 +120,11 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         }}
       >
         <Input.TextArea
+          role='combobox'
+          aria-autocomplete='list'
+          aria-expanded={Boolean(slashCommandMenu)}
+          aria-controls={slashCommandMenu ? slashCommandListboxId : undefined}
+          aria-activedescendant={slashCommandMenu ? slashCommandActiveOptionId : undefined}
           autoSize={textareaAutoSize}
           placeholder={placeholder}
           spellCheck={false}
