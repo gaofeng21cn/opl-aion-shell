@@ -2,7 +2,7 @@
  * AssistantEditDrawer — Drawer for creating/editing an assistant.
  * Contains name/avatar fields, agent selector, rules editor, and skills section.
  */
-import type { AssistantListItem, BuiltinAutoSkill, SkillInfo } from './types';
+import type { AssistantListItem, SkillInfo } from './types';
 import type { ManagedAgentBackendOption } from '@/renderer/hooks/agent/useManagedAgents';
 import EmojiPicker from '@/renderer/components/chat/EmojiPicker';
 import MarkdownView from '@/renderer/components/Markdown';
@@ -45,11 +45,6 @@ type AssistantEditDrawerProps = {
   setDeletePendingSkillName: (v: string | null) => void;
   setDeleteCustomSkillName: (v: string | null) => void;
 
-  // Builtin auto-injected skills
-  builtinAutoSkills: BuiltinAutoSkill[];
-  disabledBuiltinSkills: string[];
-  setDisabledBuiltinSkills: (v: string[]) => void;
-
   // Active assistant info
   activeAssistant: AssistantListItem | null;
   activeAssistantId: string | null;
@@ -90,9 +85,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   customSkills: _customSkills,
   setDeletePendingSkillName,
   setDeleteCustomSkillName,
-  builtinAutoSkills,
-  disabledBuiltinSkills,
-  setDisabledBuiltinSkills,
   activeAssistant,
   activeAssistantId: _activeAssistantId,
   isExtensionAssistant,
@@ -153,24 +145,14 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   const extensionActiveCount = selectedSkills.filter((name) =>
     extensionSkillItems.some((skill) => skill.name === name)
   ).length;
-  const autoInjectedActiveCount = builtinAutoSkills.filter(
-    (skill) => !disabledBuiltinSkills.includes(skill.name)
-  ).length;
   const customStatusDotColor = customActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const builtinStatusDotColor = builtinActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const extensionStatusDotColor = extensionActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
-  const autoInjectedStatusDotColor = autoInjectedActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const totalSkillsCount =
-    pendingSkills.length +
-    customSkillItems.length +
-    builtinSkillItems.length +
-    extensionSkillItems.length +
-    builtinAutoSkills.length;
-  const totalActiveSkillsCount =
-    selectedSkills.filter(
-      (name) =>
-        pendingSkills.some((skill) => skill.name === name) || availableSkills.some((skill) => skill.name === name)
-    ).length + autoInjectedActiveCount;
+    pendingSkills.length + customSkillItems.length + builtinSkillItems.length + extensionSkillItems.length;
+  const totalActiveSkillsCount = selectedSkills.filter(
+    (name) => pendingSkills.some((skill) => skill.name === name) || availableSkills.some((skill) => skill.name === name)
+  ).length;
   const isBuiltin = activeAssistant?.source === 'builtin';
   const isRuleEditable = !isBuiltin;
   const isSkillsEditable = isCreating || !isBuiltin;
@@ -720,60 +702,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                               <div className='text-13px font-medium text-t-primary'>{skill.name}</div>
                               <span className='bg-[rgba(var(--primary-6),0.08)] text-primary-6 border border-[rgba(var(--primary-6),0.2)] text-10px px-4px py-1px rd-4px font-medium uppercase'>
                                 {t('settings.extensionSkillsBadge', { defaultValue: 'Extension' })}
-                              </span>
-                            </div>
-                            {skill.description && (
-                              <div className='text-12px text-t-secondary mt-2px line-clamp-2'>{skill.description}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Collapse.Item>
-                )}
-
-                {/* Auto-injected Builtin Skills */}
-                {builtinAutoSkills.length > 0 && (
-                  <Collapse.Item
-                    header={
-                      <span className='text-13px font-medium'>
-                        {t('settings.autoInjectedSkills', { defaultValue: 'Auto-injected Skills' })}
-                      </span>
-                    }
-                    name='auto-injected-skills'
-                    extra={
-                      <div className='flex items-center gap-8px'>
-                        <span
-                          className='inline-block w-8px h-8px rd-50%'
-                          style={{ background: autoInjectedStatusDotColor }}
-                          aria-hidden='true'
-                        />
-                        <span className='text-12px text-t-secondary'>
-                          {`${autoInjectedActiveCount}/${builtinAutoSkills.length}`}
-                        </span>
-                      </div>
-                    }
-                  >
-                    <div className='space-y-4px'>
-                      {builtinAutoSkills.map((skill) => (
-                        <div key={skill.name} className='flex items-start gap-8px p-8px hover:bg-fill-1 rounded-4px'>
-                          <Checkbox
-                            checked={!disabledBuiltinSkills.includes(skill.name)}
-                            disabled={!isSkillsEditable}
-                            className='mt-2px cursor-pointer'
-                            onChange={() => {
-                              if (disabledBuiltinSkills.includes(skill.name)) {
-                                setDisabledBuiltinSkills(disabledBuiltinSkills.filter((s) => s !== skill.name));
-                              } else {
-                                setDisabledBuiltinSkills([...disabledBuiltinSkills, skill.name]);
-                              }
-                            }}
-                          />
-                          <div className='flex-1 min-w-0'>
-                            <div className='flex items-center gap-6px'>
-                              <div className='text-13px font-medium text-t-primary'>{skill.name}</div>
-                              <span className='bg-[rgba(var(--success-6),0.08)] text-[rgb(var(--success-6))] border border-[rgba(var(--success-6),0.2)] text-10px px-4px py-1px rd-4px font-medium uppercase'>
-                                {t('settings.autoInjectedSkillsBadge', { defaultValue: 'Auto' })}
                               </span>
                             </div>
                             {skill.description && (

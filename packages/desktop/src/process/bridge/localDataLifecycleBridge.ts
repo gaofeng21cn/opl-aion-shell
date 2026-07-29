@@ -61,11 +61,20 @@ function shellToolchainRuntimeRoot(): string {
   return path.join(getSystemDir().workDir, 'runtime');
 }
 
+function managedOplRuntimeRoot(): string {
+  const configuredRoot = process.env.OPL_RUNTIME_TOOLCHAIN_ROOT?.trim();
+  if (configuredRoot) return configuredRoot;
+  if (process.platform !== 'darwin') {
+    throw new Error('OPL_RUNTIME_TOOLCHAIN_ROOT is required outside the macOS desktop release.');
+  }
+  return path.join(app.getPath('home'), 'Library', 'Application Support', 'OPL', 'runtime');
+}
+
 function hostRuntimeRoots() {
   return resolveHostRuntimeRoots({
     platform: process.platform,
     shellToolchainRuntimeRoot: shellToolchainRuntimeRoot(),
-    configuredManagedRuntimeRoot: process.env.OPL_RUNTIME_TOOLCHAIN_ROOT,
+    configuredManagedRuntimeRoot: process.platform === 'win32' ? undefined : managedOplRuntimeRoot(),
     homeDir: process.platform === 'darwin' ? app.getPath('home') : undefined,
   });
 }
