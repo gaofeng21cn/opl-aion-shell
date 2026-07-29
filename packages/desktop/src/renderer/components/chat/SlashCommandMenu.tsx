@@ -14,7 +14,10 @@ export interface SlashCommandMenuItem {
   badge?: string;
 }
 
+export const getSlashCommandOptionId = (listboxId: string, index: number): string => `${listboxId}-option-${index}`;
+
 interface SlashCommandMenuProps {
+  listboxId: string;
   title: string;
   hint?: string;
   items: SlashCommandMenuItem[];
@@ -27,6 +30,7 @@ interface SlashCommandMenuProps {
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
+  listboxId,
   title,
   hint,
   items,
@@ -67,7 +71,9 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
         {hint && <div className='text-13px text-t-secondary truncate'>{hint}</div>}
       </div>
       <div
+        id={listboxId}
         role='listbox'
+        aria-label={title}
         aria-busy={loading}
         className='overflow-y-auto p-6px'
         style={{ maxHeight: 'min(34vh, 260px)' }}
@@ -80,9 +86,11 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
           items.map((item, index) => (
             <button
               key={item.key}
+              id={getSlashCommandOptionId(listboxId, index)}
               type='button'
               role='option'
               aria-selected={index === activeIndex}
+              tabIndex={-1}
               ref={(node) => {
                 itemRefs.current[index] = node;
               }}
@@ -99,6 +107,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
                 boxShadow: undefined,
               }}
               onMouseEnter={() => onHoverItem(index)}
+              onMouseDown={(event) => event.preventDefault()}
               onClick={() => onSelectItem(item)}
             >
               <div className='flex items-center justify-between gap-8px'>

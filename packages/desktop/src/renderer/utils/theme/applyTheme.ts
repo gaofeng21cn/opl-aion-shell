@@ -11,6 +11,7 @@ import { normalizeThemeAppearanceMode, resolveActiveTheme } from '@/common/theme
 import { LIGHT_THEME_ID } from '@/common/theme/constants';
 import { BUILTIN_THEMES } from '@renderer/theme/builtinThemes';
 import { getSystemPrefersDark } from './systemAppearance';
+import { isElectronDesktop } from '../platform';
 
 const TOKENS_STYLE_ID = 'theme-tokens';
 const DECORATION_STYLE_ID = 'theme-decoration';
@@ -33,7 +34,12 @@ function resolveConfiguredTheme(activeId?: string, appearanceMode?: ThemeAppeara
 
 async function publishTheme(resolved: Theme): Promise<void> {
   applyTheme(resolved);
-  await ipcBridge.theme.setActive.invoke(resolved);
+  const relay = ipcBridge.theme.setActive.invoke(resolved);
+  if (isElectronDesktop()) {
+    await relay;
+    return;
+  }
+  void relay.catch(() => {});
 }
 
 /** Legacy compatibility entry: the product exposes one governed visual baseline. */

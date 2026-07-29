@@ -260,32 +260,6 @@ export type CapabilityActionRefViewModel = {
   receiptSummary: string | null;
 };
 
-const DISPLAY_TOKEN_LABELS: Record<string, string> = {
-  mas: 'MAS',
-  mag: 'MAG',
-  rca: 'RCA',
-  obf: 'OBF',
-  oma: 'OMA',
-  medautoscience: 'MAS',
-  medautogrant: 'MAG',
-  redcubeai: 'RCA',
-  oplbookforge: 'OBF',
-  oplmetaagent: 'OMA',
-};
-
-function normalizeCapabilityModuleId(value: string): string {
-  return value.replace(/[^a-z0-9]/gi, '').toLowerCase();
-}
-
-export function formatCapabilityDisplayToken(value: string | null | undefined): string {
-  if (!value) return '';
-  const normalized = normalizeCapabilityModuleId(value);
-  const mapped = DISPLAY_TOKEN_LABELS[normalized];
-  if (mapped) return mapped;
-  if (/^[a-z0-9-]+$/.test(value) && value === value.toLowerCase()) return value.toUpperCase();
-  return value;
-}
-
 function capabilityModuleId(module: RuntimeModuleItem): string {
   return (
     oplString(module.module_id) ??
