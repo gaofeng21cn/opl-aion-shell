@@ -617,6 +617,22 @@ describe('OPL first-run VM smoke scripts', () => {
     );
   });
 
+  it('consumes compatible installed identity extensions through the release projection', () => {
+    const frameworkSha = 'b'.repeat(40);
+    const projection = installedFrameworkAppState(frameworkSha);
+    const identity = projection.app_state.release.installed_framework_source_identity as Record<string, unknown>;
+    identity.schema = 'opl_framework_installed_source_identity.v2';
+    identity.identity_source = 'framework_release_projection';
+    identity.provenance_ref = 'framework-owner:release-source-identity';
+    projection.app_state.release.installed_framework_source_identity_source = 'framework_release_projection';
+
+    expect(vmSmoke.buildInstalledFrameworkSourceIdentity(projection, frameworkSha)).toMatchObject({
+      status: 'passed',
+      observed_framework_sha: frameworkSha,
+      identity_source: 'framework_release_projection',
+    });
+  });
+
   it('always adds the CDP launch argument for GUI readiness and Settings smoke checks', () => {
     expect(
       vmSmoke.buildLaunchAppArgs('/Applications/One Person Lab.app', {
@@ -836,6 +852,16 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('bootstrap-launch-diagnostics.json');
     expect(mainSource.indexOf("'launch_app'")).toBeLessThan(mainSource.indexOf("'bootstrap_launch_diagnostics'"));
     expect(mainSource.indexOf("'bootstrap_launch_diagnostics'")).toBeLessThan(mainSource.indexOf("'wait_guid_entry'"));
+    const diagnosticsPhase = mainSource.indexOf("'bootstrap_launch_diagnostics'");
+    const sourceIdentityPhase = mainSource.indexOf('runReleaseSourceIdentityPhase(', diagnosticsPhase);
+    const diagnosticsReturn = mainSource.indexOf('return;', diagnosticsPhase);
+    const diagnosticsSummary = mainSource.slice(diagnosticsPhase, diagnosticsReturn);
+
+    expect(scriptSource).toContain("'release_source_identity'");
+    expect(sourceIdentityPhase).toBeGreaterThan(diagnosticsPhase);
+    expect(sourceIdentityPhase).toBeLessThan(diagnosticsReturn);
+    expect(diagnosticsSummary).toContain('installed_framework_source_identity: releaseSourceIdentity');
+    expect(diagnosticsSummary).toContain('full_runtime_source_identity: releaseSourceIdentity');
   });
 
   it('captures early bootstrap launch diagnostics on the full release gate before readiness waits', () => {
