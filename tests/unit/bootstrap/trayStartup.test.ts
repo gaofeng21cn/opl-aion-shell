@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { initializeTrayForDesktopMode } from '@/process/startup/trayStartup';
+import { initializeTrayForDesktopMode } from '@/process/startup/runtime/trayStartup';
 
 describe('initializeTrayForDesktopMode', () => {
   it('creates the tray by default while preserving the saved close-to-tray behavior', async () => {
