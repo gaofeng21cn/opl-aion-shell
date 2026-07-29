@@ -33,6 +33,19 @@ function npmExecutableParts(platform) {
   return platform === 'win32' ? ['npm.cmd'] : ['bin', 'npm'];
 }
 
+function npxExecutableParts(platform) {
+  return platform === 'win32' ? ['npx.cmd'] : ['bin', 'npx'];
+}
+
+function npmRuntimeParts(platform) {
+  const npmRoot = platform === 'win32' ? ['node_modules', 'npm'] : ['lib', 'node_modules', 'npm'];
+  return [
+    [...npmRoot, 'bin', 'npm-cli.js'],
+    [...npmRoot, 'bin', 'npx-cli.js'],
+    [...npmRoot, 'lib', 'cli.js'],
+  ];
+}
+
 function normalize(relativePath) {
   return relativePath.split(path.sep).join('/');
 }
@@ -125,27 +138,32 @@ function addSizeAccounting(accounting, runtimeKey, label, baseDir, ...parts) {
 function requireManagedNode(baseDir, runtimeKey, platform, checked, missing) {
   const nodeRoot = path.join(baseDir, 'managed-resources', 'node');
   const versions = readDirectories(nodeRoot);
-  const requiredExecutables = [nodeExecutableParts(platform), npmExecutableParts(platform)];
+  const requiredPaths = [
+    nodeExecutableParts(platform),
+    npmExecutableParts(platform),
+    npxExecutableParts(platform),
+    ...npmRuntimeParts(platform),
+  ];
 
   if (versions.length === 0) {
-    for (const executableParts of requiredExecutables) {
-      const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
+    for (const requiredPath of requiredPaths) {
+      const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...requiredPath);
       checked.push(relativePath);
       missing.push(relativePath);
     }
     return;
   }
 
-  for (const executableParts of requiredExecutables) {
-    const executableFound = versions.some((version) => {
-      const executablePath = path.join(nodeRoot, version, ...executableParts);
-      return isFile(executablePath);
+  for (const requiredPath of requiredPaths) {
+    const pathFound = versions.some((version) => {
+      const absolutePath = path.join(nodeRoot, version, ...requiredPath);
+      return isFile(absolutePath);
     });
 
-    const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...executableParts);
+    const relativePath = bundledPath(runtimeKey, 'managed-resources', 'node', '*', ...requiredPath);
     checked.push(relativePath);
 
-    if (!executableFound) {
+    if (!pathFound) {
       missing.push(relativePath);
     }
   }
@@ -256,6 +274,7 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
   ) {
     invalid.push(`${rootManifestRelativePath}: invalid managed Node identity`);
   } else {
+    const platform = runtimeKey.startsWith('win32-') ? 'win32' : runtimeKey.split('-', 1)[0];
     requireContractEntry(
       managedResourcesDir,
       path.posix.join(expectedNode.root, expectedNode.executable),
@@ -266,6 +285,22 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
       missing,
       invalid
     );
+    for (const requiredPath of [
+      npmExecutableParts(platform),
+      npxExecutableParts(platform),
+      ...npmRuntimeParts(platform),
+    ]) {
+      requireContractEntry(
+        managedResourcesDir,
+        path.posix.join(expectedNode.root, ...requiredPath),
+        '',
+        runtimeKey,
+        'file',
+        checked,
+        missing,
+        invalid
+      );
+    }
   }
 
   const clis = Array.isArray(rootManifest.clis) ? rootManifest.clis : [];

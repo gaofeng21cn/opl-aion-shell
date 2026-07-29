@@ -56,6 +56,21 @@ if [[ "$actual_node_version" != "v$managed_node_version" ]]; then
     "$managed_node_version" "${actual_node_version:-unavailable}" >&2
   exit 65
 fi
+actual_npm_version="$(
+  PATH="$managed_node_bin:/usr/bin:/bin" "$managed_node_bin/npm" --version 2>/dev/null || true
+)"
+if [[ ! "$actual_npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]; then
+  printf 'The packaged Linux npm runtime is unavailable: %s\n' "${actual_npm_version:-no version}" >&2
+  exit 65
+fi
+actual_npx_version="$(
+  PATH="$managed_node_bin:/usr/bin:/bin" "$managed_node_bin/npx" --version 2>/dev/null || true
+)"
+if [[ "$actual_npx_version" != "$actual_npm_version" ]]; then
+  printf 'The packaged Linux npx runtime is invalid: expected %s, got %s\n' \
+    "$actual_npm_version" "${actual_npx_version:-unavailable}" >&2
+  exit 65
+fi
 
 identity_codex_realpath="$(jq -er '.codex_realpath' "$identity")"
 identity_codex_digest="$(jq -er '.codex_digest' "$identity")"
@@ -98,6 +113,9 @@ jq \
   --arg codex_command_path "$codex_command_path" \
   --arg codex_realpath "$codex_command_realpath" \
   --arg codex_command_digest "sha256:$codex_command_sha256" \
+  --arg managed_node_version "$actual_node_version" \
+  --arg managed_npm_version "$actual_npm_version" \
+  --arg managed_npx_version "$actual_npx_version" \
   --arg bootstrap_sha256 "$bootstrap_sha256" \
   --arg wsl_interop "${WSL_INTEROP:-}" \
   --argjson active_operation_count "$active_operation_count" \
@@ -108,6 +126,9 @@ jq \
     codex_command_path: $codex_command_path,
     codex_realpath: $codex_realpath,
     codex_command_digest: $codex_command_digest,
+    managed_node_version: $managed_node_version,
+    managed_npm_version: $managed_npm_version,
+    managed_npx_version: $managed_npx_version,
     framework_path: $framework_path,
     framework_digest: $framework_digest,
     wsl2: ($wsl_interop | length > 0),

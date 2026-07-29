@@ -26,7 +26,8 @@ function seedWindowsRcCohortFixture() {
   const frameworkSha = '5'.repeat(40);
   const releaseVersion = '26.7.28-rc.3';
   const runtimeKey = 'linux-x64';
-  const managedResourcesRoot = 'resources/bundled-aioncore/linux-x64/managed-resources';
+  const packagedResourcesRoot = 'out/win-unpacked/resources';
+  const managedResourcesRoot = `${packagedResourcesRoot}/bundled-aioncore/linux-x64/managed-resources`;
   const codex = {
     name: 'codex',
     version: '0.144.6',
@@ -63,17 +64,22 @@ function seedWindowsRcCohortFixture() {
   write(root, 'out/win-unpacked/resources/app.asar.unpacked/node_modules/node-addon-api/nothing.c', '');
   write(
     root,
-    'resources/opl-linux/product.json',
+    `${packagedResourcesRoot}/opl-linux/product.json`,
     JSON.stringify({
       schema: 'opl_linux_product_manifest.v1',
       framework_ref: frameworkSha,
       native_windows_executor_fallback_allowed: false,
     })
   );
-  write(root, 'resources/bundled-aioncore/linux-x64/aioncore', 'aioncore');
-  write(root, 'resources/bundled-aioncore/linux-x64/manifest.json', '{}');
+  write(root, `${packagedResourcesRoot}/bundled-aioncore/linux-x64/aioncore`, 'aioncore');
+  write(root, `${packagedResourcesRoot}/bundled-aioncore/linux-x64/manifest.json`, '{}');
   write(root, `${managedResourcesRoot}/manifest.json`, JSON.stringify(managedManifest));
   write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/bin/node`, 'node');
+  write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/bin/npm`, 'npm launcher');
+  write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/bin/npx`, 'npx launcher');
+  write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/lib/node_modules/npm/bin/npm-cli.js`, 'npm');
+  write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/lib/node_modules/npm/bin/npx-cli.js`, 'npx');
+  write(root, `${managedResourcesRoot}/node/node-v24.11.0-linux-x64/lib/node_modules/npm/lib/cli.js`, 'npm runtime');
   write(root, `${managedResourcesRoot}/${codex.root}/${codex.executable}`, 'codex');
 
   const options = {
@@ -161,16 +167,26 @@ describe('Windows RC build cohort', () => {
     expect(cohort.artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(cohort.packaged_tree).toMatchObject({
       path: 'out/win-unpacked',
-      file_count: 2,
       digest_contract: 'sha256(relative_path+NUL+size+NUL+file_sha256+LF)',
     });
+    expect(cohort.packaged_tree.file_count).toBeGreaterThan(2);
     expect(cohort.runtime.managed_node).toMatchObject({
-      path: 'resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64/bin/node',
+      path: 'out/win-unpacked/resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64/bin/node',
       size_bytes: 4,
     });
     expect(cohort.runtime.managed_node.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(cohort.runtime.managed_node_tree).toMatchObject({
+      path: 'out/win-unpacked/resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64',
+      file_count: 6,
+      digest_contract: 'sha256(relative_path+NUL+size+NUL+file_sha256+LF)',
+    });
+    expect(cohort.runtime.managed_npm_launcher.path).toMatch(/\/bin\/npm$/);
+    expect(cohort.runtime.managed_npx_launcher.path).toMatch(/\/bin\/npx$/);
+    expect(cohort.runtime.managed_npm_cli.path).toMatch(/\/npm\/bin\/npm-cli\.js$/);
+    expect(cohort.runtime.managed_npx_cli.path).toMatch(/\/npm\/bin\/npx-cli\.js$/);
+    expect(cohort.runtime.managed_npm_runtime.path).toMatch(/\/npm\/lib\/cli\.js$/);
     expect(cohort.runtime.codex.path).toBe(
-      `resources/bundled-aioncore/linux-x64/managed-resources/${codex.root}/${codex.executable}`
+      `out/win-unpacked/resources/bundled-aioncore/linux-x64/managed-resources/${codex.root}/${codex.executable}`
     );
 
     write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, '');
@@ -179,9 +195,18 @@ describe('Windows RC build cohort', () => {
     );
 
     write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, 'installer');
-    fs.rmSync(path.join(root, 'resources/bundled-aioncore/linux-x64/manifest.json'));
+    fs.rmSync(path.join(root, 'out/win-unpacked/resources/bundled-aioncore/linux-x64/manifest.json'));
     expect(() => generateWindowsRcBuildCohort(options)).toThrow(
-      `Required cohort file is missing or not a regular file: resources${path.sep}bundled-aioncore${path.sep}linux-x64${path.sep}manifest.json`
+      `Required cohort file is missing or not a regular file: out${path.sep}win-unpacked${path.sep}resources${path.sep}bundled-aioncore${path.sep}linux-x64${path.sep}manifest.json`
+    );
+  });
+
+  it('rejects a packaged Node carrier with an incomplete npm runtime', () => {
+    const { root, options, managedResourcesRoot } = seedWindowsRcCohortFixture();
+    fs.rmSync(path.join(root, managedResourcesRoot, 'node/node-v24.11.0-linux-x64/lib/node_modules/npm/lib/cli.js'));
+
+    expect(() => generateWindowsRcBuildCohort(options)).toThrow(
+      /Required cohort file is missing or not a regular file: .*npm.*lib.*cli\.js/
     );
   });
 
@@ -250,6 +275,10 @@ describe('Windows RC build cohort', () => {
     expect(manual).toContain(
       "ref: ${{ (startsWith(inputs.platform, 'windows') || inputs.platform == 'all') && inputs.windows_rc_shell_sha || inputs.branch }}"
     );
+    expect(reusable).toContain('Verify prepared Linux managed Node runtime');
+    expect(reusable).toContain('"$node_bin/npm" --version');
+    expect(reusable).toContain('"$node_bin/npx" --version');
+    expect(reusable).toContain('lib/node_modules/npm/lib/cli.js');
     expect(reusable).toContain('node scripts/release/generate-windows-rc-build-cohort.mjs');
     expect(reusable).toContain('out/opl-windows-rc-build-cohort.json');
     expect(reusable.match(/if: matrix\.platform == 'windows-x64'/g)).toHaveLength(1);

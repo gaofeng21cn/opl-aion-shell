@@ -71,16 +71,51 @@ managed_codex_path() {
   printf '%s/%s\n' "$root/managed-resources" "$relative_path"
 }
 
+normalize_managed_node_launchers() {
+  local root="$1"
+  local managed_node managed_node_bin npm_root command_name command_target
+  managed_node="$(find "$root/managed-resources/node" -type f -path '*/bin/node' -print -quit 2>/dev/null)"
+  [[ -n "$managed_node" ]] && [[ -f "$managed_node" ]] || return 1
+  managed_node_bin="$(dirname "$managed_node")"
+  npm_root="$(dirname "$managed_node_bin")/lib/node_modules/npm"
+  [[ -f "$npm_root/lib/cli.js" ]] || return 1
+
+  for command_name in npm npx; do
+    command_target="../lib/node_modules/npm/bin/${command_name}-cli.js"
+    [[ -f "$managed_node_bin/$command_target" ]] || return 1
+    rm -f "$managed_node_bin/$command_name"
+    ln -s "$command_target" "$managed_node_bin/$command_name"
+  done
+}
+
 runtime_activation_complete() {
   local root="$1"
-  local managed_node managed_node_bin codex_path
+  local managed_node managed_node_bin managed_node_version actual_node_version
+  local actual_npm_version actual_npx_version codex_path
   [[ -f "$root/manifest.json" ]] || return 1
   [[ -x "$root/aioncore" ]] || return 1
   [[ -f "$root/managed-resources/manifest.json" ]] || return 1
+  managed_node_version="$(
+    jq -er '
+      select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+      | .node.version
+      | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
+    ' "$root/managed-resources/manifest.json"
+  )" || return 1
   managed_node="$(find "$root/managed-resources/node" -type f -path '*/bin/node' -print -quit 2>/dev/null)"
   [[ -n "$managed_node" ]] && [[ -x "$managed_node" ]] || return 1
   managed_node_bin="$(dirname "$managed_node")"
   [[ -x "$managed_node_bin/npm" ]] && [[ -x "$managed_node_bin/npx" ]] || return 1
+  actual_node_version="$("$managed_node" --version 2>/dev/null)" || return 1
+  actual_npm_version="$(
+    PATH="$managed_node_bin:/usr/bin:/bin" "$managed_node_bin/npm" --version 2>/dev/null
+  )" || return 1
+  actual_npx_version="$(
+    PATH="$managed_node_bin:/usr/bin:/bin" "$managed_node_bin/npx" --version 2>/dev/null
+  )" || return 1
+  [[ "$actual_node_version" == "v$managed_node_version" ]] || return 1
+  [[ "$actual_npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]] || return 1
+  [[ "$actual_npx_version" == "$actual_npm_version" ]] || return 1
   codex_path="$(managed_codex_path "$root")" || return 1
   [[ -n "$codex_path" ]] && [[ -x "$codex_path" ]]
 }
@@ -98,10 +133,15 @@ if ! runtime_activation_complete "$activation"; then
   pending_node_bin="$(dirname "${pending_node:-/missing}")"
   pending_codex="$(managed_codex_path "$pending")" || pending_codex=''
   if [[ -z "$pending_node" ]] ||
-    [[ ! -f "$pending_node_bin/npm" ]] ||
-    [[ ! -f "$pending_node_bin/npx" ]] ||
+    [[ ! -e "$pending_node_bin/npm" ]] ||
+    [[ ! -e "$pending_node_bin/npx" ]] ||
     [[ -z "$pending_codex" ]]; then
     printf 'The packaged Linux runtime seed is missing a managed executable.\n' >&2
+    rm -rf "$pending"
+    exit 1
+  fi
+  if ! normalize_managed_node_launchers "$pending"; then
+    printf 'The packaged Linux runtime seed has an incomplete npm runtime.\n' >&2
     rm -rf "$pending"
     exit 1
   fi
