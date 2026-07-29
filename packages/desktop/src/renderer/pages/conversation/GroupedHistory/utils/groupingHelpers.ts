@@ -45,12 +45,15 @@ export const groupConversationsByWorkspace = (
   conversations.forEach((conv) => {
     const workspace = conv.extra?.workspace;
     const custom_workspace = conv.extra?.custom_workspace;
+    const isCanonicalCodex = conv.type === 'acp' && conv.extra.backend === 'codex';
+    const canonicalProjectId = isCanonicalCodex ? conv.extra.canonical_project_id?.trim() : undefined;
+    const projectWorkspace = isCanonicalCodex ? canonicalProjectId : custom_workspace ? workspace : undefined;
 
-    if (custom_workspace && workspace) {
-      if (!allWorkspaceGroups.has(workspace)) {
-        allWorkspaceGroups.set(workspace, []);
+    if (projectWorkspace) {
+      if (!allWorkspaceGroups.has(projectWorkspace)) {
+        allWorkspaceGroups.set(projectWorkspace, []);
       }
-      allWorkspaceGroups.get(workspace)!.push(conv);
+      allWorkspaceGroups.get(projectWorkspace)!.push(conv);
     } else {
       withoutWorkspaceConvs.push(conv);
     }

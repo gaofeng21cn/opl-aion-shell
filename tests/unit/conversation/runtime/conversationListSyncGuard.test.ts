@@ -78,7 +78,7 @@ describe('getSidebarStreamGuardDecision', () => {
 });
 
 describe('mergeCanonicalThreadDirectory', () => {
-  it('projects an App Server task that has no shell cache row', () => {
+  it('projects a canonical task from explicit project affinity rather than recorded cwd', () => {
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread()]));
 
     expect(projected).toMatchObject({
@@ -91,8 +91,15 @@ describe('mergeCanonicalThreadDirectory', () => {
         canonical_thread_stub: true,
         workspace: '/tmp/project',
         custom_workspace: true,
+        canonical_project_id: 'project',
       },
     });
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({
+        type: 'workspace',
+        workspaceGroup: expect.objectContaining({ workspace: 'project' }),
+      }),
+    ]);
   });
 
   it('projects a managed Documents Codex task as a projectless sidebar row', () => {
@@ -105,10 +112,33 @@ describe('mergeCanonicalThreadDirectory', () => {
     ]);
   });
 
-  it('does not let a project id replace a missing canonical recorded cwd', () => {
+  it('does not group a legacy canonical row from its recorded cwd', () => {
+    const legacy = {
+      id: 'legacy-codex',
+      name: 'Legacy task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'legacy-thread',
+        workspace: '/tmp/runtime-only',
+        custom_workspace: true,
+      },
+    } as TChatConversation;
+
+    expect(groupConversationsByWorkspace([legacy], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: legacy }),
+    ]);
+  });
+
+  it('keeps explicit project affinity when canonical recorded cwd is absent', () => {
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace: '', projectId: 'project' })]));
 
-    expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
+    expect(projected.extra).toMatchObject({
+      workspace: '',
+      custom_workspace: true,
+      canonical_project_id: 'project',
+    });
   });
 
   it('preserves an explicitly projectless marker until the canonical cwd is adopted', () => {
@@ -130,7 +160,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
   });
 
-  it('rebuilds a stale projectless cache row from the canonical recorded cwd', () => {
+  it('does not rebuild project affinity from a canonical recorded cwd', () => {
     const cached = {
       id: 'local-stale-projectless',
       name: 'Stale projectless task',
@@ -144,12 +174,12 @@ describe('mergeCanonicalThreadDirectory', () => {
       },
     } as TChatConversation;
 
-    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread({ projectId: '' })]));
 
-    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: false });
   });
 
-  it('hydrates a legacy missing affinity marker from the canonical recorded cwd', () => {
+  it('keeps a legacy missing explicit affinity marker projectless', () => {
     const cached = {
       id: 'local-legacy',
       name: 'Legacy task',
@@ -161,12 +191,12 @@ describe('mergeCanonicalThreadDirectory', () => {
       },
     } as TChatConversation;
 
-    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread({ projectId: '' })]));
 
-    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: false });
   });
 
-  it('keeps an existing bound affinity stable across shell cache refreshes', () => {
+  it('keeps an existing explicit affinity stable across shell cache refreshes', () => {
     const cached = {
       id: 'local-bound',
       name: 'Bound task',
@@ -175,17 +205,25 @@ describe('mergeCanonicalThreadDirectory', () => {
       extra: {
         backend: 'codex',
         canonical_thread_id: 'thread-1',
-        workspace: '/tmp/project',
+        workspace: '/tmp/runtime',
         custom_workspace: true,
+        canonical_project_id: '/projects/selected',
       },
     } as TChatConversation;
 
-    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+    const [projected] = mergeCanonicalThreadDirectory(
+      [cached],
+      directory([thread({ workspace: '/tmp/runtime-next', projectId: '' })])
+    );
 
-    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+    expect(projected.extra).toMatchObject({
+      workspace: '/tmp/runtime-next',
+      custom_workspace: true,
+      canonical_project_id: '/projects/selected',
+    });
   });
 
-  it('replaces stale bound shell affinity with the canonical recorded cwd', () => {
+  it('replaces stale explicit affinity only from a canonical explicit project id', () => {
     const cached = {
       id: 'local-stale-bound',
       name: 'Stale bound task',
@@ -194,14 +232,22 @@ describe('mergeCanonicalThreadDirectory', () => {
       extra: {
         backend: 'codex',
         canonical_thread_id: 'thread-1',
-        workspace: '/tmp/other-project',
+        workspace: '/tmp/runtime',
         custom_workspace: true,
+        canonical_project_id: '/projects/old',
       },
     } as TChatConversation;
 
-    const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread()]));
+    const [projected] = mergeCanonicalThreadDirectory(
+      [cached],
+      directory([thread({ workspace: '/tmp/runtime', projectId: '/projects/canonical' })])
+    );
 
-    expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: true });
+    expect(projected.extra).toMatchObject({
+      workspace: '/tmp/runtime',
+      custom_workspace: true,
+      canonical_project_id: '/projects/canonical',
+    });
   });
 
   it('keeps shell UI metadata while App Server owns task title and lifecycle', () => {

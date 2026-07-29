@@ -75,6 +75,7 @@ import type {
   CodexThreadDirectory,
   CodexThreadDirectoryRequest,
   CodexThreadIdRequest,
+  CodexThreadProjectAffinityAssignRequest,
   CodexThreadRenameRequest,
   CodexThreadSettingsUpdateRequest,
   CodexThreadStartRequest,
@@ -822,6 +823,9 @@ export const codexThreads = {
   fork: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.fork'),
   rename: bridge.buildProvider<void, CodexThreadRenameRequest>('codex-threads.rename'),
   updateSettings: bridge.buildProvider<void, CodexThreadSettingsUpdateRequest>('codex-threads.update-settings'),
+  assignProjectAffinity: bridge.buildProvider<CodexThreadDescriptor, CodexThreadProjectAffinityAssignRequest>(
+    'codex-threads.assign-project-affinity'
+  ),
   archive: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.archive'),
   unarchive: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.unarchive'),
   delete: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.delete'),
