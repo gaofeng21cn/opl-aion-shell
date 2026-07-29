@@ -228,7 +228,8 @@ linux:
   target:
     - deb
   icon: resources/app.png
-  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  executableName: one-person-lab
+  artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-linux-x64.${ext}
   category: Utility
   maintainer: One Person Lab
   vendor: One Person Lab
@@ -241,6 +242,9 @@ linux:
       Icon: opl
       Categories: Office;Utility;
       MimeType: x-scheme-handler/opl;
+
+deb:
+  packageName: one-person-lab
 
 npmRebuild: false
 buildDependenciesFromSource: false
