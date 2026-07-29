@@ -18,7 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Down, Experiment, FilePpt, FileWord, Robot } from '@icon-park/react';
+import { Close, Down, Robot } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -116,11 +116,7 @@ function capabilityConversationAvailabilityLabel(
   return t('settings.capabilitiesPage.visibility.conversationUnverified', { defaultValue: 'Not verified' });
 }
 
-function capabilityIcon(item: CapabilityPurposeViewModel): React.ReactNode {
-  if (item.key === 'mas') return <Experiment theme='outline' size='16' fill='currentColor' />;
-  if (item.key === 'mag') return <FileWord theme='outline' size='16' fill='currentColor' />;
-  if (item.key === 'rca') return <FilePpt theme='outline' size='16' fill='currentColor' />;
-  if (item.key === 'obf') return <FileWord theme='outline' size='16' fill='currentColor' />;
+function capabilityIcon(): React.ReactNode {
   return <Robot theme='outline' size='16' fill='currentColor' />;
 }
 
@@ -1613,7 +1609,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       >
         <div className='opl-settings-row__main flex min-w-0 items-start gap-10px'>
           <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
-            {capabilityIcon(item)}
+            {capabilityIcon()}
           </span>
           <div className='opl-settings-capability-copy min-w-0'>
             {parent && (
