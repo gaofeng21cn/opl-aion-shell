@@ -13,9 +13,10 @@
  * | Prompt editing |  no     |  no       |  yes   |
  * | Delete         |  no     |  no       |  yes   |
  *
- * Builtin and extension assistants are fully read-only. The drawer
- * still renders their skills panel so users can inspect what's bundled,
- * but every editing control (including Save) is disabled.
+ * Builtin and extension assistants are read-only except for the supported
+ * builtin Main Agent override. Runtime-managed builtin skills are not exposed
+ * in this ordinary editor; user/project skills remain available to custom
+ * assistants.
  */
 import { Message } from '@arco-design/web-react';
 import coworkSvg from '@/renderer/assets/icons/cowork.svg';
