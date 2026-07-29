@@ -8,12 +8,7 @@ import {
 } from '@/common/types/agent/assistantTypes';
 import { getOplDefaultExecutorAgentKey } from '@/common/config/oplProductProfile';
 import type { ManagedAgentBackendOption } from '@/renderer/hooks/agent/useManagedAgents';
-import type {
-  AssistantListItem,
-  BuiltinAutoSkill,
-  PendingSkill,
-  SkillInfo,
-} from '@/renderer/pages/settings/AssistantSettings/types';
+import type { AssistantListItem, PendingSkill, SkillInfo } from '@/renderer/pages/settings/AssistantSettings/types';
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -86,8 +81,8 @@ export const useAssistantEditor = ({
   const [deletePendingSkillName, setDeletePendingSkillName] = useState<string | null>(null);
   const [deleteCustomSkillName, setDeleteCustomSkillName] = useState<string | null>(null);
 
-  // Builtin auto-injected skills state
-  const [builtinAutoSkills, setBuiltinAutoSkills] = useState<BuiltinAutoSkill[]>([]);
+  // Guid owns the runtime auto-skill menu. Keep this override state here so
+  // assistant create/update/duplicate requests preserve its API contract.
   const [disabledBuiltinSkills, setDisabledBuiltinSkills] = useState<string[]>([]);
 
   useEffect(() => {
@@ -138,14 +133,6 @@ export const useAssistantEditor = ({
     setDeleteCustomSkillName(null);
     setEditVisible(true);
 
-    // Load builtin auto skills for all assistants
-    try {
-      const autoSkills = await ipcBridge.fs.listBuiltinAutoSkills.invoke();
-      setBuiltinAutoSkills(autoSkills);
-    } catch {
-      setBuiltinAutoSkills([]);
-    }
-
     // Extension assistants show extension context directly, not local rule files
     if (assistant.source === 'extension') {
       setPromptViewMode('preview');
@@ -167,9 +154,8 @@ export const useAssistantEditor = ({
       setEditContext(context);
       setEditSkills(skills);
 
-      // Always load the available skills catalog so builtin/extension panels
-      // render for every assistant type. Custom skills stay empty for builtin
-      // assistants since they cannot own user-imported skills.
+      // Load the merged catalog for custom/project skill rows. Runtime-managed
+      // builtin skills stay available to Guid, but are not rendered here.
       const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
       setAvailableSkills(skillsList);
       setSelectedSkills(assistant.enabled_skills ?? []);
@@ -200,18 +186,13 @@ export const useAssistantEditor = ({
     setPromptViewMode('edit');
     setEditVisible(true);
 
-    // Load available skills list and builtin auto skills
+    // Load available user/project skill catalog
     try {
-      const [skillsList, autoSkills] = await Promise.all([
-        ipcBridge.fs.listAvailableSkills.invoke(),
-        ipcBridge.fs.listBuiltinAutoSkills.invoke(),
-      ]);
+      const skillsList = await ipcBridge.fs.listAvailableSkills.invoke();
       setAvailableSkills(skillsList);
-      setBuiltinAutoSkills(autoSkills);
     } catch (error) {
       console.error('Failed to load skills:', error);
       setAvailableSkills([]);
-      setBuiltinAutoSkills([]);
     }
   };
 
@@ -229,16 +210,14 @@ export const useAssistantEditor = ({
     // Load original assistant's rules and skills
     try {
       const isExt = assistant.source === 'extension';
-      const [skillsList, autoSkills, context, skills] = isExt
+      const [skillsList, context, skills] = isExt
         ? await Promise.all([
             ipcBridge.fs.listAvailableSkills.invoke(),
-            ipcBridge.fs.listBuiltinAutoSkills.invoke(),
             Promise.resolve(assistant.context || ''),
             Promise.resolve(''),
           ])
         : await Promise.all([
             ipcBridge.fs.listAvailableSkills.invoke(),
-            ipcBridge.fs.listBuiltinAutoSkills.invoke(),
             loadAssistantContext(assistant.id),
             loadAssistantSkills(assistant.id),
           ]);
@@ -246,7 +225,6 @@ export const useAssistantEditor = ({
       setEditContext(context);
       setEditSkills(skills);
       setAvailableSkills(skillsList);
-      setBuiltinAutoSkills(autoSkills);
       setSelectedSkills(assistant.enabled_skills ?? []);
       setCustomSkills(assistant.custom_skill_names ?? []);
       setDisabledBuiltinSkills(assistant.disabled_builtin_skills ?? []);
@@ -255,7 +233,6 @@ export const useAssistantEditor = ({
       setEditContext('');
       setEditSkills('');
       setAvailableSkills([]);
-      setBuiltinAutoSkills([]);
       setSelectedSkills([]);
       setCustomSkills([]);
       setDisabledBuiltinSkills([]);
@@ -460,11 +437,6 @@ export const useAssistantEditor = ({
     setDeletePendingSkillName,
     deleteCustomSkillName,
     setDeleteCustomSkillName,
-
-    // Builtin auto-injected skills state
-    builtinAutoSkills,
-    disabledBuiltinSkills,
-    setDisabledBuiltinSkills,
 
     // Handlers
     loadAssistantContext,

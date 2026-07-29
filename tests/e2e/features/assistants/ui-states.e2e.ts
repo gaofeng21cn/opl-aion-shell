@@ -443,20 +443,20 @@ test.describe('Assistant Settings UI States (P1)', () => {
     const skillsCollapse = drawer.locator('[data-testid="skills-collapse"]');
     await expect(skillsCollapse).toBeVisible();
 
-    // Find Builtin Skills header
-    const builtinHeader = skillsCollapse
+    // The user/project Skills header retains count and status.
+    const customHeader = skillsCollapse
       .locator('.arco-collapse-item-header')
-      .filter({ hasText: /Builtin Skills|内置技能/i });
-    await expect(builtinHeader).toBeVisible();
+      .filter({ hasText: /Imported Skills|导入技能|Custom Skills|自定义技能/i });
+    await expect(customHeader).toBeVisible();
     await takeScreenshot(page, 'assistants/p1-13/02-skills-section.png');
 
     // Verify count exists (may be "N/M" or just "N")
-    const headerText = await builtinHeader.textContent();
+    const headerText = await customHeader.textContent();
     expect(headerText).toMatch(/\d+/); // At least one number
     await takeScreenshot(page, 'assistants/p1-13/03-count-format.png');
 
     // Verify header is visible (status dot verification is UI detail, header count is the key requirement)
-    await expect(builtinHeader).toBeVisible();
+    await expect(customHeader).toBeVisible();
     await takeScreenshot(page, 'assistants/p1-13/04-header-verified.png');
 
     // Cleanup
@@ -626,7 +626,7 @@ test.describe('Assistant Settings UI States (P1)', () => {
     await closeDrawer(page);
   });
 
-  test('P1-16: builtin skill checkbox unchecks without modal', async ({ page }) => {
+  test('P1-16: ordinary editor hides builtin skill controls', async ({ page }) => {
     // Force cleanup of any residual UI state from previous tests
     // Click body to close any dropdowns/popovers
     await page.locator('body').click({ position: { x: 10, y: 10 }, force: true });
@@ -654,111 +654,19 @@ test.describe('Assistant Settings UI States (P1)', () => {
 
     await takeScreenshot(page, 'assistants/p1-16/02-new-assistant-drawer.png');
 
-    // Locate Skills collapse
+    // Builtin/runtime-managed Skills must not be exposed in this editor.
     const skillsCollapse = drawer.locator('[data-testid="skills-collapse"]');
     const builtinHeader = skillsCollapse
       .locator('.arco-collapse-item-header')
       .filter({ hasText: /Builtin Skills|内置技能/i });
-
-    // Expand Builtin Skills group if collapsed
-    const isExpanded = await builtinHeader.getAttribute('aria-expanded');
-    if (isExpanded === 'false') {
-      await builtinHeader.click();
-      await page.waitForTimeout(300);
-    }
-
-    await takeScreenshot(page, 'assistants/p1-16/03-builtin-skills-expanded.png');
-
-    // Verify Builtin Skills are available
-    const builtinSection = skillsCollapse
-      .locator('.arco-collapse-item')
-      .filter({ hasText: /Builtin Skills|内置技能/i });
-    const skillCards = builtinSection.locator('div.flex.items-start.gap-8px.p-8px');
-
-    const skillCount = await skillCards.count();
-
-    // Assert precondition: if no builtin skills, verify and complete test
-    if (skillCount === 0) {
-      // Verify the empty state - Builtin Skills section exists but has no skills
-      await expect(builtinSection).toBeVisible();
-      await takeScreenshot(page, 'assistants/p1-16/04-no-builtin-skills.png');
-
-      // Test passes - no skills means no checkbox to uncheck, which is valid
-      await closeDrawer(page);
-      return;
-    }
-
-    await takeScreenshot(page, 'assistants/p1-16/04-skills-available.png');
-
-    // Find first checked Builtin Skill (or check the first one)
-    let checkedSkillCard = null;
-    let checkbox = null;
-
-    for (let i = 0; i < skillCount; i++) {
-      const card = skillCards.nth(i);
-      const chk = card.locator('.arco-checkbox');
-      const isChecked = await chk.evaluate((el) => el.classList.contains('arco-checkbox-checked'));
-
-      if (isChecked) {
-        checkedSkillCard = card;
-        checkbox = chk;
-        break;
-      }
-    }
-
-    if (!checkedSkillCard) {
-      // No checked skills, check the first one
-      const firstCheckbox = skillCards.first().locator('.arco-checkbox');
-      await firstCheckbox.click();
-      await page.waitForTimeout(200);
-      checkedSkillCard = skillCards.first();
-      checkbox = firstCheckbox;
-    }
-
-    await takeScreenshot(page, 'assistants/p1-16/05-before-uncheck.png');
-
-    // Click checkbox to uncheck
-    await checkbox.click();
-    await page.waitForTimeout(200);
-
-    await takeScreenshot(page, 'assistants/p1-16/06-after-uncheck.png');
-
-    // Verify no delete confirmation modal appears
-    // Strategy: wait a bit to ensure no modal appears, rather than checking immediately
-    await page.waitForTimeout(300);
-
-    const modal = page.locator('.arco-modal-wrapper').filter({ hasText: /Remove|删除|移除/i });
-    const modalVisible = await modal.isVisible().catch(() => false);
-
-    if (modalVisible) {
-      // If modal appeared, this is unexpected - close it and fail gracefully
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
-    }
-
-    // Assert no modal should be visible
-    await expect(modal).not.toBeVisible();
-
-    // Verify checkbox is unchecked
-    const isUnchecked = await checkbox.evaluate((el) => !el.classList.contains('arco-checkbox-checked'));
-    expect(isUnchecked).toBe(true);
-
-    await takeScreenshot(page, 'assistants/p1-16/07-verified-unchecked.png');
-
-    // Restore original state (check again)
-    await checkbox.click();
-    await page.waitForTimeout(200);
-
-    const isCheckedAgain = await checkbox.evaluate((el) => el.classList.contains('arco-checkbox-checked'));
-    expect(isCheckedAgain).toBe(true);
-
-    await takeScreenshot(page, 'assistants/p1-16/08-restored.png');
+    await expect(builtinHeader).toHaveCount(0);
+    await takeScreenshot(page, 'assistants/p1-16/03-builtin-skills-hidden.png');
 
     // Close drawer
     await closeDrawer(page);
   });
 
-  test('P1-18: auto-injected section shows when configured', async ({ page }) => {
+  test('P1-18: auto-injected section stays hidden in ordinary editor', async ({ page }) => {
     await goToAssistantSettings(page);
 
     await takeScreenshot(page, 'assistants/p1-18/01-initial-list.png');
@@ -773,15 +681,10 @@ test.describe('Assistant Settings UI States (P1)', () => {
 
     await takeScreenshot(page, 'assistants/p1-18/02-builtin-assistant-drawer.png');
 
-    // Verify Auto-injected Skills section exists
+    // Runtime-managed auto-injected Skills remain Guid/runtime concerns.
     const autoSection = drawer.locator('.arco-collapse-item').filter({ hasText: /Auto-injected Skills|自动注入技能/i });
-    await expect(autoSection).toBeVisible();
-
-    // Verify header contains count format (N/M)
-    const headerText = await autoSection.locator('.arco-collapse-item-header').textContent();
-    expect(headerText).toMatch(/\d+\/\d+/);
-
-    await takeScreenshot(page, 'assistants/p1-18/03-auto-section-with-count.png');
+    await expect(autoSection).toHaveCount(0);
+    await takeScreenshot(page, 'assistants/p1-18/03-auto-section-hidden.png');
 
     // Close drawer
     await closeDrawer(page);
