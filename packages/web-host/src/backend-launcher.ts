@@ -232,6 +232,10 @@ export function buildSpawnEnv(dirs: BackendDirConfig, extraEnv: NodeJS.ProcessEn
   return {
     ...process.env,
     ...extraEnv,
+    // OPL has two Skill scopes: global user skills and explicit domain/project
+    // projections. AionUI's upstream workspace auto-injection is not an OPL
+    // product behavior, including for resumed conversations.
+    AIONUI_SKILL_WORKSPACE_MATERIALIZATION: 'global_only',
     AIONUI_CACHE_DIR: dirs.cacheDir,
     AIONUI_WORK_DIR: dirs.workDir,
     AIONUI_LOG_DIR: dirs.logDir,

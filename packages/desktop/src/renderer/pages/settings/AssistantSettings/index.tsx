@@ -162,9 +162,6 @@ const AssistantSettings: React.FC<AssistantSettingsProps> = ({ withWrapper = tru
           customSkills={editor.customSkills}
           setDeletePendingSkillName={editor.setDeletePendingSkillName}
           setDeleteCustomSkillName={editor.setDeleteCustomSkillName}
-          builtinAutoSkills={editor.builtinAutoSkills}
-          disabledBuiltinSkills={editor.disabledBuiltinSkills}
-          setDisabledBuiltinSkills={editor.setDisabledBuiltinSkills}
           activeAssistant={activeAssistant}
           activeAssistantId={activeAssistantId}
           isExtensionAssistant={isExtensionAssistant}

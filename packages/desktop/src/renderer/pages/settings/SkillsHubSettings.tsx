@@ -1,6 +1,6 @@
 import { ipcBridge } from '@/common';
 import { Button, Input, Message, Modal, Typography } from '@arco-design/web-react';
-import { Delete, FolderOpen, Lightning, Puzzle, Refresh, Search } from '@icon-park/react';
+import { Delete, FolderOpen, Puzzle, Refresh, Search } from '@icon-park/react';
 import React, { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
@@ -100,7 +100,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
   const [availableSkills, setAvailableSkills] = useState<SkillInfo[]>([]);
   const [skillPaths, setSkillPaths] = useState<{ user_skills_dir: string; builtin_skills_dir: string } | null>(null);
   const [search_query, setSearchQuery] = useState('');
-  const [builtinAutoSkills, setBuiltinAutoSkills] = useState<Array<{ name: string; description: string }>>([]);
 
   const allUserSkills = useMemo(() => availableSkills.filter((s) => s.source !== 'extension'), [availableSkills]);
   const extensionSkills = useMemo(() => availableSkills.filter((s) => s.source === 'extension'), [availableSkills]);
@@ -161,8 +160,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
       const paths = await ipcBridge.fs.getSkillPaths.invoke();
       setSkillPaths(paths);
 
-      const autoSkills = await ipcBridge.fs.listBuiltinAutoSkills.invoke();
-      setBuiltinAutoSkills(autoSkills);
     } catch (error) {
       console.error('Failed to fetch skills:', error);
       Message.error(t('settings.skillsHub.fetchError', { defaultValue: 'Failed to fetch skills' }));
@@ -391,7 +388,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 <div className='flex items-center gap-10px shrink-0'>
                   <span className='text-14px text-t-primary font-600'>
                     {flowManagedSkillIds === undefined
-                      ? t('settings.skillsHub.mySkillsTitle', { defaultValue: 'My Skills' })
+                      ? t('settings.skillsHub.mySkillsTitle', { defaultValue: 'Global User Skills' })
                       : t('settings.capabilitiesPage.groups.manualAndThirdParty.title')}
                   </span>
                   <span className='text-12px text-t-tertiary'>{mySkills.length}</span>
@@ -445,7 +442,10 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                 <div className='relative z-10 mb-10px flex items-center gap-8px py-4px font-mono text-12px text-t-tertiary'>
                   <FolderOpen size={16} className='shrink-0' />
                   <span className='truncate' title={skillPaths.user_skills_dir}>
-                    {skillPaths.user_skills_dir}
+                    {t('settings.skillsHub.globalUserSkillsPath', {
+                      path: skillPaths.user_skills_dir,
+                      defaultValue: `Global user skills: ${skillPaths.user_skills_dir}`,
+                    })}
                   </span>
                 </div>
               )}
@@ -573,46 +573,6 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
               </div>
             )}
 
-            {/* ======== Builtin Auto-injected Skills ======== */}
-            {builtinAutoSkills.length > 0 && (
-              <div data-testid='auto-skills-section' className='relative overflow-hidden'>
-                <div className='mb-10px flex items-center gap-10px'>
-                  <Lightning theme='outline' size='16' />
-                  <span className='text-14px text-t-primary font-600'>{t('settings.autoInjectedSkills')}</span>
-                  <span className='text-12px text-t-tertiary'>{builtinAutoSkills.length}</span>
-                </div>
-                <div className='flex w-full flex-col divide-y divide-border-1 border-0 border-t border-solid border-border-1'>
-                  {builtinAutoSkills.map((skill) => (
-                    <div
-                      key={skill.name}
-                      ref={(el) => {
-                        skillRefs.current[skill.name] = el;
-                      }}
-                      className={`flex flex-col gap-12px py-12px transition-colors sm:flex-row ${highlightedSkill === skill.name ? 'bg-fill-1' : 'hover:bg-fill-1'}`}
-                    >
-                      <div className='shrink-0 flex items-start sm:mt-2px'>
-                        <div className='flex size-28px items-center justify-center text-t-secondary'>
-                          <Lightning theme='outline' size='16' />
-                        </div>
-                      </div>
-                      <div className='flex-1 min-w-0 flex flex-col justify-center gap-4px'>
-                        <div className='flex items-center gap-10px'>
-                          <h3 className='text-14px font-semibold text-t-primary/90 truncate m-0'>{skill.name}</h3>
-                          <span className='text-10px text-t-tertiary uppercase'>
-                            {t('settings.autoInjectedSkillsBadge')}
-                          </span>
-                        </div>
-                        {skill.description && (
-                          <p className='text-13px text-t-secondary leading-relaxed line-clamp-2 m-0'>
-                            {skill.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

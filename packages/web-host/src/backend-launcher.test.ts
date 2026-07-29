@@ -220,6 +220,7 @@ describe('buildSpawnEnv', () => {
     expect(env.AIONUI_CACHE_DIR).toBe('/c');
     expect(env.AIONUI_WORK_DIR).toBe('/w');
     expect(env.AIONUI_LOG_DIR).toBe('/l');
+    expect(env.AIONUI_SKILL_WORKSPACE_MATERIALIZATION).toBe('global_only');
     expect(env.PATH).toBe(process.env.PATH); // inherits
   });
 
