@@ -12,6 +12,8 @@ const OPL_WSL_GUEST_PATH =
   '/home/opl/.opl/one-person-lab/bin:/home/opl/.npm-global/bin:/home/opl/.local/bin:/usr/local/bin:/usr/bin:/bin';
 const MAX_COMMAND_OUTPUT_BYTES = 128 * 1024;
 const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
+const ONLINE_CATALOG_TIMEOUT_MS = 30 * 1000;
+const ONLINE_CATALOG_RETRY_DELAYS_MS = [0, 2_000, 5_000] as const;
 
 export type WindowsWslProvisioningStage =
   | 'checking_host'
@@ -120,14 +122,37 @@ function bounded(value: string): string {
   return value.replaceAll('\0', '').slice(0, MAX_COMMAND_OUTPUT_BYTES);
 }
 
+/** wsl.exe may emit UTF-16LE when its output is redirected on Windows. */
+export function decodeWindowsCommandOutput(chunks: Buffer[]): string {
+  const bytes = Buffer.concat(chunks);
+  if (bytes.length === 0) return '';
+  if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
+    return bytes.subarray(2).toString('utf16le');
+  }
+
+  let oddByteNuls = 0;
+  let evenByteNuls = 0;
+  for (let index = 0; index < bytes.length; index += 1) {
+    if (bytes[index] === 0) {
+      if (index % 2 === 0) evenByteNuls += 1;
+      else oddByteNuls += 1;
+    }
+  }
+  const pairedBytes = Math.floor(bytes.length / 2);
+  if (pairedBytes > 0 && (oddByteNuls >= pairedBytes / 3 || evenByteNuls >= pairedBytes / 3)) {
+    return bytes.toString('utf16le').replace(/^\uFEFF/, '');
+  }
+  return bytes.toString('utf8');
+}
+
 export function runWindowsWslCommand(
   command: string,
   args: string[],
   options: { stdin?: string; timeoutMs?: number } = {}
 ): Promise<WindowsWslCommandResult> {
   return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
+    const stdoutChunks: Buffer[] = [];
+    const stderrChunks: Buffer[] = [];
     let settled = false;
     let timedOut = false;
     const child = spawn(command, args, {
@@ -141,8 +166,8 @@ export function runWindowsWslCommand(
       clearTimeout(timer);
       resolve({
         exitCode,
-        stdout: bounded(stdout),
-        stderr: bounded(stderr),
+        stdout: bounded(decodeWindowsCommandOutput(stdoutChunks)),
+        stderr: bounded(decodeWindowsCommandOutput(stderrChunks)),
         timedOut,
       });
     };
@@ -152,10 +177,10 @@ export function runWindowsWslCommand(
       finish(null);
     }, options.timeoutMs ?? COMMAND_TIMEOUT_MS);
     child.stdout.on('data', (chunk) => {
-      stdout = bounded(stdout + String(chunk));
+      stdoutChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
     });
     child.stderr.on('data', (chunk) => {
-      stderr = bounded(stderr + String(chunk));
+      stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
     });
     child.once('error', () => finish(null));
     child.once('close', (code) => finish(code));
@@ -420,9 +445,36 @@ export class WindowsWslProvisioner {
   }
 
   private async inspectOnlineDistributions(): Promise<Set<string>> {
-    const result = await this.wsl(['--list', '--online']);
-    await this.requireSuccess(result, 'installing_owned_distribution', 'distribution_catalog_unavailable');
-    return parseOnlineDistributionNames(result.stdout);
+    let lastResult: WindowsWslCommandResult | null = null;
+    for (let attempt = 0; attempt < ONLINE_CATALOG_RETRY_DELAYS_MS.length; attempt += 1) {
+      const delayMs = ONLINE_CATALOG_RETRY_DELAYS_MS[attempt];
+      if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+      this.progress(
+        'installing_owned_distribution',
+        `Checking the WSL online catalog (${attempt + 1}/${ONLINE_CATALOG_RETRY_DELAYS_MS.length}).`
+      );
+      const result = await this.wsl(['--list', '--online'], { timeoutMs: ONLINE_CATALOG_TIMEOUT_MS });
+      if (result.exitCode === 0 && !result.timedOut) return parseOnlineDistributionNames(result.stdout);
+      lastResult = result;
+      const output = `${result.stderr}\n${result.stdout}`;
+      const transientNetworkFailure =
+        result.timedOut ||
+        /(?:WININET_E_CANNOT_CONNECT|CANNOT_CONNECT|timed?\s*out|timeout|network|proxy|dns|could not connect|unable to download)/i.test(
+          output
+        );
+      if (!transientNetworkFailure) break;
+    }
+
+    const detail = lastResult
+      ? bounded(lastResult.stderr || lastResult.stdout || 'WSL online catalog request failed.')
+      : 'WSL online catalog request failed.';
+    throw new WindowsWslProvisioningError(
+      `Unable to reach the WSL online catalog after ${ONLINE_CATALOG_RETRY_DELAYS_MS.length} attempts: ${detail}`,
+      {
+        stage: 'installing_owned_distribution',
+        code: 'distribution_catalog_unavailable',
+      }
+    );
   }
 
   private async inspectInventory(): Promise<Map<string, { state: string; version: number | null }>> {
@@ -727,4 +779,5 @@ export const __windowsWslProvisionerTest = {
   parseDistributionInventory,
   parseOnlineDistributionNames,
   sameWindowsPath,
+  decodeWindowsCommandOutput,
 };

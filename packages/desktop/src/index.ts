@@ -608,16 +608,20 @@ const handleAppReady = async (): Promise<void> => {
   setSentryDeviceId();
 
   if (windowsWslRuntime) {
-    try {
-      await windowsWslRuntime.ensureReady();
-      windowsWslProvisioningWindow?.complete();
-      mark('windowsWslRuntime.ensureReady');
-    } catch (error) {
-      console.error('[OPL-Linux] Failed to prepare the Windows Linux runtime:', error);
-      await captureBackendStartupFailure(error);
-      await windowsWslProvisioningWindow?.showFailure(error);
-      app.exit(1);
-      return;
+    while (true) {
+      try {
+        await windowsWslRuntime.ensureReady();
+        windowsWslProvisioningWindow?.complete();
+        mark('windowsWslRuntime.ensureReady');
+        break;
+      } catch (error) {
+        console.error('[OPL-Linux] Failed to prepare the Windows Linux runtime:', error);
+        await captureBackendStartupFailure(error);
+        const action = await windowsWslProvisioningWindow?.showFailure(error);
+        if (action === 'retry') continue;
+        app.exit(1);
+        return;
+      }
     }
   }
 
