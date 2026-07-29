@@ -124,34 +124,31 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
   }, []);
 
   // Whether skills section should be visible.
-  // All non-extension assistants expose a skills panel: user/custom can edit,
-  // builtins show a read-only toggle list. The backend has already filtered
-  // extension assistants into their own source class.
+  // All non-extension assistants expose a skills panel. Builtin skills are
+  // runtime-managed and are intentionally omitted from ordinary assistant
+  // editing; user/project skills remain visible through custom/extension rows.
   const showSkills = isCreating || (activeAssistant !== null && activeAssistant.source !== 'extension');
 
   const agentOptions = availableBackends;
   const selectedAgentOption = agentOptions.find((option) => option.id === editAgent);
 
   const customSkillItems = availableSkills.filter((skill) => skill.source === 'custom');
-  const builtinSkillItems = availableSkills.filter((skill) => skill.source === 'builtin');
   const extensionSkillItems = availableSkills.filter((skill) => skill.source === 'extension');
   const customActiveCount = selectedSkills.filter(
     (name) =>
       pendingSkills.some((skill) => skill.name === name) || customSkillItems.some((skill) => skill.name === name)
   ).length;
-  const builtinActiveCount = selectedSkills.filter((name) =>
-    builtinSkillItems.some((skill) => skill.name === name)
-  ).length;
   const extensionActiveCount = selectedSkills.filter((name) =>
     extensionSkillItems.some((skill) => skill.name === name)
   ).length;
   const customStatusDotColor = customActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
-  const builtinStatusDotColor = builtinActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
   const extensionStatusDotColor = extensionActiveCount > 0 ? 'rgb(var(--success-6))' : 'var(--color-text-4)';
-  const totalSkillsCount =
-    pendingSkills.length + customSkillItems.length + builtinSkillItems.length + extensionSkillItems.length;
+  const totalSkillsCount = pendingSkills.length + customSkillItems.length + extensionSkillItems.length;
   const totalActiveSkillsCount = selectedSkills.filter(
-    (name) => pendingSkills.some((skill) => skill.name === name) || availableSkills.some((skill) => skill.name === name)
+    (name) =>
+      pendingSkills.some((skill) => skill.name === name) ||
+      customSkillItems.some((skill) => skill.name === name) ||
+      extensionSkillItems.some((skill) => skill.name === name)
   ).length;
   const isBuiltin = activeAssistant?.source === 'builtin';
   const isRuleEditable = !isBuiltin;
@@ -603,60 +600,6 @@ const AssistantEditDrawer: React.FC<AssistantEditDrawerProps> = ({
                       </div>
                     )}
                   </div>
-                </Collapse.Item>
-
-                {/* Builtin Skills */}
-                <Collapse.Item
-                  header={
-                    <span className='text-13px font-medium'>
-                      {t('settings.builtinSkills', { defaultValue: 'Builtin Skills' })}
-                    </span>
-                  }
-                  name='builtin-skills'
-                  extra={
-                    <div className='flex items-center gap-8px'>
-                      <span
-                        className='inline-block w-8px h-8px rd-50%'
-                        style={{ background: builtinStatusDotColor }}
-                        aria-hidden='true'
-                      />
-                      <span className='text-12px text-t-secondary'>
-                        {builtinActiveCount > 0
-                          ? `${builtinActiveCount}/${builtinSkillItems.length}`
-                          : builtinSkillItems.length}
-                      </span>
-                    </div>
-                  }
-                >
-                  {builtinSkillItems.length > 0 ? (
-                    <div className='space-y-4px'>
-                      {builtinSkillItems.map((skill) => (
-                        <div key={skill.name} className='flex items-start gap-8px p-8px hover:bg-fill-1 rounded-4px'>
-                          <Checkbox
-                            checked={selectedSkills.includes(skill.name)}
-                            className='mt-2px cursor-pointer'
-                            onChange={() => {
-                              if (selectedSkills.includes(skill.name)) {
-                                setSelectedSkills(selectedSkills.filter((s) => s !== skill.name));
-                              } else {
-                                setSelectedSkills([...selectedSkills, skill.name]);
-                              }
-                            }}
-                          />
-                          <div className='flex-1 min-w-0'>
-                            <div className='text-13px font-medium text-t-primary'>{skill.name}</div>
-                            {skill.description && (
-                              <div className='text-12px text-t-secondary mt-2px line-clamp-2'>{skill.description}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className='text-center text-t-secondary text-12px py-16px'>
-                      {t('settings.noBuiltinSkills', { defaultValue: 'No builtin skills available' })}
-                    </div>
-                  )}
                 </Collapse.Item>
 
                 {/* Extension Skills */}

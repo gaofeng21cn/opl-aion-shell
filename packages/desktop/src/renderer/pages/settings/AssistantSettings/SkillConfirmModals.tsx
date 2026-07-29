@@ -110,7 +110,7 @@ const SkillConfirmModals: React.FC<SkillConfirmModalsProps> = ({
         <div className='mt-12px text-12px text-t-secondary bg-fill-2 p-12px rounded-lg'>
           {t('settings.removeCustomSkillNote', {
             defaultValue:
-              'This will only remove the skill from this assistant. The skill will remain in Builtin Skills and can be re-added later.',
+              'This will only remove the skill from this assistant. The skill remains in your skill library and can be re-added later.',
           })}
         </div>
       </Modal>

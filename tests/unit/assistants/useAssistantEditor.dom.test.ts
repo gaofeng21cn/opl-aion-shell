@@ -105,6 +105,8 @@ describe('useAssistantEditor', () => {
     expect(result.current.editAvatar).toBe('🤖');
     expect(result.current.editAgent).toBe('managed-claude');
     expect(result.current.isCreating).toBe(false);
+    expect(ipcBridge.fs.listAvailableSkills.invoke).toHaveBeenCalled();
+    expect(ipcBridge.fs.listBuiltinAutoSkills.invoke).not.toHaveBeenCalled();
   });
 
   it('calls handleCreate and initializes empty form', () => {

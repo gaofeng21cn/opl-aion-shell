@@ -26,10 +26,4 @@ export type PendingSkill = {
   description: string;
 };
 
-// Builtin auto-injected skill info
-export type BuiltinAutoSkill = {
-  name: string;
-  description: string;
-};
-
 export type AssistantListItem = Assistant;

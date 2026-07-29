@@ -10,7 +10,6 @@ import React from 'react';
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ConfigProvider } from '@arco-design/web-react';
 import { MemoryRouter } from 'react-router-dom';
 
@@ -56,9 +55,6 @@ describe('AssistantEditDrawer', () => {
     customSkills: [],
     setDeletePendingSkillName: vi.fn(),
     setDeleteCustomSkillName: vi.fn(),
-    builtinAutoSkills: [],
-    disabledBuiltinSkills: [],
-    setDisabledBuiltinSkills: vi.fn(),
     activeAssistant: null,
     activeAssistantId: null,
     isExtensionAssistant: () => false,
@@ -130,6 +126,7 @@ describe('AssistantEditDrawer', () => {
       <AssistantEditDrawer
         {...defaultProps}
         editVisible={true}
+        isCreating={true}
         activeAssistant={{
           id: 'builtin-test',
           source: 'builtin',
@@ -152,5 +149,35 @@ describe('AssistantEditDrawer', () => {
     const guidance = screen.getByTestId('assistant-builtin-readonly-banner');
     expect(guidance).toHaveClass('border-t', 'border-line');
     expect(guidance).not.toHaveClass('rd-8px', 'bg-[rgba(var(--primary-6),0.06)]');
+  });
+
+  it('does not expose runtime-managed builtin skills in ordinary assistant editing', () => {
+    renderWithProviders(
+      <AssistantEditDrawer
+        {...defaultProps}
+        editVisible={true}
+        isCreating={true}
+        availableSkills={[
+          {
+            name: 'runtime-managed',
+            description: 'Runtime skill',
+            location: '/runtime-managed',
+            is_custom: false,
+            source: 'builtin',
+          },
+          {
+            name: 'project-skill',
+            description: 'Project skill',
+            location: '/project-skill',
+            is_custom: true,
+            source: 'custom',
+          },
+        ]}
+      />
+    );
+
+    expect(screen.queryByText('settings.builtinSkills')).not.toBeInTheDocument();
+    expect(screen.queryByText('runtime-managed')).not.toBeInTheDocument();
+    expect(screen.getByText('settings.customSkills')).toBeInTheDocument();
   });
 });
