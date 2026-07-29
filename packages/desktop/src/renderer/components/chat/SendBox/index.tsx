@@ -7,7 +7,10 @@
 import { ipcBridge } from '@/common';
 import AtFileMenu from '@/renderer/components/chat/AtFileMenu';
 import BtwOverlay from '@/renderer/components/chat/BtwOverlay';
-import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
+import SlashCommandMenu, {
+  getSlashCommandOptionId,
+  type SlashCommandMenuItem,
+} from '@/renderer/components/chat/SlashCommandMenu';
 import { useBtwCommand } from '@/renderer/components/chat/BtwOverlay/useBtwCommand';
 import { useInputFocusRing } from '@/renderer/hooks/chat/useInputFocusRing';
 import { useSlashCommandController } from '@/renderer/hooks/chat/useSlashCommandController';
@@ -361,6 +364,7 @@ const SendBox: React.FC<{
   const [isInputFocused, setIsInputFocused] = useState(false);
   const isInputActive = isInputFocused;
   const { activeShadow } = useInputFocusRing();
+  const commandListboxId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const singleLineWidthRef = useRef<number>(0);
   const measurementCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -648,6 +652,14 @@ const SendBox: React.FC<{
       })),
     [slashController.filteredCommands]
   );
+  const exportListboxOpen = conversationExport.isOpen && conversationExport.step === 'menu';
+  const commandListboxOpen = exportListboxOpen || slashController.isOpen;
+  const commandListboxActiveIndex = exportListboxOpen ? conversationExport.activeIndex : slashController.activeIndex;
+  const commandListboxItemCount = exportListboxOpen ? conversationExport.menuItems.length : slashMenuItems.length;
+  const commandListboxActiveOptionId =
+    commandListboxOpen && commandListboxActiveIndex >= 0 && commandListboxActiveIndex < commandListboxItemCount
+      ? getSlashCommandOptionId(commandListboxId, commandListboxActiveIndex)
+      : undefined;
 
   const isCommandMenuOpen = conversationExport.isOpen || slashController.isOpen;
   const isAtFileMenuOpen =
@@ -1495,6 +1507,7 @@ const SendBox: React.FC<{
           <div className='opl-codex-menu absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
             {conversationExport.step === 'menu' ? (
               <SlashCommandMenu
+                listboxId={commandListboxId}
                 title={t('messages.export.menuTitle')}
                 hint={t('messages.export.menuHint')}
                 items={conversationExport.menuItems}
@@ -1524,6 +1537,7 @@ const SendBox: React.FC<{
               />
             ) : (
               <SlashCommandMenu
+                listboxId={commandListboxId}
                 title={t('messages.slash.title', { defaultValue: 'Commands' })}
                 hint={t('messages.slash.hint', { defaultValue: 'Type / to open command menu' })}
                 items={slashMenuItems}
@@ -1647,6 +1661,11 @@ const SendBox: React.FC<{
               {renderHighlightedInputValue()}
             </div>
             <Input.TextArea
+              role='combobox'
+              aria-autocomplete='list'
+              aria-expanded={commandListboxOpen}
+              aria-controls={commandListboxOpen ? commandListboxId : undefined}
+              aria-activedescendant={commandListboxActiveOptionId}
               autoFocus={!isMobile}
               disabled={disabled}
               spellCheck={false}

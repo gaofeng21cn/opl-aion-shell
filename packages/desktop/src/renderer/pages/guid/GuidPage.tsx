@@ -26,7 +26,10 @@ import HomeStarters from './components/HomeStarters';
 import PackageContributionNavigation from './components/PackageContributionNavigation';
 import GuidSetupNotice, { type GuidSetupNoticeKind } from './components/GuidSetupNotice';
 import MentionDropdown from './components/MentionDropdown';
-import SlashCommandMenu, { type SlashCommandMenuItem } from '@/renderer/components/chat/SlashCommandMenu';
+import SlashCommandMenu, {
+  getSlashCommandOptionId,
+  type SlashCommandMenuItem,
+} from '@/renderer/components/chat/SlashCommandMenu';
 import { useGuidAgentSelection } from './hooks/useGuidAgentSelection';
 import { useGuidInput } from './hooks/useGuidInput';
 import { useGuidMention } from './hooks/useGuidMention';
@@ -50,7 +53,7 @@ import { useCoreLaunchPrerequisites } from '@/renderer/hooks/system/useCoreLaunc
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { resolveAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { ConfigProvider } from '@arco-design/web-react';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import styles from './index.module.css';
@@ -363,6 +366,7 @@ const GuidPage: React.FC = () => {
       }),
     [guidBuiltinSlashCommands, guidSlashSkillDescriptionByName, guidSlashSkillNames, t]
   );
+  const slashCommandListboxId = useId();
   const slashController = useSlashCommandController({
     input: guidInput.input,
     commands: guidSlashCommands,
@@ -384,6 +388,10 @@ const GuidPage: React.FC = () => {
       })),
     [slashController.filteredCommands]
   );
+  const slashCommandActiveOptionId =
+    slashController.isOpen && slashController.activeIndex >= 0 && slashController.activeIndex < slashMenuItems.length
+      ? getSlashCommandOptionId(slashCommandListboxId, slashController.activeIndex)
+      : undefined;
 
   const mention = useGuidMention({
     selectionEnabled: AGENT_REFERENCE_ADMISSION_POLICY.at_mention_agent_selection_allowed,
@@ -843,6 +851,7 @@ const GuidPage: React.FC = () => {
   );
   const slashCommandMenuNode = slashController.isOpen ? (
     <SlashCommandMenu
+      listboxId={slashCommandListboxId}
       title={t('messages.slash.title', { defaultValue: 'Commands' })}
       hint={t('messages.slash.hint', { defaultValue: 'Type / to open command menu' })}
       items={slashMenuItems}
@@ -944,6 +953,8 @@ const GuidPage: React.FC = () => {
               onRemoveFile={guidInput.handleRemoveFile}
               actionRow={actionRowNode}
               slashCommandMenu={slashCommandMenuNode}
+              slashCommandListboxId={slashCommandListboxId}
+              slashCommandActiveOptionId={slashCommandActiveOptionId}
               fileAccessEnabled={true}
             />
 
