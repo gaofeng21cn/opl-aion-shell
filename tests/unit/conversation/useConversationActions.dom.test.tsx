@@ -195,6 +195,79 @@ describe('conversation archive actions', () => {
     expect(markAsRead).toHaveBeenCalledWith('local-conversation-1');
   });
 
+  it('opens project selection for a stale canonical workspace and materializes only after cwd readback', async () => {
+    const staleWorkspace = '/workspace/removed-project';
+    const selectedWorkspace = '/workspace/recovered-project';
+    const canonicalStub = {
+      id: 'thread-stale-workspace',
+      name: 'Stale canonical task',
+      type: 'acp',
+      created_at: 1,
+      modified_at: 1,
+      extra: {
+        backend: 'codex',
+        workspace: staleWorkspace,
+        acp_session_id: 'thread-stale-workspace',
+        canonical_thread_id: 'thread-stale-workspace',
+        canonical_thread_stub: true,
+      },
+    } as TChatConversation;
+    const workspaceError = {
+      name: 'BackendHttpError',
+      status: 400,
+      code: 'WORKSPACE_PATH_UNAVAILABLE',
+      backendMessage: 'Workspace path is unavailable.',
+      details: { workspace_path: staleWorkspace },
+    };
+    mocks.createWithConversation
+      .mockRejectedValueOnce(workspaceError)
+      .mockResolvedValueOnce({ id: 'local-recovered-conversation' });
+    mocks.threadRead
+      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: staleWorkspace } })
+      .mockResolvedValueOnce({ thread: { workspace: selectedWorkspace, projectId: selectedWorkspace } });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.get.mockResolvedValue({
+      ...canonicalStub,
+      id: 'local-recovered-conversation',
+      extra: {
+        ...canonicalStub.extra,
+        workspace: selectedWorkspace,
+        custom_workspace: true,
+        canonical_thread_stub: false,
+      },
+    });
+    const { result } = renderHook(() =>
+      useConversationActions({
+        batchMode: false,
+        conversations: [canonicalStub],
+        selectedConversationIds: new Set(),
+        setSelectedConversationIds: vi.fn(),
+        toggleSelectedConversation: vi.fn(),
+        markAsRead: vi.fn(),
+      })
+    );
+
+    act(() => result.current.handleConversationClick(canonicalStub));
+    await waitFor(() => expect(result.current.projectAdoptionConversation).toBe(canonicalStub));
+    expect(mocks.messageError).not.toHaveBeenCalled();
+
+    await act(() => result.current.handleProjectAdoption(canonicalStub, selectedWorkspace));
+
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-stale-workspace',
+      cwd: selectedWorkspace,
+    });
+    expect(mocks.threadRead).toHaveBeenCalledTimes(2);
+    expect(mocks.createWithConversation).toHaveBeenLastCalledWith({
+      conversation: expect.objectContaining({
+        extra: expect.objectContaining({
+          workspace: selectedWorkspace,
+          canonical_thread_stub: false,
+        }),
+      }),
+    });
+  });
+
   it('routes canonical lifecycle actions with the canonical id during ACP id migration', async () => {
     const canonical = {
       id: 'conv-1',

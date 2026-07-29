@@ -14,9 +14,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
+import { normalizeConversationCreateErrorCode } from '../../utils/conversationCreateError';
 import { isConversationPinned } from '../utils/groupingHelpers';
 import {
   adoptProjectlessCanonicalConversation,
+  canonicalCodexThreadId,
   executeCanonicalThreadLifecycle,
   finishCanonicalLifecycleWithLocalProjection,
   isProjectlessCanonicalConversation,
@@ -54,6 +56,7 @@ export const useConversationActions = ({
   const navigate = useNavigate();
   const materializingThreadIdsRef = useRef(new Set<string>());
   const adoptingThreadIdsRef = useRef(new Set<string>());
+  const workspaceRepairThreadIdsRef = useRef(new Set<string>());
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -89,6 +92,14 @@ export const useConversationActions = ({
             emitter.emit('chat.history.refresh');
           } catch (error) {
             console.error('Failed to materialize canonical Codex task:', error);
+            if (
+              normalizeConversationCreateErrorCode(error) === 'WORKSPACE_PATH_UNAVAILABLE' &&
+              conversation.extra.workspace?.trim()
+            ) {
+              workspaceRepairThreadIdsRef.current.add(threadId);
+              setProjectAdoptionConversation(conversation);
+              return;
+            }
             Message.error(t('conversation.createFailed'));
             return;
           } finally {
@@ -363,17 +374,21 @@ export const useConversationActions = ({
 
   const handleProjectAdoption = useCallback(
     async (conversation: TChatConversation, workspace: string): Promise<boolean> => {
-      if (!isProjectlessCanonicalConversation(conversation)) return false;
-      const threadId = conversation.extra.canonical_thread_id ?? conversation.extra.acp_session_id;
+      const threadId = canonicalCodexThreadId(conversation);
+      const repairingUnavailableWorkspace = threadId ? workspaceRepairThreadIdsRef.current.has(threadId) : false;
+      if (!isProjectlessCanonicalConversation(conversation) && !repairingUnavailableWorkspace) return false;
       if (!threadId || adoptingThreadIdsRef.current.has(threadId)) return false;
 
       adoptingThreadIdsRef.current.add(threadId);
       try {
-        const success = await adoptProjectlessCanonicalConversation(conversation, workspace);
+        const success = await adoptProjectlessCanonicalConversation(conversation, workspace, {
+          allowExistingWorkspace: repairingUnavailableWorkspace,
+        });
         if (!success) {
           Message.error(t('conversation.history.moveToProjectFailed'));
           return false;
         }
+        workspaceRepairThreadIdsRef.current.delete(threadId);
         emitter.emit('chat.history.refresh');
         Message.success(t('conversation.history.moveToProjectSuccess'));
         return true;
@@ -402,8 +417,10 @@ export const useConversationActions = ({
   );
 
   const handleProjectAdoptionCancel = useCallback(() => {
+    const threadId = canonicalCodexThreadId(projectAdoptionConversation);
+    if (threadId) workspaceRepairThreadIdsRef.current.delete(threadId);
     setProjectAdoptionConversation(null);
-  }, []);
+  }, [projectAdoptionConversation]);
 
   const handleMenuVisibleChange = useCallback((conversation_id: string, visible: boolean) => {
     setDropdownVisibleId(visible ? conversation_id : null);

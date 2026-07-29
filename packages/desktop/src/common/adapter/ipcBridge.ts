@@ -201,10 +201,8 @@ export const conversation = {
         throw new Error('Canonical Codex task identity does not match its projected ACP session.');
       }
       return {
-        conversation: {
-          ...buildCreateConversationBody(p.conversation as CreateConversationBodyInput),
-          ...(isCanonicalCodexTask ? { resume_session_id: canonicalThreadId } : {}),
-        },
+        conversation: buildCreateConversationBody(p.conversation as CreateConversationBodyInput),
+        ...(isCanonicalCodexTask ? { resume_session_id: canonicalThreadId } : {}),
       };
     }),
     fromApiConversation

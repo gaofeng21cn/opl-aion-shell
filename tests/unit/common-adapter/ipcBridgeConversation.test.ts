@@ -106,8 +106,8 @@ describe('ipcBridge conversation clone payload', () => {
           acp_session_id: 'canonical-thread-1',
           canonical_thread_id: 'canonical-thread-1',
         },
-        resume_session_id: 'canonical-thread-1',
       },
+      resume_session_id: 'canonical-thread-1',
     });
     expect(call?.body).not.toHaveProperty('conversation.source');
     expect(call?.body).not.toHaveProperty('conversation.id');
@@ -130,7 +130,7 @@ describe('ipcBridge conversation clone payload', () => {
       } as never,
     });
 
-    expect(httpBridgeMocks.calls.at(-1)?.body).not.toHaveProperty('conversation.resume_session_id');
+    expect(httpBridgeMocks.calls.at(-1)?.body).not.toHaveProperty('resume_session_id');
   });
 
   it('rejects a canonical task whose projected ACP session identity drifted', async () => {

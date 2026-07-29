@@ -12,6 +12,11 @@ type CanonicalLifecycleAction =
   | { action: 'rename'; name: string; reason: string }
   | { action: 'archive' | 'unarchive' | 'delete'; reason: string };
 
+type CanonicalProjectAdoptionOptions = {
+  /** Allow repair of a recorded project whose filesystem path became unavailable. */
+  allowExistingWorkspace?: boolean;
+};
+
 export function canonicalCodexThreadId(conversation: TChatConversation | null | undefined): string | null {
   if (conversation?.type !== 'acp' || conversation.extra.backend !== 'codex') return null;
   return conversation.extra.canonical_thread_id?.trim() || conversation.extra.acp_session_id?.trim() || null;
@@ -62,16 +67,32 @@ export function projectCanonicalCodexThread(
 
 export async function adoptProjectlessCanonicalConversation(
   conversation: TChatConversation | null | undefined,
-  workspace: string
+  workspace: string,
+  options: CanonicalProjectAdoptionOptions = {}
 ): Promise<boolean> {
-  if (!isProjectlessCanonicalConversation(conversation)) return false;
-  const threadId = canonicalCodexThreadId(conversation);
+  if (canonicalCodexThreadId(conversation) === null) return false;
+  const canonicalConversation = conversation as Extract<TChatConversation, { type: 'acp' }>;
+  const canAdoptProjectless = isProjectlessCanonicalConversation(conversation);
+  const canRepairRecordedWorkspace = options.allowExistingWorkspace === true;
+  if (!canAdoptProjectless && !canRepairRecordedWorkspace) return false;
+  const threadId = canonicalCodexThreadId(canonicalConversation);
   const selectedWorkspace = workspace.trim();
   if (!threadId || !selectedWorkspace) return false;
 
   try {
     const canonicalBefore = await ipcBridge.codexThreads.read.invoke({ threadId });
-    if (canonicalBefore.thread.projectId.trim()) return false;
+    if (canRepairRecordedWorkspace) {
+      const recordedWorkspace = canonicalConversation.extra.workspace?.trim();
+      if (
+        !recordedWorkspace ||
+        canonicalBefore.thread.workspace !== recordedWorkspace ||
+        canonicalBefore.thread.projectId !== recordedWorkspace
+      ) {
+        return false;
+      }
+    } else if (canonicalBefore.thread.projectId.trim()) {
+      return false;
+    }
 
     await ipcBridge.codexThreads.updateSettings.invoke({ threadId, cwd: selectedWorkspace });
     const canonicalReadback = await ipcBridge.codexThreads.read.invoke({ threadId });
@@ -83,24 +104,24 @@ export async function adoptProjectlessCanonicalConversation(
     }
 
     const nextConversation = {
-      ...conversation,
+      ...canonicalConversation,
       extra: {
-        ...conversation.extra,
+        ...canonicalConversation.extra,
         workspace: selectedWorkspace,
         custom_workspace: true,
         canonical_thread_stub: false,
       },
     };
     try {
-      let localConversationId = conversation.id;
-      if (conversation.extra.canonical_thread_stub) {
+      let localConversationId = canonicalConversation.id;
+      if (canonicalConversation.extra.canonical_thread_stub) {
         const createdConversation = await ipcBridge.conversation.createWithConversation.invoke({
           conversation: nextConversation,
         });
         localConversationId = createdConversation.id;
       } else {
         const updated = await ipcBridge.conversation.update.invoke({
-          id: conversation.id,
+          id: canonicalConversation.id,
           updates: {
             extra: {
               workspace: selectedWorkspace,
