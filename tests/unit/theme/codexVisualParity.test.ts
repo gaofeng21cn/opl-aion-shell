@@ -230,6 +230,50 @@ describe('Codex visual parity overlay', () => {
     }
   });
 
+  it('keeps normal text on Home, conversation, and Settings controls above the WCAG floor', () => {
+    const baseline = read('packages/desktop/src/renderer/styles/themes/opl-product-baseline.css');
+    const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
+    const chatLayoutStyles = read(
+      'packages/desktop/src/renderer/pages/conversation/components/ChatLayout/chat-layout.css'
+    );
+    const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
+    const baselineDarkSelector = "[data-color-scheme='default'][data-theme='dark']";
+
+    const lightFullAccess = firstCustomProperty(baseline, '--opl-accent-orange');
+    const darkSecondary = customPropertyInBlock(baseline, baselineDarkSelector, '--text-secondary');
+
+    expect(lightFullAccess).toBe('#c2410c');
+    expect(darkSecondary).toBe('#aeb4bc');
+    expect(guidStyles).toMatch(
+      /\.actionConfigGroup\[data-permission-mode='full-access'\][^{]*\{[^}]*color:\s*var\(--opl-accent-orange\)\s*!important;/
+    );
+    expect(chatLayoutStyles).toMatch(
+      /\.conversation-environment-trigger\s*\{[^}]*color:\s*var\(--text-secondary\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__item-label\s*\{[^}]*color:\s*var\(--text-primary\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__destination\s*\{[^}]*color:\s*var\(--text-secondary\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__destination:hover,[\s\S]*?\.settings-sider__destination--active\s*\{[^}]*color:\s*var\(--text-primary\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-mobile-navigation__row\s*\{[^}]*color:\s*var\(--text-secondary\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-mobile-navigation__row:hover,[\s\S]*?\.settings-mobile-navigation__row--active\s*\{[^}]*color:\s*var\(--text-primary\)\s*!important;/
+    );
+
+    for (const background of ['#ffffff', '#fcfcfc']) {
+      expect(contrastRatio(lightFullAccess, background)).toBeGreaterThanOrEqual(4.5);
+    }
+    for (const background of ['#171819', '#1b1c1e', '#202224']) {
+      expect(contrastRatio(darkSecondary, background)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it('keeps Settings navigation and grouped surfaces neutral', () => {
     const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
     const settingsWrapper = read('packages/desktop/src/renderer/pages/settings/components/SettingsPageWrapper.tsx');

@@ -53,6 +53,7 @@
 
 .conversation-environment-trigger {
   max-width: 132px;
+  color: var(--text-secondary) !important;
 }
 
 .conversation-environment-trigger .arco-btn-content {
