@@ -1,6 +1,10 @@
 import { BrowserWindow, dialog } from 'electron';
 
-import type { WindowsWslProvisioningProgress, WindowsWslProvisioningStage } from './provisioner';
+import {
+  WindowsWslProvisioningError,
+  type WindowsWslProvisioningProgress,
+  type WindowsWslProvisioningStage,
+} from './provisioner';
 
 type ProvisioningCopy = {
   title: string;
@@ -9,6 +13,7 @@ type ProvisioningCopy = {
   failureTitle: string;
   restartTitle: string;
   restartMessage: string;
+  retry: string;
   close: string;
 };
 
@@ -34,6 +39,7 @@ const ENGLISH_COPY: ProvisioningCopy = {
   restartTitle: 'Restart Windows to continue',
   restartMessage:
     'Windows enabled the required WSL feature. Restart Windows, then open One Person Lab again to continue automatically.',
+  retry: 'Retry',
   close: 'Close',
 };
 
@@ -44,6 +50,7 @@ const CHINESE_COPY: ProvisioningCopy = {
   failureTitle: 'One Person Lab 配置需要处理',
   restartTitle: '重启 Windows 后继续',
   restartMessage: 'Windows 已启用所需的 WSL 功能。请重启 Windows，然后再次打开 One Person Lab 自动继续。',
+  retry: '重试',
   close: '关闭',
 };
 
@@ -93,6 +100,7 @@ export function buildWindowsWslProvisioningView(progress: WindowsWslProvisioning
 function provisioningError(error: unknown): {
   detail: string;
   restartRequired: boolean;
+  code: string | null;
 } {
   if (error instanceof Error) {
     return {
@@ -101,9 +109,25 @@ function provisioningError(error: unknown): {
         'restartRequired' in error &&
         typeof (error as Error & { restartRequired?: unknown }).restartRequired === 'boolean' &&
         (error as Error & { restartRequired: boolean }).restartRequired,
+      code: error instanceof WindowsWslProvisioningError ? error.code : null,
     };
   }
-  return { detail: String(error), restartRequired: false };
+  return { detail: String(error), restartRequired: false, code: null };
+}
+
+function localizedFailureDetail(failure: ReturnType<typeof provisioningError>, locale: string): string {
+  const isChinese = locale.toLowerCase().startsWith('zh');
+  const networkCatalogFailure =
+    failure.code === 'distribution_catalog_unavailable' &&
+    /(?:WININET_E_CANNOT_CONNECT|CANNOT_CONNECT|timed?\s*out|timeout|network|proxy|dns|could not connect|unable to reach)/i.test(
+      failure.detail
+    );
+  if (networkCatalogFailure) {
+    return isChinese
+      ? '无法连接 WSL 在线目录（raw.githubusercontent.com）。请检查网络、代理或 VPN 后点击“重试”。\n错误码：distribution_catalog_unavailable'
+      : 'The WSL online catalog (raw.githubusercontent.com) is unreachable. Check your network, proxy, or VPN, then choose Retry.\nError code: distribution_catalog_unavailable';
+  }
+  return failure.detail;
 }
 
 function hostLocale(): string {
@@ -163,23 +187,26 @@ export class WindowsWslProvisioningWindow {
     this.window = null;
   }
 
-  async showFailure(error: unknown): Promise<void> {
+  async showFailure(error: unknown): Promise<'retry' | 'close'> {
     if (this.showTimer) clearTimeout(this.showTimer);
     this.showTimer = null;
     const copy = hostLocale().toLowerCase().startsWith('zh') ? CHINESE_COPY : ENGLISH_COPY;
     const failure = provisioningError(error);
+    const locale = hostLocale();
     this.update({
       stage: failure.restartRequired ? 'restart_required' : 'repair_required',
-      detail: failure.detail,
+      detail: localizedFailureDetail(failure, locale),
     });
     if (this.window && !this.window.isDestroyed()) this.window.show();
-    await dialog.showMessageBox(this.window ?? undefined, {
+    const result = await dialog.showMessageBox(this.window ?? undefined, {
       type: failure.restartRequired ? 'info' : 'error',
       title: failure.restartRequired ? copy.restartTitle : copy.failureTitle,
-      message: failure.restartRequired ? copy.restartMessage : failure.detail,
-      buttons: [copy.close],
-      defaultId: 0,
+      message: failure.restartRequired ? copy.restartMessage : localizedFailureDetail(failure, locale),
+      buttons: failure.restartRequired ? [copy.close] : [copy.retry, copy.close],
+      defaultId: failure.restartRequired ? 0 : 0,
+      cancelId: failure.restartRequired ? 0 : 1,
       noLink: true,
     });
+    return !failure.restartRequired && result.response === 0 ? 'retry' : 'close';
   }
 }

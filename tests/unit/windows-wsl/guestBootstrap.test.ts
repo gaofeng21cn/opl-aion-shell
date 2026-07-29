@@ -61,6 +61,20 @@ describe('OPL Linux guest bootstrap', () => {
     expect(inspect).toContain('"sha256:$codex_command_sha256" != "$identity_codex_digest"');
   });
 
+  it('repairs an incomplete carrier activation and verifies managed Node on every startup', () => {
+    const installer = read('install-opl-linux.sh');
+    expect(installer).toContain('if ! runtime_activation_complete "$activation"; then');
+    expect(installer).toContain('Repairing incomplete packaged Linux runtime activation');
+    expect(installer).toContain('chmod 0755 \\');
+    expect(installer).toContain('if ! runtime_activation_complete "$pending"; then');
+
+    const inspect = read('opl-runtime-inspect');
+    expect(inspect).toContain('.node.executable | select(type == "string" and . == "bin/node")');
+    expect(inspect).toContain('if [[ ! -x "$managed_node" ]]; then');
+    expect(inspect).toContain('actual_node_version="$("$managed_node" --version 2>/dev/null || true)"');
+    expect(inspect).toContain('for command_name in npm npx; do');
+  });
+
   it('counts operation records without feeding filenames into jq', () => {
     const script = read('opl-runtime-inspect');
     expect(script).toContain('--argjson active_operation_count "$active_operation_count"');

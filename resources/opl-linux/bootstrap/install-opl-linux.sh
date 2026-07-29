@@ -15,7 +15,7 @@ receipt_root=/var/lib/opl/receipts
 guest_user=opl
 
 if [[ ! -f "$runtime_source/manifest.json" ]] ||
-  [[ ! -x "$runtime_source/aioncore" ]] ||
+  [[ ! -f "$runtime_source/aioncore" ]] ||
   [[ ! -f "$runtime_source/managed-resources/manifest.json" ]]; then
   printf 'The packaged Linux runtime seed is incomplete.\n' >&2
   exit 1
@@ -51,14 +51,65 @@ install -d -o "$guest_user" -g "$guest_user" -m 0700 \
 
 runtime_manifest_sha256="$(sha256sum "$runtime_source/manifest.json" | awk '{print $1}')"
 activation="$carrier_root/store/sha256/$runtime_manifest_sha256"
-if [[ ! -d "$activation" ]]; then
+
+runtime_activation_complete() {
+  local root="$1"
+  local managed_node managed_node_bin codex_path
+  [[ -f "$root/manifest.json" ]] || return 1
+  [[ -x "$root/aioncore" ]] || return 1
+  [[ -f "$root/managed-resources/manifest.json" ]] || return 1
+  managed_node="$(find "$root/managed-resources/node" -type f -path '*/bin/node' -print -quit 2>/dev/null)"
+  [[ -n "$managed_node" ]] && [[ -x "$managed_node" ]] || return 1
+  managed_node_bin="$(dirname "$managed_node")"
+  [[ -x "$managed_node_bin/npm" ]] && [[ -x "$managed_node_bin/npx" ]] || return 1
+  codex_path="$(
+    find "$root/managed-resources" \
+      -type f \
+      -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
+      -print -quit 2>/dev/null
+  )"
+  [[ -n "$codex_path" ]] && [[ -x "$codex_path" ]]
+}
+
+if ! runtime_activation_complete "$activation"; then
+  if [[ -d "$activation" ]]; then
+    printf 'Repairing incomplete packaged Linux runtime activation: %s\n' "$activation" >&2
+    rm -rf "$activation"
+  fi
   pending="$activation.pending.$$"
   rm -rf "$pending"
   install -d -m 0755 "$pending"
   cp -a "$runtime_source/." "$pending/"
+  pending_node="$(find "$pending/managed-resources/node" -type f -path '*/bin/node' -print -quit 2>/dev/null)"
+  pending_node_bin="$(dirname "${pending_node:-/missing}")"
+  pending_codex="$(
+    find "$pending/managed-resources" \
+      -type f \
+      -path '*/@openai/codex-linux-x64/vendor/*/bin/codex' \
+      -print -quit 2>/dev/null
+  )"
+  if [[ -z "$pending_node" ]] ||
+    [[ ! -f "$pending_node_bin/npm" ]] ||
+    [[ ! -f "$pending_node_bin/npx" ]] ||
+    [[ -z "$pending_codex" ]]; then
+    printf 'The packaged Linux runtime seed is missing a managed executable.\n' >&2
+    rm -rf "$pending"
+    exit 1
+  fi
+  chmod 0755 \
+    "$pending/aioncore" \
+    "$pending_node" \
+    "$pending_node_bin/npm" \
+    "$pending_node_bin/npx" \
+    "$pending_codex"
   actual_manifest_sha256="$(sha256sum "$pending/manifest.json" | awk '{print $1}')"
   if [[ "$actual_manifest_sha256" != "$runtime_manifest_sha256" ]]; then
     printf 'Linux runtime manifest changed while staging.\n' >&2
+    rm -rf "$pending"
+    exit 1
+  fi
+  if ! runtime_activation_complete "$pending"; then
+    printf 'The packaged Linux runtime activation failed integrity verification.\n' >&2
     rm -rf "$pending"
     exit 1
   fi

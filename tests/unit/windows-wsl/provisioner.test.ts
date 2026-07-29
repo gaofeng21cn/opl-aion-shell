@@ -93,6 +93,14 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     expect([...__windowsWslProvisionerTest.parseOnlineDistributionNames(output)]).toEqual(['Ubuntu-24.04', 'Debian']);
   });
 
+  it('decodes redirected UTF-16LE WSL output without corrupting UTF-8 output', () => {
+    const utf16 = Buffer.from('Wsl/WININET_E_CANNOT_CONNECT\r\n', 'utf16le');
+    expect(__windowsWslProvisionerTest.decodeWindowsCommandOutput([utf16])).toContain('WININET_E_CANNOT_CONNECT');
+    expect(__windowsWslProvisionerTest.decodeWindowsCommandOutput([Buffer.from('Ubuntu-24.04\n', 'utf8')])).toBe(
+      'Ubuntu-24.04\n'
+    );
+  });
+
   it('requires a non-negative active operation count', () => {
     expect(validateWindowsWslGuestIdentity(identity()).active_operation_count).toBe(0);
     expect(() => validateWindowsWslGuestIdentity({ ...identity(), active_operation_count: -1 })).toThrow(
