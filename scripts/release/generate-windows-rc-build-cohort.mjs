@@ -85,22 +85,55 @@ function findSingleFile(rootDir, predicate, label) {
   return matches[0];
 }
 
-function managedCodexPath(managedResourcesPath, manifest) {
-  const matches = Array.isArray(manifest.clis) ? manifest.clis.filter((entry) => entry?.name === 'codex') : [];
-  if (manifest.schemaVersion !== 2 || manifest.runtimeKey !== 'linux-x64' || matches.length !== 1) {
-    throw new Error('Managed resources manifest has no unique Linux x64 Codex CLI identity');
+function isSafeContractPath(value) {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    !value.includes('\\') &&
+    !path.posix.isAbsolute(value) &&
+    value.split('/').every((part) => part && part !== '.' && part !== '..')
+  );
+}
+
+function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runtimeKey) {
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Managed resources manifest is not valid JSON: ${error.message}`);
   }
-  const codex = matches[0];
+
+  if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
+    throw new Error(`Managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
+  }
+
+  const codexEntries = Array.isArray(manifest.clis) ? manifest.clis.filter((entry) => entry?.name === 'codex') : [];
+  if (codexEntries.length !== 1) {
+    throw new Error(`Expected one schema-v2 managed Codex CLI entry, found ${codexEntries.length}`);
+  }
+
+  const codex = codexEntries[0];
+  const version = typeof codex.version === 'string' ? codex.version.trim() : '';
+  const expectedRoot = `cli/codex/${version}/${runtimeKey}`;
   if (
-    codex.platformDirectory !== 'linux-x64' ||
-    typeof codex.root !== 'string' ||
-    !/^cli\/codex\/\d+\.\d+\.\d+\/linux-x64$/.test(codex.root) ||
-    typeof codex.executable !== 'string' ||
-    !/^vendor\/[A-Za-z0-9._-]+\/bin\/codex$/.test(codex.executable)
+    !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(version) ||
+    codex.root !== expectedRoot ||
+    codex.platformDirectory !== runtimeKey ||
+    !isSafeContractPath(codex.root) ||
+    !isSafeContractPath(codex.executable) ||
+    !/^vendor\/[0-9A-Za-z._-]+\/bin\/codex$/.test(codex.executable)
   ) {
-    throw new Error('Managed Codex CLI identity is invalid');
+    throw new Error('Managed Codex CLI identity is inconsistent with the schema-v2 layout');
   }
-  return path.join(managedResourcesPath, ...codex.root.split('/'), ...codex.executable.split('/'));
+
+  const codexPath = path.resolve(managedResourcesRoot, ...codex.root.split('/'), ...codex.executable.split('/'));
+  const codexExecutables = walkFiles(managedResourcesRoot).filter((candidate) => path.basename(candidate) === 'codex');
+  if (codexExecutables.length !== 1 || path.resolve(codexExecutables[0]) !== codexPath) {
+    throw new Error(
+      `Expected one managed Codex executable at the schema-v2 manifest path, found ${codexExecutables.length}`
+    );
+  }
+  return codexPath;
 }
 
 export function generateWindowsRcBuildCohort({
@@ -145,15 +178,15 @@ export function generateWindowsRcBuildCohort({
   const runtimeRoot = path.join(rootDir, 'resources', 'bundled-aioncore', 'linux-x64');
   const aioncorePath = path.join(runtimeRoot, 'aioncore');
   const runtimeManifestPath = path.join(runtimeRoot, 'manifest.json');
-  const managedManifestPath = path.join(runtimeRoot, 'managed-resources', 'manifest.json');
-  const managedResourcesPath = path.dirname(managedManifestPath);
-  const managedManifest = JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
+  const managedResourcesRoot = path.join(runtimeRoot, 'managed-resources');
+  const managedManifestPath = path.join(managedResourcesRoot, 'manifest.json');
+  const managedManifestIdentity = fileIdentity(rootDir, managedManifestPath);
   const managedNodePath = findSingleFile(
-    path.join(managedResourcesPath, 'node'),
+    path.join(managedResourcesRoot, 'node'),
     (candidate) => candidate.replaceAll(path.sep, '/').endsWith('/bin/node'),
     'managed Node executable'
   );
-  const codexPath = managedCodexPath(managedResourcesPath, managedManifest);
+  const codexPath = resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, 'linux-x64');
 
   return {
     schema: 'opl_windows_rc_build_cohort.v1',
@@ -184,7 +217,7 @@ export function generateWindowsRcBuildCohort({
       distribution_product: fileIdentity(rootDir, productPath),
       aioncore: fileIdentity(rootDir, aioncorePath),
       runtime_manifest: fileIdentity(rootDir, runtimeManifestPath),
-      managed_resources_manifest: fileIdentity(rootDir, managedManifestPath),
+      managed_resources_manifest: managedManifestIdentity,
       managed_node: fileIdentity(rootDir, managedNodePath),
       codex: fileIdentity(rootDir, codexPath),
     },
