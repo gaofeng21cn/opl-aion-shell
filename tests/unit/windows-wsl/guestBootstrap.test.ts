@@ -52,6 +52,9 @@ describe('OPL Linux guest bootstrap', () => {
 
   it('binds the packaged Codex realpath to one inspected command identity', () => {
     const installer = read('install-opl-linux.sh');
+    expect(installer).toContain('managed_codex_path()');
+    expect(installer).toContain('select(.schemaVersion == 2 and .runtimeKey == "linux-x64")');
+    expect(installer).toContain('codex_path="$(managed_codex_path "$carrier_root/current")"');
     expect(installer).toContain('ln -sfn "$codex_realpath" /usr/local/bin/codex');
     expect(installer).toContain('codex_command_digest: $codex_command_digest');
 

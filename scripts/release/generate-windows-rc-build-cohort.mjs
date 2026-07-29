@@ -85,6 +85,24 @@ function findSingleFile(rootDir, predicate, label) {
   return matches[0];
 }
 
+function managedCodexPath(managedResourcesPath, manifest) {
+  const matches = Array.isArray(manifest.clis) ? manifest.clis.filter((entry) => entry?.name === 'codex') : [];
+  if (manifest.schemaVersion !== 2 || manifest.runtimeKey !== 'linux-x64' || matches.length !== 1) {
+    throw new Error('Managed resources manifest has no unique Linux x64 Codex CLI identity');
+  }
+  const codex = matches[0];
+  if (
+    codex.platformDirectory !== 'linux-x64' ||
+    typeof codex.root !== 'string' ||
+    !/^cli\/codex\/\d+\.\d+\.\d+\/linux-x64$/.test(codex.root) ||
+    typeof codex.executable !== 'string' ||
+    !/^vendor\/[A-Za-z0-9._-]+\/bin\/codex$/.test(codex.executable)
+  ) {
+    throw new Error('Managed Codex CLI identity is invalid');
+  }
+  return path.join(managedResourcesPath, ...codex.root.split('/'), ...codex.executable.split('/'));
+}
+
 export function generateWindowsRcBuildCohort({
   rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..'),
   env = process.env,
@@ -128,18 +146,14 @@ export function generateWindowsRcBuildCohort({
   const aioncorePath = path.join(runtimeRoot, 'aioncore');
   const runtimeManifestPath = path.join(runtimeRoot, 'manifest.json');
   const managedManifestPath = path.join(runtimeRoot, 'managed-resources', 'manifest.json');
+  const managedResourcesPath = path.dirname(managedManifestPath);
+  const managedManifest = JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
   const managedNodePath = findSingleFile(
-    path.join(runtimeRoot, 'managed-resources', 'node'),
+    path.join(managedResourcesPath, 'node'),
     (candidate) => candidate.replaceAll(path.sep, '/').endsWith('/bin/node'),
     'managed Node executable'
   );
-  const codexPath = findSingleFile(
-    path.join(runtimeRoot, 'managed-resources'),
-    (candidate) =>
-      candidate.replaceAll(path.sep, '/').includes('/@openai/codex-linux-x64/vendor/') &&
-      candidate.replaceAll(path.sep, '/').endsWith('/bin/codex'),
-    'managed Codex executable'
-  );
+  const codexPath = managedCodexPath(managedResourcesPath, managedManifest);
 
   return {
     schema: 'opl_windows_rc_build_cohort.v1',

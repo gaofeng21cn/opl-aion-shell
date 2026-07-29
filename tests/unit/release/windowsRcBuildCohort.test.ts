@@ -55,11 +55,27 @@ describe('Windows RC build cohort', () => {
     );
     write(root, 'resources/bundled-aioncore/linux-x64/aioncore', 'aioncore');
     write(root, 'resources/bundled-aioncore/linux-x64/manifest.json', '{}');
-    write(root, 'resources/bundled-aioncore/linux-x64/managed-resources/manifest.json', '{}');
+    write(
+      root,
+      'resources/bundled-aioncore/linux-x64/managed-resources/manifest.json',
+      JSON.stringify({
+        schemaVersion: 2,
+        runtimeKey: 'linux-x64',
+        clis: [
+          {
+            name: 'codex',
+            version: '0.144.6',
+            root: 'cli/codex/0.144.6/linux-x64',
+            platformDirectory: 'linux-x64',
+            executable: 'vendor/x86_64-unknown-linux-musl/bin/codex',
+          },
+        ],
+      })
+    );
     write(root, 'resources/bundled-aioncore/linux-x64/managed-resources/node/node-v24.11.0-linux-x64/bin/node', 'node');
     write(
       root,
-      'resources/bundled-aioncore/linux-x64/managed-resources/acp/codex-acp/1/linux-x64/node_modules/@openai/codex-linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex',
+      'resources/bundled-aioncore/linux-x64/managed-resources/cli/codex/0.144.6/linux-x64/vendor/x86_64-unknown-linux-musl/bin/codex',
       'codex'
     );
 
@@ -122,7 +138,15 @@ describe('Windows RC build cohort', () => {
       size_bytes: 4,
     });
     expect(cohort.runtime.managed_node.sha256).toMatch(/^[0-9a-f]{64}$/);
-    expect(cohort.runtime.codex.path).toContain('@openai/codex-linux-x64/vendor/');
+    expect(cohort.runtime.codex.path).toContain('managed-resources/cli/codex/0.144.6/linux-x64/vendor/');
+
+    const managedManifestPath = path.join(root, 'resources/bundled-aioncore/linux-x64/managed-resources/manifest.json');
+    const managedManifest = JSON.parse(fs.readFileSync(managedManifestPath, 'utf8'));
+    managedManifest.clis[0].root = 'cli/codex/0.144.6/../../outside';
+    fs.writeFileSync(managedManifestPath, JSON.stringify(managedManifest));
+    expect(() => generateWindowsRcBuildCohort(options)).toThrow('Managed Codex CLI identity is invalid');
+    managedManifest.clis[0].root = 'cli/codex/0.144.6/linux-x64';
+    fs.writeFileSync(managedManifestPath, JSON.stringify(managedManifest));
 
     write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, '');
     expect(() => generateWindowsRcBuildCohort(options)).toThrow(
