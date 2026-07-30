@@ -5,12 +5,14 @@ import { detectStartupArchitectureMismatch } from '@/process/startup/architectur
 import { recoverCorruptedDatabaseAfterUserConfirmation } from '@/process/startup/recoverCorruptedDatabase';
 import {
   getBackendStartupFailureDialogRoute,
+  buildStartupDiagnosticSummary,
   buildStartupSupportIssueUrl,
   getDownloadLatestModalActionProps,
   getInstallationIntegrityDescription,
   getInstallationIntegrityModalActions,
   getInstallationIntegritySecondaryText,
   getInstallationIntegrityTitle,
+  getSafeMissingResources,
 } from '@/renderer/components/layout/InstallationIntegrityDialog';
 
 const translateKey = (key: string) => key;
@@ -24,6 +26,7 @@ const translateStartupIssue = (key: string, options?: Record<string, string>) =>
       `Failure reason: ${options?.reason}`,
       `Backend boundary code: ${options?.boundaryCode}`,
       `Backend boundary stage: ${options?.boundaryStage}`,
+      `Missing resources: ${options?.missingResources}`,
     ].join('\n');
   }
   return key;
@@ -336,6 +339,33 @@ describe('getDownloadLatestModalActionProps', () => {
 });
 
 describe('getInstallationIntegrityModalActions', () => {
+  it('offers a fresh recheck plus bounded diagnostics for incomplete installations', async () => {
+    const onCopyDiagnostics = vi.fn();
+    const onOpenLogDirectory = vi.fn();
+    const onRestartApplication = vi.fn();
+    const actions = getInstallationIntegrityModalActions(translateKey, {
+      diagnosticsKind: 'incomplete_installation',
+      onCopyDiagnostics,
+      onOpenLogDirectory,
+      onRestartApplication,
+    });
+
+    expect(actions).toMatchObject({
+      copyDiagnosticsText: 'common.backendStartup.actions.copyDiagnostics',
+      downloadText: 'common.backendStartup.incompleteInstallation.downloadLatest',
+      openLogDirectoryText: 'common.backendStartup.actions.openLogDirectory',
+      restartText: 'common.backendStartup.actions.restartAndRecheck',
+      supportText: 'common.backendStartup.actions.openSupport',
+    });
+
+    await actions.onCopyDiagnostics();
+    await actions.onOpenLogDirectory();
+    await actions.onRestartApplication();
+    expect(onCopyDiagnostics).toHaveBeenCalledOnce();
+    expect(onOpenLogDirectory).toHaveBeenCalledOnce();
+    expect(onRestartApplication).toHaveBeenCalledOnce();
+  });
+
   it('uses a rebuild action instead of download for recoverable database corruption', () => {
     const onRecoverCorruptedDatabase = vi.fn();
 
@@ -397,6 +427,7 @@ describe('buildStartupSupportIssueUrl', () => {
           reason: 'backend_startup_failed',
           backendBoundaryCode: 'BOOTSTRAP_DATA_INIT_FAILED',
           backendBoundaryStage: 'database.open',
+          missingResources: ['bundled-aioncore/win32-x64/aioncore.exe'],
         },
         { appVersion: '26.7.21', platform: 'darwin', architecture: 'arm64' }
       )
@@ -412,7 +443,46 @@ describe('buildStartupSupportIssueUrl', () => {
     expect(issueUrl.searchParams.get('body')).toContain('Failure reason: backend_startup_failed');
     expect(issueUrl.searchParams.get('body')).toContain('Backend boundary code: BOOTSTRAP_DATA_INIT_FAILED');
     expect(issueUrl.searchParams.get('body')).toContain('Backend boundary stage: database.open');
+    expect(issueUrl.searchParams.get('body')).toContain('Missing resources: bundled-aioncore/win32-x64/aioncore.exe');
     expect(issueUrl.searchParams.get('body')).not.toMatch(/credential|\/Users\/|log body/i);
+  });
+});
+
+describe('startup diagnostic redaction', () => {
+  it('deduplicates relative resource names and rejects path or control-character injection', () => {
+    expect(
+      getSafeMissingResources([
+        'bundled-aioncore/win32-x64/aioncore.exe',
+        'bundled-aioncore\\win32-x64\\aioncore.exe',
+        ' C:\\Users\\person\\secret.txt ',
+        '/Users/person/secret.txt',
+        '../secret.txt',
+        'https://example.invalid/payload',
+        'bundled-aioncore/\nsecret',
+      ])
+    ).toEqual(['bundled-aioncore/win32-x64/aioncore.exe']);
+  });
+
+  it('copies only the diagnostic allowlist and safe missing-resource names', () => {
+    const summary = buildStartupDiagnosticSummary(
+      'incomplete_installation',
+      {
+        reason: 'backend_incomplete_installation',
+        backendBoundaryCode: 'BUNDLED_RUNTIME_MISSING',
+        backendBoundaryStage: 'packaged_resources.readback',
+        missingResources: ['bundled-aioncore/win32-x64/aioncore.exe', 'C:\\Users\\person\\secret.txt'],
+      },
+      { appVersion: '26.7.30-rc.1', platform: 'win32', architecture: 'x64' }
+    );
+
+    expect(summary).toContain('App version: 26.7.30-rc.1');
+    expect(summary).toContain('Platform: win32');
+    expect(summary).toContain('Architecture: x64');
+    expect(summary).toContain('Failure reason: backend_incomplete_installation');
+    expect(summary).toContain('Backend boundary code: BUNDLED_RUNTIME_MISSING');
+    expect(summary).toContain('Backend boundary stage: packaged_resources.readback');
+    expect(summary).toContain('Missing resources: bundled-aioncore/win32-x64/aioncore.exe');
+    expect(summary).not.toMatch(/C:\\|Users|credential|token|log contents/i);
   });
 });
 
