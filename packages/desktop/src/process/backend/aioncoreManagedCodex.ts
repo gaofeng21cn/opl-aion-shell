@@ -1,0 +1,154 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+type ResolveAioncoreManagedCodexInput = {
+  resourcesPath?: string;
+  platform?: NodeJS.Platform;
+  arch?: NodeJS.Architecture;
+  env?: NodeJS.ProcessEnv;
+  homeDir?: string;
+};
+
+export type AioncoreManagedCodexResolution = {
+  runtimeKey: string;
+  version: string;
+  manifestPath: string;
+  managedResourcesRoot: string;
+  cliRoot: string;
+  executablePath: string;
+  env: NodeJS.ProcessEnv;
+};
+
+function fail(message: string): never {
+  throw new Error(`AionCore managed Codex resolution failed: ${message}`);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function readManifest(manifestPath: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as unknown;
+    if (!isRecord(parsed)) {
+      fail(`manifest must be a JSON object: ${manifestPath}`);
+    }
+    return parsed;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('AionCore managed Codex resolution failed:')) {
+      throw error;
+    }
+    fail(`cannot read manifest ${manifestPath}: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function requireSafePosixRelativePath(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value || value.includes('\\') || path.posix.isAbsolute(value)) {
+    fail(`${field} must be a safe POSIX relative path`);
+  }
+  if (value.split('/').some((part) => !part || part === '.' || part === '..')) {
+    fail(`${field} must be a safe POSIX relative path`);
+  }
+  return value;
+}
+
+function requireRealPath(candidate: string, label: string): string {
+  try {
+    return fs.realpathSync(candidate);
+  } catch (error) {
+    fail(`${label} does not exist: ${candidate} (${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
+function isPathInside(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return Boolean(relative) && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+function normalizePath(executableDirectory: string, currentPath: string | undefined): string {
+  const seen = new Set<string>();
+  const entries: string[] = [];
+  for (const entry of [executableDirectory, ...(currentPath ?? '').split(path.delimiter)]) {
+    const normalized = entry.trim();
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+    seen.add(normalized);
+    entries.push(normalized);
+  }
+  return entries.join(path.delimiter);
+}
+
+export function resolveAioncoreManagedCodex(
+  input: ResolveAioncoreManagedCodexInput = {}
+): AioncoreManagedCodexResolution {
+  const platform = input.platform ?? process.platform;
+  if (platform !== 'darwin' && platform !== 'linux') {
+    fail(`unsupported platform ${platform}`);
+  }
+
+  const arch = input.arch ?? process.arch;
+  const runtimeKey = `${platform}-${arch}`;
+  const resourcesPath = input.resourcesPath ?? process.resourcesPath;
+  const managedResourcesRoot = path.join(resourcesPath, 'bundled-aioncore', runtimeKey, 'managed-resources');
+  const manifestPath = path.join(managedResourcesRoot, 'manifest.json');
+  const manifest = readManifest(manifestPath);
+
+  if (manifest.schemaVersion !== 2) {
+    fail(`manifest schemaVersion must be 2: ${manifestPath}`);
+  }
+  if (manifest.runtimeKey !== runtimeKey) {
+    fail(`manifest runtimeKey must be ${runtimeKey}: ${manifestPath}`);
+  }
+
+  const clis = Array.isArray(manifest.clis) ? manifest.clis : [];
+  const codexEntries = clis.filter((entry) => isRecord(entry) && entry.name === 'codex');
+  if (codexEntries.length !== 1) {
+    fail(`manifest must contain exactly one Codex CLI entry: ${manifestPath}`);
+  }
+
+  const codex = codexEntries[0] as Record<string, unknown>;
+  if (codex.platformDirectory !== runtimeKey) {
+    fail(`Codex platformDirectory must be ${runtimeKey}: ${manifestPath}`);
+  }
+  const version = typeof codex.version === 'string' ? codex.version.trim() : '';
+  if (!version) {
+    fail(`Codex version must be non-empty: ${manifestPath}`);
+  }
+
+  const root = requireSafePosixRelativePath(codex.root, 'Codex root');
+  const executable = requireSafePosixRelativePath(codex.executable, 'Codex executable');
+  const cliRoot = path.resolve(managedResourcesRoot, ...root.split('/'));
+  const executableCandidate = path.resolve(cliRoot, ...executable.split('/'));
+  const realManagedResourcesRoot = requireRealPath(managedResourcesRoot, 'managed resources root');
+  const executablePath = requireRealPath(executableCandidate, 'Codex executable');
+
+  if (!isPathInside(executablePath, realManagedResourcesRoot)) {
+    fail(`Codex executable escapes managed resources root: ${executableCandidate}`);
+  }
+  if (!fs.statSync(executablePath).isFile()) {
+    fail(`Codex executable is not a regular file: ${executablePath}`);
+  }
+  try {
+    fs.accessSync(executablePath, fs.constants.X_OK);
+  } catch {
+    fail(`Codex executable is not executable: ${executablePath}`);
+  }
+
+  const env = input.env ?? process.env;
+  const homeDir = input.homeDir ?? os.homedir();
+  return {
+    runtimeKey,
+    version,
+    manifestPath,
+    managedResourcesRoot: realManagedResourcesRoot,
+    cliRoot,
+    executablePath,
+    env: {
+      OPL_CODEX_BIN: executablePath,
+      CODEX_HOME: env.CODEX_HOME?.trim() || path.join(homeDir, '.codex'),
+      PATH: normalizePath(path.dirname(executablePath), env.PATH),
+    },
+  };
+}

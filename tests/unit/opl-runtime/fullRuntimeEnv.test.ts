@@ -18,6 +18,7 @@ const tmpRoots: string[] = [];
 const SYSTEM_PATH_ENTRIES =
   process.platform === 'win32' ? [] : ['/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin'];
 const ORIGINAL_CODEX_HOME = process.env.CODEX_HOME;
+const ORIGINAL_OPL_CODEX_BIN = process.env.OPL_CODEX_BIN;
 
 function makeTempRoot(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
@@ -27,6 +28,7 @@ function makeTempRoot(name: string): string {
 
 beforeEach(() => {
   delete process.env.CODEX_HOME;
+  delete process.env.OPL_CODEX_BIN;
 });
 
 afterEach(() => {
@@ -35,6 +37,11 @@ afterEach(() => {
     delete process.env.CODEX_HOME;
   } else {
     process.env.CODEX_HOME = ORIGINAL_CODEX_HOME;
+  }
+  if (ORIGINAL_OPL_CODEX_BIN === undefined) {
+    delete process.env.OPL_CODEX_BIN;
+  } else {
+    process.env.OPL_CODEX_BIN = ORIGINAL_OPL_CODEX_BIN;
   }
   for (const root of tmpRoots.splice(0)) {
     fs.rmSync(root, { recursive: true, force: true });
@@ -111,7 +118,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(installed?.env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(expectedHome, 'modules', 'rca'));
     expect(installed?.env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(expectedHome, 'modules', 'meta-agent'));
     expect(installed?.env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(expectedHome, 'modules', 'bookforge'));
-    expect(installed?.env.OPL_CODEX_BIN).toBe(path.join(expectedHome, 'bin', 'codex'));
+    expect(installed?.env.OPL_CODEX_BIN).toBeUndefined();
     expect(installed?.env.OPL_HERMES_BIN).toBeUndefined();
     expect(installed?.env.PATH?.split(path.delimiter).slice(0, 4)).toEqual([
       path.join(expectedHome, 'bin'),
@@ -135,6 +142,7 @@ describe('ensurePackagedOplFullRuntime', () => {
 
   it('activates an installed Full runtime and exposes optional hermes payload only when present', () => {
     process.env.CODEX_HOME = '/managed/codex';
+    process.env.OPL_CODEX_BIN = '/explicit/codex';
     const homeDir = makeTempRoot('opl-active-runtime-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
@@ -159,7 +167,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(activated?.env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
     expect(activated?.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(path.join(runtimeHome, 'opl'));
     expect(activated?.env.CODEX_HOME).toBe('/managed/codex');
-    expect(activated?.env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
+    expect(activated?.env.OPL_CODEX_BIN).toBe('/explicit/codex');
     expect(activated?.env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
   });
 
@@ -201,5 +209,6 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(prefix).toContain(`export OPL_FRAMEWORK_UPDATE_TARGET_ROOT='${path.join(runtimeHome, 'opl')}'`);
     expect(prefix).toContain('if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ]');
     expect(prefix).toContain('unset OPL_TEMPORAL_ADDRESS_SOURCE');
+    expect(prefix).not.toContain('OPL_CODEX_BIN');
   });
 });

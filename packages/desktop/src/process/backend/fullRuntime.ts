@@ -84,7 +84,6 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
       OPL_FULL_RUNTIME_HOME: runtimeHome,
       OPL_FRAMEWORK_UPDATE_TARGET_ROOT: frameworkRoot,
       OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
-      OPL_CODEX_BIN: path.join(runtimeHome, 'bin', 'codex'),
       OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
       ...existingFileEnv('OPL_HERMES_BIN', path.join(runtimeHome, 'bin', 'hermes')),
       OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
@@ -348,7 +347,6 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,
     `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(normalized, 'modules', 'meta-agent'))}`,
     `export OPL_MODULE_PATH_OPLBOOKFORGE=${shellQuote(path.join(normalized, 'modules', 'bookforge'))}`,
-    `export OPL_CODEX_BIN=${shellQuote(path.join(normalized, 'bin', 'codex'))}`,
     fs.existsSync(path.join(normalized, 'bin', 'hermes'))
       ? `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`
       : '',
