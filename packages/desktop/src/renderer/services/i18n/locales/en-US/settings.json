@@ -1510,7 +1510,7 @@
     },
     "backgroundTasks": {
       "title": "Background tasks",
-      "readyDescription": "The task service, worker, and recurring scheduler are available.",
+      "readyDescription": "The Temporal service, OPL task worker, and scheduled runs are available.",
       "attentionDescription": "A background-task dependency needs to be checked or repaired.",
       "status": {
         "ready": "Available",
@@ -1522,26 +1522,26 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway data",
       "backgroundService": "Background service",
-      "temporalNotConfigured": "The Temporal server and worker are not configured; the scheduler still needs to be checked.",
-      "temporalNeedsAttention": "The Temporal server, worker, or scheduler still needs attention.",
+      "temporalNotConfigured": "Durable task operations are not set up; plain Codex chat still works.",
+      "temporalNeedsAttention": "Durable task operations have one root cause to repair.",
       "temporalReasons": {
         "notConfigured": "No runtime address is configured yet; Maintenance can configure and start the local service.",
-        "serverUnreachable": "A server address is configured, but it cannot be reached.",
+        "serverUnreachable": "A service address is configured, but it cannot be reached.",
         "supervisorNotInstalled": "Login startup protection is not installed.",
         "supervisorNotLoaded": "Login startup protection is installed but not running.",
         "supervisorConfigurationDrift": "Login startup protection no longer matches the managed configuration.",
         "supervisorError": "Login startup protection reported an error.",
         "supervisorUnready": "Login startup protection has not become ready.",
-        "workerDependencyUnavailable": "A required Temporal worker dependency is missing or unavailable in OPL Base.",
-        "workerMutationBlocked": "The active development source is not allowed to take over the shared managed worker.",
-        "workerSourceStale": "The running worker does not match the current managed source and must be restarted.",
-        "duplicateWorker": "Another worker is already using the managed task queue.",
-        "workerExited": "The worker process exited before it became ready.",
-        "workerNotReady": "The worker has not become ready for the managed task queue.",
-        "schedulerNotInstalled": "The recurring OPL schedule has not been installed.",
-        "schedulerPaused": "The recurring OPL schedule is paused.",
-        "schedulerError": "The scheduler reported an error during its latest check.",
-        "schedulerNotReady": "The scheduler has not reached a ready state.",
+        "workerDependencyUnavailable": "A required OPL task worker dependency is missing or unavailable in OPL Base.",
+        "workerMutationBlocked": "The active development source is not allowed to take over the shared OPL task worker.",
+        "workerSourceStale": "The running OPL task worker does not match the current managed source and must be restarted.",
+        "duplicateWorker": "Another OPL task worker is already using the managed task queue.",
+        "workerExited": "The OPL task worker exited before it became ready.",
+        "workerNotReady": "The OPL task worker has not become ready for the managed task queue.",
+        "schedulerNotInstalled": "Scheduled runs are not enabled.",
+        "schedulerPaused": "Scheduled runs are paused.",
+        "schedulerError": "Scheduled runs reported an error during the latest check.",
+        "schedulerNotReady": "Scheduled runs have not reached a ready state.",
         "attention": "This component reported a condition that requires maintenance.",
         "unknown": "This component did not provide enough fresh detail; run a check in Maintenance."
       },
@@ -2921,7 +2921,7 @@
       "refreshWorkspace": "Refresh work directory",
       "chooseWorkspaceRoot": "Choose Workspace",
       "startTemporal": "Start Temporal",
-      "restartTemporalWorker": "Restart Temporal worker"
+      "restartTemporalWorker": "Restart OPL task worker"
     },
     "messages": {
       "commandFailed": "OPL command failed",
@@ -2964,11 +2964,30 @@
       }
     },
     "temporal": {
-      "title": "Temporal services",
-      "description": "Temporal keeps durable OPL tasks running in the background. Check and maintain the server, worker, and scheduler here.",
+      "title": "Durable tasks (Temporal)",
+      "description": "See whether durable OPL background tasks can run now. Plain Codex chat does not depend on this service.",
+      "technicalDetails": "Technical details",
       "workerSourceStaleDetail": "Worker restart needed",
+      "summary": {
+        "readyTitle": "Durable tasks are running normally",
+        "serverSetupTitle": "Temporal service is not set up",
+        "serverRepairTitle": "Temporal service needs repair",
+        "workerGuardTitle": "Confirm the OPL task worker source",
+        "workerDependencyTitle": "OPL task worker is missing a dependency",
+        "workerRepairTitle": "OPL task worker is not ready",
+        "scheduleSetupTitle": "Scheduled runs are not enabled",
+        "schedulePausedTitle": "Scheduled runs are paused",
+        "scheduleRepairTitle": "Scheduled runs need repair",
+        "checkingTitle": "Recheck the runtime status",
+        "readyImpact": "Durable, scheduled, and recoverable background tasks can run.",
+        "serviceUnavailableImpact": "Durable, scheduled, and recoverable background tasks are unavailable; plain Codex chat still works.",
+        "workerUnavailableImpact": "The service is available, but OPL background tasks will not run yet; plain Codex chat still works.",
+        "scheduleUnavailableImpact": "Tasks can still run manually, but they will not start on a schedule.",
+        "checkingImpact": "Current evidence is incomplete. Rechecking does not change the runtime configuration."
+      },
       "server": {
-        "title": "Temporal server",
+        "title": "Temporal service",
+        "description": "Provides the Temporal runtime required by durable tasks.",
         "address": "{{address}} · {{source}}",
         "namespace": "Namespace: {{namespace}}",
         "supervisorReady": "Startup protection: login-resident and self-healing",
@@ -2981,10 +3000,11 @@
         "supervisorObservedAt": "Startup protection last checked: {{observedAt}}"
       },
       "worker": {
-        "title": "OPL worker",
+        "title": "OPL task worker",
+        "description": "Picks up and executes OPL background tasks from Temporal.",
         "taskQueue": "Task queue: {{taskQueue}}",
-        "blockers": "Needs attention: {{blockers}}",
-        "developerGuardBlocked": "The active OPL CLI points to a developer checkout, so it cannot take over the shared managed worker.",
+        "blockers": "Blocked by: {{blockers}}",
+        "developerGuardBlocked": "The active OPL CLI points to a developer checkout, so it cannot take over the shared OPL task worker.",
         "developerGuardNextSteps": "Switch back to the managed runtime, or explicitly enable authorized developer maintenance.",
         "manageSources": "Manage runtime source",
         "dependencyUnavailable": "A required worker dependency is unavailable. Repair OPL Base before starting the worker.",
@@ -2992,8 +3012,8 @@
         "reportedError": "The worker reported an error during its latest check."
       },
       "scheduler": {
-        "title": "OPL scheduler",
-        "description": "Maintains the recurring OPL family runtime schedule.",
+        "title": "Scheduled runs",
+        "description": "Starts tasks automatically at set times. It is not a separate service.",
         "reportedError": "The scheduler reported an error during its latest check.",
         "observedAt": "Last checked: {{observedAt}}"
       },
@@ -3004,6 +3024,11 @@
         "notChecked": "Not checked",
         "needsCheck": "Check required",
         "needsAttention": "Needs attention",
+        "setupRequired": "Setup required",
+        "repairRequired": "Repair required",
+        "waitingForService": "Waiting for Temporal service",
+        "waitingForWorker": "Waiting for OPL task worker",
+        "checkFailed": "Check failed",
         "notConfigured": "Not configured",
         "notInstalled": "Not installed",
         "restartRequired": "Restart required",
@@ -3018,27 +3043,30 @@
       },
       "blockers": {
         "notConfigured": "Temporal is not configured",
-        "serverUnreachable": "Temporal server is unreachable",
-        "workerDependencyUnavailable": "Worker dependencies are unavailable",
-        "duplicateWorker": "Another worker is already running",
-        "workerExited": "Worker process exited",
-        "workerSourceStale": "Worker source is out of date",
-        "workerNotReady": "Worker is not ready",
-        "serviceSupervisorUnready": "Temporal server startup protection is not ready",
-        "serviceSupervisorConfigurationDrift": "Temporal server startup protection configuration needs repair",
-        "serviceSupervisorNotLoaded": "Temporal server startup protection is not running",
-        "unknown": "An unknown worker blocker was reported"
+        "serverUnreachable": "Temporal service is unreachable",
+        "workerDependencyUnavailable": "OPL task worker dependencies are unavailable",
+        "duplicateWorker": "Another OPL task worker is already running",
+        "workerExited": "OPL task worker process exited",
+        "workerSourceStale": "OPL task worker source is out of date",
+        "workerNotReady": "OPL task worker is not ready",
+        "serviceSupervisorUnready": "Temporal service startup protection is not ready",
+        "serviceSupervisorConfigurationDrift": "Temporal service startup protection configuration needs repair",
+        "serviceSupervisorNotLoaded": "Temporal service startup protection is not running",
+        "unknown": "An unknown OPL task worker blocker was reported"
       },
       "actions": {
-        "checkServer": "Check server",
+        "checkServer": "Check service",
         "configureAndStartServer": "Configure and start",
-        "restartServer": "Restart server",
-        "checkWorker": "Check worker",
-        "startWorker": "Start worker",
-        "restartWorker": "Restart worker",
-        "checkScheduler": "Check scheduler",
-        "installScheduler": "Install scheduler",
-        "triggerScheduler": "Run scheduler now",
+        "restartServer": "Restart service",
+        "checkWorker": "Check task worker",
+        "startWorker": "Start task worker",
+        "restartWorker": "Restart task worker",
+        "checkScheduler": "Check scheduled runs",
+        "installScheduler": "Enable scheduled runs",
+        "triggerScheduler": "Run once now",
+        "recheck": "Recheck",
+        "waitingForService": "Make the Temporal service ready first.",
+        "waitingForWorker": "Make the OPL task worker ready first.",
         "unavailable": "This maintenance action is not available in the current App state."
       },
       "outcomes": {
@@ -3442,7 +3470,7 @@
       "views": {
         "services": {
           "title": "Service Status",
-          "description": "Review whether Codex and the background task service, worker, and recurring scheduler are available."
+          "description": "Review whether Codex and the Temporal service, OPL task worker, and scheduled runs are available."
         },
         "updates": {
           "title": "Updates & Repair",
