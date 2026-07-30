@@ -37,23 +37,6 @@ const DISPLAYABLE_STATUS_KEYS = new Set([
   'worker_source_stale',
 ]);
 
-const OPL_MODULE_DISPLAY_LABELS: Record<string, string> = {
-  'med-autoscience': 'Med Auto Science',
-  'med-autogrant': 'Med Auto Grant',
-  redcubeai: 'RedCube AI',
-  'redcube-ai': 'RedCube AI',
-  oplmetaagent: 'OPL Meta Agent',
-  oplbookforge: 'OPL Book Forge',
-  mag: 'Med Auto Grant',
-  mas: 'Med Auto Science',
-  medautoscience: 'Med Auto Science',
-  medautogrant: 'Med Auto Grant',
-  oma: 'OPL Meta Agent',
-  oplflow: 'OPL Flow',
-  redcube: 'RedCube AI',
-  rca: 'RedCube AI',
-};
-
 const DEVELOPER_MODULE_SOURCES = new Set([
   'developer_checkout',
   'developer_mode',
@@ -108,7 +91,7 @@ export function moduleId(module: RuntimeModuleItem): string {
 
 export function moduleDisplayLabel(module: RuntimeModuleItem): string {
   const id = moduleId(module);
-  return OPL_MODULE_DISPLAY_LABELS[id] ?? oplString(module.display_name) ?? oplString(module.label) ?? id;
+  return oplString(module.display_name) ?? oplString(module.label) ?? id;
 }
 
 export function normalizeModule(module: RuntimeModuleItem): RuntimeModuleItem {

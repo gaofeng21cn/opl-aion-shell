@@ -53,12 +53,25 @@ describe('buildRuntimeEnvironmentProjection', () => {
     expect(buildRuntimeModules({ items: [] })).toEqual([]);
   });
 
-  it('keeps an unknown runtime module visible without a fixed App allowlist', () => {
+  it('uses projected runtime labels and falls back to an unknown module id', () => {
     expect(
       buildRuntimeModules({
-        items: [{ module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true }],
+        items: [
+          {
+            module_id: 'mas',
+            display_name: 'Projected Science Package',
+            label: 'Legacy Alias',
+            installed: true,
+          },
+          { module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true },
+          { module_id: 'futureagent', installed: true },
+        ],
       })
-    ).toMatchObject([{ module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true }]);
+    ).toMatchObject([
+      { module_id: 'mas', label: 'Projected Science Package', installed: true },
+      { module_id: 'synthetic-lab-agent', label: 'Synthetic Lab Agent', installed: true },
+      { module_id: 'futureagent', label: 'futureagent', installed: true },
+    ]);
   });
 
   it('projects fast app state into summary, readiness, and maintenance counts', () => {
