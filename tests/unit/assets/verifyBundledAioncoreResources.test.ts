@@ -112,8 +112,8 @@ function seedRuntime(resourcesDir: string, runtimeKey: string): string {
   writeJson(join(runtimeRoot, 'manifest.json'), {
     platform,
     arch,
-    version: 'v0.1.54',
-    compatibility: { reportedVersion: '0.1.54' },
+    version: 'v0.1.55',
+    compatibility: { reportedVersion: '0.1.55' },
   });
   writeManagedResources(managedResourcesDir, runtimeKey);
   return managedResourcesDir;
@@ -384,7 +384,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.1.54 for win32-x64 with reported version 0.1.54'
+      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.1.55 for win32-x64 with reported version 0.1.55'
     );
   });
 });
