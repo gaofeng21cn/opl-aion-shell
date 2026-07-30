@@ -5,7 +5,8 @@
  */
 
 import { ipcBridge } from '@/common';
-import type { IConfirmation, IMessagePermission, TMessage } from '@/common/chat/chatLib';
+import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import { transformMessage, type IConfirmation, type IMessagePermission, type TMessage } from '@/common/chat/chatLib';
 import { useEffect } from 'react';
 import { useUpdateMessageList } from './hooks';
 
@@ -39,16 +40,43 @@ export function removePermissionMessage(list: TMessage[], target: { id?: string;
   });
 }
 
+export function mergeCanonicalPendingApprovals(list: TMessage[], responses: IResponseMessage[]): TMessage[] {
+  const existingMessageIds = new Set(list.map((message) => message.msg_id).filter(Boolean));
+  const recovered = responses
+    .map(transformMessage)
+    .filter((message): message is TMessage => message !== undefined && !existingMessageIds.has(message.msg_id));
+  return recovered.length > 0 ? list.concat(recovered) : list;
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function usePendingConfirmationsRecovery(conversation_id: string) {
+export function usePendingConfirmationsRecovery(conversation_id: string, canonicalThreadId?: string) {
   const updateMessageList = useUpdateMessageList();
 
   useEffect(() => {
     if (!conversation_id) return;
     let cancelled = false;
+
+    if (canonicalThreadId) {
+      void ipcBridge.codexThreads.pendingApprovals
+        .invoke({ threadId: canonicalThreadId, conversationId: conversation_id })
+        .then((responses) => {
+          if (cancelled) return;
+          updateMessageList((list) => mergeCanonicalPendingApprovals(list, responses));
+        })
+        .catch((error) => {
+          console.warn('[pending-confirmations] failed to recover canonical Codex approvals', {
+            conversation_id,
+            canonicalThreadId,
+            error: errorMessage(error),
+          });
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
 
     void ipcBridge.conversation.confirmation.list
       .invoke({ conversation_id })
@@ -79,5 +107,5 @@ export function usePendingConfirmationsRecovery(conversation_id: string) {
       cancelled = true;
       off();
     };
-  }, [conversation_id, updateMessageList]);
+  }, [canonicalThreadId, conversation_id, updateMessageList]);
 }

@@ -6,6 +6,7 @@ import {
   filterOplOrdinaryMcpStatuses,
   filterOplOrdinarySkillNames,
   getOplCodexModelDisplayOptions,
+  getOplDefaultCodexModel,
   getOplDefaultCodexReasoningEffort,
   isOplCodexCliFixedExecutor,
   shouldShowOplConversationModelSelector,
@@ -31,6 +32,7 @@ import FileAttachButton from '@/renderer/components/media/FileAttachButton';
 import FilePreview from '@/renderer/components/media/FilePreview';
 import HorizontalFileList from '@/renderer/components/media/HorizontalFileList';
 import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
+import { useCanonicalCodexSettings } from '@/renderer/hooks/agent/useCanonicalCodexSettings';
 import { useAgentModesForBackend } from '@/renderer/hooks/agent/useAgentModesForBackend';
 import { savePreferredMode } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
 import { useAutoTitle } from '@/renderer/hooks/chat/useAutoTitle';
@@ -144,6 +146,7 @@ const useSendBoxDraft = (conversation_id: string) => {
 
 const AcpSendBox: React.FC<{
   conversation_id: string;
+  canonicalThreadId?: string;
   backend: string;
   session_mode?: string;
   agent_name?: string;
@@ -153,6 +156,7 @@ const AcpSendBox: React.FC<{
   messageState: UseAcpMessageReturn;
 }> = ({
   conversation_id,
+  canonicalThreadId,
   backend,
   session_mode,
   agent_name,
@@ -205,12 +209,27 @@ const AcpSendBox: React.FC<{
     setPreparedModes([]);
   }, [backend, conversation_id]);
   const prepareRuntimeSync = useCallback(async () => {
+    if (canonicalThreadId) return undefined;
     if (teamPermission) {
       await teamPermission.warmupSession();
     }
     return await warmupConversation(conversation_id);
-  }, [conversation_id, teamPermission]);
+  }, [canonicalThreadId, conversation_id, teamPermission]);
 
+  const canonicalSettings = useCanonicalCodexSettings({
+    conversationId: conversation_id,
+    threadId: canonicalThreadId,
+    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
+    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
+  });
+  const acpModelInfo = useAcpModelInfo({
+    conversation_id,
+    backend,
+    prepareRuntime: prepareRuntimeSync,
+    enabled: isMobile && !canonicalThreadId,
+    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
+    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
+  });
   const {
     model_info,
     canSwitch: canSwitchModel,
@@ -220,14 +239,10 @@ const AcpSendBox: React.FC<{
     selectReasoningEffort,
     thoughtLevel,
     setStatus,
-  } = useAcpModelInfo({
-    conversation_id,
-    backend,
-    prepareRuntime: prepareRuntimeSync,
-    enabled: isMobile,
-    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
-    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
-  });
+  } = canonicalSettings ?? acpModelInfo;
+  useEffect(() => {
+    if (canonicalSettings) setCurrentMode(canonicalSettings.permissionMode);
+  }, [canonicalSettings]);
   const cachedAgentModes = useAgentModesForBackend(backend);
   const availableAgentModes = useMemo(() => {
     if (preparedModes.length === 0) return cachedAgentModes;
@@ -239,6 +254,10 @@ const AcpSendBox: React.FC<{
   useEffect(() => {
     if (!isModeSurfaceOpen) return;
     if (!conversation_id) return;
+    if (canonicalSettings) {
+      setCurrentMode(canonicalSettings.permissionMode);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       const prepared = await prepareRuntimeSync();
@@ -260,12 +279,19 @@ const AcpSendBox: React.FC<{
     return () => {
       cancelled = true;
     };
-  }, [conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
+  }, [canonicalSettings, conversation_id, isModeSurfaceOpen, prepareRuntimeSync]);
 
   const handlePaletteModeChange = useCallback(
     async (mode: string) => {
       if (mode === currentMode) return;
       try {
+        if (canonicalSettings) {
+          const confirmedMode = await canonicalSettings.selectPermissionMode(mode);
+          setCurrentMode(confirmedMode);
+          if (backend) void savePreferredMode(backend, confirmedMode);
+          Message.success(t('agentMode.switchSuccess'));
+          return;
+        }
         await prepareRuntimeSync();
         const confirmed = await ipcBridge.acpConversation.setMode.invoke({ conversation_id, mode });
         const confirmedMode = confirmed.mode || mode;
@@ -278,7 +304,7 @@ const AcpSendBox: React.FC<{
         Message.error(t('agentMode.switchFailed'));
       }
     },
-    [backend, conversation_id, currentMode, isLeaderInTeam, prepareRuntimeSync, t, teamPermission]
+    [backend, canonicalSettings, conversation_id, currentMode, isLeaderInTeam, prepareRuntimeSync, t, teamPermission]
   );
 
   const currentCodexReasoningEffort =
@@ -339,7 +365,7 @@ const AcpSendBox: React.FC<{
 
   const addOrUpdateMessage = useAddOrUpdateMessage(); // Move this here so it's available in useEffect
   const addOrUpdateMessageRef = useLatestRef(addOrUpdateMessage);
-  const runtimeView = useConversationRuntimeView(conversation_id);
+  const runtimeView = useConversationRuntimeView(conversation_id, canonicalThreadId);
 
   // Shared file handling logic
   const { handleFilesAdded, clearFiles } = useSendBoxFiles({
@@ -375,6 +401,7 @@ const AcpSendBox: React.FC<{
     conversation_id: conversation_id,
     backend,
     workspacePath,
+    disabled: Boolean(canonicalThreadId),
     setAiProcessing,
     resetState,
     markSendStarted: runtimeView.markSendStarted,
@@ -393,14 +420,53 @@ const AcpSendBox: React.FC<{
       setAiProcessing(true);
 
       try {
-        if (teamPermission) await teamPermission.warmupSession();
+        if (teamPermission && !canonicalThreadId) await teamPermission.warmupSession();
         void checkAndUpdateTitle(conversation_id, input);
-        const result = await ipcBridge.acpConversation.sendMessage.invoke({
-          input: displayMessage,
-          conversation_id,
-          files,
-        });
-        runtimeView.markSendAccepted(result.turn_id, result.runtime, result.msg_id);
+        if (canonicalThreadId) {
+          const msgId = uuid();
+          addOrUpdateMessageRef.current(
+            {
+              id: msgId,
+              msg_id: msgId,
+              conversation_id,
+              type: 'text',
+              position: 'right',
+              created_at: Date.now(),
+              content: { content: displayMessage },
+            },
+            true
+          );
+          const result = await ipcBridge.codexThreads.startTurn.invoke({
+            threadId: canonicalThreadId,
+            conversationId: conversation_id,
+            input: displayMessage,
+            files,
+            msgId,
+            model: model_info?.current_model_id ?? getOplDefaultCodexModel(),
+            effort: currentCodexReasoningEffort,
+            permissionMode: currentMode,
+          });
+          runtimeView.markSendAccepted(
+            result.turnId,
+            {
+              state: 'running',
+              can_send_message: false,
+              has_task: true,
+              task_status: 'running',
+              is_processing: true,
+              pending_confirmations: 0,
+              turn_id: result.turnId,
+            },
+            result.msgId
+          );
+        } else {
+          const result = await ipcBridge.acpConversation.sendMessage.invoke({
+            input: displayMessage,
+            conversation_id,
+            files,
+          });
+          runtimeView.markSendAccepted(result.turn_id, result.runtime, result.msg_id);
+        }
         emitter.emit('chat.history.refresh');
       } catch (error: unknown) {
         const errorMsg =
@@ -470,7 +536,21 @@ Please check your local CLI tool authentication status`,
         emitter.emit('acp.workspace.refresh');
       }
     },
-    [backend, checkAndUpdateTitle, conversation_id, resetState, runtimeView, setAiProcessing, t, workspacePath]
+    [
+      backend,
+      canonicalThreadId,
+      checkAndUpdateTitle,
+      conversation_id,
+      currentCodexReasoningEffort,
+      currentMode,
+      model_info?.current_model_id,
+      resetState,
+      runtimeView,
+      setAiProcessing,
+      t,
+      teamPermission,
+      workspacePath,
+    ]
   );
 
   const {
@@ -863,10 +943,8 @@ Please check your local CLI tool authentication status`,
       resetActiveExecution('stop');
       return;
     }
-    runtimeView.markStopRequested(turnId);
     try {
-      const result = await ipcBridge.conversation.stop.invoke({ conversation_id, turn_id: turnId });
-      runtimeView.markStopAcknowledged(turnId, result.runtime);
+      await runtimeView.stopActiveTurn();
     } catch (error) {
       console.warn('[AcpSendBox] stop request failed', error);
       runtimeView.resetLocalGate('stop_failed');
@@ -924,16 +1002,28 @@ Please check your local CLI tool authentication status`,
             <div className='sendbox-decision-controls' data-testid='acp-sendbox-decision-controls'>
               {showConversationModelSelector && (
                 <div className='sendbox-decision-control'>
-                  <AcpModelSelector conversation_id={conversation_id} backend={backend} waitForWarmup />
+                  <AcpModelSelector
+                    conversation_id={conversation_id}
+                    backend={backend}
+                    waitForWarmup={!canonicalThreadId}
+                    modelInfoController={canonicalSettings ?? undefined}
+                  />
                 </div>
               )}
               {showModeSelector && (
                 <div className='sendbox-decision-control'>
                   <AgentModeSelector
                     backend={backend}
-                    conversation_id={conversation_id}
+                    conversation_id={canonicalThreadId ? undefined : conversation_id}
                     compact
-                    initialMode={session_mode}
+                    initialMode={canonicalSettings?.permissionMode ?? session_mode}
+                    onModeSelect={
+                      canonicalSettings
+                        ? (mode) => {
+                            void canonicalSettings.selectPermissionMode(mode).then(setCurrentMode);
+                          }
+                        : undefined
+                    }
                     compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
                     modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
                     compactLabelPrefix={t('agentMode.permission')}

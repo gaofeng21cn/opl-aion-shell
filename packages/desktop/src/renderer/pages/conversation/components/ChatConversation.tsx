@@ -234,7 +234,9 @@ const ChatConversation: React.FC<{
   const acpAssistantId = acpConversation ? (resolveAssistantConfigId(acpConversation) ?? undefined) : undefined;
 
   const conversationAgentName = (conversation?.extra as { agent_name?: string } | undefined)?.agent_name;
-  const runtimeView = useConversationRuntimeView(conversation?.id ?? '');
+  const canonicalThreadId =
+    (conversation?.extra as { canonical_thread_id?: string } | undefined)?.canonical_thread_id?.trim() || undefined;
+  const runtimeView = useConversationRuntimeView(conversation?.id ?? '', canonicalThreadId);
   const currentTask = runtimeView.currentTask ?? conversation?.runtime?.current_task ?? null;
   const assistantDisplayName = presetAssistantInfo?.name || conversationAgentName;
   const ordinaryExtra = useMemo(
@@ -278,6 +280,7 @@ const ChatConversation: React.FC<{
           <AcpChat
             key={conversation.id}
             conversation_id={conversation.id}
+            canonicalThreadId={canonicalThreadId}
             workspace={conversation.extra?.workspace}
             backend={conversation.extra?.backend || 'claude'}
             session_mode={conversation.extra?.session_mode}
@@ -297,6 +300,7 @@ const ChatConversation: React.FC<{
     }
   }, [
     conversation,
+    canonicalThreadId,
     isAionrsConversation,
     isLegacyReadOnlyConversation,
     assistantDisplayName,

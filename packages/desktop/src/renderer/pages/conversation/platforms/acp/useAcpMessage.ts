@@ -495,7 +495,12 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   );
 
   useEffect(() => {
-    return ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
+    const disposeAcp = ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
+    const disposeCanonical = ipcBridge.codexThreads.responseStream.on(handleResponseMessage);
+    return () => {
+      disposeAcp();
+      disposeCanonical();
+    };
   }, [handleResponseMessage]);
 
   // Reset state when conversation changes and restore actual running status

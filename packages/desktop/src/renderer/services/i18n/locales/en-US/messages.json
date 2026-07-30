@@ -63,6 +63,11 @@
   "option": "Option",
   "noOptionsAvailable": "No options available",
   "processing": "Processing...",
+  "answerPlaceholder": "Enter an answer",
+  "otherAnswer": "Other answer",
+  "openRequestUrl": "Open request",
+  "requestedPermissions": "Requested permissions",
+  "requiredField": "(required)",
   "toolSteps": {
     "completed": "Completed steps · {{count}}",
     "running": "Running steps · {{count}}",

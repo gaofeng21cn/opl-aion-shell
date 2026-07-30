@@ -36,6 +36,7 @@ import { assertAioncoreRecoveryCompatibility } from './aioncoreCompatibility.js'
 import {
   buildSpawnArgs,
   buildSpawnEnv,
+  getOplAioncoreBuiltinSkillsPath,
   findAvailablePort,
   BackendLifecycleManager,
   BackendStartupError,
@@ -220,6 +221,7 @@ describe('buildSpawnEnv', () => {
     expect(env.AIONUI_CACHE_DIR).toBe('/c');
     expect(env.AIONUI_WORK_DIR).toBe('/w');
     expect(env.AIONUI_LOG_DIR).toBe('/l');
+    expect(env.AIONUI_BUILTIN_SKILLS_PATH).toBe('/w/aioncore-empty-builtin-skills');
     expect(env.AIONUI_SKILL_WORKSPACE_MATERIALIZATION).toBe('global_only');
     expect(env.PATH).toBe(process.env.PATH); // inherits
   });
@@ -243,6 +245,13 @@ describe('buildSpawnEnv', () => {
     expect(env.AIONUI_CACHE_DIR).toBe('/c');
     expect(env.AIONUI_WORK_DIR).toBe('/w');
     expect(env.AIONUI_LOG_DIR).toBe('/l');
+    expect(env.AIONUI_BUILTIN_SKILLS_PATH).toBe('/w/aioncore-empty-builtin-skills');
+  });
+
+  it('derives the empty official AionCore built-in corpus from the managed work directory', () => {
+    expect(getOplAioncoreBuiltinSkillsPath({ cacheDir: '/c', workDir: '/w', logDir: '/l' })).toBe(
+      '/w/aioncore-empty-builtin-skills'
+    );
   });
 });
 
@@ -358,6 +367,7 @@ describe('BackendLifecycleManager.start (success path)', () => {
     expect(mkdirSync).toHaveBeenCalledWith('/c', { recursive: true });
     expect(mkdirSync).toHaveBeenCalledWith('/w', { recursive: true });
     expect(mkdirSync).toHaveBeenCalledWith('/l', { recursive: true });
+    expect(mkdirSync).toHaveBeenCalledWith('/w/aioncore-empty-builtin-skills', { recursive: true });
     expect(vi.mocked(spawn).mock.calls[0][1]).toEqual([
       '--port',
       '0',
@@ -435,6 +445,7 @@ describe('BackendLifecycleManager.start (success path)', () => {
       expect(opts.env.AIONUI_CACHE_DIR).toBe('/c');
       expect(opts.env.AIONUI_WORK_DIR).toBe('/w');
       expect(opts.env.AIONUI_LOG_DIR).toBe('/l');
+      expect(opts.env.AIONUI_BUILTIN_SKILLS_PATH).toBe('/w/aioncore-empty-builtin-skills');
       expect((spawnCall[2] as { detached?: boolean }).detached).toBe(process.platform !== 'win32');
 
       expect(fetchSpy).toHaveBeenCalled();

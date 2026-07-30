@@ -63,6 +63,11 @@
   "option": "选项",
   "noOptionsAvailable": "无可用选项",
   "processing": "处理中...",
+  "answerPlaceholder": "请输入回答",
+  "otherAnswer": "其他回答",
+  "openRequestUrl": "打开请求",
+  "requestedPermissions": "申请的权限",
+  "requiredField": "（必填）",
   "toolSteps": {
     "completed": "已完成步骤 · {{count}}",
     "running": "正在执行步骤 · {{count}}",

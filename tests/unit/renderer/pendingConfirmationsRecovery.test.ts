@@ -1,8 +1,10 @@
+import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { IConfirmation, TMessage } from '@/common/chat/chatLib';
 import { describe, expect, it } from 'vitest';
 import {
   buildPendingConfirmationMessage,
   hasPermissionMessageForCallId,
+  mergeCanonicalPendingApprovals,
   removePermissionMessage,
 } from '@/renderer/pages/conversation/Messages/usePendingConfirmationsRecovery';
 
@@ -42,5 +44,28 @@ describe('pending confirmations recovery', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].type).toBe('text');
+  });
+
+  it('restores canonical approvals once by stable app-server request id', () => {
+    const response = {
+      type: 'acp_permission',
+      msg_id: 'approval-1',
+      conversation_id: 'conv-1',
+      data: {
+        options: [{ option_id: 'accept', name: 'Allow once', kind: 'allow_once' }],
+        tool_call: {
+          tool_call_id: 'approval-1',
+          raw_input: { codex_app_server_request: true },
+          status: 'pending',
+          title: 'Run command',
+          kind: 'execute',
+        },
+      },
+    } as IResponseMessage;
+
+    const recovered = mergeCanonicalPendingApprovals([], [response]);
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0]).toMatchObject({ type: 'acp_permission', msg_id: 'approval-1' });
+    expect(mergeCanonicalPendingApprovals(recovered, [response])).toBe(recovered);
   });
 });

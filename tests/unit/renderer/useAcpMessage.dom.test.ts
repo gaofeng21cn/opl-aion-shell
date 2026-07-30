@@ -45,6 +45,11 @@ vi.mock('@/common', () => ({
         }),
       },
     },
+    codexThreads: {
+      responseStream: {
+        on: responseStreamOnMock,
+      },
+    },
     conversation: {
       getSlashCommands: {
         invoke: getSlashCommandsInvokeMock,

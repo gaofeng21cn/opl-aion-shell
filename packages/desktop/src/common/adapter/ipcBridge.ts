@@ -68,17 +68,24 @@ import type {
   TeamAgent,
 } from '../types/team/teamTypes';
 import type {
+  CodexThreadApprovalResponseRequest,
   CodexReviewStartRequest,
   CodexReviewStartResult,
   CodexThreadDescriptor,
+  CodexThreadConfigurationUpdateRequest,
   CodexThreadDetail,
   CodexThreadDirectory,
   CodexThreadDirectoryRequest,
   CodexThreadIdRequest,
+  CodexThreadPendingApprovalRequest,
   CodexThreadProjectAffinityAssignRequest,
+  CodexThreadReadRequest,
   CodexThreadRenameRequest,
   CodexThreadSettingsUpdateRequest,
   CodexThreadStartRequest,
+  CodexThreadTurnInterruptRequest,
+  CodexThreadTurnStartRequest,
+  CodexThreadTurnStartResult,
 } from '../types/codex/appServerThreads';
 import type {
   AutoUpdateStatus,
@@ -817,12 +824,13 @@ export const codexThreads = {
       threads: [],
     })
   ),
-  read: bridge.buildProvider<CodexThreadDetail, CodexThreadIdRequest>('codex-threads.read'),
+  read: bridge.buildProvider<CodexThreadDetail, CodexThreadReadRequest>('codex-threads.read'),
   start: bridge.buildProvider<CodexThreadDescriptor, CodexThreadStartRequest>('codex-threads.start'),
   resume: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.resume'),
   fork: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.fork'),
   rename: bridge.buildProvider<void, CodexThreadRenameRequest>('codex-threads.rename'),
   updateSettings: bridge.buildProvider<void, CodexThreadSettingsUpdateRequest>('codex-threads.update-settings'),
+  configure: bridge.buildProvider<CodexThreadDetail, CodexThreadConfigurationUpdateRequest>('codex-threads.configure'),
   assignProjectAffinity: bridge.buildProvider<CodexThreadDescriptor, CodexThreadProjectAffinityAssignRequest>(
     'codex-threads.assign-project-affinity'
   ),
@@ -830,6 +838,14 @@ export const codexThreads = {
   unarchive: bridge.buildProvider<CodexThreadDescriptor, CodexThreadIdRequest>('codex-threads.unarchive'),
   delete: bridge.buildProvider<void, CodexThreadIdRequest>('codex-threads.delete'),
   startReview: bridge.buildProvider<CodexReviewStartResult, CodexReviewStartRequest>('codex-threads.start-review'),
+  startTurn: bridge.buildProvider<CodexThreadTurnStartResult, CodexThreadTurnStartRequest>('codex-threads.start-turn'),
+  interruptTurn: bridge.buildProvider<void, CodexThreadTurnInterruptRequest>('codex-threads.interrupt-turn'),
+  respondApproval: bridge.buildProvider<void, CodexThreadApprovalResponseRequest>('codex-threads.respond-approval'),
+  pendingApprovals: bridge.buildProvider<IResponseMessage[], CodexThreadPendingApprovalRequest>(
+    'codex-threads.pending-approvals'
+  ),
+  responseStream: bridge.buildEmitter<IResponseMessage>('codex-threads.response-stream'),
+  turnCompleted: bridge.buildEmitter<IConversationTurnCompletedEvent>('codex-threads.turn-completed'),
 };
 
 export type LocalDataLifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';

@@ -18,11 +18,18 @@ const bridgeMocks = vi.hoisted(() => {
       fork: provider('fork'),
       rename: provider('rename'),
       updateSettings: provider('updateSettings'),
+      configure: provider('configure'),
       assignProjectAffinity: provider('assignProjectAffinity'),
       archive: provider('archive'),
       unarchive: provider('unarchive'),
       delete: provider('delete'),
       startReview: provider('startReview'),
+      startTurn: provider('startTurn'),
+      interruptTurn: provider('interruptTurn'),
+      respondApproval: provider('respondApproval'),
+      pendingApprovals: provider('pendingApprovals'),
+      responseStream: { emit: vi.fn() },
+      turnCompleted: { emit: vi.fn() },
     },
   };
 });
@@ -57,6 +64,7 @@ describe('codexAppServerBridge', () => {
   it('defers the production adapter until the first IPC request', async () => {
     const adapter = {
       listThreads: vi.fn(async () => ({ schema: 'opl_codex_thread_directory.v1', threads: [] })),
+      setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
     bridgeMocks.createProductionAdapter.mockReturnValue(adapter);
@@ -80,6 +88,7 @@ describe('codexAppServerBridge', () => {
     const assigned = { id: 'thread-1', projectId: '/projects/selected', workspace: '/runtime/cwd' };
     const adapter = {
       assignProjectAffinity: vi.fn(async () => assigned),
+      setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
     bridgeMocks.createProductionAdapter.mockReturnValue(adapter);

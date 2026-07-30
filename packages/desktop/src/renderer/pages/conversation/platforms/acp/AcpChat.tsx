@@ -21,9 +21,11 @@ import React from 'react';
 import AcpE2EStreamInjector from './AcpE2EStreamInjector';
 import AcpSendBox from './AcpSendBox';
 import { useAcpMessage } from './useAcpMessage';
+import { useCanonicalCodexHistory } from './useCanonicalCodexHistory';
 
 const AcpChat: React.FC<{
   conversation_id: string;
+  canonicalThreadId?: string;
   workspace?: string;
   backend: string;
   session_mode?: string;
@@ -39,6 +41,7 @@ const AcpChat: React.FC<{
   loadedMcpStatuses?: IConversationMcpStatus[];
 }> = ({
   conversation_id,
+  canonicalThreadId,
   workspace,
   backend,
   session_mode,
@@ -54,7 +57,8 @@ const AcpChat: React.FC<{
   loadedMcpStatuses,
 }) => {
   useMessageLstCache(conversation_id);
-  usePendingConfirmationsRecovery(conversation_id);
+  useCanonicalCodexHistory(conversation_id, canonicalThreadId);
+  usePendingConfirmationsRecovery(conversation_id, canonicalThreadId);
   const teamPermission = useTeamPermission();
   const messageState = useAcpMessage(conversation_id, { skipWarmup: Boolean(teamPermission) });
 
@@ -80,6 +84,7 @@ const AcpChat: React.FC<{
           {!hideSendBox && (
             <AcpSendBox
               conversation_id={conversation_id}
+              canonicalThreadId={canonicalThreadId}
               backend={backend}
               session_mode={session_mode}
               agent_name={agent_name}

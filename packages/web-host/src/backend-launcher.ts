@@ -11,6 +11,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { connect, createServer, type Socket } from 'node:net';
+import path from 'node:path';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
 import { assertAioncoreRecoveryCompatibility } from './aioncoreCompatibility.js';
 import type { AppMetadata, BackendBinaryResolver } from './types.js';
@@ -84,6 +85,12 @@ export type BackendDirConfig = {
   workDir: string;
   logDir: string;
 };
+
+const OPL_EMPTY_AIONCORE_BUILTIN_SKILLS_DIR = 'aioncore-empty-builtin-skills';
+
+export function getOplAioncoreBuiltinSkillsPath(dirs: BackendDirConfig): string {
+  return path.join(dirs.workDir, OPL_EMPTY_AIONCORE_BUILTIN_SKILLS_DIR);
+}
 
 export type BackendProcessController = {
   spawn: (
@@ -233,8 +240,9 @@ export function buildSpawnEnv(dirs: BackendDirConfig, extraEnv: NodeJS.ProcessEn
     ...process.env,
     ...extraEnv,
     // OPL has two Skill scopes: global user skills and explicit domain/project
-    // projections. AionUI's upstream workspace auto-injection is not an OPL
-    // product behavior, including for resumed conversations.
+    // projections. Point official AionCore at an empty built-in skill corpus so
+    // its auto-inject catalog remains empty without patching AionCore.
+    AIONUI_BUILTIN_SKILLS_PATH: getOplAioncoreBuiltinSkillsPath(dirs),
     AIONUI_SKILL_WORKSPACE_MATERIALIZATION: 'global_only',
     AIONUI_CACHE_DIR: dirs.cacheDir,
     AIONUI_WORK_DIR: dirs.workDir,
@@ -658,6 +666,7 @@ export class BackendLifecycleManager {
       ensureBackendStartupDirectory(dirs?.cacheDir);
       ensureBackendStartupDirectory(dirs?.workDir);
       ensureBackendStartupDirectory(dirs?.logDir);
+      ensureBackendStartupDirectory(dirs ? getOplAioncoreBuiltinSkillsPath(dirs) : undefined);
     } catch (error) {
       this._status = 'error';
       throw makeStartupError('spawn', 'aioncore startup directory preparation failed', error);

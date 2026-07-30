@@ -86,6 +86,14 @@ const rawThread = (id: string, overrides: Record<string, unknown> = {}): Record<
   ...overrides,
 });
 
+const resumedThread = (thread: Record<string, unknown>): Record<string, unknown> => ({
+  thread,
+  model: 'gpt-5.6-sol',
+  reasoningEffort: 'high',
+  approvalPolicy: 'on-request',
+  sandbox: { type: 'workspaceWrite' },
+});
+
 describe('CodexAppServerAdapter', () => {
   let rpc: CodexAppServerRpc;
   let request: ReturnType<typeof vi.fn>;
@@ -395,6 +403,654 @@ describe('CodexAppServerAdapter', () => {
         delivery: 'inline',
       })
     ).rejects.toThrow(/review turn id/i);
+  });
+
+  it('continues a canonical thread through turn/start with OPL model, effort, permission, and files', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'thread/read') return { thread: rawThread('thread-1') };
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    const result = await adapter.startTurn({
+      threadId: 'thread-1',
+      conversationId: 'conversation-1',
+      msgId: 'message-1',
+      input: 'Continue the task',
+      files: ['/workspace/project/report.pdf'],
+      model: 'gpt-5.6-sol',
+      effort: 'high',
+      permissionMode: 'read-only',
+    });
+
+    expect(result).toEqual({ msgId: 'message-1', turnId: 'turn-1' });
+    expect(request).toHaveBeenCalledWith(
+      'turn/start',
+      expect.objectContaining({
+        threadId: 'thread-1',
+        clientUserMessageId: 'message-1',
+        model: 'gpt-5.6-sol',
+        effort: 'high',
+        approvalPolicy: 'on-request',
+        sandboxPolicy: { type: 'readOnly', networkAccess: true },
+        input: [
+          { type: 'text', text: 'Continue the task', text_elements: [] },
+          { type: 'mention', name: 'report.pdf', path: '/workspace/project/report.pdf' },
+        ],
+      })
+    );
+  });
+
+  it('reserves the canonical thread before async resume and rejects a concurrent second turn', async () => {
+    let releaseResume: (() => void) | undefined;
+    const resumeGate = new Promise<void>((resolve) => {
+      releaseResume = resolve;
+    });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') {
+        await resumeGate;
+        return resumedThread(rawThread('thread-1'));
+      }
+      if (method === 'thread/read') return { thread: rawThread('thread-1') };
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    const turn = {
+      threadId: 'thread-1',
+      conversationId: 'conversation-1',
+      msgId: 'message-1',
+      input: 'First',
+    };
+
+    const firstTurn = adapter.startTurn(turn);
+    await expect(adapter.startTurn({ ...turn, msgId: 'message-2', input: 'Second' })).rejects.toThrow(
+      'already has an active turn'
+    );
+    releaseResume?.();
+    await firstTurn;
+    expect(request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+  });
+
+  it('keeps the turn reservation while a background read hydrates the same thread', async () => {
+    let releaseTurn: (() => void) | undefined;
+    const turnGate = new Promise<void>((resolve) => {
+      releaseTurn = resolve;
+    });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'turn/start') {
+        await turnGate;
+        return { turn: { id: 'turn-1' } };
+      }
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    const turn = {
+      threadId: 'thread-1',
+      conversationId: 'conversation-1',
+      msgId: 'message-1',
+      input: 'First',
+    };
+
+    const firstTurn = adapter.startTurn(turn);
+    await vi.waitFor(() => expect(request.mock.calls.some(([method]) => method === 'turn/start')).toBe(true));
+    await adapter.readThread('thread-1', 'conversation-1');
+    await expect(adapter.startTurn({ ...turn, msgId: 'message-2', input: 'Second' })).rejects.toThrow(
+      'already has an active turn'
+    );
+
+    releaseTurn?.();
+    await firstTurn;
+    expect(request.mock.calls.filter(([method]) => method === 'turn/start')).toHaveLength(1);
+  });
+
+  it('restores history and live routing from thread/read after an adapter restart', async () => {
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') {
+        return resumedThread(
+          rawThread('thread-1', {
+            status: { type: 'active' },
+            turns: [
+              {
+                id: 'turn-1',
+                status: 'inProgress',
+                startedAt: 1_784_105_000,
+                items: [
+                  { id: 'user-1', type: 'userMessage', content: [{ type: 'text', text: 'Continue' }] },
+                  { id: 'assistant-1', type: 'agentMessage', text: 'Working' },
+                  {
+                    id: 'command-1',
+                    type: 'commandExecution',
+                    command: 'bun test',
+                    status: 'completed',
+                    aggregatedOutput: 'ok',
+                    exitCode: 0,
+                  },
+                ],
+              },
+            ],
+          })
+        );
+      }
+      if (method === 'thread/read') {
+        return {
+          thread: rawThread('thread-1', {
+            status: { type: 'active' },
+            turns: [
+              {
+                id: 'turn-1',
+                status: 'inProgress',
+                startedAt: 1_784_105_000,
+                items: [
+                  { id: 'user-1', type: 'userMessage', content: [{ type: 'text', text: 'Continue' }] },
+                  { id: 'assistant-1', type: 'agentMessage', text: 'Working' },
+                  {
+                    id: 'command-1',
+                    type: 'commandExecution',
+                    command: 'bun test',
+                    status: 'completed',
+                    aggregatedOutput: 'ok',
+                    exitCode: 0,
+                  },
+                ],
+              },
+            ],
+          }),
+        };
+      }
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'turn/interrupt') return undefined;
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    const detail = await adapter.readThread('thread-1', 'conversation-1');
+    expect(detail.thread.activeTurnId).toBe('turn-1');
+    expect(detail.history).toMatchObject([
+      { id: 'user-1', role: 'user', kind: 'text', text: 'Continue' },
+      { id: 'assistant-1', role: 'assistant', kind: 'text', text: 'Working' },
+      { id: 'command-1', role: 'tool', kind: 'tool', text: 'bun test' },
+    ]);
+    await adapter.interruptTurn({
+      threadId: 'thread-1',
+      conversationId: 'conversation-1',
+      turnId: 'turn-1',
+    });
+    expect(request).toHaveBeenCalledWith('turn/interrupt', { threadId: 'thread-1', turnId: 'turn-1' });
+  });
+
+  it('configures model, reasoning, and permissions and returns canonical readback', async () => {
+    let resumeCount = 0;
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/settings/update') return undefined;
+      if (method === 'thread/resume') {
+        resumeCount += 1;
+        return resumeCount === 1
+          ? resumedThread(rawThread('thread-1'))
+          : {
+              thread: rawThread('thread-1'),
+              model: 'gpt-5.6-terra',
+              reasoningEffort: 'medium',
+              approvalPolicy: 'never',
+              sandbox: { type: 'dangerFullAccess' },
+            };
+      }
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    await adapter.readThread('thread-1', 'conversation-1');
+    const detail = await adapter.configureThread({
+      threadId: 'thread-1',
+      model: 'gpt-5.6-terra',
+      effort: 'medium',
+      permissionMode: 'full-access',
+    });
+
+    expect(request).toHaveBeenCalledWith('thread/settings/update', {
+      threadId: 'thread-1',
+      model: 'gpt-5.6-terra',
+      effort: 'medium',
+      approvalPolicy: 'never',
+      sandboxPolicy: { type: 'dangerFullAccess' },
+    });
+    expect(detail.settings).toEqual({
+      model: 'gpt-5.6-terra',
+      effort: 'medium',
+      permissionMode: 'full-access',
+    });
+  });
+
+  it('projects app-server approvals and returns the selected decision to the pending request', async () => {
+    let serverRequestHandler: ((requestId: number | string, method: string, params: unknown) => boolean) | undefined;
+    const respond = vi.fn();
+    rpc = {
+      request,
+      onServerRequest: (handler) => {
+        serverRequestHandler = handler;
+        return vi.fn();
+      },
+      respond,
+      dispose: vi.fn(),
+    };
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host' });
+    const response = vi.fn();
+    adapter.setEventSink({ response, turnCompleted: vi.fn() });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    await adapter.readThread('thread-1', 'conversation-1');
+
+    const handled = serverRequestHandler?.('approval-1', 'item/commandExecution/requestApproval', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'command-1',
+      command: 'bun test',
+      reason: 'Run focused tests',
+      availableDecisions: ['accept', 'decline'],
+    });
+
+    expect(handled).toBe(true);
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_permission',
+        data: expect.objectContaining({
+          options: [
+            expect.objectContaining({ option_id: 'accept', kind: 'allow_once' }),
+            expect.objectContaining({ option_id: 'decline', kind: 'reject_once' }),
+          ],
+          tool_call: expect.objectContaining({
+            tool_call_id: 'approval-1',
+            kind: 'execute',
+            status: 'pending',
+          }),
+        }),
+      })
+    );
+    expect(adapter.listPendingApprovals('thread-1', 'conversation-1')).toEqual([
+      expect.objectContaining({
+        type: 'acp_permission',
+        data: expect.objectContaining({
+          tool_call: expect.objectContaining({
+            tool_call_id: 'approval-1',
+            title: 'Run focused tests',
+          }),
+        }),
+      }),
+    ]);
+
+    await adapter.respondApproval({ requestId: 'approval-1', decision: 'accept' });
+    expect(respond).toHaveBeenCalledWith('approval-1', { decision: 'accept' });
+    expect(adapter.listPendingApprovals('thread-1', 'conversation-1')).toEqual([]);
+    await expect(adapter.respondApproval({ requestId: 'approval-1', decision: 'decline' })).rejects.toThrow(
+      'no longer pending'
+    );
+  });
+
+  it('preserves official app-server MCP form content and persistence semantics', async () => {
+    let serverRequestHandler: ((requestId: number | string, method: string, params: unknown) => boolean) | undefined;
+    const respond = vi.fn();
+    rpc = {
+      request,
+      onServerRequest: (handler) => {
+        serverRequestHandler = handler;
+        return vi.fn();
+      },
+      respond,
+      dispose: vi.fn(),
+    };
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host' });
+    const response = vi.fn();
+    adapter.setEventSink({ response, turnCompleted: vi.fn() });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    await adapter.readThread('thread-1', 'conversation-1');
+
+    expect(
+      serverRequestHandler?.('elicitation-1', 'mcpServer/elicitation/request', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        serverName: 'weather',
+        mode: 'form',
+        message: 'Allow the weather lookup?',
+        requestedSchema: {
+          type: 'object',
+          properties: { city: { type: 'string', title: 'City' } },
+          required: ['city'],
+        },
+        _meta: {
+          codex_approval_kind: 'mcp_tool_call',
+          persist: ['session', 'always'],
+        },
+      })
+    ).toBe(true);
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_permission',
+        data: expect.objectContaining({
+          options: [
+            expect.objectContaining({ option_id: 'accept' }),
+            expect.objectContaining({ option_id: 'acceptForSession' }),
+            expect.objectContaining({ option_id: 'acceptAlways' }),
+            expect.objectContaining({ option_id: 'decline' }),
+            expect.objectContaining({ option_id: 'cancel' }),
+          ],
+          tool_call: expect.objectContaining({
+            tool_call_id: 'elicitation-1',
+            title: 'MCP weather requests input',
+            kind: 'fetch',
+          }),
+        }),
+      })
+    );
+
+    await adapter.respondApproval({
+      requestId: 'elicitation-1',
+      decision: 'acceptForSession',
+      content: { city: 'Paris' },
+    });
+    expect(respond).toHaveBeenCalledWith('elicitation-1', {
+      action: 'accept',
+      content: { city: 'Paris' },
+      _meta: { persist: 'session' },
+    });
+  });
+
+  it('answers request_user_input and grants only the requested permission profile', async () => {
+    let serverRequestHandler: ((requestId: number | string, method: string, params: unknown) => boolean) | undefined;
+    const respond = vi.fn();
+    rpc = {
+      request,
+      onServerRequest: (handler) => {
+        serverRequestHandler = handler;
+        return vi.fn();
+      },
+      respond,
+      dispose: vi.fn(),
+    };
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host' });
+    const response = vi.fn();
+    adapter.setEventSink({ response, turnCompleted: vi.fn() });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    await adapter.readThread('thread-1', 'conversation-1');
+
+    expect(
+      serverRequestHandler?.('input-1', 'item/tool/requestUserInput', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        itemId: 'input-item-1',
+        questions: [
+          {
+            id: 'choice',
+            header: 'Choose',
+            question: 'Which route?',
+            isOther: true,
+            isSecret: false,
+            options: [{ label: 'Adapter', description: 'Keep the owner boundary' }],
+          },
+        ],
+      })
+    ).toBe(true);
+    expect(response).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tool_call: expect.objectContaining({
+            raw_input: expect.objectContaining({
+              codex_interaction: expect.objectContaining({
+                kind: 'request_user_input',
+                questions: [expect.objectContaining({ id: 'choice' })],
+              }),
+            }),
+          }),
+        }),
+      })
+    );
+    await adapter.respondApproval({
+      requestId: 'input-1',
+      decision: 'accept',
+      answers: { choice: { answers: ['Adapter'] } },
+    });
+    expect(respond).toHaveBeenCalledWith('input-1', {
+      answers: { choice: { answers: ['Adapter'] } },
+    });
+
+    expect(
+      serverRequestHandler?.('permissions-1', 'item/permissions/requestApproval', {
+        threadId: 'thread-1',
+        turnId: 'turn-1',
+        itemId: 'permissions-item-1',
+        cwd: '/workspace/project',
+        reason: 'Read a shared input',
+        permissions: {
+          network: null,
+          fileSystem: { read: ['/workspace/shared'], write: null },
+        },
+      })
+    ).toBe(true);
+    await adapter.respondApproval({
+      requestId: 'permissions-1',
+      decision: 'acceptForSession',
+    });
+    expect(respond).toHaveBeenCalledWith('permissions-1', {
+      permissions: {
+        fileSystem: { read: ['/workspace/shared'], write: null },
+      },
+      scope: 'session',
+    });
+  });
+
+  it('projects command, MCP, file diff, and terminal turn notifications to the conversation', async () => {
+    let notificationHandler: ((method: string, params: unknown) => void) | undefined;
+    rpc = {
+      request,
+      onNotification: (handler) => {
+        notificationHandler = handler;
+        return vi.fn();
+      },
+      dispose: vi.fn(),
+    };
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host' });
+    const response = vi.fn();
+    const turnCompleted = vi.fn();
+    adapter.setEventSink({ response, turnCompleted });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('thread-1'));
+      if (method === 'model/list') return { data: [] };
+      if (method === 'thread/goal/get') return { goal: null };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    await adapter.readThread('thread-1', 'conversation-1');
+
+    notificationHandler?.('item/commandExecution/outputDelta', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'command-1',
+      delta: 'test output',
+    });
+    notificationHandler?.('item/mcpToolCall/progress', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'mcp-1',
+      message: 'tool progress',
+    });
+    notificationHandler?.('item/fileChange/patchUpdated', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      itemId: 'file-1',
+      changes: [{ path: 'src/example.ts', diff: '@@ -1 +1 @@\n-old\n+new' }],
+    });
+    notificationHandler?.('item/completed', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        id: 'mcp-result-1',
+        type: 'mcpToolCall',
+        server: 'weather',
+        tool: 'forecast',
+        status: 'completed',
+        arguments: { city: 'Paris' },
+        result: {
+          content: [
+            { type: 'text', text: 'Sunny' },
+            { type: 'image', data: 'not-projected', mimeType: 'image/png' },
+          ],
+          structuredContent: { temperature: 21 },
+        },
+      },
+    });
+    notificationHandler?.('item/completed', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        id: 'collab-1',
+        type: 'collabAgentToolCall',
+        tool: 'spawnAgent',
+        status: 'completed',
+        senderThreadId: 'thread-1',
+        receiverThreadIds: ['thread-child'],
+        model: 'gpt-5.6-sol',
+        reasoningEffort: 'high',
+        agentsStates: { 'thread-child': { status: 'completed', message: 'Done' } },
+      },
+    });
+    notificationHandler?.('item/completed', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        id: 'image-1',
+        type: 'imageGeneration',
+        status: 'completed',
+        result: 'base64-omitted',
+        savedPath: '/workspace/result.png',
+      },
+    });
+    notificationHandler?.('turn/completed', {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      turn: { id: 'turn-1', status: 'completed' },
+    });
+
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'command-1',
+            kind: 'execute',
+            rawOutput: { aggregatedOutput: 'test output' },
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'mcp-1',
+            kind: 'fetch',
+            rawOutput: { aggregatedOutput: 'tool progress' },
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'file-1',
+            kind: 'edit',
+            content: [
+              {
+                type: 'diff',
+                path: 'src/example.ts',
+                old_text: '',
+                new_text: '@@ -1 +1 @@\n-old\n+new',
+              },
+            ],
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'mcp-result-1',
+            rawInput: { city: 'Paris' },
+            rawOutput: {
+              aggregatedOutput: 'Sunny\n![MCP image](data:image/png;base64,not-projected)\n{\n  "temperature": 21\n}',
+            },
+            content: [
+              {
+                type: 'content',
+                content: {
+                  type: 'text',
+                  text: 'Sunny\n![MCP image](data:image/png;base64,not-projected)\n{\n  "temperature": 21\n}',
+                },
+              },
+            ],
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'collab-1',
+            _meta: {
+              codex: {
+                collaboration: {
+                  tool: 'spawnAgent',
+                  senderThreadId: 'thread-1',
+                  receiverThreadIds: ['thread-child'],
+                },
+              },
+            },
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'acp_tool_call',
+        data: expect.objectContaining({
+          update: expect.objectContaining({
+            tool_call_id: 'image-1',
+            rawOutput: { aggregatedOutput: '/workspace/result.png' },
+          }),
+        }),
+      })
+    );
+    expect(response).toHaveBeenCalledWith(expect.objectContaining({ type: 'finish', turn_id: 'turn-1' }));
+    expect(turnCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        session_id: 'conversation-1',
+        turn_id: 'turn-1',
+        state: 'ai_waiting_input',
+        can_send_message: true,
+      })
+    );
   });
 });
 

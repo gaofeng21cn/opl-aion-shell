@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useAcpModelInfo } from '@/renderer/hooks/agent/useAcpModelInfo';
+import { useAcpModelInfo, type UseAcpModelInfoResult } from '@/renderer/hooks/agent/useAcpModelInfo';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
@@ -58,11 +58,22 @@ const AcpModelSelector: React.FC<{
   initialModelId?: string;
   /** Wait for ACP warmup before reading runtime model info. */
   waitForWarmup?: boolean;
-}> = ({ conversation_id, backend, initialModelId, waitForWarmup = false }) => {
+  /** Optional direct Codex App Server controller for canonical threads. */
+  modelInfoController?: UseAcpModelInfoResult;
+}> = ({ conversation_id, backend, initialModelId, waitForWarmup = false, modelInfoController }) => {
   const { t, i18n } = useTranslation();
   const layout = useLayoutContext();
   const isMobileHeaderCompact = Boolean(layout?.isMobile);
   const prepareRuntime = useCallback(() => warmupConversation(conversation_id), [conversation_id]);
+  const acpModelInfo = useAcpModelInfo({
+    conversation_id,
+    backend,
+    initialModelId,
+    prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
+    enabled: !modelInfoController,
+    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
+    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
+  });
   const {
     model_info,
     canSwitch,
@@ -72,14 +83,7 @@ const AcpModelSelector: React.FC<{
     selectReasoningEffort,
     thoughtLevel,
     setStatus,
-  } = useAcpModelInfo({
-    conversation_id,
-    backend,
-    initialModelId,
-    prepareRuntime: waitForWarmup ? prepareRuntime : undefined,
-    onSelectModelSuccess: () => Message.success(t('agent.model.switchSuccess')),
-    onSelectModelFailed: () => Message.error(t('agent.model.switchFailed')),
-  });
+  } = modelInfoController ?? acpModelInfo;
   const hideCodexModelList = backend === 'codex' && isOplCodexCliFixedExecutor() && !shouldShowOplCodexModelList();
   const useOplCodexModelDisplay = backend === 'codex' && isOplCodexCliFixedExecutor();
   const showCodexAutoOption =

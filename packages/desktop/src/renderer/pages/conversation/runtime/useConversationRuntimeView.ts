@@ -67,7 +67,10 @@ const flushRuntimeViewLogs = (logs: ConversationRuntimeViewLogEntry[]): void => 
 const getRuntimeOrNull = (runtime: TConversationRuntimeSummary | undefined): TConversationRuntimeSummary | null =>
   runtime ?? null;
 
-export const useConversationRuntimeView = (conversation_id: string): UseConversationRuntimeViewReturn => {
+export const useConversationRuntimeView = (
+  conversation_id: string,
+  canonicalThreadId?: string
+): UseConversationRuntimeViewReturn => {
   const getSnapshot = useCallback(() => getConversationRuntimeViewSnapshot(conversation_id), [conversation_id]);
   const view = useSyncExternalStore(subscribeConversationRuntimeView, getSnapshot, getSnapshot);
 
@@ -105,17 +108,20 @@ export const useConversationRuntimeView = (conversation_id: string): UseConversa
     }
 
     const turnCompletedEmitter = ipcBridge.conversation.turnCompleted;
+    const canonicalTurnCompletedEmitter = canonicalThreadId ? ipcBridge.codexThreads?.turnCompleted : undefined;
     const listChangedEmitter = ipcBridge.conversation.listChanged;
     if (!turnCompletedEmitter || !listChangedEmitter) {
       return;
     }
 
-    const disposeTurnCompleted = turnCompletedEmitter.on((event) => {
+    const handleTurnCompleted = (event: Parameters<Parameters<typeof turnCompletedEmitter.on>[0]>[0]) => {
       if (event.session_id !== conversation_id) {
         return;
       }
       flushRuntimeViewLogs(turnCompleted(conversation_id, event.turn_id, event.runtime));
-    });
+    };
+    const disposeTurnCompleted = turnCompletedEmitter.on(handleTurnCompleted);
+    const disposeCanonicalTurnCompleted = canonicalTurnCompletedEmitter?.on(handleTurnCompleted);
 
     const disposeListChanged = listChangedEmitter.on((event) => {
       if (event.conversation_id !== conversation_id || event.action !== 'deleted') {
@@ -126,9 +132,10 @@ export const useConversationRuntimeView = (conversation_id: string): UseConversa
 
     return () => {
       disposeTurnCompleted();
+      disposeCanonicalTurnCompleted?.();
       disposeListChanged();
     };
-  }, [conversation_id]);
+  }, [canonicalThreadId, conversation_id]);
 
   const markSendStarted = useCallback(() => {
     flushRuntimeViewLogs(localSendStarted(conversation_id));
@@ -175,15 +182,34 @@ export const useConversationRuntimeView = (conversation_id: string): UseConversa
 
     flushRuntimeViewLogs(localStopRequested(conversation_id, turn_id));
     try {
-      const result = await ipcBridge.conversation.stop.invoke({ conversation_id, turn_id });
-      flushRuntimeViewLogs(localStopAcknowledged(conversation_id, turn_id, result.runtime));
+      if (canonicalThreadId) {
+        await ipcBridge.codexThreads.interruptTurn.invoke({
+          threadId: canonicalThreadId,
+          conversationId: conversation_id,
+          turnId: turn_id,
+        });
+        flushRuntimeViewLogs(
+          localStopAcknowledged(conversation_id, turn_id, {
+            state: 'idle',
+            can_send_message: true,
+            has_task: false,
+            task_status: 'finished',
+            is_processing: false,
+            pending_confirmations: 0,
+            turn_id: null,
+          })
+        );
+      } else {
+        const result = await ipcBridge.conversation.stop.invoke({ conversation_id, turn_id });
+        flushRuntimeViewLogs(localStopAcknowledged(conversation_id, turn_id, result.runtime));
+      }
       return true;
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
       flushRuntimeViewLogs(resetLocalGate(conversation_id, normalizeReason(reason)));
       throw error;
     }
-  }, [conversation_id, view.activeTurnId]);
+  }, [canonicalThreadId, conversation_id, view.activeTurnId]);
 
   return {
     view,

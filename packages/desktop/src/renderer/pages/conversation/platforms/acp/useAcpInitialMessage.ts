@@ -20,6 +20,7 @@ type UseAcpInitialMessageParams = {
   conversation_id: string;
   backend: string;
   workspacePath?: string;
+  disabled?: boolean;
   setAiProcessing: (value: boolean) => void;
   resetState: () => void;
   markSendStarted?: () => void;
@@ -38,6 +39,7 @@ export const useAcpInitialMessage = ({
   conversation_id,
   backend,
   workspacePath,
+  disabled = false,
   setAiProcessing,
   resetState,
   markSendStarted,
@@ -50,6 +52,7 @@ export const useAcpInitialMessage = ({
   const { t } = useTranslation();
 
   useEffect(() => {
+    if (disabled) return;
     const storageKey = `acp_initial_message_${conversation_id}`;
     const storedMessage = sessionStorage.getItem(storageKey);
 
@@ -129,6 +132,7 @@ export const useAcpInitialMessage = ({
     backend,
     checkAndUpdateTitle,
     conversation_id,
+    disabled,
     markSendAccepted,
     markSendFailed,
     markSendStarted,
