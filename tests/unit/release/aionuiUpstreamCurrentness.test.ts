@@ -42,17 +42,17 @@ describe('AionUI upstream currentness', () => {
     expect(receipt.managed_runtime).not.toHaveProperty('codex_acp');
     expect(receipt.managed_runtime).toMatchObject({
       aioncore: {
-        version: 'v0.1.54',
-        commit: '64db07ab103a66b5f00273361c91106eb91416f4',
-        archive_sha256: '6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+        version: 'v0.1.55',
+        commit: 'd870f1a787fb556653395f9266372edd10a308bf',
+        archive_sha256: 'b0c375ef072c601226acf0d14c83e467c560fc5da6324b8bc50d6ce0f41487a2',
         release_assets: {
           'darwin-arm64': {
-            name: 'aioncore-v0.1.54-aarch64-apple-darwin.tar.gz',
-            sha256: '6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+            name: 'aioncore-v0.1.55-aarch64-apple-darwin.tar.gz',
+            sha256: 'b0c375ef072c601226acf0d14c83e467c560fc5da6324b8bc50d6ce0f41487a2',
           },
           'linux-x64': {
-            name: 'aioncore-v0.1.54-x86_64-unknown-linux-gnu.tar.gz',
-            sha256: '3790455006706eb1d45403a72e07303920a4568b64c122fcc23f4e92c8fd964d',
+            name: 'aioncore-v0.1.55-x86_64-unknown-linux-gnu.tar.gz',
+            sha256: '4eced16c29a27d22e65e4a120e1aa60dede70d4a7c501cd1f348bf1da6eb45a1',
           },
         },
       },
