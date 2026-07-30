@@ -15,6 +15,7 @@
  */
 
 const { execSync, execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -797,6 +798,48 @@ function getDownloadUrl(assetName, tag) {
   return `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/download/${tag}/${assetName}`;
 }
 
+function resolveOfficialReleaseAsset(projectRoot, platform, arch, tag) {
+  const runtimeKey = `${platform}-${arch}`;
+  const assetName = getAssetName(platform, arch, tag);
+  if (!assetName) {
+    throw new Error(`Unsupported aioncore target: ${runtimeKey}`);
+  }
+
+  const intakePath = path.join(projectRoot, 'contracts', 'aionui-upstream-intake.json');
+  let intake;
+  try {
+    intake = JSON.parse(fs.readFileSync(intakePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Cannot read AionCore official release intake: ${intakePath}`, { cause: error });
+  }
+  const aioncore = intake?.managed_runtime?.aioncore;
+  if (aioncore?.version !== tag || !/^[0-9a-f]{40}$/.test(aioncore?.commit || '')) {
+    throw new Error(`AionCore official release intake must bind exact tag ${tag} and its commit.`);
+  }
+  const asset = aioncore?.release_assets?.[runtimeKey];
+  if (!asset || asset.name !== assetName || !/^[0-9a-f]{64}$/.test(asset.sha256 || '')) {
+    throw new Error(`AionCore official release intake is missing exact asset identity for ${runtimeKey}.`);
+  }
+  return {
+    runtimeKey,
+    name: assetName,
+    sha256: asset.sha256,
+    url: getDownloadUrl(assetName, tag),
+  };
+}
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function assertArchiveSha256(filePath, expectedSha256, label) {
+  const actualSha256 = sha256File(filePath);
+  if (actualSha256 !== expectedSha256) {
+    throw new Error(`${label} SHA-256 mismatch: expected ${expectedSha256}, got ${actualSha256}.`);
+  }
+  return actualSha256;
+}
+
 function runDownloadOnce(url, outputPath, options = {}) {
   const platform = options.platform || process.platform;
   const execFile = options.execFileSync || execFileSync;
@@ -1036,30 +1079,33 @@ function downloadAndExtractActionsArtifact(platform, arch, runId) {
   };
 }
 
-function downloadAndExtract(platform, arch, tag) {
-  const assetName = getAssetName(platform, arch, tag);
-  if (!assetName) {
-    throw new Error(`Unsupported aioncore target: ${platform}-${arch}`);
-  }
-
-  const url = getDownloadUrl(assetName, tag);
+function downloadAndExtract(projectRoot, platform, arch, tag, options = {}) {
+  const asset = resolveOfficialReleaseAsset(projectRoot, platform, arch, tag);
   const tempDir = path.join(os.tmpdir(), 'aioncore-prepare', tag, `${platform}-${arch}`);
-  const archivePath = path.join(tempDir, assetName);
+  const archivePath = path.join(tempDir, asset.name);
   const extractDir = path.join(tempDir, 'extracted');
+  const download = options.downloadFile || downloadFile;
+  const extract = options.extractArchive || extractArchive;
 
   removeDirectorySafe(tempDir);
   ensureDirectory(tempDir);
 
-  downloadFile(url, archivePath);
-  extractArchive(archivePath, extractDir, platform);
+  try {
+    download(asset.url, archivePath);
+    assertArchiveSha256(archivePath, asset.sha256, `AionCore ${asset.runtimeKey} archive`);
+    extract(archivePath, extractDir, platform);
 
-  const binaryName = getBinaryName(platform);
-  const binaryPath = findBinaryInDir(extractDir, binaryName);
-  if (!binaryPath) {
-    throw new Error(`Binary ${binaryName} not found in downloaded archive`);
+    const binaryName = getBinaryName(platform);
+    const binaryPath = findBinaryInDir(extractDir, binaryName);
+    if (!binaryPath) {
+      throw new Error(`Binary ${binaryName} not found in downloaded archive`);
+    }
+
+    return { binaryPath, tempDir, url: asset.url, archiveSha256: asset.sha256 };
+  } catch (error) {
+    removeDirectorySafe(tempDir);
+    throw error;
   }
-
-  return { binaryPath, tempDir, url };
 }
 
 // ---------------------------------------------------------------------------
@@ -1114,7 +1160,13 @@ function prepareAioncore(options) {
   const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', runtimeKey);
   const binaryName = getBinaryName(platform);
   const targetBinaryPath = path.join(targetDir, binaryName);
-  const cacheVersion = actionsRunId ? `actions-run-${actionsRunId}` : tag;
+  const officialReleaseAsset =
+    !localSource && !actionsRunId && tag ? resolveOfficialReleaseAsset(projectRoot, platform, arch, tag) : null;
+  const cacheVersion = actionsRunId
+    ? `actions-run-${actionsRunId}`
+    : officialReleaseAsset
+      ? `${tag}-${officialReleaseAsset.sha256}`
+      : tag;
   const cachePaths = getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion);
 
   console.log(
@@ -1210,16 +1262,12 @@ function prepareAioncore(options) {
 
   // 2. Download from GitHub releases.
   if (!sourcePath && tag) {
-    try {
-      const result = downloadAndExtract(platform, arch, tag);
-      sourcePath = result.binaryPath;
-      tempDir = result.tempDir;
-      sourceType = 'download';
-      sourceDetail = { url: result.url };
-      console.log(`  Downloaded from GitHub releases`);
-    } catch (error) {
-      console.warn(`  Download failed: ${error.message}`);
-    }
+    const result = downloadAndExtract(projectRoot, platform, arch, tag);
+    sourcePath = result.binaryPath;
+    tempDir = result.tempDir;
+    sourceType = 'download';
+    sourceDetail = { url: result.url, archiveSha256: result.archiveSha256 };
+    console.log(`  Downloaded from GitHub releases`);
   }
 
   // Write result
@@ -1310,17 +1358,20 @@ module.exports = {
   prepareAioncore,
   __test__: {
     assertAioncoreCompatibility,
+    assertArchiveSha256,
     resolveAioncoreCompatibility,
     staticAioncoreCompatibility,
     assertPreparedRuntimeManifestCompatibility,
     defaultAioncoreCacheRoot,
     downloadFile,
+    downloadAndExtract,
     getAioncoreCachePaths,
     getManagedResourcePrepareEnv,
     materializeInternalFileSymlinks,
     normalizeInternalSymlinks,
     prepareAioncore,
     prepareManagedResources,
+    resolveOfficialReleaseAsset,
     resolveLocalAioncoreSource,
     runDownloadOnce,
     parsePositiveInteger,

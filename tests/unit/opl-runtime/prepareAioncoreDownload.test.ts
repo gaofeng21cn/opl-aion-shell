@@ -231,6 +231,50 @@ describe('prepare-aioncore compatibility gate', () => {
   });
 });
 
+describe('prepare-aioncore official release archive integrity', () => {
+  it('resolves exact official identities for every supported target', () => {
+    const projectRoot = path.resolve(import.meta.dirname, '../../..');
+    const targets = [
+      ['darwin', 'arm64'],
+      ['darwin', 'x64'],
+      ['linux', 'arm64'],
+      ['linux', 'x64'],
+      ['win32', 'arm64'],
+      ['win32', 'x64'],
+    ];
+
+    const assets = targets.map(([platform, arch]) =>
+      __test__.resolveOfficialReleaseAsset(projectRoot, platform, arch, 'v0.1.54')
+    );
+
+    expect(new Set(assets.map((asset: { sha256: string }) => asset.sha256)).size).toBe(6);
+    expect(assets).toContainEqual({
+      runtimeKey: 'linux-x64',
+      name: 'aioncore-v0.1.54-x86_64-unknown-linux-gnu.tar.gz',
+      sha256: '3790455006706eb1d45403a72e07303920a4568b64c122fcc23f4e92c8fd964d',
+      url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.54/aioncore-v0.1.54-x86_64-unknown-linux-gnu.tar.gz',
+    });
+  });
+
+  it('rejects an archive before extraction when its bytes do not match the official digest', () => {
+    const projectRoot = path.resolve(import.meta.dirname, '../../..');
+    let extractionAttempted = false;
+
+    expect(() =>
+      __test__.downloadAndExtract(projectRoot, 'linux', 'x64', 'v0.1.54', {
+        downloadFile(_url: string, outputPath: string) {
+          fs.writeFileSync(outputPath, 'wrong archive bytes');
+        },
+        extractArchive() {
+          extractionAttempted = true;
+        },
+      })
+    ).toThrow(/linux-x64 archive SHA-256 mismatch/);
+    expect(extractionAttempted).toBe(false);
+    expect(fs.existsSync(path.join(os.tmpdir(), 'aioncore-prepare', 'v0.1.54', 'linux-x64'))).toBe(false);
+  });
+});
+
 describe('prepare-aioncore local-development source gate', () => {
   it('requires complete exact source provenance for a local binary', () => {
     const binaryPath = path.join(makeTempDir(), 'aioncore');
@@ -501,10 +545,18 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.54', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(
+      cacheRoot,
+      'darwin-arm64-v0.1.54-6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+      'bundled-aioncore',
+      'darwin-arm64'
+    );
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
     const cachedNodeRoot = path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64');
+    const intakePath = path.join(projectRoot, 'contracts', 'aionui-upstream-intake.json');
 
+    fs.mkdirSync(path.dirname(intakePath), { recursive: true });
+    fs.copyFileSync(path.resolve(import.meta.dirname, '../../../contracts/aionui-upstream-intake.json'), intakePath);
     fs.mkdirSync(path.join(cachedNodeRoot, 'bin'), { recursive: true });
     fs.mkdirSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'bin'), { recursive: true });
     fs.mkdirSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib'), { recursive: true });

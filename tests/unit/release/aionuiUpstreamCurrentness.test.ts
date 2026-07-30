@@ -45,12 +45,37 @@ describe('AionUI upstream currentness', () => {
         version: 'v0.1.54',
         commit: '64db07ab103a66b5f00273361c91106eb91416f4',
         archive_sha256: '6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+        release_assets: {
+          'darwin-arm64': {
+            name: 'aioncore-v0.1.54-aarch64-apple-darwin.tar.gz',
+            sha256: '6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+          },
+          'linux-x64': {
+            name: 'aioncore-v0.1.54-x86_64-unknown-linux-gnu.tar.gz',
+            sha256: '3790455006706eb1d45403a72e07303920a4568b64c122fcc23f4e92c8fd964d',
+          },
+        },
       },
       managed_resources_schema: 2,
       node_runtime: { version: '24.11.0' },
       claude_cli: { package: '@anthropic-ai/claude-code', version: '2.1.215' },
       codex_cli: { package: '@openai/codex', version: '0.144.6' },
     });
+  });
+
+  it('requires the exact six-platform AionCore release asset set', () => {
+    const missingLinux = structuredClone(receipt);
+    delete missingLinux.managed_runtime.aioncore.release_assets['linux-x64'];
+    expect(() => validateAionuiIntakeReceipt(missingLinux)).toThrow(/must contain exactly/);
+
+    const wrongDigest = structuredClone(receipt);
+    wrongDigest.managed_runtime.aioncore.release_assets['linux-x64'].sha256 = 'not-a-digest';
+    expect(() => validateAionuiIntakeReceipt(wrongDigest)).toThrow(/lowercase SHA-256 digest/);
+
+    const duplicateDigest = structuredClone(receipt);
+    duplicateDigest.managed_runtime.aioncore.release_assets['linux-x64'].sha256 =
+      duplicateDigest.managed_runtime.aioncore.release_assets['darwin-arm64'].sha256;
+    expect(() => validateAionuiIntakeReceipt(duplicateDigest)).toThrow(/one distinct digest per platform asset/);
   });
 
   it('selects only the highest official stable semantic release', () => {

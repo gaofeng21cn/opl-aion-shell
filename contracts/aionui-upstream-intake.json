@@ -24,7 +24,33 @@
     "aioncore": {
       "version": "v0.1.54",
       "commit": "64db07ab103a66b5f00273361c91106eb91416f4",
-      "archive_sha256": "6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14"
+      "archive_sha256": "6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14",
+      "release_assets": {
+        "darwin-arm64": {
+          "name": "aioncore-v0.1.54-aarch64-apple-darwin.tar.gz",
+          "sha256": "6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14"
+        },
+        "darwin-x64": {
+          "name": "aioncore-v0.1.54-x86_64-apple-darwin.tar.gz",
+          "sha256": "eaa15adbfa7aec74021ebd0fd95fbb85302ae04c7e47334dac1fdc7df0defadb"
+        },
+        "linux-arm64": {
+          "name": "aioncore-v0.1.54-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "4d5c418eb25b5274f536a275fb488348401d1edea9f42d1f10e791b3e91b08fd"
+        },
+        "linux-x64": {
+          "name": "aioncore-v0.1.54-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "3790455006706eb1d45403a72e07303920a4568b64c122fcc23f4e92c8fd964d"
+        },
+        "win32-arm64": {
+          "name": "aioncore-v0.1.54-aarch64-pc-windows-msvc.zip",
+          "sha256": "0330c6499b45efbe91832f81c28afb025eefacd6b01bd95c55f379827583d33c"
+        },
+        "win32-x64": {
+          "name": "aioncore-v0.1.54-x86_64-pc-windows-msvc.zip",
+          "sha256": "37aa9779986d4cce1c04082f7df1a8df52c2a0529464f4e1c32124b70c873cd2"
+        }
+      }
     },
     "managed_resources_schema": 2,
     "managed_resources_manifest_sha256": "0a3e1496e0ba6ca1bf522bfe1945e388e7bd4d51ac64ada43ba85ec99e98cd44",
