@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_AIONCORE_VERSION = 'v0.1.53';
-const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.53';
+const REQUIRED_AIONCORE_VERSION = 'v0.1.54';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.54';
 const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
 const REQUIRED_MANAGED_CLIS = {
   claude: { version: '2.1.215' },

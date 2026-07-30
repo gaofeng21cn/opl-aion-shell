@@ -41,6 +41,11 @@ describe('AionUI upstream currentness', () => {
     expect(receipt.absorbed_release.commit).toBe('1b215f2fcb9d220bc66bf3b4961835ded07d5797');
     expect(receipt.managed_runtime).not.toHaveProperty('codex_acp');
     expect(receipt.managed_runtime).toMatchObject({
+      aioncore: {
+        version: 'v0.1.54',
+        commit: '64db07ab103a66b5f00273361c91106eb91416f4',
+        archive_sha256: '6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14',
+      },
       managed_resources_schema: 2,
       node_runtime: { version: '24.11.0' },
       claude_cli: { package: '@anthropic-ai/claude-code', version: '2.1.215' },
