@@ -81,6 +81,7 @@ import {
   setCloseToTrayEnabled,
   setIsQuitting,
 } from './process/utils/tray';
+import { resolveAioncoreManagedCodex } from './process/backend/aioncoreManagedCodex';
 import { applyOplFullRuntimeEnv, ensurePackagedOplFullRuntime } from './process/backend/fullRuntime';
 import { buildOplHostToolEnv } from './process/backend/hostToolEnv';
 import { initializeWindowsWslRuntime, type WindowsWslRuntimeExecution } from './process/services/runtime-execution';
@@ -168,6 +169,14 @@ applyOplFullRuntimeEnv(
     usePackagedLocalTemporalDefault: app.isPackaged && !isWebUIBootstrap,
   })
 );
+if (app.isPackaged && process.platform !== 'win32') {
+  const managedCodex = resolveAioncoreManagedCodex({
+    resourcesPath: process.resourcesPath,
+    env: process.env,
+  });
+  applyOplFullRuntimeEnv(managedCodex.env);
+  console.log(`[AionUi] Activated AionCore-managed Codex CLI ${managedCodex.version} for ${managedCodex.runtimeKey}`);
+}
 
 // Handle Squirrel startup events (Windows installer)
 if (electronSquirrelStartup) {
