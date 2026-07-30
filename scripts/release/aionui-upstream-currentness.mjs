@@ -12,6 +12,14 @@ const ALLOWED_DISPOSITIONS = new Set([
   'reviewed_rejected',
   'reviewed_no_change',
 ]);
+const AIONCORE_RELEASE_TARGETS = {
+  'darwin-arm64': ['aarch64', 'apple-darwin', 'tar.gz'],
+  'darwin-x64': ['x86_64', 'apple-darwin', 'tar.gz'],
+  'linux-arm64': ['aarch64', 'unknown-linux-gnu', 'tar.gz'],
+  'linux-x64': ['x86_64', 'unknown-linux-gnu', 'tar.gz'],
+  'win32-arm64': ['aarch64', 'pc-windows-msvc', 'zip'],
+  'win32-x64': ['x86_64', 'pc-windows-msvc', 'zip'],
+};
 const DEFAULT_REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const DEFAULT_RECEIPT_PATH = path.join(DEFAULT_REPO_ROOT, 'contracts', 'aionui-upstream-intake.json');
 
@@ -170,9 +178,40 @@ export function validateAionuiIntakeReceipt(value) {
 
   const runtime = requireObject(receipt.managed_runtime, 'managed_runtime');
   const aioncore = requireObject(runtime.aioncore, 'managed_runtime.aioncore');
-  if (!parseStableTag(aioncore.version)) throw new Error('managed_runtime.aioncore.version must be semantic');
+  const aioncoreVersion = parseStableTag(aioncore.version);
+  if (!aioncoreVersion || aioncoreVersion.tag !== aioncore.version) {
+    throw new Error('managed_runtime.aioncore.version must be a canonical semantic tag');
+  }
   requireSha(aioncore.commit, 'managed_runtime.aioncore.commit');
   requireDigest(aioncore.archive_sha256, 'managed_runtime.aioncore.archive_sha256');
+  const releaseAssets = requireObject(aioncore.release_assets, 'managed_runtime.aioncore.release_assets');
+  const releaseAssetKeys = Object.keys(releaseAssets).sort();
+  const expectedReleaseAssetKeys = Object.keys(AIONCORE_RELEASE_TARGETS).sort();
+  if (
+    releaseAssetKeys.length !== expectedReleaseAssetKeys.length ||
+    releaseAssetKeys.some((key, index) => key !== expectedReleaseAssetKeys[index])
+  ) {
+    throw new Error(
+      `managed_runtime.aioncore.release_assets must contain exactly ${expectedReleaseAssetKeys.join(', ')}`
+    );
+  }
+  const releaseAssetDigests = new Set();
+  for (const [runtimeKey, [arch, platform, extension]] of Object.entries(AIONCORE_RELEASE_TARGETS)) {
+    const asset = requireObject(releaseAssets[runtimeKey], `managed_runtime.aioncore.release_assets.${runtimeKey}`);
+    const expectedName = `aioncore-${aioncore.version}-${arch}-${platform}.${extension}`;
+    if (asset.name !== expectedName) {
+      throw new Error(`managed_runtime.aioncore.release_assets.${runtimeKey}.name must be ${expectedName}`);
+    }
+    releaseAssetDigests.add(
+      requireDigest(asset.sha256, `managed_runtime.aioncore.release_assets.${runtimeKey}.sha256`)
+    );
+  }
+  if (releaseAssetDigests.size !== expectedReleaseAssetKeys.length) {
+    throw new Error('managed_runtime.aioncore.release_assets must bind one distinct digest per platform asset');
+  }
+  if (aioncore.archive_sha256 !== releaseAssets['darwin-arm64'].sha256) {
+    throw new Error('managed_runtime.aioncore.archive_sha256 must project the darwin-arm64 release asset digest');
+  }
   if (runtime.managed_resources_schema !== 2) {
     throw new Error('managed_runtime.managed_resources_schema must be 2');
   }
