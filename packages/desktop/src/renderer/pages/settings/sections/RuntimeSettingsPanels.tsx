@@ -239,6 +239,19 @@ const TEMPORAL_NOT_CONFIGURED_STATUSES = new Set([
   'temporal_runtime_not_configured',
 ]);
 
+const TEMPORAL_KNOWN_BLOCKERS = new Set([
+  'temporal_runtime_not_configured',
+  'temporal_server_unreachable',
+  'temporal_worker_dependency_unavailable',
+  'temporal_worker_duplicate_foreground',
+  'temporal_worker_process_exited',
+  'temporal_worker_source_stale',
+  'temporal_worker_not_ready',
+  'temporal_service_supervisor_unready',
+  'temporal_service_supervisor_configuration_drift',
+  'temporal_service_supervisor_not_loaded',
+]);
+
 function temporalAddressSourceLabel(source: string, t: RuntimeSettingsPanelsTranslate): string {
   const normalizedSource = source.trim().toLowerCase();
   if (
@@ -284,7 +297,7 @@ function temporalServiceSupervisorLabel(
 }
 
 function temporalWorkerStatusLabel(snapshot: TemporalMaintenanceSnapshot, t: RuntimeSettingsPanelsTranslate): string {
-  if (snapshot.workerError) return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
+  if (snapshot.workerError) return t('settings.oplEnvironmentPage.temporal.values.checkFailed');
   if (snapshot.workerReady) return t('settings.oplEnvironmentPage.temporal.values.ready');
   if (snapshot.workerStatus === 'not_configured') {
     return t('settings.oplEnvironmentPage.temporal.values.notConfigured');
@@ -298,7 +311,7 @@ function temporalWorkerStatusLabel(snapshot: TemporalMaintenanceSnapshot, t: Run
   if (snapshot.workerStatus === 'not_checked' || snapshot.workerStatus === 'unknown') {
     return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   }
-  return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
+  return t('settings.oplEnvironmentPage.temporal.values.repairRequired');
 }
 
 function temporalSchedulerStatusLabel(
@@ -306,14 +319,14 @@ function temporalSchedulerStatusLabel(
   t: RuntimeSettingsPanelsTranslate
 ): string {
   const status = snapshot.schedulerStatus;
-  if (snapshot.schedulerError) return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
+  if (snapshot.schedulerError) return t('settings.oplEnvironmentPage.temporal.values.checkFailed');
   if (snapshot.schedulerReady === true) return t('settings.oplEnvironmentPage.temporal.values.ready');
   if (status === 'not_installed') return t('settings.oplEnvironmentPage.temporal.values.notInstalled');
   if (status === 'paused') return t('settings.oplEnvironmentPage.temporal.values.paused');
   if (snapshot.schedulerReady === null || status === 'not_checked' || status === 'unknown') {
     return t('settings.oplEnvironmentPage.temporal.values.needsCheck');
   }
-  return t('settings.oplEnvironmentPage.temporal.values.needsAttention');
+  return t('settings.oplEnvironmentPage.temporal.values.repairRequired');
 }
 
 function temporalBlockerLabel(blocker: string, t: RuntimeSettingsPanelsTranslate): string {
@@ -351,9 +364,10 @@ function TemporalActionButton({
   actionId,
   action,
   label,
-  unavailableHelp: _unavailableHelp,
+  unavailableHelp,
   busyActionId,
   disabled,
+  buttonType = 'secondary',
   onAction,
 }: {
   actionId: TemporalMaintenanceActionId;
@@ -362,13 +376,14 @@ function TemporalActionButton({
   unavailableHelp: string;
   busyActionId: TemporalMaintenanceActionId | null;
   disabled: boolean;
+  buttonType?: 'primary' | 'secondary';
   onAction: (actionId: TemporalMaintenanceActionId) => void;
 }) {
   if (!action) return null;
   const button = (
     <Button
       size='small'
-      type='secondary'
+      type={buttonType}
       loading={busyActionId === actionId}
       disabled={disabled}
       onClick={() => onAction(action.actionId)}
@@ -377,7 +392,18 @@ function TemporalActionButton({
       {label}
     </Button>
   );
-  return button;
+  if (!disabled) return button;
+  return (
+    <span
+      className='inline-flex'
+      title={unavailableHelp}
+      tabIndex={0}
+      role='note'
+      aria-label={`${label}. ${unavailableHelp}`}
+    >
+      {button}
+    </span>
+  );
 }
 
 export function TemporalMaintenancePanel({
@@ -421,44 +447,116 @@ export function TemporalMaintenancePanel({
     snapshot.workerStatus.includes('dependency_unavailable') ||
     snapshot.blockers.some((blocker) => blocker.includes('worker_dependency_unavailable'));
   const unavailableHelp = t('settings.oplEnvironmentPage.temporal.actions.unavailable');
+  const waitingForServiceHelp = t('settings.oplEnvironmentPage.temporal.actions.waitingForService');
+  const waitingForWorkerHelp = t('settings.oplEnvironmentPage.temporal.actions.waitingForWorker');
   const blockerText = snapshot.blockers.length
     ? snapshot.blockers.map((blocker) => temporalBlockerLabel(blocker, t)).join(', ')
     : t('settings.oplEnvironmentPage.temporal.values.none');
-  const workerStatusLabel = temporalWorkerStatusLabel(snapshot, t);
-  const schedulerStatusLabel = temporalSchedulerStatusLabel(snapshot, t);
+  const workerStatusLabel = !serverReady
+    ? t('settings.oplEnvironmentPage.temporal.values.waitingForService')
+    : temporalWorkerStatusLabel(snapshot, t);
+  const schedulerStatusLabel = !serverReady
+    ? t('settings.oplEnvironmentPage.temporal.values.waitingForService')
+    : !snapshot.workerReady
+      ? t('settings.oplEnvironmentPage.temporal.values.waitingForWorker')
+      : temporalSchedulerStatusLabel(snapshot, t);
   const providerNotConfigured =
     TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.providerStatus) ||
     TEMPORAL_NOT_CONFIGURED_STATUSES.has(snapshot.healthStatus);
-  const componentFailureReported =
-    serverFailed ||
-    (!providerNotConfigured &&
-      snapshot.serviceSupervisorRequired &&
-      (!snapshot.serviceSupervisorInstalled ||
-        !snapshot.serviceSupervisorLoaded ||
-        !snapshot.serviceSupervisorConfigurationCurrent ||
-        snapshot.serviceSupervisorReady === false ||
-        snapshot.serviceSupervisorError !== null)) ||
-    (!snapshot.workerReady && !['not_checked', 'unknown', 'not_configured'].includes(snapshot.workerStatus)) ||
-    snapshot.workerError !== null ||
-    snapshot.schedulerReady === false ||
-    snapshot.schedulerError !== null;
-  const aggregateStatusLabel = snapshot.ready
-    ? t('settings.oplEnvironmentPage.temporal.values.ready')
-    : componentFailureReported
-      ? t('settings.oplEnvironmentPage.temporal.values.needsAttention')
-      : providerNotConfigured
-        ? t('settings.oplEnvironmentPage.temporal.values.notConfigured')
-        : t('settings.oplEnvironmentPage.temporal.values.needsCheck');
-  const needsAttention =
-    !snapshot.ready ||
-    componentFailureReported ||
-    serverNotConfigured ||
-    !serverReady ||
-    !snapshot.workerReady ||
-    workerMutationBlocked ||
-    workerDependencyUnavailable ||
-    snapshot.schedulerReady !== true ||
-    snapshot.blockers.length > 0;
+  const supervisorNeedsRepair =
+    !providerNotConfigured &&
+    snapshot.serviceSupervisorRequired &&
+    (!snapshot.serviceSupervisorInstalled ||
+      !snapshot.serviceSupervisorLoaded ||
+      !snapshot.serviceSupervisorConfigurationCurrent ||
+      snapshot.serviceSupervisorReady === false ||
+      snapshot.serviceSupervisorError !== null);
+  const workerHasKnownRepair =
+    [
+      'not_configured',
+      'server_unreachable',
+      'worker_source_stale',
+      'duplicate_worker',
+      'worker_process_exited',
+      'worker_not_ready',
+    ].includes(snapshot.workerStatus) ||
+    snapshot.workerStatus.includes('dependency_unavailable') ||
+    snapshot.blockers.some((blocker) => TEMPORAL_KNOWN_BLOCKERS.has(blocker));
+  type TemporalRootCause =
+    | 'ready'
+    | 'serverSetup'
+    | 'serverRepair'
+    | 'workerGuard'
+    | 'workerDependency'
+    | 'workerRepair'
+    | 'scheduleSetup'
+    | 'schedulePaused'
+    | 'scheduleRepair'
+    | 'checking';
+  let rootCause: TemporalRootCause = 'checking';
+  if (snapshot.ready && serverReady && snapshot.workerReady && snapshot.schedulerReady === true) {
+    rootCause = 'ready';
+  } else if (serverNotConfigured || (providerNotConfigured && !serverReady)) {
+    rootCause = 'serverSetup';
+  } else if (serverFailed || supervisorNeedsRepair) {
+    rootCause = 'serverRepair';
+  } else if (!serverReady) {
+    rootCause = 'checking';
+  } else if (workerMutationBlocked) {
+    rootCause = 'workerGuard';
+  } else if (workerDependencyUnavailable) {
+    rootCause = 'workerDependency';
+  } else if (!snapshot.workerReady && workerHasKnownRepair) {
+    rootCause = 'workerRepair';
+  } else if (!snapshot.workerReady) {
+    rootCause = 'checking';
+  } else if (snapshot.schedulerStatus === 'not_installed') {
+    rootCause = 'scheduleSetup';
+  } else if (snapshot.schedulerStatus === 'paused') {
+    rootCause = 'schedulePaused';
+  } else if (snapshot.schedulerReady === false || snapshot.schedulerError) {
+    rootCause = 'scheduleRepair';
+  }
+  const aggregateStatusLabel =
+    rootCause === 'ready'
+      ? t('settings.oplEnvironmentPage.temporal.values.ready')
+      : rootCause === 'serverSetup' || rootCause === 'scheduleSetup'
+        ? t('settings.oplEnvironmentPage.temporal.values.setupRequired')
+        : rootCause === 'schedulePaused'
+          ? t('settings.oplEnvironmentPage.temporal.values.paused')
+          : rootCause === 'checking'
+            ? t('settings.oplEnvironmentPage.temporal.values.needsCheck')
+            : snapshot.workerError || snapshot.schedulerError
+              ? t('settings.oplEnvironmentPage.temporal.values.checkFailed')
+              : t('settings.oplEnvironmentPage.temporal.values.repairRequired');
+  const rootCauseTitle = t(`settings.oplEnvironmentPage.temporal.summary.${rootCause}Title`);
+  const rootCauseImpact =
+    rootCause === 'ready'
+      ? t('settings.oplEnvironmentPage.temporal.summary.readyImpact')
+      : rootCause === 'checking'
+        ? t('settings.oplEnvironmentPage.temporal.summary.checkingImpact')
+        : rootCause === 'serverSetup' || rootCause === 'serverRepair'
+          ? t('settings.oplEnvironmentPage.temporal.summary.serviceUnavailableImpact')
+          : rootCause === 'workerGuard' || rootCause === 'workerDependency' || rootCause === 'workerRepair'
+            ? t('settings.oplEnvironmentPage.temporal.summary.workerUnavailableImpact')
+            : t('settings.oplEnvironmentPage.temporal.summary.scheduleUnavailableImpact');
+  let primaryActionId: TemporalMaintenanceActionId | null = null;
+  if (rootCause === 'serverSetup' || rootCause === 'serverRepair') {
+    primaryActionId = 'provider_service_start';
+  } else if (rootCause === 'workerRepair') {
+    primaryActionId = workerNeedsRestart ? 'provider_worker_restart' : 'provider_worker_start';
+  } else if (rootCause === 'scheduleSetup' || rootCause === 'schedulePaused') {
+    primaryActionId = 'provider_scheduler_install';
+  }
+  const recheckActionId: TemporalMaintenanceActionId =
+    rootCause === 'serverSetup' || rootCause === 'serverRepair' || (rootCause === 'checking' && !serverReady)
+      ? 'provider_service_status'
+      : rootCause === 'workerGuard' ||
+          rootCause === 'workerDependency' ||
+          rootCause === 'workerRepair' ||
+          (rootCause === 'checking' && !snapshot.workerReady)
+        ? 'provider_worker_status'
+        : 'provider_scheduler_status';
 
   return (
     <section
@@ -466,25 +564,82 @@ export function TemporalMaintenancePanel({
       id='temporal-runtime'
       data-testid='settings-maintenance-temporal'
     >
+      <div className='opl-settings-section__header'>
+        <div>
+          <Typography.Text className='block font-600 text-t-primary'>
+            {t('settings.oplEnvironmentPage.temporal.title')}
+          </Typography.Text>
+          <Typography.Text className='block text-12px text-t-secondary'>
+            {t('settings.oplEnvironmentPage.temporal.description')}
+          </Typography.Text>
+        </div>
+        <span
+          className={temporalStatusClass(
+            rootCause === 'ready',
+            Boolean(snapshot.serviceSupervisorError || snapshot.workerError || snapshot.schedulerError)
+          )}
+          data-testid='settings-maintenance-temporal-status'
+        >
+          {aggregateStatusLabel}
+        </span>
+      </div>
+      <div className='opl-settings-row' data-testid='settings-maintenance-temporal-summary'>
+        <div className='opl-settings-row__main'>
+          <Typography.Text className='block font-600 text-t-primary'>{rootCauseTitle}</Typography.Text>
+          <Typography.Text className='block text-12px text-t-secondary break-words'>{rootCauseImpact}</Typography.Text>
+        </div>
+        <div className='opl-settings-row__meta'>
+          {primaryActionId && (
+            <TemporalActionButton
+              actionId={primaryActionId}
+              action={actions[primaryActionId]}
+              label={temporalActionLabel(primaryActionId, t)}
+              unavailableHelp={unavailableHelp}
+              busyActionId={busyActionId}
+              disabled={disabled}
+              buttonType='primary'
+              onAction={onAction}
+            />
+          )}
+          {rootCause === 'workerGuard' && (
+            <Button
+              size='small'
+              type='primary'
+              disabled={disabled}
+              icon={<Right theme='outline' size='14' />}
+              onClick={onOpenWorkerSourceSettings}
+              data-testid='settings-maintenance-temporal-primary-worker-source'
+            >
+              {t('settings.oplEnvironmentPage.temporal.worker.manageSources')}
+            </Button>
+          )}
+          {rootCause === 'workerDependency' && (
+            <Button
+              size='small'
+              type='primary'
+              disabled={disabled}
+              onClick={onRepairWorkerDependency}
+              data-testid='settings-maintenance-temporal-primary-worker-dependency'
+            >
+              {t('settings.oplEnvironmentPage.temporal.worker.repairDependency')}
+            </Button>
+          )}
+          <TemporalActionButton
+            actionId={recheckActionId}
+            action={actions[recheckActionId]}
+            label={t('settings.oplEnvironmentPage.temporal.actions.recheck')}
+            unavailableHelp={unavailableHelp}
+            busyActionId={busyActionId}
+            disabled={disabled}
+            onAction={onAction}
+          />
+        </div>
+      </div>
       <MaintenanceDisclosure
-        needsAttention={needsAttention}
+        needsAttention={false}
         controlsId='temporal-runtime-details'
         toggleTestId='settings-maintenance-temporal-toggle'
-        summary={
-          <div className='opl-settings-section__header'>
-            <div>
-              <Typography.Text className='block font-600 text-t-primary'>
-                {t('settings.oplEnvironmentPage.temporal.title')}
-              </Typography.Text>
-              <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.oplEnvironmentPage.temporal.description')}
-              </Typography.Text>
-            </div>
-            <span className={temporalStatusClass(snapshot.ready)} data-testid='settings-maintenance-temporal-status'>
-              {aggregateStatusLabel}
-            </span>
-          </div>
-        }
+        summary={t('settings.oplEnvironmentPage.temporal.technicalDetails')}
       >
         <div className='opl-settings-list' id='temporal-runtime-details'>
           <div className='opl-settings-row' data-testid='settings-maintenance-temporal-server'>
@@ -495,6 +650,9 @@ export function TemporalMaintenancePanel({
               <div className='min-w-0'>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t('settings.oplEnvironmentPage.temporal.server.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.server.description')}
                 </Typography.Text>
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {t('settings.oplEnvironmentPage.temporal.server.address', {
@@ -527,33 +685,37 @@ export function TemporalMaintenancePanel({
                   : serverFailed
                     ? t('settings.oplEnvironmentPage.temporal.values.unreachable')
                     : snapshot.serviceReady === true
-                      ? t('settings.oplEnvironmentPage.temporal.values.needsAttention')
+                      ? t('settings.oplEnvironmentPage.temporal.values.repairRequired')
                       : !serverNotConfigured
                         ? t('settings.oplEnvironmentPage.temporal.values.notChecked')
                         : t('settings.oplEnvironmentPage.temporal.values.notConfigured')}
               </span>
-              <TemporalActionButton
-                actionId='provider_service_status'
-                action={actions.provider_service_status}
-                label={t('settings.oplEnvironmentPage.temporal.actions.checkServer')}
-                unavailableHelp={unavailableHelp}
-                busyActionId={busyActionId}
-                disabled={disabled}
-                onAction={onAction}
-              />
-              <TemporalActionButton
-                actionId={serverReady ? 'provider_service_restart' : 'provider_service_start'}
-                action={serverReady ? actions.provider_service_restart : actions.provider_service_start}
-                label={
-                  serverReady
-                    ? t('settings.oplEnvironmentPage.temporal.actions.restartServer')
-                    : t('settings.oplEnvironmentPage.temporal.actions.configureAndStartServer')
-                }
-                unavailableHelp={unavailableHelp}
-                busyActionId={busyActionId}
-                disabled={disabled}
-                onAction={onAction}
-              />
+              {recheckActionId !== 'provider_service_status' && (
+                <TemporalActionButton
+                  actionId='provider_service_status'
+                  action={actions.provider_service_status}
+                  label={t('settings.oplEnvironmentPage.temporal.actions.checkServer')}
+                  unavailableHelp={unavailableHelp}
+                  busyActionId={busyActionId}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              )}
+              {primaryActionId !== (serverReady ? 'provider_service_restart' : 'provider_service_start') && (
+                <TemporalActionButton
+                  actionId={serverReady ? 'provider_service_restart' : 'provider_service_start'}
+                  action={serverReady ? actions.provider_service_restart : actions.provider_service_start}
+                  label={
+                    serverReady
+                      ? t('settings.oplEnvironmentPage.temporal.actions.restartServer')
+                      : t('settings.oplEnvironmentPage.temporal.actions.configureAndStartServer')
+                  }
+                  unavailableHelp={unavailableHelp}
+                  busyActionId={busyActionId}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              )}
             </div>
           </div>
 
@@ -565,6 +727,9 @@ export function TemporalMaintenancePanel({
               <div className='min-w-0'>
                 <Typography.Text className='block font-600 text-t-primary'>
                   {t('settings.oplEnvironmentPage.temporal.worker.title')}
+                </Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary break-words'>
+                  {t('settings.oplEnvironmentPage.temporal.worker.description')}
                 </Typography.Text>
                 <Typography.Text className='block text-12px text-t-secondary break-words'>
                   {t('settings.oplEnvironmentPage.temporal.worker.taskQueue', { taskQueue: snapshot.taskQueue })}
@@ -596,41 +761,54 @@ export function TemporalMaintenancePanel({
             <div className='opl-settings-row__meta'>
               <span
                 className={temporalStatusClass(
-                  snapshot.workerReady && !snapshot.workerError,
-                  Boolean(snapshot.workerError)
+                  serverReady && snapshot.workerReady && !snapshot.workerError,
+                  serverReady && Boolean(snapshot.workerError)
                 )}
               >
                 {workerStatusLabel}
               </span>
-              <TemporalActionButton
-                actionId='provider_worker_status'
-                action={actions.provider_worker_status}
-                label={t('settings.oplEnvironmentPage.temporal.actions.checkWorker')}
-                unavailableHelp={unavailableHelp}
-                busyActionId={busyActionId}
-                disabled={disabled}
-                onAction={onAction}
-              />
-              <TemporalActionButton
-                actionId={
-                  snapshot.workerReady || workerNeedsRestart ? 'provider_worker_restart' : 'provider_worker_start'
-                }
-                action={
-                  snapshot.workerReady || workerNeedsRestart
-                    ? actions.provider_worker_restart
-                    : actions.provider_worker_start
-                }
-                label={
-                  snapshot.workerReady || workerNeedsRestart
-                    ? t('settings.oplEnvironmentPage.temporal.actions.restartWorker')
-                    : t('settings.oplEnvironmentPage.temporal.actions.startWorker')
-                }
-                unavailableHelp={unavailableHelp}
-                busyActionId={busyActionId}
-                disabled={disabled || !serverReady || workerMutationBlocked || workerDependencyUnavailable}
-                onAction={onAction}
-              />
-              {workerMutationBlocked && (
+              {recheckActionId !== 'provider_worker_status' && (
+                <TemporalActionButton
+                  actionId='provider_worker_status'
+                  action={actions.provider_worker_status}
+                  label={t('settings.oplEnvironmentPage.temporal.actions.checkWorker')}
+                  unavailableHelp={unavailableHelp}
+                  busyActionId={busyActionId}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              )}
+              {primaryActionId !==
+                (snapshot.workerReady || workerNeedsRestart ? 'provider_worker_restart' : 'provider_worker_start') && (
+                <TemporalActionButton
+                  actionId={
+                    snapshot.workerReady || workerNeedsRestart ? 'provider_worker_restart' : 'provider_worker_start'
+                  }
+                  action={
+                    snapshot.workerReady || workerNeedsRestart
+                      ? actions.provider_worker_restart
+                      : actions.provider_worker_start
+                  }
+                  label={
+                    snapshot.workerReady || workerNeedsRestart
+                      ? t('settings.oplEnvironmentPage.temporal.actions.restartWorker')
+                      : t('settings.oplEnvironmentPage.temporal.actions.startWorker')
+                  }
+                  unavailableHelp={
+                    !serverReady
+                      ? waitingForServiceHelp
+                      : workerMutationBlocked
+                        ? t('settings.oplEnvironmentPage.temporal.worker.developerGuardNextSteps')
+                        : workerDependencyUnavailable
+                          ? t('settings.oplEnvironmentPage.temporal.worker.dependencyUnavailable')
+                          : unavailableHelp
+                  }
+                  busyActionId={busyActionId}
+                  disabled={disabled || !serverReady || workerMutationBlocked || workerDependencyUnavailable}
+                  onAction={onAction}
+                />
+              )}
+              {workerMutationBlocked && rootCause !== 'workerGuard' && (
                 <Button
                   size='small'
                   type='text'
@@ -641,7 +819,7 @@ export function TemporalMaintenancePanel({
                   {t('settings.oplEnvironmentPage.temporal.worker.manageSources')}
                 </Button>
               )}
-              {workerDependencyUnavailable && (
+              {workerDependencyUnavailable && rootCause !== 'workerDependency' && (
                 <Button
                   size='small'
                   type='text'
@@ -684,29 +862,39 @@ export function TemporalMaintenancePanel({
             <div className='opl-settings-row__meta'>
               <span
                 className={temporalStatusClass(
-                  snapshot.schedulerReady === true && !snapshot.schedulerError,
-                  Boolean(snapshot.schedulerError) ||
-                    (snapshot.schedulerReady === false &&
-                      !['not_installed', 'paused'].includes(snapshot.schedulerStatus))
+                  serverReady && snapshot.workerReady && snapshot.schedulerReady === true && !snapshot.schedulerError,
+                  serverReady &&
+                    snapshot.workerReady &&
+                    (Boolean(snapshot.schedulerError) ||
+                      (snapshot.schedulerReady === false &&
+                        !['not_installed', 'paused'].includes(snapshot.schedulerStatus)))
                 )}
               >
                 {schedulerStatusLabel}
               </span>
-              <TemporalActionButton
-                actionId='provider_scheduler_status'
-                action={actions.provider_scheduler_status}
-                label={t('settings.oplEnvironmentPage.temporal.actions.checkScheduler')}
-                unavailableHelp={unavailableHelp}
-                busyActionId={busyActionId}
-                disabled={disabled}
-                onAction={onAction}
-              />
-              {snapshot.schedulerStatus === 'not_installed' && (
+              {recheckActionId !== 'provider_scheduler_status' && (
+                <TemporalActionButton
+                  actionId='provider_scheduler_status'
+                  action={actions.provider_scheduler_status}
+                  label={t('settings.oplEnvironmentPage.temporal.actions.checkScheduler')}
+                  unavailableHelp={unavailableHelp}
+                  busyActionId={busyActionId}
+                  disabled={disabled}
+                  onAction={onAction}
+                />
+              )}
+              {snapshot.schedulerStatus === 'not_installed' && primaryActionId !== 'provider_scheduler_install' && (
                 <TemporalActionButton
                   actionId='provider_scheduler_install'
                   action={actions.provider_scheduler_install}
                   label={t('settings.oplEnvironmentPage.temporal.actions.installScheduler')}
-                  unavailableHelp={unavailableHelp}
+                  unavailableHelp={
+                    !serverReady
+                      ? waitingForServiceHelp
+                      : !snapshot.workerReady
+                        ? waitingForWorkerHelp
+                        : unavailableHelp
+                  }
                   busyActionId={busyActionId}
                   disabled={disabled || !serverReady || !snapshot.workerReady}
                   onAction={onAction}
@@ -716,7 +904,9 @@ export function TemporalMaintenancePanel({
                 actionId='provider_scheduler_trigger'
                 action={actions.provider_scheduler_trigger}
                 label={t('settings.oplEnvironmentPage.temporal.actions.triggerScheduler')}
-                unavailableHelp={unavailableHelp}
+                unavailableHelp={
+                  !serverReady ? waitingForServiceHelp : !snapshot.workerReady ? waitingForWorkerHelp : unavailableHelp
+                }
                 busyActionId={busyActionId}
                 disabled={disabled || !serverReady || !snapshot.workerReady || snapshot.schedulerReady !== true}
                 onAction={onAction}
@@ -724,19 +914,18 @@ export function TemporalMaintenancePanel({
             </div>
           </div>
         </div>
-
-        {evidence && (
-          <div className='opl-temporal-action-readback' data-testid='settings-maintenance-temporal-readback'>
-            <Typography.Text className='block text-12px text-t-secondary break-words'>
-              {t('settings.oplEnvironmentPage.temporal.readback', {
-                action: temporalActionLabel(evidence.actionId, t),
-                outcome: t(`settings.oplEnvironmentPage.temporal.outcomes.${evidence.outcome}`),
-                observedAt: formatMaintenanceTimestamp(evidence.observedAt, t, locale),
-              })}
-            </Typography.Text>
-          </div>
-        )}
       </MaintenanceDisclosure>
+      {evidence && (
+        <div className='opl-temporal-action-readback' data-testid='settings-maintenance-temporal-readback'>
+          <Typography.Text className='block text-12px text-t-secondary break-words'>
+            {t('settings.oplEnvironmentPage.temporal.readback', {
+              action: temporalActionLabel(evidence.actionId, t),
+              outcome: t(`settings.oplEnvironmentPage.temporal.outcomes.${evidence.outcome}`),
+              observedAt: formatMaintenanceTimestamp(evidence.observedAt, t, locale),
+            })}
+          </Typography.Text>
+        </div>
+      )}
     </section>
   );
 }

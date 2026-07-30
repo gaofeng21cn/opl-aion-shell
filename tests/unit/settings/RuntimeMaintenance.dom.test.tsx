@@ -373,15 +373,46 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, values?: Record<string, string | number>) => {
       const labels: Record<string, string> = {
-        'settings.oplEnvironmentPage.temporal.actions.checkScheduler': '检查调度器',
-        'settings.oplEnvironmentPage.temporal.actions.checkServer': '检查 Server',
-        'settings.oplEnvironmentPage.temporal.actions.restartServer': '重启 Server',
-        'settings.oplEnvironmentPage.temporal.actions.checkWorker': '检查 Worker',
-        'settings.oplEnvironmentPage.temporal.actions.configureAndStartServer': '配置并启动 Server',
-        'settings.oplEnvironmentPage.temporal.actions.installScheduler': '安装调度器',
-        'settings.oplEnvironmentPage.temporal.actions.restartWorker': '重启 Worker',
-        'settings.oplEnvironmentPage.temporal.actions.startWorker': '启动 Worker',
-        'settings.oplEnvironmentPage.temporal.actions.triggerScheduler': '立即运行 scheduler',
+        'settings.oplEnvironmentPage.temporal.title': '持久任务运行（Temporal）',
+        'settings.oplEnvironmentPage.temporal.description':
+          '查看 OPL 的持久后台任务现在能否运行。普通 Codex 对话不依赖这项服务。',
+        'settings.oplEnvironmentPage.temporal.technicalDetails': '技术详情',
+        'settings.oplEnvironmentPage.temporal.summary.readyTitle': '持久任务运行正常',
+        'settings.oplEnvironmentPage.temporal.summary.serverSetupTitle': 'Temporal 基础服务尚未设置',
+        'settings.oplEnvironmentPage.temporal.summary.serverRepairTitle': 'Temporal 基础服务需要修复',
+        'settings.oplEnvironmentPage.temporal.summary.workerGuardTitle': 'OPL 任务执行器的运行来源需要确认',
+        'settings.oplEnvironmentPage.temporal.summary.workerDependencyTitle': 'OPL 任务执行器缺少运行依赖',
+        'settings.oplEnvironmentPage.temporal.summary.workerRepairTitle': 'OPL 任务执行器尚未就绪',
+        'settings.oplEnvironmentPage.temporal.summary.scheduleSetupTitle': '周期计划尚未启用',
+        'settings.oplEnvironmentPage.temporal.summary.schedulePausedTitle': '周期计划已暂停',
+        'settings.oplEnvironmentPage.temporal.summary.scheduleRepairTitle': '周期计划需要修复',
+        'settings.oplEnvironmentPage.temporal.summary.checkingTitle': '需要重新检查运行状态',
+        'settings.oplEnvironmentPage.temporal.summary.readyImpact': '持久、周期和可恢复的后台任务均可运行。',
+        'settings.oplEnvironmentPage.temporal.summary.serviceUnavailableImpact':
+          '持久、周期和可恢复的后台任务暂不可用；普通 Codex 对话仍可使用。',
+        'settings.oplEnvironmentPage.temporal.summary.workerUnavailableImpact':
+          '基础服务可用，但 OPL 后台任务暂时不会执行；普通 Codex 对话仍可使用。',
+        'settings.oplEnvironmentPage.temporal.summary.scheduleUnavailableImpact':
+          '任务仍可手动执行，但暂时不会按周期自动触发。',
+        'settings.oplEnvironmentPage.temporal.summary.checkingImpact': '当前状态证据不完整。重新检查不会修改运行配置。',
+        'settings.oplEnvironmentPage.temporal.server.title': 'Temporal 基础服务',
+        'settings.oplEnvironmentPage.temporal.server.description': '提供持久任务所需的 Temporal 运行底座。',
+        'settings.oplEnvironmentPage.temporal.worker.title': 'OPL 任务执行器',
+        'settings.oplEnvironmentPage.temporal.worker.description': '接收 Temporal 中的 OPL 后台任务并实际执行。',
+        'settings.oplEnvironmentPage.temporal.scheduler.title': '周期计划',
+        'settings.oplEnvironmentPage.temporal.scheduler.description': '按设定时间自动触发任务；它不是另一套独立服务。',
+        'settings.oplEnvironmentPage.temporal.actions.checkScheduler': '检查周期计划',
+        'settings.oplEnvironmentPage.temporal.actions.checkServer': '检查基础服务',
+        'settings.oplEnvironmentPage.temporal.actions.restartServer': '重启基础服务',
+        'settings.oplEnvironmentPage.temporal.actions.checkWorker': '检查任务执行器',
+        'settings.oplEnvironmentPage.temporal.actions.configureAndStartServer': '配置并启动',
+        'settings.oplEnvironmentPage.temporal.actions.installScheduler': '启用周期计划',
+        'settings.oplEnvironmentPage.temporal.actions.restartWorker': '重启任务执行器',
+        'settings.oplEnvironmentPage.temporal.actions.startWorker': '启动任务执行器',
+        'settings.oplEnvironmentPage.temporal.actions.triggerScheduler': '立即执行一次',
+        'settings.oplEnvironmentPage.temporal.actions.recheck': '重新检查',
+        'settings.oplEnvironmentPage.temporal.actions.waitingForService': '请先让 Temporal 基础服务就绪。',
+        'settings.oplEnvironmentPage.temporal.actions.waitingForWorker': '请先让 OPL 任务执行器就绪。',
         'settings.oplEnvironmentPage.temporal.server.supervisorConfigurationDrift': '启动保护：配置需要修复',
         'settings.oplEnvironmentPage.temporal.server.supervisorNotApplicable': '启动保护：由当前部署方式负责',
         'settings.oplEnvironmentPage.temporal.messages.actionComplete': '维护已完成',
@@ -397,11 +428,16 @@ vi.mock('react-i18next', () => ({
         'settings.oplEnvironmentPage.temporal.values.notChecked': '尚未检查',
         'settings.oplEnvironmentPage.temporal.values.notConfigured': '未配置',
         'settings.oplEnvironmentPage.temporal.values.notInstalled': '未安装',
+        'settings.oplEnvironmentPage.temporal.values.setupRequired': '需要设置',
+        'settings.oplEnvironmentPage.temporal.values.repairRequired': '需要修复',
+        'settings.oplEnvironmentPage.temporal.values.waitingForService': '等待 Temporal 基础服务',
+        'settings.oplEnvironmentPage.temporal.values.waitingForWorker': '等待 OPL 任务执行器',
+        'settings.oplEnvironmentPage.temporal.values.checkFailed': '检查失败',
         'settings.oplEnvironmentPage.temporal.values.reachable': '可连接',
         'settings.oplEnvironmentPage.temporal.values.ready': '运行正常',
         'settings.oplEnvironmentPage.temporal.values.restartRequired': '需要重启',
         'settings.oplEnvironmentPage.temporal.worker.developerGuardBlocked':
-          '当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。',
+          '当前 OPL CLI 指向开发源码，已阻止它接管共享的 OPL 任务执行器。',
         'settings.oplEnvironmentPage.temporal.worker.developerGuardNextSteps':
           '请切回托管运行来源，或明确启用已授权的开发仓库维护。',
         'settings.oplEnvironmentPage.temporal.worker.manageSources': '管理运行来源',
@@ -647,7 +683,7 @@ describe('RuntimeSettings maintenance structure', () => {
     expect(details).toHaveAttribute('open');
     expect(restartButton).toBeVisible();
     expect(restartButton).toBeEnabled();
-    expect(restartButton).toHaveTextContent('重启 Server');
+    expect(restartButton).toHaveTextContent('重启基础服务');
     expect(restartButton.querySelector('svg')).toBeNull();
     expect(screen.getByTestId('settings-maintenance-temporal-server').querySelector('svg')).not.toBeNull();
     fireEvent.click(restartButton);
@@ -710,6 +746,7 @@ describe('RuntimeSettings maintenance structure', () => {
       'provider_service_status',
       'provider_service_start',
       'provider_worker_status',
+      'provider_worker_start',
       'provider_worker_restart',
       'provider_scheduler_status'
     );
@@ -717,9 +754,17 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     const serverRow = screen.getByTestId('settings-maintenance-temporal-server');
-    expect(within(serverRow).getByText('尚未检查')).toBeVisible();
+    expect(serverRow).toHaveTextContent('尚未检查');
     expect(within(serverRow).queryByText('可连接')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
+    expect(screen.getByTestId('settings-maintenance-temporal-worker')).toHaveTextContent('等待 Temporal 基础服务');
+    expect(screen.getByTestId('settings-maintenance-temporal-scheduler')).toHaveTextContent('等待 Temporal 基础服务');
+    const workerRestart = screen.getByTestId('settings-maintenance-temporal-action-provider_worker_restart');
+    expect(workerRestart).toBeDisabled();
+    expect(workerRestart.closest('[role="note"]')).toHaveAttribute(
+      'aria-label',
+      expect.stringContaining('请先让 Temporal 基础服务就绪。')
+    );
   });
 
   it('does not let provider readiness override an explicitly unready worker', () => {
@@ -749,10 +794,11 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(within(screen.getByTestId('settings-maintenance-temporal-server')).getByText('可连接')).toBeVisible();
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('可连接');
     const workerRow = screen.getByTestId('settings-maintenance-temporal-worker');
     expect(within(workerRow).queryByText('运行正常')).not.toBeInTheDocument();
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeEnabled();
+    expect(screen.getByTestId('settings-maintenance-temporal-scheduler')).toHaveTextContent('等待 OPL 任务执行器');
     expect(
       screen.queryByTestId('settings-maintenance-temporal-action-provider_worker_restart')
     ).not.toBeInTheDocument();
@@ -794,9 +840,13 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('settings-maintenance-temporal-toggle')).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByTestId('settings-maintenance-temporal-toggle').closest('details')).toHaveAttribute('open');
-    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要处理');
+    const toggle = screen.getByTestId('settings-maintenance-temporal-toggle');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle.closest('details')).not.toHaveAttribute('open');
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要修复');
+    expect(screen.getByTestId('settings-maintenance-temporal-summary')).toHaveTextContent('Temporal 基础服务需要修复');
+    expect(screen.getByTestId('settings-maintenance-temporal-server')).not.toBeVisible();
+    fireEvent.click(toggle);
     expect(screen.getByTestId('settings-maintenance-temporal-server')).toBeVisible();
     expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('启动保护：配置需要修复');
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
@@ -891,7 +941,18 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('未配置');
+    const panel = screen.getByTestId('settings-maintenance-temporal');
+    const summary = screen.getByTestId('settings-maintenance-temporal-summary');
+    expect(panel).toHaveTextContent('持久任务运行（Temporal）');
+    expect(panel).toHaveTextContent('Temporal 基础服务');
+    expect(panel).toHaveTextContent('OPL 任务执行器');
+    expect(panel).toHaveTextContent('周期计划');
+    expect(panel).not.toHaveTextContent('OPL worker');
+    expect(panel).not.toHaveTextContent('OPL scheduler');
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要设置');
+    expect(within(summary).getByRole('button', { name: '配置并启动' })).toBeEnabled();
+    expect(within(summary).getByRole('button', { name: '重新检查' })).toBeEnabled();
+    expect(summary.querySelectorAll('.arco-btn-primary')).toHaveLength(1);
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_service_start')).toBeEnabled();
     expect(screen.getByTestId('settings-maintenance-temporal')).not.toHaveTextContent(
       'provider_code_landed_unconfigured'
@@ -917,7 +978,7 @@ describe('RuntimeSettings maintenance structure', () => {
 
     render(<RuntimeSettings />);
 
-    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要处理');
+    expect(screen.getByTestId('settings-maintenance-temporal-status')).toHaveTextContent('需要修复');
     expect(screen.getByTestId('settings-maintenance-temporal-status')).not.toHaveTextContent('未配置');
     expect(screen.getByTestId('settings-maintenance-temporal-server')).toHaveTextContent('可连接');
     expect(screen.getByTestId('settings-maintenance-temporal-worker')).toHaveTextContent('需要重启');
@@ -1011,8 +1072,9 @@ describe('RuntimeSettings maintenance structure', () => {
 
     const installButton = await screen.findByTestId('settings-maintenance-temporal-action-provider_scheduler_install');
     expect(installButton).toBeEnabled();
+    expect(installButton).toHaveTextContent('启用周期计划');
     const evidence = screen.getByTestId('settings-maintenance-temporal-readback');
-    expect(evidence).toHaveTextContent('检查调度器');
+    expect(evidence).toHaveTextContent('检查周期计划');
     expect(evidence).toHaveTextContent('需要处理');
     expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
     expect(evidence).not.toHaveTextContent('provider_scheduler_status');
@@ -1129,7 +1191,7 @@ describe('RuntimeSettings maintenance structure', () => {
     fireEvent.click(screen.getByTestId('settings-maintenance-temporal-action-provider_service_status'));
 
     const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
-    expect(evidence).toHaveTextContent('检查 Server');
+    expect(evidence).toHaveTextContent('检查基础服务');
     expect(evidence).toHaveTextContent('检查完成');
     expect(evidence.textContent).toMatch(/\d{1,2}:\d{2}/);
     expect(evidence).not.toHaveTextContent('provider_service_status');
@@ -1440,16 +1502,16 @@ describe('RuntimeSettings maintenance structure', () => {
     const evidence = await screen.findByTestId('settings-maintenance-temporal-readback');
     expect(messageMocks.success).not.toHaveBeenCalled();
     expect(messageMocks.error).toHaveBeenCalledTimes(1);
-    expect(evidence).toHaveTextContent('启动 Worker');
+    expect(evidence).toHaveTextContent('启动任务执行器');
     expect(evidence).toHaveTextContent('已拦截');
     expect(evidence).not.toHaveTextContent('provider_worker_start');
     expect(evidence).not.toHaveTextContent('blocked_developer_checkout_shared_state');
     const workerRow = screen.getByTestId('settings-maintenance-temporal-worker');
-    expect(workerRow).toHaveTextContent('当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。');
+    expect(workerRow).toHaveTextContent('当前 OPL CLI 指向开发源码，已阻止它接管共享的 OPL 任务执行器。');
     expect(workerRow).toHaveTextContent('请切回托管运行来源，或明确启用已授权的开发仓库维护。');
     expect(workerRow).not.toHaveTextContent(/环境变量|OPL_ALLOW_/);
 
-    const sourceButton = screen.getByTestId('settings-maintenance-temporal-worker-source');
+    const sourceButton = screen.getByTestId('settings-maintenance-temporal-primary-worker-source');
     expect(sourceButton.querySelector('svg')).not.toBeNull();
     fireEvent.click(sourceButton);
     expect(window.location.hash).toBe('#/settings/agents?section=source');
@@ -1480,7 +1542,7 @@ describe('RuntimeSettings maintenance structure', () => {
     render(<RuntimeSettings />);
 
     expect(screen.getByTestId('settings-maintenance-temporal-action-provider_worker_start')).toBeDisabled();
-    const repairButton = screen.getByTestId('settings-maintenance-temporal-worker-repair-dependency');
+    const repairButton = screen.getByTestId('settings-maintenance-temporal-primary-worker-dependency');
     expect(repairButton.querySelector('svg')).toBeNull();
     fireEvent.click(repairButton);
 

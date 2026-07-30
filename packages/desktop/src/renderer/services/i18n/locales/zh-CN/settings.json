@@ -1511,7 +1511,7 @@
     },
     "backgroundTasks": {
       "title": "后台任务",
-      "readyDescription": "任务服务、Worker 和周期调度均可用。",
+      "readyDescription": "持久任务运行所需的基础服务、任务执行器和周期计划均可用。",
       "attentionDescription": "后台任务依赖需要检查或修复。",
       "status": {
         "ready": "可用",
@@ -1523,26 +1523,26 @@
       "codex": "Codex",
       "gatewayFreshness": "Gateway 数据",
       "backgroundService": "后台服务",
-      "temporalNotConfigured": "Temporal server 和 worker 尚未配置；scheduler 仍需检查。",
-      "temporalNeedsAttention": "Temporal 的 server、worker 或 scheduler 仍需处理。",
+      "temporalNotConfigured": "持久任务运行尚未设置；普通 Codex 对话仍可使用。",
+      "temporalNeedsAttention": "持久任务运行存在一个待修复的根因。",
       "temporalReasons": {
         "notConfigured": "尚未配置运行地址；可在维护页配置并启动本机服务。",
-        "serverUnreachable": "已有 server 地址，但当前无法连接。",
+        "serverUnreachable": "已有基础服务地址，但当前无法连接。",
         "supervisorNotInstalled": "登录启动保护尚未安装。",
         "supervisorNotLoaded": "登录启动保护已安装，但当前没有运行。",
         "supervisorConfigurationDrift": "登录启动保护与 OPL 托管配置不一致。",
         "supervisorError": "登录启动保护报告了错误。",
         "supervisorUnready": "登录启动保护尚未就绪。",
-        "workerDependencyUnavailable": "OPL Base 中缺少 Temporal worker 必需依赖，或该依赖当前不可用。",
-        "workerMutationBlocked": "当前开发源无权接管共享的托管 worker。",
-        "workerSourceStale": "正在运行的 worker 与当前托管源不一致，需要重启。",
-        "duplicateWorker": "已有其他 worker 正在使用托管任务队列。",
-        "workerExited": "worker 在就绪前已经退出。",
-        "workerNotReady": "worker 尚未准备好接收托管任务。",
-        "schedulerNotInstalled": "OPL 周期调度尚未安装。",
-        "schedulerPaused": "OPL 周期调度当前已暂停。",
-        "schedulerError": "scheduler 在最近一次检查中报告了错误。",
-        "schedulerNotReady": "scheduler 尚未达到就绪状态。",
+        "workerDependencyUnavailable": "OPL Base 中缺少任务执行器的必需依赖，或该依赖当前不可用。",
+        "workerMutationBlocked": "当前开发源无权接管共享的 OPL 任务执行器。",
+        "workerSourceStale": "正在运行的 OPL 任务执行器与当前托管源不一致，需要重启。",
+        "duplicateWorker": "已有其他 OPL 任务执行器正在使用托管任务队列。",
+        "workerExited": "OPL 任务执行器在就绪前已经退出。",
+        "workerNotReady": "OPL 任务执行器尚未准备好接收托管任务。",
+        "schedulerNotInstalled": "周期计划尚未启用。",
+        "schedulerPaused": "周期计划当前已暂停。",
+        "schedulerError": "周期计划在最近一次检查中报告了错误。",
+        "schedulerNotReady": "周期计划尚未达到就绪状态。",
         "attention": "该组件报告了需要维护的状态。",
         "unknown": "该组件没有提供足够的最新信息；请在维护页执行检查。"
       },
@@ -2922,7 +2922,7 @@
       "refreshWorkspace": "刷新工作目录",
       "chooseWorkspaceRoot": "选择工作目录",
       "startTemporal": "启动 Temporal",
-      "restartTemporalWorker": "重启 Temporal 后台执行器"
+      "restartTemporalWorker": "重启 OPL 任务执行器"
     },
     "messages": {
       "commandFailed": "OPL 命令执行失败",
@@ -2965,11 +2965,30 @@
       }
     },
     "temporal": {
-      "title": "Temporal 服务",
-      "description": "Temporal 负责让 OPL 的持久任务在后台可靠运行。可在这里检查和维护 server、worker 与 scheduler。",
+      "title": "持久任务运行（Temporal）",
+      "description": "查看 OPL 的持久后台任务现在能否运行。普通 Codex 对话不依赖这项服务。",
+      "technicalDetails": "技术详情",
       "workerSourceStaleDetail": "后台执行器需重启",
+      "summary": {
+        "readyTitle": "持久任务运行正常",
+        "serverSetupTitle": "Temporal 基础服务尚未设置",
+        "serverRepairTitle": "Temporal 基础服务需要修复",
+        "workerGuardTitle": "OPL 任务执行器的运行来源需要确认",
+        "workerDependencyTitle": "OPL 任务执行器缺少运行依赖",
+        "workerRepairTitle": "OPL 任务执行器尚未就绪",
+        "scheduleSetupTitle": "周期计划尚未启用",
+        "schedulePausedTitle": "周期计划已暂停",
+        "scheduleRepairTitle": "周期计划需要修复",
+        "checkingTitle": "需要重新检查运行状态",
+        "readyImpact": "持久、周期和可恢复的后台任务均可运行。",
+        "serviceUnavailableImpact": "持久、周期和可恢复的后台任务暂不可用；普通 Codex 对话仍可使用。",
+        "workerUnavailableImpact": "基础服务可用，但 OPL 后台任务暂时不会执行；普通 Codex 对话仍可使用。",
+        "scheduleUnavailableImpact": "任务仍可手动执行，但暂时不会按周期自动触发。",
+        "checkingImpact": "当前状态证据不完整。重新检查不会修改运行配置。"
+      },
       "server": {
-        "title": "Temporal server",
+        "title": "Temporal 基础服务",
+        "description": "提供持久任务所需的 Temporal 运行底座。",
         "address": "{{address}} · {{source}}",
         "namespace": "命名空间：{{namespace}}",
         "supervisorReady": "启动保护：已登录常驻并可自动恢复",
@@ -2982,10 +3001,11 @@
         "supervisorObservedAt": "启动保护最近检查：{{observedAt}}"
       },
       "worker": {
-        "title": "OPL worker",
+        "title": "OPL 任务执行器",
+        "description": "接收 Temporal 中的 OPL 后台任务并实际执行。",
         "taskQueue": "任务队列：{{taskQueue}}",
-        "blockers": "需要处理：{{blockers}}",
-        "developerGuardBlocked": "当前 OPL CLI 指向开发源码，已阻止它接管共享的托管 Worker。",
+        "blockers": "阻塞原因：{{blockers}}",
+        "developerGuardBlocked": "当前 OPL CLI 指向开发源码，已阻止它接管共享的 OPL 任务执行器。",
         "developerGuardNextSteps": "请切回托管运行来源，或明确启用已授权的开发仓库维护。",
         "manageSources": "管理运行来源",
         "dependencyUnavailable": "worker 必需依赖不可用。修复 OPL Base 后才能启动 worker。",
@@ -2993,8 +3013,8 @@
         "reportedError": "worker 在最近一次检查中报告了错误。"
       },
       "scheduler": {
-        "title": "OPL scheduler",
-        "description": "维护 OPL 系列运行时的周期调度。",
+        "title": "周期计划",
+        "description": "按设定时间自动触发任务；它不是另一套独立服务。",
         "reportedError": "scheduler 在最近一次检查中报告了错误。",
         "observedAt": "最近检查：{{observedAt}}"
       },
@@ -3005,6 +3025,11 @@
         "notChecked": "尚未检查",
         "needsCheck": "需要检查",
         "needsAttention": "需要处理",
+        "setupRequired": "需要设置",
+        "repairRequired": "需要修复",
+        "waitingForService": "等待 Temporal 基础服务",
+        "waitingForWorker": "等待 OPL 任务执行器",
+        "checkFailed": "检查失败",
         "notConfigured": "尚未配置",
         "notInstalled": "尚未安装",
         "restartRequired": "需要重启",
@@ -3019,27 +3044,30 @@
       },
       "blockers": {
         "notConfigured": "Temporal 尚未配置",
-        "serverUnreachable": "Temporal server 无法连接",
-        "workerDependencyUnavailable": "worker 依赖不可用",
-        "duplicateWorker": "已有另一个 worker 在运行",
-        "workerExited": "worker 进程已退出",
-        "workerSourceStale": "worker 源码已过期",
-        "workerNotReady": "worker 尚未就绪",
-        "serviceSupervisorUnready": "Temporal server 启动保护尚未就绪",
-        "serviceSupervisorConfigurationDrift": "Temporal server 启动保护配置需要修复",
-        "serviceSupervisorNotLoaded": "Temporal server 启动保护尚未运行",
-        "unknown": "worker 报告了未知阻塞项"
+        "serverUnreachable": "Temporal 基础服务无法连接",
+        "workerDependencyUnavailable": "OPL 任务执行器的依赖不可用",
+        "duplicateWorker": "已有另一个 OPL 任务执行器在运行",
+        "workerExited": "OPL 任务执行器进程已退出",
+        "workerSourceStale": "OPL 任务执行器源码已过期",
+        "workerNotReady": "OPL 任务执行器尚未就绪",
+        "serviceSupervisorUnready": "Temporal 基础服务启动保护尚未就绪",
+        "serviceSupervisorConfigurationDrift": "Temporal 基础服务启动保护配置需要修复",
+        "serviceSupervisorNotLoaded": "Temporal 基础服务启动保护尚未运行",
+        "unknown": "OPL 任务执行器报告了未知阻塞项"
       },
       "actions": {
-        "checkServer": "检查 server",
+        "checkServer": "检查基础服务",
         "configureAndStartServer": "配置并启动",
-        "restartServer": "重启 server",
-        "checkWorker": "检查 worker",
-        "startWorker": "启动 worker",
-        "restartWorker": "重启 worker",
-        "checkScheduler": "检查 scheduler",
-        "installScheduler": "安装 scheduler",
-        "triggerScheduler": "立即运行 scheduler",
+        "restartServer": "重启基础服务",
+        "checkWorker": "检查任务执行器",
+        "startWorker": "启动任务执行器",
+        "restartWorker": "重启任务执行器",
+        "checkScheduler": "检查周期计划",
+        "installScheduler": "启用周期计划",
+        "triggerScheduler": "立即执行一次",
+        "recheck": "重新检查",
+        "waitingForService": "请先让 Temporal 基础服务就绪。",
+        "waitingForWorker": "请先让 OPL 任务执行器就绪。",
         "unavailable": "当前 App 状态不提供这项维护操作。"
       },
       "outcomes": {
@@ -3443,7 +3471,7 @@
       "views": {
         "services": {
           "title": "服务状态",
-          "description": "查看 Codex 与后台任务服务、Worker、周期调度是否可用。"
+          "description": "查看 Codex 与持久任务运行所需的基础服务、任务执行器和周期计划是否可用。"
         },
         "updates": {
           "title": "更新与修复",
