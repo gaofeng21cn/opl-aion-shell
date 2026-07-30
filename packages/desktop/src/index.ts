@@ -268,6 +268,15 @@ ipcMain.on('get-backend-startup-failure', (event) => {
   event.returnValue = backendStartupFailureInfo;
 });
 
+ipcMain.handle('app:open-log-directory', async () => {
+  const logsDirectory = app.getPath('logs');
+  await fs.promises.mkdir(logsDirectory, { recursive: true });
+  const openError = await shell.openPath(logsDirectory);
+  if (openError) {
+    throw new Error(openError);
+  }
+});
+
 ipcMain.handle('backend:recover-corrupted-database', async () => {
   const { recoverCorruptedDatabaseAfterUserConfirmation } = await import('./process/startup/recoverCorruptedDatabase');
 

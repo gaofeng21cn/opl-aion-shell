@@ -139,13 +139,19 @@
   "backendStartup": {
     "actions": {
       "restartApp": "重启 One Person Lab",
+      "restartAndRecheck": "重启并重新检测",
       "restartFailed": "One Person Lab 无法自动重启，请关闭应用后重新打开。",
+      "copyDiagnostics": "复制诊断信息",
+      "copyDiagnosticsSucceeded": "已复制脱敏诊断信息",
+      "copyDiagnosticsFailed": "无法复制诊断信息",
+      "openLogDirectory": "打开日志目录",
+      "openLogDirectoryFailed": "无法打开日志目录",
       "openSupport": "在 GitHub 报告问题",
       "openSupportFailed": "无法打开 GitHub Issue 页面，请检查默认浏览器后重试。"
     },
     "supportIssue": {
       "title": "[启动失败] One Person Lab 本机服务无法启动",
-      "body": "One Person Lab 未能完成启动。请补充导致本次失败的操作步骤。\n\nApp 版本：{{version}}\n平台：{{platform}}\n架构：{{architecture}}\n失败分类：{{reason}}\n后端边界码：{{boundaryCode}}\n后端边界阶段：{{boundaryStage}}\n\n提交前请删除你不希望共享的信息。应用不会自动附加日志、路径、凭据或用户内容。"
+      "body": "One Person Lab 未能完成启动。请补充导致本次失败的操作步骤。\n\nApp 版本：{{version}}\n平台：{{platform}}\n架构：{{architecture}}\n失败分类：{{reason}}\n后端边界码：{{boundaryCode}}\n后端边界阶段：{{boundaryStage}}\n缺失资源：{{missingResources}}\n\n提交前请删除你不希望共享的信息。应用不会自动附加日志、路径、凭据或用户内容。"
     },
     "incompatibleRuntime": {
       "title": "当前系统不支持本机服务",
@@ -154,7 +160,8 @@
     },
     "incompleteInstallation": {
       "title": "One Person Lab 安装不完整",
-      "description": "当前安装缺少必要的本地资源，本机服务无法启动。请下载并重新安装最新版 One Person Lab；如果问题仍然出现，请检查系统安全软件或杀毒软件是否隔离了 One Person Lab 组件。",
+      "description": "当前安装缺少必要的本地资源，本机服务无法启动。可先重启并重新检测；如果仍有缺失，请查看下方组件和应用日志，并检查安全软件或杀毒软件的隔离记录。确认组件被删除后，再从官方发布页重新安装。",
+      "missingResources": "检测到以下内置资源缺失：",
       "downloadLatest": "下载最新版",
       "sendDiagnostics": "发送诊断报告",
       "runtimeComponentDescription": "当前安装缺少必要的内置运行组件，{{resource}} 无法启动。请重新安装最新版 One Person Lab；如果问题仍然出现，请检查系统安全软件或杀毒软件是否隔离了 One Person Lab 组件。"

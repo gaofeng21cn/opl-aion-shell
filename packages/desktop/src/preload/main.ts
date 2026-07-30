@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Feedback: capture a screenshot of the current window
   captureFeedbackScreenshot: () => ipcRenderer.invoke('feedback:capture-screenshot'),
   recoverCorruptedDatabase: () => ipcRenderer.invoke('backend:recover-corrupted-database'),
+  openAppLogDirectory: () => ipcRenderer.invoke('app:open-log-directory'),
 });
 
 // Synchronously fetch the aioncore port and expose it to the renderer

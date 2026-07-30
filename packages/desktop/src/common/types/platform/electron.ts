@@ -24,6 +24,7 @@ export interface ElectronBridgeAPI {
   // Feedback screenshot capture / 反馈截图
   captureFeedbackScreenshot?: () => Promise<{ filename: string; data: number[] } | null>;
   recoverCorruptedDatabase?: () => Promise<void>;
+  openAppLogDirectory?: () => Promise<void>;
 }
 
 export type BackendStartupFailureReason =

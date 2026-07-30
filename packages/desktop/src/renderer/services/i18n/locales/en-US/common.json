@@ -139,13 +139,19 @@
   "backendStartup": {
     "actions": {
       "restartApp": "Restart One Person Lab",
+      "restartAndRecheck": "Restart and recheck",
       "restartFailed": "One Person Lab could not restart. Close the app and open it again.",
+      "copyDiagnostics": "Copy diagnostics",
+      "copyDiagnosticsSucceeded": "Redacted diagnostics copied",
+      "copyDiagnosticsFailed": "Could not copy diagnostics",
+      "openLogDirectory": "Open log folder",
+      "openLogDirectoryFailed": "Could not open the log folder",
       "openSupport": "Report issue on GitHub",
       "openSupportFailed": "The GitHub issue page could not be opened. Check your default browser and try again."
     },
     "supportIssue": {
       "title": "[Startup] One Person Lab local service failed",
-      "body": "One Person Lab could not finish startup. Add any steps that led to this failure.\n\nApp version: {{version}}\nPlatform: {{platform}}\nArchitecture: {{architecture}}\nFailure reason: {{reason}}\nBackend boundary code: {{boundaryCode}}\nBackend boundary stage: {{boundaryStage}}\n\nBefore submitting, remove any information you do not want to share. Logs, paths, credentials, and user content are not attached automatically."
+      "body": "One Person Lab could not finish startup. Add any steps that led to this failure.\n\nApp version: {{version}}\nPlatform: {{platform}}\nArchitecture: {{architecture}}\nFailure reason: {{reason}}\nBackend boundary code: {{boundaryCode}}\nBackend boundary stage: {{boundaryStage}}\nMissing resources: {{missingResources}}\n\nBefore submitting, remove any information you do not want to share. Logs, paths, credentials, and user content are not attached automatically."
     },
     "incompatibleRuntime": {
       "title": "This system is not supported by the local service",
@@ -154,7 +160,8 @@
     },
     "incompleteInstallation": {
       "title": "One Person Lab installation is incomplete",
-      "description": "This installation is missing required local resources, so the local service cannot start. Download and reinstall the latest One Person Lab release. If the issue returns, check whether security or antivirus software quarantined One Person Lab components.",
+      "description": "This installation is missing required local resources, so the local service cannot start. Restart and recheck first. If resources are still missing, review the components below and the app logs, then check the quarantine history in security or antivirus software. Reinstall from the official release page after confirming files were removed.",
+      "missingResources": "These bundled resources are missing:",
       "downloadLatest": "Download latest",
       "sendDiagnostics": "Send diagnostics",
       "runtimeComponentDescription": "This installation is missing required bundled runtime components, so {{resource}} cannot start. Reinstall the latest One Person Lab package. If it still happens, check whether security or antivirus software quarantined One Person Lab components."
