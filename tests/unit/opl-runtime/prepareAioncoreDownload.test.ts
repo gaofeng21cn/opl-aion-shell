@@ -501,7 +501,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const dir = makeTempDir();
     const projectRoot = path.join(dir, 'project');
     const cacheRoot = path.join(dir, 'cache');
-    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.53', 'bundled-aioncore', 'darwin-arm64');
+    const cacheRuntimeDir = path.join(cacheRoot, 'darwin-arm64-v0.1.54', 'bundled-aioncore', 'darwin-arm64');
     const targetDir = path.join(projectRoot, 'resources', 'bundled-aioncore', 'darwin-arm64');
     const cachedNodeRoot = path.join(cacheRuntimeDir, 'managed-resources', 'node', 'node-v24.11.0-darwin-arm64');
 
@@ -514,8 +514,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
       JSON.stringify({
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.53',
-        compatibility: { reportedVersion: '0.1.53' },
+        version: 'v0.1.54',
+        compatibility: { reportedVersion: '0.1.54' },
       })
     );
     fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'node'), 'node');
@@ -572,10 +572,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.53',
+        version: 'v0.1.54',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.53\n'
+            ? 'aioncore 0.1.54\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });

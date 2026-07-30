@@ -22,9 +22,9 @@
   },
   "managed_runtime": {
     "aioncore": {
-      "version": "v0.1.53",
-      "commit": "1644ef26c168e8002dcfa53ccd333054b40697d6",
-      "archive_sha256": "57b92b3de046717c7980d2c345d335e2513af514621fcbfff8a3e7cf16f8b7f6"
+      "version": "v0.1.54",
+      "commit": "64db07ab103a66b5f00273361c91106eb91416f4",
+      "archive_sha256": "6663e5329d9ba6e8b27004ed68751d613037c5a6b7695e84b372cb765a90de14"
     },
     "managed_resources_schema": 2,
     "managed_resources_manifest_sha256": "0a3e1496e0ba6ca1bf522bfe1945e388e7bd4d51ac64ada43ba85ec99e98cd44",
