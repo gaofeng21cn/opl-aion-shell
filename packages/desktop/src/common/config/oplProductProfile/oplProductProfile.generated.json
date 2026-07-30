@@ -919,7 +919,7 @@
       "manifest_lock_receipt_parser_allowed": false,
       "action_id_allowlist_allowed": false,
       "catalog_presentation_policy": {
-        "section_order": ["professional_agents", "workflow_profiles", "shared_dependencies", "other_packages"],
+        "section_order": ["professional_agents", "capability_packages", "workflow_profiles", "other_packages"],
         "professional_agent_order_source": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
         "professional_agent_order_policy": "sort_standard_agent_directory_entries_by_user_sort_order_then_localized_display_name",
         "workflow_profile_policy": "render_in_a_separate_workflow_section_not_mixed_with_runnable_agents",
@@ -928,9 +928,9 @@
             "zh-CN": "专业智能体",
             "en-US": "Professional agent"
           },
-          "framework_capability_package": {
-            "zh-CN": "配套能力包",
-            "en-US": "Companion capability package"
+          "capability_package": {
+            "zh-CN": "能力包",
+            "en-US": "Capability package"
           },
           "workflow_profile": {
             "zh-CN": "工作流配置",
@@ -942,8 +942,8 @@
           "source": "app_state.agent_packages.status_index.packages[].dependent_guard.required_by_package_ids",
           "direction": "a_package_with_one_visible_required_by_package_id_is_nested_under_that_parent_package",
           "single_parent_policy": "render_once_as_a_compact_child_row_under_the_visible_parent",
-          "multiple_parent_policy": "render_once_in_shared_dependencies_with_localized_parent_labels",
-          "missing_or_invisible_parent_policy": "render_once_in_shared_dependencies",
+          "multiple_parent_policy": "render_once_in_capability_packages_with_localized_parent_labels",
+          "missing_or_invisible_parent_policy": "render_once_in_capability_packages",
           "hardcoded_package_relationships_allowed": false,
           "duplicate_rows_allowed": false,
           "status_and_actions_source": "unchanged_Framework_directory_and_status_index_projection"
@@ -4864,10 +4864,10 @@
             },
             "catalog_presentation": {
               "policy_ref": "contracts/app-product-profile.json#gui.agent_package_registry.catalog_presentation_policy",
-              "section_order": ["professional_agents", "workflow_profiles", "shared_dependencies", "other_packages"],
+              "section_order": ["professional_agents", "capability_packages", "workflow_profiles", "other_packages"],
               "role_label_policy": "localized_product_label_never_raw_package_role_enum",
               "dependency_source": "app_state.agent_packages.status_index.packages[].dependent_guard.required_by_package_ids",
-              "dependency_policy": "single_parent_nested_multi_parent_or_missing_parent_shared_each_package_rendered_once",
+              "dependency_policy": "single_parent_nested_multi_parent_or_missing_parent_capability_packages_each_package_rendered_once",
               "hardcoded_relationships_allowed": false
             },
             "first_viewport_groups": [
