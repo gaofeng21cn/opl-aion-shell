@@ -18,6 +18,7 @@ import type {
 } from '@/common/update/updateTypes';
 import { uuid } from '@/common/utils';
 import { app } from 'electron';
+import crypto from 'node:crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import semver from 'semver';
@@ -37,6 +38,7 @@ type GitHubReleaseApiAsset = {
   name: string;
   browser_download_url: string;
   size: number;
+  digest?: string;
   content_type?: string;
 };
 
@@ -48,6 +50,7 @@ type GitHubReleaseApi = {
   published_at?: string;
   prerelease: boolean;
   draft: boolean;
+  immutable?: boolean;
   assets?: GitHubReleaseApiAsset[];
 };
 
@@ -62,6 +65,24 @@ type OplComponentManifest = {
   preview_kind?: string | null;
 };
 
+type OptionalPlatformManifestAsset = {
+  name?: unknown;
+  digest?: unknown;
+  size_bytes?: unknown;
+};
+
+type OptionalPlatformManifest = {
+  schema?: unknown;
+  kind?: unknown;
+  base_release_tag?: unknown;
+  release_identity?: {
+    display_version?: unknown;
+    updater_version?: unknown;
+  };
+  platforms?: unknown;
+  assets?: unknown;
+};
+
 type ReleaseQuality = 'stable' | 'preview';
 type ResolvedUpdateRelease = UpdateReleaseInfo & {
   qualityStatus: ReleaseQuality;
@@ -70,6 +91,7 @@ type ResolvedUpdateRelease = UpdateReleaseInfo & {
 const DEFAULT_REPO = 'gaofeng21cn/one-person-lab-app';
 const DEFAULT_USER_AGENT = 'OnePersonLabApp';
 const OPL_COMPONENT_MANIFEST_NAME = 'opl-app-component-manifest.json';
+const OPL_OPTIONAL_PLATFORMS_MANIFEST_NAME = 'opl-optional-platforms-manifest.json';
 const LEGACY_OPL_MACHINE_VERSION_CUTOFF = '26.7.20';
 const ALLOWED_ASSET_EXTS = new Set(['.exe', '.msi', '.dmg', '.zip', '.deb', '.rpm']);
 const CDN_HOST = 'static.aionui.com';
@@ -83,6 +105,7 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
 ]);
 const MAX_REDIRECTS = 8;
 const MAX_RELEASE_PAGES = 10;
+const SHA256_DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/;
 
 const isAllowedAssetName = (name: string) => {
   const ext = path.extname(name);
@@ -130,6 +153,36 @@ const fetchOplComponentManifest = async (asset: GitHubReleaseApiAsset): Promise<
     if (!response.ok) return null;
     const payload = (await response.json()) as unknown;
     return payload && typeof payload === 'object' ? (payload as OplComponentManifest) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+};
+
+const fetchOptionalPlatformManifest = async (
+  asset: GitHubReleaseApiAsset
+): Promise<{ manifest: OptionalPlatformManifest; digest: string; size: number } | null> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  try {
+    const response = await fetch(asset.browser_download_url, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': DEFAULT_USER_AGENT,
+      },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const text = await response.text();
+    const bytes = Buffer.from(text, 'utf8');
+    const payload = JSON.parse(text) as unknown;
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null;
+    return {
+      manifest: payload as OptionalPlatformManifest,
+      digest: `sha256:${crypto.createHash('sha256').update(bytes).digest('hex')}`,
+      size: bytes.length,
+    };
   } catch {
     return null;
   } finally {
@@ -420,9 +473,115 @@ const mapRelease = async (
   };
 };
 
+const validateOptionalAssetInventory = (
+  release: GitHubReleaseApi,
+  manifestAsset: GitHubReleaseApiAsset,
+  manifestAssets: OptionalPlatformManifestAsset[],
+  manifestDigest: string,
+  manifestSize: number
+): boolean => {
+  const expected = [
+    ...manifestAssets,
+    { name: OPL_OPTIONAL_PLATFORMS_MANIFEST_NAME, digest: manifestDigest, size_bytes: manifestSize },
+  ];
+  const actual = release.assets ?? [];
+  if (actual.length !== expected.length) return false;
+  const expectedNames = expected.map((asset) => asset.name);
+  if (expectedNames.some((name) => typeof name !== 'string') || new Set(expectedNames).size !== expectedNames.length) {
+    return false;
+  }
+  if (manifestAsset.digest !== manifestDigest || manifestAsset.size !== manifestSize) return false;
+  return expected.every(
+    (asset) =>
+      typeof asset.name === 'string' &&
+      typeof asset.digest === 'string' &&
+      SHA256_DIGEST_PATTERN.test(asset.digest) &&
+      typeof asset.size_bytes === 'number' &&
+      Number.isSafeInteger(asset.size_bytes) &&
+      asset.size_bytes > 0 &&
+      actual.filter(
+        (candidate) =>
+          candidate.name === asset.name && candidate.digest === asset.digest && candidate.size === asset.size_bytes
+      ).length === 1
+  );
+};
+
+const resolveWindowsStableAdjunct = async (
+  releases: GitHubReleaseApi[],
+  base: ResolvedUpdateRelease,
+  runtime: RuntimePlatformInfo
+): Promise<ResolvedUpdateRelease | null> => {
+  if (runtime.platform !== 'win32' || normalizeArch(runtime.arch) !== 'x64') return base;
+  const prefix = `${base.tagName}-optional-`;
+  const requiredNames = new Set([
+    `One-Person-Lab-${base.version}-win-x64.exe`,
+    `One-Person-Lab-${base.version}-win-x64.exe.blockmap`,
+    'latest.yml',
+    'opl-windows-updater-assets.json',
+    'opl-windows-authenticode-receipt.json',
+  ]);
+  const matches = (
+    await Promise.all(
+      releases
+        .filter(
+          (release) =>
+            !release.draft && !release.prerelease && release.immutable === true && release.tag_name.startsWith(prefix)
+        )
+        .map(async (release): Promise<ResolvedUpdateRelease | null> => {
+          const manifestAssets = (release.assets ?? []).filter(
+            (asset) => asset.name === OPL_OPTIONAL_PLATFORMS_MANIFEST_NAME
+          );
+          if (manifestAssets.length !== 1) return null;
+          const fetched = await fetchOptionalPlatformManifest(manifestAssets[0]!);
+          if (!fetched) return null;
+          const manifest = fetched.manifest;
+          const assets = Array.isArray(manifest.assets) ? (manifest.assets as OptionalPlatformManifestAsset[]) : [];
+          const platforms = Array.isArray(manifest.platforms) ? manifest.platforms : [];
+          const expectedTag = `${prefix}${fetched.digest.slice('sha256:'.length, 'sha256:'.length + 12)}`;
+          if (
+            manifest.schema !== 'opl_app_immutable_platform_adjunct_manifest.v1' ||
+            manifest.kind !== 'stable_optional_adjunct' ||
+            manifest.base_release_tag !== base.tagName ||
+            manifest.release_identity?.display_version !== base.version ||
+            manifest.release_identity?.updater_version !== base.updaterVersion ||
+            !platforms.includes('windows-x64') ||
+            release.tag_name !== expectedTag ||
+            !validateOptionalAssetInventory(release, manifestAssets[0]!, assets, fetched.digest, fetched.size)
+          ) {
+            return null;
+          }
+          const manifestNames = new Set(assets.map((asset) => asset.name));
+          if ([...requiredNames].some((name) => !manifestNames.has(name))) return null;
+          const mappedAssets = (release.assets ?? [])
+            .filter((asset) => asset && asset.name && asset.browser_download_url)
+            .filter((asset) => isAllowedAssetName(asset.name))
+            .map((asset) => mapAsset(asset, base.version));
+          const recommendedAsset = pickRecommendedAsset(mappedAssets, runtime);
+          if (recommendedAsset?.name !== `One-Person-Lab-${base.version}-win-x64.exe`) return null;
+          return {
+            tagName: release.tag_name,
+            version: base.version,
+            updaterVersion: base.updaterVersion,
+            name: release.name ?? base.name,
+            body: base.body,
+            htmlUrl: release.html_url,
+            publishedAt: release.published_at,
+            prerelease: false,
+            draft: false,
+            qualityStatus: 'stable',
+            assets: mappedAssets,
+            recommendedAsset,
+          };
+        })
+    )
+  ).filter((release): release is ResolvedUpdateRelease => Boolean(release));
+  return matches.length === 1 ? matches[0]! : null;
+};
+
 export async function resolveUpdateCheck(
   params: UpdateCheckRequest = {},
-  currentVersion = app.getVersion()
+  currentVersion = app.getVersion(),
+  runtime: RuntimePlatformInfo = { platform: process.platform, arch: process.arch }
 ): Promise<UpdateCheckResult> {
   const repo = resolveRepo(params.repo);
   const includePreview = params.channel === 'nightly' || Boolean(params.includeNightly ?? params.includePrerelease);
@@ -450,7 +609,15 @@ export async function resolveUpdateCheck(
     return { currentVersion, updateAvailable: false };
   }
 
-  const { qualityStatus: _qualityStatus, ...latest } = latestResolved;
+  const runtimeRelease =
+    !includePreview && repo === DEFAULT_REPO
+      ? await resolveWindowsStableAdjunct(releases, latestResolved, runtime)
+      : latestResolved;
+  if (!runtimeRelease) {
+    return { currentVersion, updateAvailable: false, channel: includePreview ? 'nightly' : 'stable' };
+  }
+
+  const { qualityStatus: _qualityStatus, ...latest } = runtimeRelease;
   return {
     currentVersion,
     updateAvailable: semver.gt(latest.updaterVersion, currentSemver),

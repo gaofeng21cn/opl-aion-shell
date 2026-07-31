@@ -5,6 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import crypto from 'node:crypto';
 
 const fsMocks = vi.hoisted(() => ({
   existsSync: vi.fn(() => true),
@@ -218,6 +219,55 @@ const stableRevisionManifest = {
   release_tag: 'v26.7.20-r1',
   quality_status: 'stable',
   preview_kind: null,
+};
+
+const makeWindowsStableOptionalRelease = () => {
+  const assetSpecs = [
+    ['One-Person-Lab-26.7.20-r1-win-x64.exe', 4096, `sha256:${'1'.repeat(64)}`],
+    ['One-Person-Lab-26.7.20-r1-win-x64.exe.blockmap', 512, `sha256:${'2'.repeat(64)}`],
+    ['latest.yml', 256, `sha256:${'3'.repeat(64)}`],
+    ['opl-windows-updater-assets.json', 768, `sha256:${'4'.repeat(64)}`],
+    ['opl-windows-authenticode-receipt.json', 1024, `sha256:${'5'.repeat(64)}`],
+  ] as const;
+  const manifest = {
+    schema: 'opl_app_immutable_platform_adjunct_manifest.v1',
+    kind: 'stable_optional_adjunct',
+    source: { run_id: '12345', bundle_digest: `sha256:${'6'.repeat(64)}` },
+    base_release_tag: 'v26.7.20-r1',
+    release_identity: { display_version: '26.7.20-r1', updater_version: '26.7.2001' },
+    cohort: { app_sha: '7'.repeat(40), shell_sha: '8'.repeat(40), framework_sha: '9'.repeat(40) },
+    platforms: ['windows-x64'],
+    assets: assetSpecs.map(([name, size_bytes, digest]) => ({ name, size_bytes, digest })),
+    publication_control: { immutable_release_capability_evidence_digest: null, dispatch_actor: null },
+  };
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  const manifestDigest = `sha256:${crypto.createHash('sha256').update(manifestText).digest('hex')}`;
+  const tag = `v26.7.20-r1-optional-${manifestDigest.slice('sha256:'.length, 'sha256:'.length + 12)}`;
+  const release = {
+    tag_name: tag,
+    name: 'One Person Lab 26.7.20-r1 optional platform adjunct',
+    body: 'immutable Windows updater adjunct',
+    html_url: `https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/${tag}`,
+    published_at: '2026-07-20T01:00:00Z',
+    prerelease: false,
+    draft: false,
+    immutable: true,
+    assets: [
+      ...assetSpecs.map(([name, size, digest]) => ({
+        name,
+        browser_download_url: `https://github.com/gaofeng21cn/one-person-lab-app/releases/download/${tag}/${name}`,
+        size,
+        digest,
+      })),
+      {
+        name: 'opl-optional-platforms-manifest.json',
+        browser_download_url: `https://github.com/gaofeng21cn/one-person-lab-app/releases/download/${tag}/opl-optional-platforms-manifest.json`,
+        size: Buffer.byteLength(manifestText),
+        digest: manifestDigest,
+      },
+    ],
+  };
+  return { manifestText, release, tag };
 };
 
 const previewLatestRelease = {
@@ -557,6 +607,66 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.updaterVersion).toBe('26.7.2001');
     } finally {
       vi.mocked(app.getVersion).mockReturnValue('1.0.0');
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('resolves Windows x64 Stable updates through one exact immutable optional adjunct', async () => {
+    const optional = makeWindowsStableOptionalRelease();
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/opl-app-component-manifest.json')) {
+        return { ok: true, json: async () => stableRevisionManifest };
+      }
+      if (url.endsWith('/opl-optional-platforms-manifest.json')) {
+        return { ok: true, text: async () => optional.manifestText };
+      }
+      return {
+        ok: true,
+        headers: new Headers(),
+        json: async () => [optional.release, ...makeStableRevisionReleaseResponse()],
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const { resolveUpdateCheck } = await import('@/process/bridge/updateBridge');
+      const result = await resolveUpdateCheck({ channel: 'stable' }, '26.7.1900', { platform: 'win32', arch: 'x64' });
+
+      expect(result.updateAvailable).toBe(true);
+      expect(result.latest?.tagName).toBe(optional.tag);
+      expect(result.latest?.version).toBe('26.7.20-r1');
+      expect(result.latest?.updaterVersion).toBe('26.7.2001');
+      expect(result.latest?.recommendedAsset?.name).toBe('One-Person-Lab-26.7.20-r1-win-x64.exe');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('fails Windows x64 Stable closed when the optional adjunct digest inventory drifts', async () => {
+    const optional = makeWindowsStableOptionalRelease();
+    optional.release.assets[0]!.digest = `sha256:${'f'.repeat(64)}`;
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/opl-app-component-manifest.json')) {
+        return { ok: true, json: async () => stableRevisionManifest };
+      }
+      if (url.endsWith('/opl-optional-platforms-manifest.json')) {
+        return { ok: true, text: async () => optional.manifestText };
+      }
+      return {
+        ok: true,
+        headers: new Headers(),
+        json: async () => [optional.release, ...makeStableRevisionReleaseResponse()],
+      };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const { resolveUpdateCheck } = await import('@/process/bridge/updateBridge');
+      const result = await resolveUpdateCheck({ channel: 'stable' }, '26.7.1900', { platform: 'win32', arch: 'x64' });
+      expect(result).toEqual({ currentVersion: '26.7.1900', updateAvailable: false, channel: 'stable' });
+    } finally {
       vi.unstubAllGlobals();
     }
   });
