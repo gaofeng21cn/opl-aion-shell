@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildWindowsWslProvisioningView } from '../../../packages/desktop/src/process/services/windows-wsl/provisioningWindow';
+import {
+  buildWindowsWslProvisioningView,
+  localizedFailureDetail,
+} from '../../../packages/desktop/src/process/services/windows-wsl/provisioningWindow';
 
 describe('WindowsWslProvisioningWindow view', () => {
   it('renders bounded setup progress without executable renderer content', () => {
@@ -29,5 +32,15 @@ describe('WindowsWslProvisioningWindow view', () => {
 
     expect(html).toContain('Windows 首次配置');
     expect(html).toContain('value="92"');
+  });
+
+  it('explains guest DNS failures without telling the user to reinstall', () => {
+    const detail = localizedFailureDetail(
+      { detail: 'guest bootstrap failed', restartRequired: false, code: 'guest_dns_unavailable' },
+      'zh-CN'
+    );
+    expect(detail).toContain('无法解析 Ubuntu 软件源');
+    expect(detail).toContain('不需要重新安装');
+    expect(detail).toContain('guest_dns_unavailable');
   });
 });
