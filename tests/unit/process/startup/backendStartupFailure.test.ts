@@ -16,6 +16,33 @@ import {
 
 const translateKey = (key: string) => key;
 
+describe('classifyBackendStartupFailure OPL Codex runtime errors', () => {
+  it.each([
+    'USER_AGENT_NOT_INSTALLED',
+    'USER_AGENT_COMMAND_NOT_FOUND',
+    'MANAGED_RUNTIME_UNAVAILABLE',
+    'RUNTIME_ACTIVATION_REQUIRED',
+  ])('preserves typed local runtime error %s as an incomplete installation', (code) => {
+    expect(classifyBackendStartupFailure(Object.assign(new Error('local runtime unavailable'), { code }))).toEqual({
+      reason: 'backend_incomplete_installation',
+      incompleteInstallationKind: 'missing_backend_binary',
+      missingBackendBinary: true,
+      oplCodexRuntimeErrorCode: code,
+    });
+  });
+
+  it('keeps an identity mismatch typed without misreporting a missing installation', () => {
+    expect(
+      classifyBackendStartupFailure(
+        Object.assign(new Error('managed identity drifted'), { code: 'RUNTIME_IDENTITY_MISMATCH' })
+      )
+    ).toEqual({
+      reason: 'backend_startup_failed',
+      oplCodexRuntimeErrorCode: 'RUNTIME_IDENTITY_MISMATCH',
+    });
+  });
+});
+
 describe('classifyBackendStartupFailure transient concurrent startup', () => {
   it('classifies a peer-yield boundary without reporting data damage', () => {
     expect(

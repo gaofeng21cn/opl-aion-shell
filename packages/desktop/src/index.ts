@@ -169,15 +169,6 @@ applyOplFullRuntimeEnv(
     usePackagedLocalTemporalDefault: app.isPackaged && !isWebUIBootstrap,
   })
 );
-if (app.isPackaged && process.platform !== 'win32') {
-  const managedCodex = resolveAioncoreManagedCodex({
-    resourcesPath: process.resourcesPath,
-    env: process.env,
-  });
-  applyOplFullRuntimeEnv(managedCodex.env);
-  console.log(`[AionUi] Activated AionCore-managed Codex CLI ${managedCodex.version} for ${managedCodex.runtimeKey}`);
-}
-
 // Handle Squirrel startup events (Windows installer)
 if (electronSquirrelStartup) {
   app.quit();
@@ -658,6 +649,16 @@ const handleAppReady = async (): Promise<void> => {
   // close it before the backend touches the same file.
   const backendStartup = await startBackendOrExit({
     startBackend: async () => {
+      if (app.isPackaged && process.platform !== 'win32') {
+        const managedCodex = resolveAioncoreManagedCodex({
+          resourcesPath: process.resourcesPath,
+          env: process.env,
+        });
+        applyOplFullRuntimeEnv(managedCodex.env);
+        console.log(
+          `[AionUi] Activated AionCore-managed Codex CLI ${managedCodex.version} for ${managedCodex.runtimeKey} (${managedCodex.identity.runtime_cohort_ref})`
+        );
+      }
       assertStartupArchitectureCompatible({
         arch: process.arch,
         isPackaged: app.isPackaged,

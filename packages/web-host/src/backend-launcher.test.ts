@@ -236,12 +236,20 @@ describe('buildSpawnEnv', () => {
       {
         PATH: ['/opt/opl/runtime/current/bin', '/opt/opl/runtime/current/node/bin'].join(':'),
         OPL_FULL_RUNTIME_HOME: '/opt/opl/runtime/current',
+        OPL_CODEX_BIN: '/opt/aioncore/managed-resources/cli/codex',
+        CODEX_HOME: '/home/operator/.codex',
+        OPL_CODEX_RUNTIME_IDENTITY_JSON: '{"schema":"opl_codex_runtime_identity.v1"}',
+        OPL_CODEX_RUNTIME_COHORT_REF: `sha256:${'a'.repeat(64)}`,
         AIONUI_CACHE_DIR: '/wrong-cache',
       }
     );
 
     expect(env.OPL_FULL_RUNTIME_HOME).toBe('/opt/opl/runtime/current');
     expect(env.PATH?.split(':')).toEqual(['/opt/opl/runtime/current/bin', '/opt/opl/runtime/current/node/bin']);
+    expect(env.OPL_CODEX_BIN).toBe('/opt/aioncore/managed-resources/cli/codex');
+    expect(env.CODEX_HOME).toBe('/home/operator/.codex');
+    expect(env.OPL_CODEX_RUNTIME_IDENTITY_JSON).toBe('{"schema":"opl_codex_runtime_identity.v1"}');
+    expect(env.OPL_CODEX_RUNTIME_COHORT_REF).toBe(`sha256:${'a'.repeat(64)}`);
     expect(env.AIONUI_CACHE_DIR).toBe('/c');
     expect(env.AIONUI_WORK_DIR).toBe('/w');
     expect(env.AIONUI_LOG_DIR).toBe('/l');
