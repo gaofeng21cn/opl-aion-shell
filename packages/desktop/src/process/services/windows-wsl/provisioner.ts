@@ -14,6 +14,7 @@ const MAX_COMMAND_OUTPUT_BYTES = 128 * 1024;
 const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
 const ONLINE_CATALOG_TIMEOUT_MS = 30 * 1000;
 const ONLINE_CATALOG_RETRY_DELAYS_MS = [0, 2_000, 5_000] as const;
+const PROVISIONING_HEARTBEAT_INTERVAL_MS = 15_000;
 const GUEST_NETWORK_ERROR_CODES = new Set([
   'dns_resolution_failed',
   'software_source_unavailable',
@@ -36,6 +37,8 @@ export type WindowsWslProvisioningStage =
 export type WindowsWslProvisioningProgress = {
   stage: WindowsWslProvisioningStage;
   detail: string;
+  elapsedSeconds?: number;
+  heartbeat?: true;
 };
 
 export type WindowsWslCommandResult = {
@@ -431,8 +434,31 @@ export class WindowsWslProvisioner {
     );
   }
 
-  private progress(stage: WindowsWslProvisioningStage, detail: string): void {
-    this.onProgress?.({ stage, detail });
+  private progress(stage: WindowsWslProvisioningStage, detail: string, heartbeat?: { elapsedSeconds: number }): void {
+    this.onProgress?.({
+      stage,
+      detail,
+      ...(heartbeat ? { elapsedSeconds: heartbeat.elapsedSeconds, heartbeat: true as const } : {}),
+    });
+  }
+
+  private async withProgressHeartbeat<T>(
+    stage: WindowsWslProvisioningStage,
+    detail: string,
+    operation: () => Promise<T>
+  ): Promise<T> {
+    const startedAt = Date.now();
+    this.progress(stage, detail);
+    const timer = setInterval(() => {
+      const elapsedSeconds = Math.max(1, Math.floor((Date.now() - startedAt) / 1_000));
+      this.progress(stage, detail, { elapsedSeconds });
+    }, PROVISIONING_HEARTBEAT_INTERVAL_MS);
+    timer.unref();
+    try {
+      return await operation();
+    } finally {
+      clearInterval(timer);
+    }
   }
 
   private async wsl(args: string[], options: { stdin?: string; timeoutMs?: number } = {}) {
@@ -650,20 +676,25 @@ export class WindowsWslProvisioner {
     }
     const installLocation = this.installLocation();
     fs.mkdirSync(path.dirname(installLocation), { recursive: true });
-    const result = await this.wsl(
-      [
-        '--install',
-        DEFAULT_BASE_DISTRIBUTION,
-        '--name',
-        OPL_WSL_DISTRIBUTION,
-        '--location',
-        installLocation,
-        '--no-launch',
-        '--version',
-        '2',
-        '--web-download',
-      ],
-      { timeoutMs: COMMAND_TIMEOUT_MS }
+    const result = await this.withProgressHeartbeat(
+      'installing_owned_distribution',
+      'Downloading and installing the dedicated OPL Linux environment.',
+      () =>
+        this.wsl(
+          [
+            '--install',
+            DEFAULT_BASE_DISTRIBUTION,
+            '--name',
+            OPL_WSL_DISTRIBUTION,
+            '--location',
+            installLocation,
+            '--no-launch',
+            '--version',
+            '2',
+            '--web-download',
+          ],
+          { timeoutMs: COMMAND_TIMEOUT_MS }
+        )
     );
     await this.requireSuccess(result, 'installing_owned_distribution', 'distribution_install_failed');
     await this.assertOwnedDistributionLocation();
@@ -692,54 +723,62 @@ export class WindowsWslProvisioner {
   }
 
   private async bootstrapGuest(): Promise<void> {
-    this.progress('initializing_guest', 'Checking Ubuntu software sources and initializing the OPL Linux environment.');
     const bootstrapRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-linux', 'bootstrap'));
     const runtimeRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'bundled-aioncore', 'linux-x64'));
     const frameworkInstaller = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-install.sh'));
     const productManifest = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-linux', 'product.json'));
-    const bootstrapResult = await this.wsl(
-      [
-        '--distribution',
-        OPL_WSL_DISTRIBUTION,
-        '--user',
-        'root',
-        '--exec',
-        '/bin/bash',
-        path.posix.join(bootstrapRoot, 'install-opl-linux.sh'),
-        runtimeRoot,
-        bootstrapRoot,
-        frameworkInstaller,
-        productManifest,
-      ],
-      { timeoutMs: COMMAND_TIMEOUT_MS }
+    const bootstrapResult = await this.withProgressHeartbeat(
+      'initializing_guest',
+      'Checking Ubuntu software sources and synchronizing the bundled Linux runtime.',
+      () =>
+        this.wsl(
+          [
+            '--distribution',
+            OPL_WSL_DISTRIBUTION,
+            '--user',
+            'root',
+            '--exec',
+            '/bin/bash',
+            path.posix.join(bootstrapRoot, 'install-opl-linux.sh'),
+            runtimeRoot,
+            bootstrapRoot,
+            frameworkInstaller,
+            productManifest,
+          ],
+          { timeoutMs: COMMAND_TIMEOUT_MS }
+        )
     );
     await this.requireSuccess(bootstrapResult, 'initializing_guest', 'guest_bootstrap_failed');
 
-    this.progress('activating_owner_artifacts', 'Activating the OPL Framework inside OPL Linux.');
-    const frameworkResult = await this.wsl(
-      [
-        '--distribution',
-        OPL_WSL_DISTRIBUTION,
-        '--user',
-        OPL_WSL_GUEST_USER,
-        '--exec',
-        'env',
-        'HOME=/home/opl',
-        'CODEX_HOME=/home/opl/.codex',
-        'OPL_CODEX_BIN=/usr/local/bin/codex',
-        'OPL_WORKSPACE_ROOT=/home/opl/code',
-        'OPL_INSTALL_DIR=/home/opl/.opl/one-person-lab',
-        `OPL_INSTALL_SCRIPT_URL=${this.product.framework_install_script_url}`,
-        `OPL_INSTALL_BRANCH=${this.product.framework_ref}`,
-        'OPL_INSTALL_SOURCE_MODE=archive',
-        `OPL_SOURCE_ARCHIVE_URL=${this.product.framework_source_archive_url}`,
-        `PATH=${OPL_WSL_GUEST_PATH}`,
-        '/bin/bash',
-        '/opt/opl/bootstrap/opl-install.sh',
-        '--headless',
-        '--skip-packages',
-      ],
-      { timeoutMs: COMMAND_TIMEOUT_MS }
+    const frameworkResult = await this.withProgressHeartbeat(
+      'activating_owner_artifacts',
+      'Activating the OPL Framework inside OPL Linux.',
+      () =>
+        this.wsl(
+          [
+            '--distribution',
+            OPL_WSL_DISTRIBUTION,
+            '--user',
+            OPL_WSL_GUEST_USER,
+            '--exec',
+            'env',
+            'HOME=/home/opl',
+            'CODEX_HOME=/home/opl/.codex',
+            'OPL_CODEX_BIN=/usr/local/bin/codex',
+            'OPL_WORKSPACE_ROOT=/home/opl/code',
+            'OPL_INSTALL_DIR=/home/opl/.opl/one-person-lab',
+            `OPL_INSTALL_SCRIPT_URL=${this.product.framework_install_script_url}`,
+            `OPL_INSTALL_BRANCH=${this.product.framework_ref}`,
+            'OPL_INSTALL_SOURCE_MODE=archive',
+            `OPL_SOURCE_ARCHIVE_URL=${this.product.framework_source_archive_url}`,
+            `PATH=${OPL_WSL_GUEST_PATH}`,
+            '/bin/bash',
+            '/opt/opl/bootstrap/opl-install.sh',
+            '--headless',
+            '--skip-packages',
+          ],
+          { timeoutMs: COMMAND_TIMEOUT_MS }
+        )
     );
     await this.requireSuccess(frameworkResult, 'activating_owner_artifacts', 'framework_activation_failed');
   }
@@ -827,4 +866,5 @@ export const __windowsWslProvisionerTest = {
   parseOnlineDistributionNames,
   sameWindowsPath,
   decodeWindowsCommandOutput,
+  PROVISIONING_HEARTBEAT_INTERVAL_MS,
 };

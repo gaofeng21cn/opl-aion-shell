@@ -54,6 +54,33 @@ const CHINESE_COPY: ProvisioningCopy = {
   close: '关闭',
 };
 
+const CHINESE_STAGE_DETAIL: Partial<Record<WindowsWslProvisioningStage, string>> = {
+  checking_host: '正在检查 WSL 2 和专用 OPL Linux 环境。',
+  enabling_wsl: '正在启用 Windows 所需的 WSL 功能。',
+  installing_owned_distribution: '正在下载并安装专用 OPL Linux 环境。',
+  initializing_guest: '正在检查 Ubuntu 软件源并同步内置 Linux 运行组件。',
+  activating_owner_artifacts: '正在 OPL Linux 内激活 OPL Framework。',
+  validating_routes: '正在验证 Linux 运行时身份和路由。',
+  ready: 'OPL Linux 已就绪。',
+};
+
+function elapsedLabel(elapsedSeconds: number, isChinese: boolean): string {
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  if (isChinese) return minutes > 0 ? `${minutes} 分 ${seconds} 秒` : `${seconds} 秒`;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+function progressDetail(progress: WindowsWslProvisioningProgress, locale: string): string {
+  const isChinese = locale.toLowerCase().startsWith('zh');
+  const detail = isChinese ? (CHINESE_STAGE_DETAIL[progress.stage] ?? progress.detail) : progress.detail;
+  if (!progress.heartbeat || progress.elapsedSeconds === undefined) return detail;
+  const elapsed = elapsedLabel(progress.elapsedSeconds, isChinese);
+  return isChinese
+    ? `${detail} 已用时 ${elapsed}；任务仍在继续，请勿重复启动 App 或安装器。`
+    : `${detail} Elapsed ${elapsed}; the operation is still active. Do not start another App or installer.`;
+}
+
 function htmlEscape(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -66,6 +93,7 @@ function htmlEscape(value: string): string {
 export function buildWindowsWslProvisioningView(progress: WindowsWslProvisioningProgress, locale = 'en'): string {
   const copy = locale.toLowerCase().startsWith('zh') ? CHINESE_COPY : ENGLISH_COPY;
   const percent = STAGE_PERCENT[progress.stage];
+  const detail = progressDetail(progress, locale);
   return `<!doctype html>
 <html lang="${locale.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en'}">
   <head>
@@ -89,7 +117,7 @@ export function buildWindowsWslProvisioningView(progress: WindowsWslProvisioning
     <main>
       <p class="eyebrow">${htmlEscape(copy.eyebrow)}</p>
       <h1>${htmlEscape(copy.title)}</h1>
-      <p class="detail">${htmlEscape(progress.detail || (progress.stage === 'ready' ? copy.ready : ''))}</p>
+      <p class="detail">${htmlEscape(detail || (progress.stage === 'ready' ? copy.ready : ''))}</p>
       <progress max="100" value="${percent}"></progress>
       <p class="percent">${percent}%</p>
     </main>

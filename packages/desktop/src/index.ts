@@ -226,8 +226,9 @@ const windowsWslRuntime: WindowsWslRuntimeExecution | null = initializeWindowsWs
   resourcesPath: app.isPackaged ? process.resourcesPath : path.join(process.cwd(), 'resources'),
   userDataPath: app.getPath('userData'),
   onProgress: (progress) => {
-    const { stage, detail } = progress;
-    console.info(`[OPL-Linux] ${stage}: ${detail}`);
+    const { stage, detail, elapsedSeconds, heartbeat } = progress;
+    const heartbeatDetail = heartbeat ? ` heartbeat elapsed_seconds=${elapsedSeconds}` : '';
+    console.info(`[OPL-Linux] ${stage}: ${detail}${heartbeatDetail}`);
     windowsWslProvisioningWindow?.update(progress);
   },
 });
