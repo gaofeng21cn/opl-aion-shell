@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { ipcBridge } from '@/common';
 import { OPL_PRODUCT_PROFILE } from '@/common/config/oplProductProfile';
+import { resolveUpdaterReleaseChannel, type UpdaterReleaseChannel } from '@/common/update/updateChannel';
 import { getWindowsWslRuntime, type WindowsWslRuntimeExecution } from '@/process/services/runtime-execution';
 import type {
   IOplConfigureCodexRequest,
@@ -44,6 +45,10 @@ type DesktopStartupMaintenanceDependencies = {
   logInfo?: (message: string) => void;
   logWarn?: (message: string) => void;
   now?: () => Date;
+  runCommand?: (spec: RuntimeCommandSpec) => Promise<IOplRuntimeCommandResult>;
+};
+
+type OplUpdateChannelReaderDependencies = {
   runCommand?: (spec: RuntimeCommandSpec) => Promise<IOplRuntimeCommandResult>;
 };
 
@@ -328,6 +333,13 @@ function buildAppStateCommand(profile: IOplAppStateProfile): RuntimeCommandSpec 
     surface: profile === 'full' ? 'app_state_full' : 'app_state_fast',
     args: ['app', 'state', '--profile', profile, '--json'],
   };
+}
+
+export async function readOplAppUpdaterReleaseChannel(
+  dependencies: OplUpdateChannelReaderDependencies = {}
+): Promise<UpdaterReleaseChannel> {
+  const result = await (dependencies.runCommand ?? runOplCommand)(buildAppStateCommand('fast'));
+  return result.ok ? resolveUpdaterReleaseChannel(result.parsed) : 'stable';
 }
 
 function buildDomainDetailViewCommand(request: IOplDomainDetailViewRequest): RuntimeCommandSpec {

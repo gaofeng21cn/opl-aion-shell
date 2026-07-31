@@ -47,6 +47,19 @@ export interface UpdateCheckRequest {
   repo?: string;
 }
 
+export interface ExactUpdateReleaseTarget {
+  repo: string;
+  tagName: string;
+  updaterVersion: string;
+}
+
+export interface AutoUpdateCheckResult {
+  checked: boolean;
+  decision: UpdateCheckResult;
+  target?: ExactUpdateReleaseTarget;
+  updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string };
+}
+
 export interface UpdateDownloadRequest {
   url: string;
   /** Fallback URL tried when the primary URL fails (e.g. CDN down). */

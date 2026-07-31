@@ -71,6 +71,7 @@ vi.mock('electron-updater', () => ({
     downloadUpdate: vi.fn(),
     quitAndInstall: vi.fn(),
     checkForUpdatesAndNotify: vi.fn(),
+    setFeedURL: vi.fn(),
   },
 }));
 
@@ -215,6 +216,8 @@ const stableRevisionManifest = {
   release_version: '26.7.20-r1',
   updater_version: '26.7.2001',
   release_tag: 'v26.7.20-r1',
+  quality_status: 'stable',
+  preview_kind: null,
 };
 
 const previewLatestRelease = {
@@ -250,6 +253,8 @@ const previewLatestManifest = {
   release_version: '26.7.24-preview.r1',
   updater_version: '26.7.2401',
   release_tag: 'v26.7.24-preview.r1',
+  quality_status: 'preview',
+  preview_kind: 'qualified_preview',
 };
 
 const getCheckHandler = async () => {
@@ -312,7 +317,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('checks the One Person Lab App release repo by default', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse()[0],
+      json: async () => makeGitHubReleaseResponse(),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -322,7 +327,7 @@ describe('updateBridge CDN URL rewriting', () => {
 
       expect(result.success).toBe(true);
       expect(fetchMock.mock.calls[0]?.[0]).toBe(
-        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=1'
       );
     } finally {
       vi.unstubAllGlobals();
@@ -332,7 +337,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('rewrites asset.url to the CDN path and keeps GitHub URL in fallbackUrl', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse()[0],
+      json: async () => makeGitHubReleaseResponse(),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -361,7 +366,7 @@ describe('updateBridge CDN URL rewriting', () => {
   it('uses the normalized version (no v prefix) in the CDN path', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeGitHubReleaseResponse()[0],
+      json: async () => makeGitHubReleaseResponse(),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -376,10 +381,10 @@ describe('updateBridge CDN URL rewriting', () => {
     }
   });
 
-  it('uses the exact GitHub Latest release for default update checks', async () => {
+  it('selects the highest qualified Stable without relying on GitHub Latest', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeStableAndNightlyReleaseResponse()[0],
+      json: async () => makeStableAndNightlyReleaseResponse(),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -392,35 +397,114 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.prerelease).toBe(false);
       expect(result.data?.latest?.assets.map((asset) => asset.name)).toContain('One-Person-Lab-26.5.24-mac-arm64.zip');
       expect(fetchMock.mock.calls[0]?.[0]).toBe(
-        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=1'
       );
     } finally {
       vi.unstubAllGlobals();
     }
   });
 
-  it('accepts a qualified Preview when it temporarily owns GitHub Latest', async () => {
+  it('follows GitHub pagination so daily Preview releases cannot hide an older Stable', async () => {
+    const stableRelease = makeStableRevisionReleaseResponse()[0]!;
     const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
       const url = String(input);
-      return url.endsWith('/opl-app-component-manifest.json')
-        ? { ok: true, json: async () => previewLatestManifest }
-        : { ok: true, json: async () => previewLatestRelease };
+      if (url.endsWith('/opl-app-component-manifest.json')) {
+        return {
+          ok: true,
+          json: async () => (url.includes('26.7.20-r1') ? stableRevisionManifest : previewLatestManifest),
+        };
+      }
+      if (url.endsWith('page=1')) {
+        return {
+          ok: true,
+          headers: new Headers({
+            link: '<https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=2>; rel="next"',
+          }),
+          json: async () => [previewLatestRelease],
+        };
+      }
+      return { ok: true, headers: new Headers(), json: async () => [stableRelease] };
     });
     vi.stubGlobal('fetch', fetchMock);
 
     try {
       const handler = await getCheckHandler();
-      const result = await handler({});
+      const result = await handler({ channel: 'stable' });
 
       expect(result.success).toBe(true);
-      expect(result.data?.latest?.tagName).toBe('v26.7.24-preview.r1');
-      expect(result.data?.latest?.updaterVersion).toBe('26.7.2401');
+      expect(result.data?.latest?.tagName).toBe('v26.7.20-r1');
+      expect(fetchMock.mock.calls.map(([input]) => String(input))).toContain(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=2'
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('keeps qualified Preview out of Stable while including it in the Preview superset', async () => {
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      return url.endsWith('/opl-app-component-manifest.json')
+        ? { ok: true, json: async () => previewLatestManifest }
+        : { ok: true, json: async () => [previewLatestRelease] };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const stableResult = await handler({});
+      const previewResult = await handler({ channel: 'nightly' });
+
+      expect(stableResult.success).toBe(true);
+      expect(stableResult.data?.latest).toBeUndefined();
+      expect(previewResult.data?.latest?.tagName).toBe('v26.7.24-preview.r1');
+      expect(previewResult.data?.latest?.updaterVersion).toBe('26.7.2401');
       expect(fetchMock.mock.calls[0]?.[0]).toBe(
-        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/latest'
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=1'
       );
-      expect(fetchMock.mock.calls.map(([input]) => String(input))).not.toContain(
-        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases'
-      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('lets a newer Stable win inside the Preview candidate superset', async () => {
+    const newerStableRelease = {
+      ...makeStableRevisionReleaseResponse()[0],
+      tag_name: 'v26.7.25-r1',
+      html_url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/v26.7.25-r1',
+      assets: makeStableRevisionReleaseResponse()[0]!.assets.map((asset) =>
+        Object.assign({}, asset, {
+          browser_download_url: asset.browser_download_url.replaceAll('26.7.20-r1', '26.7.25-r1'),
+        })
+      ),
+    };
+    const newerStableManifest = {
+      ...stableRevisionManifest,
+      version: '26.7.25-r1',
+      release_version: '26.7.25-r1',
+      updater_version: '26.7.2501',
+      release_tag: 'v26.7.25-r1',
+    };
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/opl-app-component-manifest.json')) {
+        return {
+          ok: true,
+          json: async () => (url.includes('26.7.25-r1') ? newerStableManifest : previewLatestManifest),
+        };
+      }
+      return { ok: true, json: async () => [previewLatestRelease, newerStableRelease] };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({ channel: 'nightly' });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.channel).toBe('nightly');
+      expect(result.data?.latest?.tagName).toBe('v26.7.25-r1');
+      expect(result.data?.latest?.prerelease).toBe(false);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -444,7 +528,9 @@ describe('updateBridge CDN URL rewriting', () => {
       expect(result.data?.latest?.recommendedAsset?.url).toMatch(
         /^https:\/\/static\.aionui\.com\/releases\/26\.5\.27-nightly\.20260527\//
       );
-      expect(fetchMock.mock.calls[0]?.[0]).toBe('https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases');
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases?per_page=100&page=1'
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -457,7 +543,7 @@ describe('updateBridge CDN URL rewriting', () => {
       const url = String(input);
       return url.endsWith('/opl-app-component-manifest.json')
         ? { ok: true, json: async () => stableRevisionManifest }
-        : { ok: true, json: async () => makeStableRevisionReleaseResponse()[0] };
+        : { ok: true, json: async () => makeStableRevisionReleaseResponse() };
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -475,10 +561,31 @@ describe('updateBridge CDN URL rewriting', () => {
     }
   });
 
+  it('never downgrades an installed Preview to an older Stable', async () => {
+    const { app } = await import('electron');
+    vi.mocked(app.getVersion).mockReturnValue('26.7.3190-nightly.0');
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => makeStableAndNightlyReleaseResponse(),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getCheckHandler();
+      const result = await handler({ channel: 'nightly' });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.updateAvailable).toBe(false);
+    } finally {
+      vi.mocked(app.getVersion).mockReturnValue('1.0.0');
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('fails closed when a new-scheme OPL release omits its component manifest', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => makeStableRevisionReleaseResponse(false)[0],
+      json: async () => makeStableRevisionReleaseResponse(false),
     });
     vi.stubGlobal('fetch', fetchMock);
 
@@ -501,18 +608,58 @@ describe('updateBridge auto-update config handling', () => {
     fsMocks.existsSync.mockReturnValue(true);
   });
 
+  it('configures electron-updater for the same exact release selected by the shared resolver', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.7.2001' },
+    } as never);
+    const fetchMock = vi.fn().mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      return url.endsWith('/opl-app-component-manifest.json')
+        ? { ok: true, json: async () => stableRevisionManifest }
+        : { ok: true, json: async () => makeStableRevisionReleaseResponse() };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const handler = await getAutoUpdateCheckHandler();
+      const result = await handler({ channel: 'stable' });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.updateInfo?.version).toBe('26.7.2001');
+      expect(result.data?.decision.latest?.tagName).toBe('v26.7.20-r1');
+      expect(result.data?.target).toEqual({
+        repo: 'gaofeng21cn/one-person-lab-app',
+        tagName: 'v26.7.20-r1',
+        updaterVersion: '26.7.2001',
+      });
+      expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'generic',
+          url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/',
+        })
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('treats missing packaged app-update.yml as manual-update-only instead of an update error', async () => {
     const { autoUpdater } = await import('electron-updater');
-    vi.mocked(autoUpdater.checkForUpdates).mockRejectedValueOnce(
-      new Error(
-        'Cannot find latest.yml in the latest release artifacts: /Applications/One Person Lab.app/Contents/Resources/app-update.yml'
-      )
-    );
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    fsMocks.existsSync.mockReturnValue(false);
+    Object.defineProperty(process, 'resourcesPath', {
+      value: '/Applications/One Person Lab.app/Contents/Resources',
+      configurable: true,
+    });
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
 
-    const handler = await getAutoUpdateCheckHandler();
-    const result = await handler({ channel: 'stable' });
+    const result = await autoUpdaterService.checkForUpdates();
 
-    expect(result).toEqual({ success: true, data: { checked: true }, msg: undefined });
+    expect(result).toEqual({ success: true });
+    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
   });
 
   it('skips startup auto-update checks when packaged updater config is absent', async () => {
@@ -537,7 +684,7 @@ describe('updateBridge auto-update config handling', () => {
     expect(statusListener).toHaveBeenCalledWith({ status: 'not-available' });
     expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'not-available' });
     expect(log.warn).toHaveBeenCalledWith(
-      'Startup auto-update config is unavailable; manual update checks remain available:',
+      'Packaged auto-update config is unavailable; using manual release checks only:',
       '/Applications/One Person Lab.app/Contents/Resources/app-update.yml'
     );
   });
@@ -545,6 +692,10 @@ describe('updateBridge auto-update config handling', () => {
   it('runs the startup update check at most once and preserves the shared status snapshot', async () => {
     const { autoUpdater } = await import('electron-updater');
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: false,
+      updateInfo: { version: '1.0.0' },
+    } as never);
 
     autoUpdaterService.resetForTest();
     autoUpdaterService.initialize();
@@ -552,16 +703,217 @@ describe('updateBridge auto-update config handling', () => {
     await autoUpdaterService.checkForUpdatesAndNotify();
     await autoUpdaterService.checkForUpdatesAndNotify();
 
-    expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
-    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'checking' });
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'not-available' });
   });
 
-  it('configures the standard updater to download in the background', async () => {
+  it('uses an exact generic Release feed even when packaged updater config is absent', async () => {
+    fsMocks.existsSync.mockReturnValue(false);
+    Object.defineProperty(process, 'resourcesPath', {
+      value: '/Applications/One Person Lab.app/Contents/Resources',
+      configurable: true,
+    });
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.7.3190-nightly.0' },
+    } as never);
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+
+    await autoUpdaterService.checkForUpdatesAndNotify({
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.31-nightly',
+      updaterVersion: '26.7.3190-nightly.0',
+    });
+
+    expect(autoUpdater.setFeedURL).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'generic',
+        url: 'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.31-nightly/',
+      })
+    );
+    expect(autoUpdater.allowDowngrade).toBe(false);
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('deduplicates concurrent checks for the same exact Release target', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    let resolveCheck!: (value: unknown) => void;
+    vi.mocked(autoUpdater.checkForUpdates).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }) as never
+    );
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    const target = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.31-nightly',
+      updaterVersion: '26.7.3190-nightly.0',
+    };
+
+    const first = autoUpdaterService.checkForUpdates(target);
+    const second = autoUpdaterService.checkForUpdates(target);
+    await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1));
+    resolveCheck({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.7.3190-nightly.0' },
+    });
+
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not download when the exact Release feed reports a different machine version', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.7.3191-nightly.0' },
+    } as never);
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+
+    await autoUpdaterService.checkForUpdatesAndNotify({
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.31-nightly',
+      updaterVersion: '26.7.3190-nightly.0',
+    });
+
+    expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual(
+      expect.objectContaining({ status: 'error', error: expect.stringContaining('Exact updater release mismatch') })
+    );
+  });
+
+  it('rejects renderer download targets that were not verified by the main process', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+
+    const result = await autoUpdaterService.downloadUpdate({
+      repo: 'untrusted/example',
+      tagName: 'v99.0.0',
+      updaterVersion: '99.0.0',
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Exact updater release target was not verified by the main process',
+    });
+    expect(autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+    expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates A-B-A interleaving while serializing global updater feed changes', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    let resolveFirst!: (value: unknown) => void;
+    vi.mocked(autoUpdater.checkForUpdates)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }) as never
+      )
+      .mockResolvedValueOnce({
+        isUpdateAvailable: true,
+        updateInfo: { version: '26.8.0100' },
+      } as never);
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    const targetA = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.31-nightly',
+      updaterVersion: '26.7.3190-nightly.0',
+    };
+    const targetB = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.8.1-r0',
+      updaterVersion: '26.8.0100',
+    };
+
+    const firstA = autoUpdaterService.checkForUpdates(targetA);
+    const onlyB = autoUpdaterService.checkForUpdates(targetB);
+    const secondA = autoUpdaterService.checkForUpdates(targetA);
+    await vi.waitFor(() => expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1));
+    resolveFirst({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.7.3190-nightly.0' },
+    });
+
+    await expect(Promise.all([firstA, onlyB, secondA])).resolves.toHaveLength(3);
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(autoUpdater.setFeedURL).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ url: expect.stringContaining('/v26.7.31-nightly/') })
+    );
+    expect(autoUpdater.setFeedURL).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ url: expect.stringContaining('/v26.8.1-r0/') })
+    );
+  });
+
+  it('does not switch to another target while an exact startup download is active', async () => {
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    let finishDownload!: () => void;
+    vi.mocked(autoUpdater.checkForUpdates)
+      .mockResolvedValueOnce({
+        isUpdateAvailable: true,
+        updateInfo: { version: '26.7.3190-nightly.0' },
+      } as never)
+      .mockResolvedValueOnce({
+        isUpdateAvailable: true,
+        updateInfo: { version: '26.8.0100' },
+      } as never);
+    vi.mocked(autoUpdater.downloadUpdate).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDownload = resolve;
+        }) as never
+    );
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+    const targetA = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.31-nightly',
+      updaterVersion: '26.7.3190-nightly.0',
+    };
+    const targetB = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.8.1-r0',
+      updaterVersion: '26.8.0100',
+    };
+
+    const startup = autoUpdaterService.checkForUpdatesAndNotify(targetA);
+    await vi.waitFor(() => expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1));
+    const nextCheck = autoUpdaterService.checkForUpdates(targetB);
+    await Promise.resolve();
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(autoUpdater.setFeedURL).toHaveBeenCalledTimes(1);
+
+    finishDownload();
+    await Promise.all([startup, nextCheck]);
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
+    expect(autoUpdater.setFeedURL).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ url: expect.stringContaining('/v26.8.1-r0/') })
+    );
+  });
+
+  it('keeps auto-download disabled until an exact Release version has been verified', async () => {
     vi.resetModules();
     const { autoUpdater } = await import('electron-updater');
     await import('@process/services/autoUpdaterService');
 
-    expect(autoUpdater.autoDownload).toBe(true);
+    expect(autoUpdater.autoDownload).toBe(false);
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
   });
 
