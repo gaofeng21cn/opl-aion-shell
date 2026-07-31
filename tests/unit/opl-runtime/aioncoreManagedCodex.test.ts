@@ -4,6 +4,10 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { resolveAioncoreManagedCodex } from '@/process/backend/aioncoreManagedCodex';
+import {
+  OPL_CODEX_RUNTIME_IDENTITY_SCHEMA,
+  resolveOplCodexRuntimeIdentityFromEnv,
+} from '@/process/backend/oplCodexRuntimeIdentity';
 
 const RUNTIME_KEY = 'darwin-arm64';
 const CODEX_ROOT = `cli/codex/0.144.6/${RUNTIME_KEY}`;
@@ -131,11 +135,30 @@ describe('resolveAioncoreManagedCodex', () => {
     expect(result.version).toBe('0.144.6');
     expect(result.managedResourcesRoot).toBe(fs.realpathSync(bundle.managedResourcesRoot));
     expect(result.executablePath).toBe(fs.realpathSync(bundle.executablePath));
+    expect(result.identity).toMatchObject({
+      schema: OPL_CODEX_RUNTIME_IDENTITY_SCHEMA,
+      path: fs.realpathSync(bundle.executablePath),
+      realpath: fs.realpathSync(bundle.executablePath),
+      version: '0.144.6',
+      codex_home: '/managed/codex-home',
+      runtime_key: RUNTIME_KEY,
+      carrier: {
+        kind: 'aioncore_managed_resources_projection',
+        producer_manifest_sha256: `sha256:${'a'.repeat(64)}`,
+        aioncore_native_readback: false,
+      },
+    });
+    expect(result.identity.sha256).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.identity.carrier.projection_manifest_sha256).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(result.identity.runtime_cohort_ref).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(result.env).toEqual({
-      OPL_CODEX_BIN: fs.realpathSync(bundle.executablePath),
+      OPL_CODEX_BIN: result.identity.path,
       CODEX_HOME: '/managed/codex-home',
+      OPL_CODEX_RUNTIME_IDENTITY_JSON: JSON.stringify(result.identity),
+      OPL_CODEX_RUNTIME_COHORT_REF: result.identity.runtime_cohort_ref,
       PATH: [executableDir, '/usr/bin', '/bin'].join(path.delimiter),
     });
+    expect(resolveOplCodexRuntimeIdentityFromEnv(result.env)).toEqual(result.identity);
   });
 
   it('defaults CODEX_HOME to the operator home', () => {
@@ -148,12 +171,18 @@ describe('resolveAioncoreManagedCodex', () => {
 
   it('fails closed when the managed resources manifest is missing or invalid', () => {
     const missingResources = makeTempRoot('aioncore-managed-codex-missing-manifest');
+    expect(() => resolve(missingResources)).toThrowError(
+      expect.objectContaining({ code: 'MANAGED_RUNTIME_UNAVAILABLE' })
+    );
     expect(() => resolve(missingResources)).toThrow(/cannot read manifest/);
 
     const invalidResources = makeTempRoot('aioncore-managed-codex-invalid-manifest');
     const managedResourcesRoot = path.join(invalidResources, 'bundled-aioncore', RUNTIME_KEY, 'managed-resources');
     fs.mkdirSync(managedResourcesRoot, { recursive: true });
     fs.writeFileSync(path.join(managedResourcesRoot, 'manifest.json'), '{invalid', 'utf8');
+    expect(() => resolve(invalidResources)).toThrowError(
+      expect.objectContaining({ code: 'MANAGED_RUNTIME_UNAVAILABLE' })
+    );
     expect(() => resolve(invalidResources)).toThrow(/cannot read manifest/);
   });
 

@@ -1,6 +1,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  createOplCodexRuntimeIdentity,
+  OplCodexRuntimeError,
+  type OplCodexRuntimeIdentity,
+} from './oplCodexRuntimeIdentity';
 
 type ResolveAioncoreManagedCodexInput = {
   resourcesPath?: string;
@@ -26,11 +31,12 @@ export type AioncoreManagedCodexResolution = {
   managedResourcesRoot: string;
   cliRoot: string;
   executablePath: string;
+  identity: OplCodexRuntimeIdentity;
   env: NodeJS.ProcessEnv;
 };
 
 function fail(message: string): never {
-  throw new Error(`AionCore managed Codex resolution failed: ${message}`);
+  throw new OplCodexRuntimeError('MANAGED_RUNTIME_UNAVAILABLE', `AionCore managed Codex resolution failed: ${message}`);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,7 +51,7 @@ function readManifest(manifestPath: string): Record<string, unknown> {
     }
     return parsed;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('AionCore managed Codex resolution failed:')) {
+    if (error instanceof OplCodexRuntimeError) {
       throw error;
     }
     fail(`cannot read manifest ${manifestPath}: ${error instanceof Error ? error.message : String(error)}`);
@@ -166,6 +172,15 @@ export function resolveAioncoreManagedCodex(
 
   const env = input.env ?? process.env;
   const homeDir = input.homeDir ?? os.homedir();
+  const codexHome = env.CODEX_HOME?.trim() || path.join(homeDir, '.codex');
+  const identity = createOplCodexRuntimeIdentity({
+    executablePath,
+    version,
+    codexHome,
+    runtimeKey,
+    producerManifestSha256: (manifest.source as Record<string, unknown>).manifestSha256 as string,
+    projectionManifestPath: manifestPath,
+  });
   return {
     runtimeKey,
     version,
@@ -173,10 +188,13 @@ export function resolveAioncoreManagedCodex(
     managedResourcesRoot: realManagedResourcesRoot,
     cliRoot,
     executablePath,
+    identity,
     env: {
-      OPL_CODEX_BIN: executablePath,
-      CODEX_HOME: env.CODEX_HOME?.trim() || path.join(homeDir, '.codex'),
-      PATH: normalizePath(path.dirname(executablePath), env.PATH),
+      OPL_CODEX_BIN: identity.path,
+      CODEX_HOME: identity.codex_home,
+      OPL_CODEX_RUNTIME_IDENTITY_JSON: JSON.stringify(identity),
+      OPL_CODEX_RUNTIME_COHORT_REF: identity.runtime_cohort_ref,
+      PATH: normalizePath(path.dirname(identity.path), env.PATH),
     },
   };
 }

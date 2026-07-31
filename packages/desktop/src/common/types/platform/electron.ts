@@ -36,6 +36,13 @@ export type BackendStartupFailureReason =
   | 'backend_startup_directory_unavailable'
   | 'backend_startup_failed';
 
+export type OplCodexRuntimeErrorCode =
+  | 'USER_AGENT_NOT_INSTALLED'
+  | 'USER_AGENT_COMMAND_NOT_FOUND'
+  | 'MANAGED_RUNTIME_UNAVAILABLE'
+  | 'RUNTIME_ACTIVATION_REQUIRED'
+  | 'RUNTIME_IDENTITY_MISMATCH';
+
 export type BackendIncompleteInstallationKind = 'missing_backend_binary' | 'missing_directory_resources';
 export type BackendStartupDirectoryIssueKind = 'missing_or_unavailable_directory' | 'permission_denied';
 
@@ -58,6 +65,7 @@ export interface BackendStartupFailureInfo {
   deviceArch?: string;
   expectedDownloadArch?: string;
   isRosettaTranslated?: boolean;
+  oplCodexRuntimeErrorCode?: OplCodexRuntimeErrorCode;
 }
 
 declare global {
