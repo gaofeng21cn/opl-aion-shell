@@ -1,8 +1,6 @@
 name: Check AionUI upstream currentness
 
 on:
-  schedule:
-    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 permissions:
