@@ -8,6 +8,15 @@ import { fileURLToPath } from 'node:url';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const RC_VERSION_PATTERN = /^\d+\.\d+\.\d+-rc\.\d+$/;
+const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
+const MANAGED_CODEX_VERSION = '0.144.6';
+const MANAGED_ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
 
 function requireValue(env, name, pattern) {
   const value = env[name]?.trim() ?? '';
@@ -100,8 +109,8 @@ function readManagedManifest(managedManifestPath) {
 function resolveManagedNodeRuntime(managedResourcesRoot, managedManifestPath, runtimeKey) {
   const manifest = readManagedManifest(managedManifestPath);
   const expectedRoot = 'node/node-v24.11.0-linux-x64';
-  if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
-    throw new Error(`Managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
+  if (manifest?.schema !== MANAGED_RESOURCES_SCHEMA || manifest.runtimeKey !== runtimeKey) {
+    throw new Error(`Managed resources manifest must use ${MANAGED_RESOURCES_SCHEMA} for ${runtimeKey}`);
   }
   if (
     manifest.node?.version !== '24.11.0' ||
@@ -126,20 +135,35 @@ function resolveManagedNodeRuntime(managedResourcesRoot, managedManifestPath, ru
 function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runtimeKey) {
   const manifest = readManagedManifest(managedManifestPath);
 
-  if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
-    throw new Error(`Managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
+  if (manifest?.schema !== MANAGED_RESOURCES_SCHEMA || manifest.runtimeKey !== runtimeKey) {
+    throw new Error(`Managed resources manifest must use ${MANAGED_RESOURCES_SCHEMA} for ${runtimeKey}`);
+  }
+  if (
+    manifest.source?.schemaVersion !== 2 ||
+    !/^[0-9a-f]{64}$/.test(manifest.source?.manifestSha256 || '') ||
+    JSON.stringify(manifest.source?.cliNames) !== JSON.stringify(['claude', 'codex']) ||
+    JSON.stringify(manifest.projection?.includedCliNames) !== JSON.stringify(['codex']) ||
+    JSON.stringify(manifest.projection?.excludedCliNames) !== JSON.stringify(['claude']) ||
+    JSON.stringify(manifest.projection?.requiredAbsentPaths) !== JSON.stringify(MANAGED_ABSENT_PATHS)
+  ) {
+    throw new Error('Managed resources manifest Codex-only projection policy is invalid');
+  }
+  for (const relativePath of MANAGED_ABSENT_PATHS) {
+    if (fs.existsSync(path.join(managedResourcesRoot, ...relativePath.split('/')))) {
+      throw new Error(`Managed resources manifest contains forbidden Claude/raw producer path: ${relativePath}`);
+    }
   }
 
   const codexEntries = Array.isArray(manifest.clis) ? manifest.clis.filter((entry) => entry?.name === 'codex') : [];
-  if (codexEntries.length !== 1) {
-    throw new Error(`Expected one schema-v2 managed Codex CLI entry, found ${codexEntries.length}`);
+  if (!Array.isArray(manifest.clis) || manifest.clis.length !== 1 || codexEntries.length !== 1) {
+    throw new Error(`Expected one OPL projection managed Codex CLI entry, found ${codexEntries.length}`);
   }
 
   const codex = codexEntries[0];
   const version = typeof codex.version === 'string' ? codex.version.trim() : '';
-  const expectedRoot = `cli/codex/${version}/${runtimeKey}`;
+  const expectedRoot = `cli/codex/${MANAGED_CODEX_VERSION}/${runtimeKey}`;
   if (
-    !/^\d+\.\d+\.\d+(?:-[0-9A-Za-z][0-9A-Za-z.-]*)?$/.test(version) ||
+    version !== MANAGED_CODEX_VERSION ||
     codex.root !== expectedRoot ||
     codex.platformDirectory !== runtimeKey ||
     !isSafeContractPath(codex.root) ||

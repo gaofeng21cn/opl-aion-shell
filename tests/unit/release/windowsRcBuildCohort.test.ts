@@ -38,25 +38,30 @@ function seedWindowsRcCohortFixture() {
     requiredDirectories: ['vendor/x86_64-unknown-linux-musl'],
   };
   const managedManifest = {
-    schemaVersion: 2,
+    schema: 'opl_aioncore_managed_resources_projection.v1',
     runtimeKey,
+    source: {
+      schemaVersion: 2,
+      manifestSha256: 'a'.repeat(64),
+      cliNames: ['claude', 'codex'],
+    },
     node: {
       version: '24.11.0',
       root: 'node/node-v24.11.0-linux-x64',
       executable: 'bin/node',
     },
-    clis: [
-      {
-        name: 'claude',
-        version: '2.1.215',
-        root: 'cli/claude/2.1.215/linux-x64',
-        platformDirectory: runtimeKey,
-        executable: 'claude',
-        requiredFiles: [],
-        requiredDirectories: [],
-      },
-      codex,
-    ],
+    clis: [codex],
+    projection: {
+      includedCliNames: ['codex'],
+      excludedCliNames: ['claude'],
+      requiredAbsentPaths: [
+        'cli/claude',
+        'acp',
+        'node_modules/@anthropic-ai/claude-code',
+        'node_modules/claude-code',
+        'claude',
+      ],
+    },
   };
 
   write(root, `out/One-Person-Lab-${releaseVersion}-win-x64.exe`, 'installer');
@@ -214,14 +219,18 @@ describe('Windows RC build cohort', () => {
     const { root, options, managedResourcesRoot, managedManifest, codex } = seedWindowsRcCohortFixture();
     const manifestPath = `${managedResourcesRoot}/manifest.json`;
 
-    write(root, manifestPath, JSON.stringify({ schemaVersion: 1, runtimeKey: 'linux-x64', acpTools: [] }));
+    write(
+      root,
+      manifestPath,
+      JSON.stringify({ schema: 'aioncore.managed-resources.v1', runtimeKey: 'linux-x64', acpTools: [] })
+    );
     expect(() => generateWindowsRcBuildCohort(options)).toThrow(
-      'Managed resources manifest must use schemaVersion 2 for linux-x64'
+      'Managed resources manifest must use opl_aioncore_managed_resources_projection.v1 for linux-x64'
     );
 
     write(root, manifestPath, JSON.stringify({ ...managedManifest, clis: [...managedManifest.clis, codex] }));
     expect(() => generateWindowsRcBuildCohort(options)).toThrow(
-      'Expected one schema-v2 managed Codex CLI entry, found 2'
+      'Expected one OPL projection managed Codex CLI entry, found 2'
     );
 
     write(
@@ -245,7 +254,16 @@ describe('Windows RC build cohort', () => {
       'legacy-codex'
     );
     expect(() => generateWindowsRcBuildCohort(options)).toThrow(
-      'Expected one managed Codex executable at the schema-v2 manifest path, found 2'
+      'Managed resources manifest contains forbidden Claude/raw producer path: acp'
+    );
+  });
+
+  it('rejects packaged Claude bytes even when the projection manifest is valid', () => {
+    const { root, options, managedResourcesRoot } = seedWindowsRcCohortFixture();
+    write(root, `${managedResourcesRoot}/cli/claude/2.1.215/linux-x64/claude`, 'claude');
+
+    expect(() => generateWindowsRcBuildCohort(options)).toThrow(
+      'Managed resources manifest contains forbidden Claude/raw producer path: cli/claude'
     );
   });
 

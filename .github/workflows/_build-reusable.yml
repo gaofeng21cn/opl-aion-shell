@@ -131,7 +131,11 @@ jobs:
           managed_resources=resources/bundled-aioncore/linux-x64/managed-resources
           managed_manifest="$managed_resources/manifest.json"
           node_root="$(jq -er '
-            select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+            select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
+            | select(.source.schemaVersion == 2)
+            | select(.source.cliNames == ["claude", "codex"])
+            | select(.projection.includedCliNames == ["codex"])
+            | select(.projection.excludedCliNames == ["claude"])
             | .node.root
             | select(type == "string" and test("^node/node-v[0-9]+\\.[0-9]+\\.[0-9]+-linux-x64$"))
           ' "$managed_manifest")"
@@ -148,6 +152,17 @@ jobs:
           npx_version="$(PATH="$node_bin:$PATH" "$node_bin/npx" --version)"
           [[ "$npm_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][0-9A-Za-z.-]+)?$ ]]
           test "$npx_version" = "$npm_version"
+          for forbidden_path in \
+            cli/claude \
+            acp \
+            node_modules/@anthropic-ai/claude-code \
+            node_modules/claude-code \
+            claude; do
+            test ! -e "$managed_resources/$forbidden_path"
+          done
+          codex_entries="$(jq -er '[.clis[]? | select(.name == "codex")] | length' "$managed_manifest")"
+          test "$codex_entries" = "1"
+          test "$(jq -er '[.clis[]? | .name] | sort | join(",")' "$managed_manifest")" = "codex"
           printf 'Managed Node runtime verified: node=%s npm=%s npx=%s\n' \
             "v$node_version" "$npm_version" "$npx_version"
 

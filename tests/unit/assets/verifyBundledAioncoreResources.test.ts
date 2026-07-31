@@ -8,8 +8,14 @@ const {
 } = require('../../../packages/shared-scripts/src/verify-bundled-aioncore-resources');
 
 const NODE_VERSION = '24.11.0';
-const CLAUDE_VERSION = '2.1.215';
 const CODEX_VERSION = '0.144.6';
+const ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
 
 const CODEX_EXECUTABLE_BY_RUNTIME: Record<string, string> = {
   'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
@@ -53,27 +59,23 @@ function nodeNpmRuntimeFiles(runtimeKey: string): string[] {
   ];
 }
 
-function claudeExecutable(runtimeKey: string): string {
-  return runtimeKey.startsWith('win32-') ? 'claude.exe' : 'claude';
-}
-
 function codexExecutable(runtimeKey: string): string {
   const executable = CODEX_EXECUTABLE_BY_RUNTIME[runtimeKey];
   if (!executable) throw new Error(`Missing Codex fixture path for ${runtimeKey}`);
   return executable;
 }
 
-function directCliContract(name: 'claude' | 'codex', runtimeKey: string) {
-  const version = name === 'claude' ? CLAUDE_VERSION : CODEX_VERSION;
-  const executable = name === 'claude' ? claudeExecutable(runtimeKey) : codexExecutable(runtimeKey);
+function directCliContract(runtimeKey: string) {
+  const version = CODEX_VERSION;
+  const executable = codexExecutable(runtimeKey);
   return {
-    name,
+    name: 'codex',
     version,
-    root: `cli/${name}/${version}/${runtimeKey}`,
+    root: `cli/codex/${version}/${runtimeKey}`,
     platformDirectory: runtimeKey,
     executable,
     requiredFiles: [],
-    requiredDirectories: name === 'codex' ? [executable.split('/').slice(0, 2).join('/')] : [],
+    requiredDirectories: [executable.split('/').slice(0, 2).join('/')],
   };
 }
 
@@ -83,7 +85,7 @@ function writeManagedResources(managedResourcesDir: string, runtimeKey: string):
     root: nodeRoot(runtimeKey),
     executable: nodeExecutable(runtimeKey),
   };
-  const clis = [directCliContract('claude', runtimeKey), directCliContract('codex', runtimeKey)];
+  const clis = [directCliContract(runtimeKey)];
 
   writeFile(join(managedResourcesDir, ...node.root.split('/'), ...node.executable.split('/')), 'node');
   for (const relativePath of nodeNpmRuntimeFiles(runtimeKey)) {
@@ -97,10 +99,20 @@ function writeManagedResources(managedResourcesDir: string, runtimeKey: string):
     }
   }
   writeJson(join(managedResourcesDir, 'manifest.json'), {
-    schemaVersion: 2,
+    schema: 'opl_aioncore_managed_resources_projection.v1',
     runtimeKey,
+    source: {
+      schemaVersion: 2,
+      manifestSha256: 'a'.repeat(64),
+      cliNames: ['claude', 'codex'],
+    },
     node,
     clis,
+    projection: {
+      includedCliNames: ['codex'],
+      excludedCliNames: ['claude'],
+      requiredAbsentPaths: ABSENT_PATHS,
+    },
   });
 }
 
@@ -147,7 +159,7 @@ describe('verifyBundledAioncoreResources', () => {
     expect(result.sizeAccounting).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ label: 'managed-node', present: true }),
-        expect.objectContaining({ label: 'claude-cli', present: true }),
+        expect.objectContaining({ label: 'claude-cli', present: false }),
         expect.objectContaining({ label: 'codex-cli', present: true }),
       ])
     );
@@ -168,7 +180,6 @@ describe('verifyBundledAioncoreResources', () => {
     expect(result.checked).toEqual(
       expect.arrayContaining([
         'bundled-aioncore/darwin-arm64/managed-resources/node/node-v24.11.0-darwin-arm64/bin/node',
-        'bundled-aioncore/darwin-arm64/managed-resources/cli/claude/2.1.215/darwin-arm64/claude',
         'bundled-aioncore/darwin-arm64/managed-resources/cli/codex/0.144.6/darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
       ])
     );
@@ -259,7 +270,7 @@ describe('verifyBundledAioncoreResources', () => {
   });
 
   it('reports a missing direct Codex executable', () => {
-    const codex = directCliContract('codex', 'win32-x64');
+    const codex = directCliContract('win32-x64');
     rmSync(join(managedResourcesDir, ...codex.root.split('/'), ...codex.executable.split('/')));
 
     const result = verifyBundledAioncoreResources({
@@ -275,7 +286,7 @@ describe('verifyBundledAioncoreResources', () => {
 
   it('rejects schema v1 ACP resources', () => {
     writeJson(join(managedResourcesDir, 'manifest.json'), {
-      schemaVersion: 1,
+      schema: 'aioncore.managed-resources.v1',
       runtimeKey: 'win32-x64',
       acpTools: [],
     });
@@ -287,7 +298,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/managed-resources/manifest.json: schemaVersion/runtimeKey mismatch'
+      'bundled-aioncore/win32-x64/managed-resources/manifest.json: projection schema/runtimeKey mismatch'
     );
   });
 
@@ -304,7 +315,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/managed-resources/manifest.json: expected exactly claude and codex direct CLIs'
+      'bundled-aioncore/win32-x64/managed-resources/manifest.json: expected exactly codex direct CLI'
     );
   });
 
@@ -352,7 +363,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/managed-resources/manifest.json: legacy managed ACP directory is forbidden'
+      'bundled-aioncore/win32-x64/managed-resources/acp: forbidden Claude/raw producer path is present'
     );
   });
 

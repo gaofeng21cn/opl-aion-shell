@@ -8,6 +8,13 @@ import { resolveAioncoreManagedCodex } from '@/process/backend/aioncoreManagedCo
 const RUNTIME_KEY = 'darwin-arm64';
 const CODEX_ROOT = `cli/codex/0.144.6/${RUNTIME_KEY}`;
 const CODEX_EXECUTABLE = 'codex-aarch64-apple-darwin/codex-aarch64-apple-darwin';
+const REQUIRED_ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
 const tmpRoots: string[] = [];
 
 type TestCli = {
@@ -19,8 +26,18 @@ type TestCli = {
 };
 
 type TestManifest = {
-  schemaVersion: number;
+  schema: string;
   runtimeKey: string;
+  source: {
+    schemaVersion: number;
+    manifestSha256: string;
+    cliNames: string[];
+  };
+  projection: {
+    includedCliNames: string[];
+    excludedCliNames: string[];
+    requiredAbsentPaths: string[];
+  };
   clis: TestCli[];
 };
 
@@ -32,16 +49,19 @@ function makeTempRoot(name: string): string {
 
 function makeManifest(): TestManifest {
   return {
-    schemaVersion: 2,
+    schema: 'opl_aioncore_managed_resources_projection.v1',
     runtimeKey: RUNTIME_KEY,
+    source: {
+      schemaVersion: 2,
+      manifestSha256: 'a'.repeat(64),
+      cliNames: ['claude', 'codex'],
+    },
+    projection: {
+      includedCliNames: ['codex'],
+      excludedCliNames: ['claude'],
+      requiredAbsentPaths: REQUIRED_ABSENT_PATHS,
+    },
     clis: [
-      {
-        name: 'claude',
-        version: '2.1.0',
-        root: `cli/claude/2.1.0/${RUNTIME_KEY}`,
-        platformDirectory: RUNTIME_KEY,
-        executable: 'claude',
-      },
       {
         name: 'codex',
         version: '0.144.6',
@@ -99,7 +119,7 @@ afterEach(() => {
 });
 
 describe('resolveAioncoreManagedCodex', () => {
-  it('resolves the schema v2 Codex entry and builds a deduplicated environment', () => {
+  it('resolves the OPL Codex-only projection and builds a deduplicated environment', () => {
     const bundle = writeBundle(makeManifest());
     const executableDir = path.dirname(fs.realpathSync(bundle.executablePath));
     const result = resolve(bundle.resourcesPath, {
@@ -147,10 +167,10 @@ describe('resolveAioncoreManagedCodex', () => {
 
   it('rejects an unsupported manifest schema', () => {
     const manifest = makeManifest();
-    manifest.schemaVersion = 1;
+    manifest.schema = 'aioncore.managed-resources.v1';
     const bundle = writeBundle(manifest);
 
-    expect(() => resolve(bundle.resourcesPath)).toThrow(/schemaVersion must be 2/);
+    expect(() => resolve(bundle.resourcesPath)).toThrow(/manifest schema must be/);
   });
 
   it('requires exactly one Codex CLI entry', () => {
@@ -219,5 +239,12 @@ describe('resolveAioncoreManagedCodex', () => {
     fs.symlinkSync(externalExecutable, bundle.executablePath);
 
     expect(() => resolve(bundle.resourcesPath)).toThrow(/escapes managed resources root/);
+  });
+
+  it('rejects a stale bundled Claude path even when the projection manifest is valid', () => {
+    const bundle = writeBundle(makeManifest());
+    fs.mkdirSync(path.join(bundle.managedResourcesRoot, 'cli', 'claude'), { recursive: true });
+
+    expect(() => resolve(bundle.resourcesPath)).toThrow(/forbidden Claude\/raw producer path is present/);
   });
 });

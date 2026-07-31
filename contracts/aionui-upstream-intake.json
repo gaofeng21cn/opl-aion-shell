@@ -53,6 +53,18 @@
       }
     },
     "managed_resources_schema": 2,
+    "managed_resources_projection": {
+      "schema": "opl_aioncore_managed_resources_projection.v1",
+      "included_cli_names": ["codex"],
+      "excluded_cli_names": ["claude"],
+      "required_absent_paths": [
+        "cli/claude",
+        "acp",
+        "node_modules/@anthropic-ai/claude-code",
+        "node_modules/claude-code",
+        "claude"
+      ]
+    },
     "managed_resources_manifest_sha256": "0a3e1496e0ba6ca1bf522bfe1945e388e7bd4d51ac64ada43ba85ec99e98cd44",
     "node_runtime": {
       "version": "24.11.0",

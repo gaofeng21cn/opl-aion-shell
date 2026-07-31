@@ -105,6 +105,47 @@ if ! echo "$BACKEND_HELP" | grep -q -- '--recover-corrupted-database'; then
 fi
 echo "✓ Backend binary exposes --recover-corrupted-database"
 
+MANAGED_MANIFEST="$BACKEND_DIR/managed-resources/manifest.json"
+if [ ! -f "$MANAGED_MANIFEST" ]; then
+  echo "❌ Managed resources projection manifest is missing: $MANAGED_MANIFEST"
+  exit 1
+fi
+if ! node - "$MANAGED_MANIFEST" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const manifestPath = process.argv[2];
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+if (
+  manifest.schema !== 'opl_aioncore_managed_resources_projection.v1' ||
+  manifest.runtimeKey !== path.basename(path.dirname(path.dirname(manifestPath))) ||
+  manifest.source?.schemaVersion !== 2 ||
+  JSON.stringify(manifest.source?.cliNames) !== JSON.stringify(['claude', 'codex']) ||
+  JSON.stringify(manifest.projection?.includedCliNames) !== JSON.stringify(['codex']) ||
+  JSON.stringify(manifest.projection?.excludedCliNames) !== JSON.stringify(['claude'])
+) {
+  throw new Error('managed resources projection manifest is not Codex-only');
+}
+if (!Array.isArray(manifest.clis) || manifest.clis.length !== 1 || manifest.clis[0]?.name !== 'codex') {
+  throw new Error('managed resources projection does not contain exactly one Codex CLI');
+}
+for (const relativePath of [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+]) {
+  if (fs.existsSync(path.join(path.dirname(manifestPath), ...relativePath.split('/')))) {
+    throw new Error(`forbidden Claude/raw producer path is present: ${relativePath}`);
+  }
+}
+NODE
+then
+  echo "❌ Managed resources projection is invalid"
+  exit 1
+fi
+echo "✓ Managed resources projection contains Codex only and no Claude/raw producer paths"
+
 # 6. HTTP-level smoke: start web-cli, curl the root, check for SPA shell
 echo ""
 echo "6. Testing HTTP server responds with SPA index..."

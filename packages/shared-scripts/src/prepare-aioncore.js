@@ -42,6 +42,17 @@ const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'corepack',
   'corepack.cmd',
 ];
+const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
+const REQUIRED_MANAGED_CLI_NAMES = ['claude', 'codex'];
+const REQUIRED_CODEX_VERSION = '0.144.6';
+const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-codex-only-v1';
+const REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
 
 const ACTIONS_ARTIFACT_TARGETS = {
   'darwin-arm64': {
@@ -124,6 +135,200 @@ function writeJson(filePath, payload) {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
 }
 
+function readJsonFile(filePath, label) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`${label} is unreadable: ${filePath}`, { cause: error });
+  }
+}
+
+function requireSafePosixRelativePath(value, label) {
+  if (
+    typeof value !== 'string' ||
+    !value ||
+    value.includes('\\') ||
+    path.posix.isAbsolute(value) ||
+    value.split('/').some((part) => !part || part === '.' || part === '..')
+  ) {
+    throw new Error(`${label} must be a safe POSIX relative path`);
+  }
+  return value;
+}
+
+function requireStagingContractEntry(root, relativePath, kind, label) {
+  const safePath = requireSafePosixRelativePath(relativePath, label);
+  const absolutePath = path.resolve(root, ...safePath.split('/'));
+  if (!isPathInside(absolutePath, path.resolve(root))) {
+    throw new Error(`${label} escapes the AionCore managed resources staging root`);
+  }
+  const stat = fs.statSync(absolutePath, { throwIfNoEntry: false });
+  if (!stat || (kind === 'directory' ? !stat.isDirectory() : !stat.isFile())) {
+    throw new Error(`${label} is missing from the AionCore managed resources staging export: ${safePath}`);
+  }
+  return safePath;
+}
+
+function readUpstreamManagedResourcesContract(stagingDir, runtimeKey) {
+  const manifestPath = path.join(stagingDir, 'manifest.json');
+  const manifest = readJsonFile(manifestPath, 'AionCore managed resources manifest');
+  if (manifest?.schemaVersion !== 2 || manifest.runtimeKey !== runtimeKey) {
+    throw new Error(`AionCore managed resources manifest must use schemaVersion 2 for ${runtimeKey}`);
+  }
+  if (
+    !manifest.node ||
+    typeof manifest.node.version !== 'string' ||
+    typeof manifest.node.root !== 'string' ||
+    typeof manifest.node.executable !== 'string'
+  ) {
+    throw new Error(`AionCore managed resources manifest has an invalid Node identity for ${runtimeKey}`);
+  }
+  const nodeRoot = requireStagingContractEntry(stagingDir, manifest.node.root, 'directory', 'AionCore Node root');
+  requireStagingContractEntry(
+    path.join(stagingDir, ...nodeRoot.split('/')),
+    manifest.node.executable,
+    'file',
+    'AionCore Node executable'
+  );
+  const clis = Array.isArray(manifest.clis) ? manifest.clis : [];
+  const names = clis.map((entry) => entry?.name).toSorted();
+  if (
+    names.length !== REQUIRED_MANAGED_CLI_NAMES.length ||
+    names.some((name, index) => name !== REQUIRED_MANAGED_CLI_NAMES[index])
+  ) {
+    throw new Error(`AionCore managed resources manifest must contain exactly claude and codex for ${runtimeKey}`);
+  }
+  for (const cli of clis) {
+    if (
+      typeof cli?.name !== 'string' ||
+      typeof cli.version !== 'string' ||
+      !cli.version ||
+      cli.platformDirectory !== runtimeKey ||
+      !Array.isArray(cli.requiredFiles) ||
+      !Array.isArray(cli.requiredDirectories)
+    ) {
+      throw new Error(`AionCore managed resources manifest has an invalid ${cli?.name || 'unknown'} CLI identity`);
+    }
+    const cliRoot = requireStagingContractEntry(stagingDir, cli.root, 'directory', `AionCore ${cli.name} root`);
+    const absoluteCliRoot = path.join(stagingDir, ...cliRoot.split('/'));
+    requireStagingContractEntry(absoluteCliRoot, cli.executable, 'file', `AionCore ${cli.name} executable`);
+    for (const [index, relativePath] of cli.requiredFiles.entries()) {
+      requireStagingContractEntry(
+        absoluteCliRoot,
+        relativePath,
+        'file',
+        `AionCore ${cli.name} requiredFiles[${index}]`
+      );
+    }
+    for (const [index, relativePath] of cli.requiredDirectories.entries()) {
+      requireStagingContractEntry(
+        absoluteCliRoot,
+        relativePath,
+        'directory',
+        `AionCore ${cli.name} requiredDirectories[${index}]`
+      );
+    }
+  }
+  const codex = clis.find((entry) => entry?.name === 'codex');
+  if (
+    !codex ||
+    codex.version !== REQUIRED_CODEX_VERSION ||
+    codex.platformDirectory !== runtimeKey ||
+    !requireSafePosixRelativePath(codex.root, 'AionCore Codex root') ||
+    !requireSafePosixRelativePath(codex.executable, 'AionCore Codex executable')
+  ) {
+    throw new Error(`AionCore managed resources manifest has an invalid Codex identity for ${runtimeKey}`);
+  }
+  return { manifest, manifestPath, codex };
+}
+
+function assertRequiredManagedResourceAbsence(
+  managedResourcesDir,
+  requiredAbsentPaths = REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS
+) {
+  const present = requiredAbsentPaths.filter((relativePath) =>
+    fs.existsSync(path.join(managedResourcesDir, ...relativePath.split('/')))
+  );
+  if (present.length > 0) {
+    throw new Error(
+      `OPL managed resources projection contains forbidden Claude/raw producer paths: ${present.join(', ')}`
+    );
+  }
+}
+
+function projectManagedResources(stagingDir, targetDir, runtimeKey) {
+  const {
+    manifest: sourceManifest,
+    manifestPath,
+    codex,
+  } = readUpstreamManagedResourcesContract(stagingDir, runtimeKey);
+  const sourceManifestSha256 = sha256File(manifestPath);
+  const nodeRoot = requireSafePosixRelativePath(sourceManifest.node.root, 'AionCore Node root');
+  const nodeExecutable = requireSafePosixRelativePath(sourceManifest.node.executable, 'AionCore Node executable');
+  const sourceNodeRoot = path.resolve(stagingDir, ...nodeRoot.split('/'));
+  const sourceCodexRoot = path.resolve(stagingDir, ...codex.root.split('/'));
+  if (!isPathInside(sourceNodeRoot, path.resolve(stagingDir)) || !fs.statSync(sourceNodeRoot).isDirectory()) {
+    throw new Error(`AionCore managed Node root is missing for ${runtimeKey}: ${nodeRoot}`);
+  }
+  if (!isPathInside(sourceCodexRoot, path.resolve(stagingDir)) || !fs.statSync(sourceCodexRoot).isDirectory()) {
+    throw new Error(`AionCore managed Codex root is missing for ${runtimeKey}: ${codex.root}`);
+  }
+  if (!fs.existsSync(path.join(sourceNodeRoot, ...nodeExecutable.split('/')))) {
+    throw new Error(`AionCore managed Node executable is missing for ${runtimeKey}: ${nodeRoot}/${nodeExecutable}`);
+  }
+  if (!fs.existsSync(path.join(sourceCodexRoot, ...codex.executable.split('/')))) {
+    throw new Error(
+      `AionCore managed Codex executable is missing for ${runtimeKey}: ${codex.root}/${codex.executable}`
+    );
+  }
+
+  const projectionManifest = {
+    schema: OPL_MANAGED_RESOURCES_SCHEMA,
+    runtimeKey,
+    source: {
+      schemaVersion: sourceManifest.schemaVersion,
+      manifestSha256: sourceManifestSha256,
+      cliNames: [...REQUIRED_MANAGED_CLI_NAMES],
+    },
+    node: {
+      version: sourceManifest.node.version,
+      root: nodeRoot,
+      executable: nodeExecutable,
+    },
+    clis: [
+      {
+        name: codex.name,
+        version: codex.version,
+        root: codex.root,
+        platformDirectory: codex.platformDirectory,
+        executable: codex.executable,
+        requiredFiles: [...codex.requiredFiles],
+        requiredDirectories: [...codex.requiredDirectories],
+      },
+    ],
+    projection: {
+      includedCliNames: ['codex'],
+      excludedCliNames: ['claude'],
+      requiredAbsentPaths: [...REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS],
+    },
+  };
+  const projectionDir = `${targetDir}.projection-${process.pid}`;
+  removeDirectorySafe(projectionDir);
+  try {
+    ensureDirectory(projectionDir);
+    copyDirectorySafe(path.join(stagingDir, 'node'), path.join(projectionDir, 'node'));
+    copyDirectorySafe(sourceCodexRoot, path.join(projectionDir, ...codex.root.split('/')));
+    writeJson(path.join(projectionDir, 'manifest.json'), projectionManifest);
+    assertRequiredManagedResourceAbsence(projectionDir, projectionManifest.projection.requiredAbsentPaths);
+
+    removeDirectorySafe(targetDir);
+    fs.renameSync(projectionDir, targetDir);
+    return projectionManifest;
+  } finally {
+    removeDirectorySafe(projectionDir);
+  }
+}
+
 function writePreparedRuntimeManifest(targetDir, input) {
   const manifest = {
     platform: input.platform,
@@ -199,7 +404,7 @@ function defaultAioncoreCacheRoot({ platform = process.platform, env = process.e
 
 function getAioncoreCachePaths(projectRoot, runtimeKey, cacheVersion) {
   const cacheRoot = process.env.AIONUI_AIONCORE_CACHE_DIR?.trim() || defaultAioncoreCacheRoot();
-  const cacheId = `${runtimeKey}-${safeCacheSegment(cacheVersion)}`;
+  const cacheId = `${runtimeKey}-${safeCacheSegment(cacheVersion)}-${OPL_AIONCORE_CACHE_PROJECTION_VERSION}`;
   const resourcesRoot = path.join(cacheRoot, cacheId);
   const runtimeDir = path.join(resourcesRoot, 'bundled-aioncore', runtimeKey);
   return { resourcesRoot, runtimeDir };
@@ -660,6 +865,7 @@ function getManagedResourcePrepareEnv(baseEnv = process.env) {
 
 function prepareManagedResources(binaryPath, targetDir, options = {}) {
   const bundleOut = path.join(targetDir, 'managed-resources');
+  const stagingOut = path.join(targetDir, `.managed-resources-staging-${process.pid}`);
   const dataDir = path.join(targetDir, '.prepare-data');
   const targetPlatform = options.platform || process.platform;
   const hostPlatform = options.hostPlatform || process.platform;
@@ -671,18 +877,20 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
   let lastError = null;
 
   removeDirectorySafe(bundleOut);
+  removeDirectorySafe(stagingOut);
   removeDirectorySafe(dataDir);
   ensureDirectory(dataDir);
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     removeDirectorySafe(bundleOut);
-    ensureDirectory(bundleOut);
+    removeDirectorySafe(stagingOut);
+    ensureDirectory(stagingOut);
     logger.log(
       `  Preparing managed resources under ${path.relative(process.cwd(), bundleOut)} (${attempt}/${attempts})`
     );
 
     try {
-      execFile(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', bundleOut], {
+      execFile(binaryPath, ['--data-dir', dataDir, 'prepare-managed-resources', '--bundle-out', stagingOut], {
         stdio: 'inherit',
         env: getManagedResourcePrepareEnv(options.env || process.env),
       });
@@ -691,6 +899,7 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
     } catch (error) {
       lastError = error;
       removeDirectorySafe(bundleOut);
+      removeDirectorySafe(stagingOut);
       if (attempt >= attempts) {
         break;
       }
@@ -704,6 +913,7 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
 
   if (lastError) {
     removeDirectorySafe(dataDir);
+    removeDirectorySafe(stagingOut);
     throw new Error(
       [
         `Managed resource preparation failed after ${attempts} attempts for ${path.relative(process.cwd(), binaryPath)}.`,
@@ -715,26 +925,32 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
   }
 
   removeDirectorySafe(dataDir);
-  if (hostPlatform === 'win32' && targetPlatform === 'linux') {
-    const managedNodeExecutable = resolveManagedNodeExecutable(bundleOut, targetPlatform);
-    const output = execFile(
-      managedNodeExecutable,
-      [__filename, MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND, bundleOut],
-      {
-        encoding: 'utf8',
-        env: options.env || process.env,
-      }
-    );
-    const materialization = JSON.parse(String(output).trim());
-    logger.log(
-      `  Materialized ${materialization.materialized.length} Linux managed-resource symlink(s) for Windows packaging`
-    );
+  try {
+    if (hostPlatform === 'win32' && targetPlatform === 'linux') {
+      const managedNodeExecutable = resolveManagedNodeExecutable(stagingOut, targetPlatform);
+      const output = execFile(
+        managedNodeExecutable,
+        [__filename, MATERIALIZE_INTERNAL_FILE_SYMLINKS_COMMAND, stagingOut],
+        {
+          encoding: 'utf8',
+          env: options.env || process.env,
+        }
+      );
+      const materialization = JSON.parse(String(output).trim());
+      logger.log(
+        `  Materialized ${materialization.materialized.length} Linux managed-resource symlink(s) for Windows packaging`
+      );
+    }
+    const pruneResult = pruneManagedNodeRuntime(stagingOut, targetPlatform);
+    if (pruneResult.pruned.length > 0) {
+      logger.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
+    }
+    projectManagedResources(stagingOut, bundleOut, `${targetPlatform}-${options.arch || process.arch}`);
+    return bundleOut;
+  } finally {
+    removeDirectorySafe(stagingOut);
+    removeDirectorySafe(dataDir);
   }
-  const pruneResult = pruneManagedNodeRuntime(bundleOut, targetPlatform);
-  if (pruneResult.pruned.length > 0) {
-    console.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
-  }
-  return bundleOut;
 }
 
 // ---------------------------------------------------------------------------
@@ -1290,6 +1506,7 @@ function prepareAioncore(options) {
     const bundledManagedResourcesDir = prepareManagedResources(targetBinaryPath, targetDir, {
       execFileSync: compatibilityExecFileSync,
       platform,
+      arch,
       hostPlatform: materializeInternalSymlinksForWindows ? 'win32' : process.platform,
     });
 
@@ -1369,6 +1586,7 @@ module.exports = {
     getManagedResourcePrepareEnv,
     materializeInternalFileSymlinks,
     normalizeInternalSymlinks,
+    projectManagedResources,
     prepareAioncore,
     prepareManagedResources,
     resolveOfficialReleaseAsset,
@@ -1376,8 +1594,10 @@ module.exports = {
     runDownloadOnce,
     parsePositiveInteger,
     pruneManagedNodeRuntime,
+    readUpstreamManagedResourcesContract,
     resolveManagedNodeExecutable,
     savePreparedRuntimeToCache,
+    assertRequiredManagedResourceAbsence,
     writePreparedRuntimeManifest,
   },
 };
