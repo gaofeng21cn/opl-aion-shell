@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCapabilitiesViewModel,
-  readOplFlowCapabilityDependencySummary,
+  readPackageCapabilityDependencySummaries,
 } from '@/renderer/pages/settings/capabilitiesProjection';
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
@@ -1284,12 +1284,13 @@ describe('Framework package semantic projections', () => {
     expect(capability.recommendedAction?.actionId).toBe(actionId);
   });
 
-  it('reads only the Framework directory Flow summary and preserves its dynamic route', () => {
-    const summaries = readOplFlowCapabilityDependencySummary(
+  it('reads one descriptor-owned Package role summary and preserves its dynamic route', () => {
+    const summaries = readPackageCapabilityDependencySummaries(
       appStateWithPackageDirectory(
         [
           {
-            package_id: 'opl-flow',
+            package_id: 'future-workflow-profile',
+            package_role: 'workflow_profile',
             capability_dependency_summary: [
               {
                 id: 'future-net-skill',
@@ -1301,11 +1302,16 @@ describe('Framework package semantic projections', () => {
                 user_outcome: 'required_for_workflow',
                 route: {
                   action_ref: 'app_state.actions#future_flow_repair',
-                  payload: { package_id: 'opl-flow' },
-                  detail_surface: 'opl packages status --package-id opl-flow --json',
+                  payload: { package_id: 'future-workflow-profile' },
+                  detail_surface: 'opl packages status --package-id future-workflow-profile --json',
                 },
               },
             ],
+          },
+          {
+            package_id: 'opl-flow',
+            package_role: 'capability_package',
+            capability_dependency_summary: [{ id: 'wrong-role-summary' }],
           },
         ],
         [],
@@ -1314,7 +1320,8 @@ describe('Framework package semantic projections', () => {
             flow_dependencies: [{ id: 'legacy-only-skill' }],
           },
         }
-      )
+      ),
+      'workflow_profile'
     );
 
     expect(summaries).toEqual([
@@ -1328,9 +1335,19 @@ describe('Framework package semantic projections', () => {
         userOutcome: 'required_for_workflow',
         route: {
           actionId: 'future_flow_repair',
-          payload: { package_id: 'opl-flow' },
+          payload: { package_id: 'future-workflow-profile' },
         },
       },
     ]);
+
+    expect(
+      readPackageCapabilityDependencySummaries(
+        appStateWithPackageDirectory([
+          { package_id: 'one', package_role: 'workflow_profile', capability_dependency_summary: [] },
+          { package_id: 'two', package_role: 'workflow_profile', capability_dependency_summary: [] },
+        ]),
+        'workflow_profile'
+      )
+    ).toEqual([]);
   });
 });

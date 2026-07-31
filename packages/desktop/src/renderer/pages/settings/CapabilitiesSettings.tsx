@@ -53,7 +53,7 @@ import {
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
-  readOplFlowCapabilityDependencySummary,
+  readPackageCapabilityDependencySummaries,
   type CapabilityActionRefViewModel,
   type CapabilityAvailabilityStatus,
   type CapabilityCandidateReportViewModel,
@@ -2666,7 +2666,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const appStateQuery = useOplAppState('fast');
   const [flowSyncing, setFlowSyncing] = useState(false);
   const flowManagedCatalog = React.useMemo(() => {
-    const summaries = readOplFlowCapabilityDependencySummary(appStateQuery.appState);
+    const summaries = readPackageCapabilityDependencySummaries(appStateQuery.appState, 'workflow_profile');
     const dependencies = summaries.map((dependency) => ({
       id: dependency.id,
       kind: dependency.kind,

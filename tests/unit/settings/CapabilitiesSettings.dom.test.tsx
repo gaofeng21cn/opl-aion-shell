@@ -2255,8 +2255,8 @@ describe('Agents and capabilities settings', () => {
   it('keeps skills and third-party tools on the capabilities page', async () => {
     appStateOverrides.appState = appStateWithDirectory([
       {
-        package_id: 'opl-flow',
-        package_role: 'workflow',
+        package_id: 'future-workflow-profile',
+        package_role: 'workflow_profile',
         installed: true,
         capability_dependency_summary: [
           {
