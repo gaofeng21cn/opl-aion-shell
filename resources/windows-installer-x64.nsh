@@ -5,7 +5,7 @@
 
 !ifndef AIONUI_APP_PROCESS_CHECK_DEFINED
 !define AIONUI_APP_PROCESS_CHECK_DEFINED
-!define AIONUI_APP_EXECUTABLE_FILENAME "AionUi.exe"
+!define AIONUI_APP_EXECUTABLE_FILENAME "${PRODUCT_FILENAME}.exe"
 !define AIONUI_PROCESS_CHECK_LOG "aionui-installer-process-check.log"
 
 !ifndef BUILD_UNINSTALLER
@@ -157,6 +157,7 @@
   !insertmacro AIONUI_FIND_APP_PROCESS $AionUiCheckResult
   ${If} $AionUiCheckResult == 0
     MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "$(appRunning)" /SD IDOK IDOK aionui_do_stop_process
+    SetErrorLevel 2
     Quit
 
     aionui_do_stop_process:
@@ -171,6 +172,7 @@
         IntOp $AionUiCloseRetries $AionUiCloseRetries + 1
         ${If} $AionUiCloseRetries > 10
           MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY aionui_wait_for_close
+          SetErrorLevel 2
           Quit
         ${Else}
           !insertmacro AIONUI_STOP_APP_PROCESSES

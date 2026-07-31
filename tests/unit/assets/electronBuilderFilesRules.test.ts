@@ -15,6 +15,10 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const configPath = resolve(__dirname, '../../../packages/desktop/electron-builder.yml');
+const windowsInstallerPaths = [
+  resolve(__dirname, '../../../resources/windows-installer-x64.nsh'),
+  resolve(__dirname, '../../../resources/windows-installer-arm64.nsh'),
+];
 const packagedRuntime = await import('../../../scripts/validate-packaged-runtime.js');
 const runtimeMaterializer = await import('../../../scripts/materialize-packaged-runtime-dependencies.js');
 const requireFromHere = createRequire(import.meta.url);
@@ -84,6 +88,19 @@ function runtimeDependencyClosure(rootPackages: string[]): string[] {
 }
 
 describe('electron-builder files rules', () => {
+  it('binds running-app checks to the configured Windows executable and fails closed', () => {
+    const config = readFileSync(configPath, 'utf8');
+    expect(config).toMatch(/^executableName: One Person Lab$/m);
+
+    for (const installerPath of windowsInstallerPaths) {
+      const installer = readFileSync(installerPath, 'utf8');
+      expect(installer).toContain('!define AIONUI_APP_EXECUTABLE_FILENAME "${PRODUCT_FILENAME}.exe"');
+      expect(installer).not.toContain('!define AIONUI_APP_EXECUTABLE_FILENAME "AionUi.exe"');
+      expect(installer).toMatch(/MessageBox MB_OKCANCEL[^\n]+aionui_do_stop_process\n\s+SetErrorLevel 2\n\s+Quit/);
+      expect(installer).toMatch(/MessageBox MB_RETRYCANCEL[^\n]+aionui_wait_for_close\n\s+SetErrorLevel 2\n\s+Quit/);
+    }
+  });
+
   it('normalizes Windows-style app.asar entries before runtime dependency checks', () => {
     expect(packagedRuntime.normalizeAsarEntry('\\node_modules\\axios\\package.json')).toBe(
       'node_modules/axios/package.json'
