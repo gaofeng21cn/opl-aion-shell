@@ -87,7 +87,7 @@ export type CapabilityDependentGuardViewModel = {
   uninstallReasonCode: string | null;
 };
 
-export type OplFlowCapabilityDependencySummary = {
+export type PackageCapabilityDependencySummary = {
   id: string;
   kind: string;
   relationship: 'required' | 'recommended' | 'unknown';
@@ -1514,13 +1514,19 @@ export function buildCapabilitiesViewModel(
   return [...mergedPurposes.values()];
 }
 
-/** Read only the Flow package's Framework-owned installed dependency projection. */
-export function readOplFlowCapabilityDependencySummary(
-  appState: OplAppStateRecord
-): OplFlowCapabilityDependencySummary[] {
+/** Read one descriptor-owned Package role's Framework dependency projection. */
+export function readPackageCapabilityDependencySummaries(
+  appState: OplAppStateRecord,
+  packageRole: string
+): PackageCapabilityDependencySummary[] {
   const directory = oplRecord(oplRecord(appState.agent_packages).directory);
-  const flow = oplRecordList(directory.entries).find((entry) => firstString(entry.package_id) === 'opl-flow');
-  return oplRecordList(flow?.capability_dependency_summary).flatMap((entry) => {
+  const normalizedRole = firstString(packageRole);
+  if (!normalizedRole) return [];
+  const matchingPackages = oplRecordList(directory.entries).filter(
+    (entry) => firstString(entry.package_role) === normalizedRole
+  );
+  if (matchingPackages.length !== 1) return [];
+  return oplRecordList(matchingPackages[0]?.capability_dependency_summary).flatMap((entry) => {
     const id = firstString(entry.id);
     const kind = firstString(entry.kind);
     const relationship = firstString(entry.relationship);
@@ -1548,10 +1554,10 @@ export function readOplFlowCapabilityDependencySummary(
       {
         id,
         kind,
-        relationship: relationship as OplFlowCapabilityDependencySummary['relationship'],
+        relationship: relationship as PackageCapabilityDependencySummary['relationship'],
         activation,
-        presence: presence as OplFlowCapabilityDependencySummary['presence'],
-        callability: callability as OplFlowCapabilityDependencySummary['callability'],
+        presence: presence as PackageCapabilityDependencySummary['presence'],
+        callability: callability as PackageCapabilityDependencySummary['callability'],
         userOutcome,
         route:
           actionId && Object.prototype.toString.call(route.payload) === '[object Object]'
