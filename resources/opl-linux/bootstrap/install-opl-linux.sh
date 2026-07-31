@@ -30,8 +30,74 @@ if [[ ! -f "$product_manifest" ]]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-apt-get update
-apt-get install -y --no-install-recommends ca-certificates curl file jq procps tar
+
+# WSL can start successfully while its guest resolver or inherited proxy is not
+# usable. Fail with a stable marker before apt emits a long, opaque package log.
+apt_network_hosts=(archive.ubuntu.com security.ubuntu.com)
+if command -v getent >/dev/null 2>&1; then
+  for apt_network_host in "${apt_network_hosts[@]}"; do
+    apt_network_resolved=false
+    for apt_network_delay in 0 3 10; do
+      if (( apt_network_delay > 0 )); then sleep "$apt_network_delay"; fi
+      if getent ahosts "$apt_network_host" >/dev/null 2>&1; then
+        apt_network_resolved=true
+        break
+      fi
+    done
+    if [[ "$apt_network_resolved" != 'true' ]]; then
+      printf 'OPL_BOOTSTRAP_NETWORK_ERROR=dns_resolution_failed\n' >&2
+      printf 'Unable to resolve the Ubuntu software source %s from WSL.\n' "$apt_network_host" >&2
+      exit 20
+    fi
+  done
+fi
+
+proxy_value="${HTTPS_PROXY:-${https_proxy:-${HTTP_PROXY:-${http_proxy:-}}}}"
+localhost_proxy_detected=false
+if [[ "$proxy_value" =~ ^https?://(localhost|127\\.0\\.0\\.1|\\[::1\\])(:[0-9]+)?(/|$) ]]; then
+  localhost_proxy_detected=true
+  printf 'OPL_BOOTSTRAP_NETWORK_NOTE=localhost_proxy\n' >&2
+fi
+
+apt_with_retries() {
+  local operation="$1"
+  shift
+  local attempt delay status log_file
+  local retry_delays=(0 5 15)
+  log_file="$(mktemp /tmp/opl-apt.XXXXXX)"
+  for attempt in "${!retry_delays[@]}"; do
+    delay="${retry_delays[$attempt]}"
+    if (( delay > 0 )); then sleep "$delay"; fi
+    printf 'OPL_BOOTSTRAP_NETWORK_ATTEMPT=%s:%s/%s\n' "$operation" "$((attempt + 1))" "${#retry_delays[@]}" >&2
+    if apt-get "$@" \
+      -o Acquire::Retries=2 \
+      -o Acquire::http::Timeout=30 \
+      -o Acquire::https::Timeout=30 \
+      2>&1 | tee "$log_file"; then
+      status=0
+    else
+      status="${PIPESTATUS[0]}"
+    fi
+    if [[ "$status" == '0' ]]; then
+      rm -f "$log_file"
+      return 0
+    fi
+  done
+
+  if grep -Eqi 'Temporary failure resolving|Could not resolve|Name or service not known|Temporary failure in name resolution' "$log_file"; then
+    printf 'OPL_BOOTSTRAP_NETWORK_ERROR=dns_resolution_failed\n' >&2
+  elif [[ "$localhost_proxy_detected" == 'true' ]]; then
+    printf 'OPL_BOOTSTRAP_NETWORK_ERROR=localhost_proxy_unavailable\n' >&2
+  elif grep -Eqi 'Could not connect|Connection timed out|Network is unreachable|Failed to fetch|proxy.*(refused|unreachable)|connection refused' "$log_file"; then
+    printf 'OPL_BOOTSTRAP_NETWORK_ERROR=software_source_unavailable\n' >&2
+  fi
+  printf 'OPL_BOOTSTRAP_NETWORK_OPERATION=%s\n' "$operation" >&2
+  rm -f "$log_file"
+  return "$status"
+}
+
+apt_with_retries update update
+apt_with_retries install install -y --no-install-recommends ca-certificates curl file jq procps tar
 framework_ref="$(jq -er '.framework_ref | select(test("^[0-9a-f]{40}$"))' "$product_manifest")"
 
 if ! id "$guest_user" >/dev/null 2>&1; then

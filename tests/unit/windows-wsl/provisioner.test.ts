@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   __windowsWslProvisionerTest,
+  classifyGuestNetworkFailure,
   validateWindowsWslGuestIdentity,
   validateWindowsWslProductManifest,
   WindowsWslProvisioner,
@@ -96,9 +97,35 @@ describe('WindowsWslProvisioner parsing and identity', () => {
   it('decodes redirected UTF-16LE WSL output without corrupting UTF-8 output', () => {
     const utf16 = Buffer.from('Wsl/WININET_E_CANNOT_CONNECT\r\n', 'utf16le');
     expect(__windowsWslProvisionerTest.decodeWindowsCommandOutput([utf16])).toContain('WININET_E_CANNOT_CONNECT');
+    const localizedWarning =
+      'wsl: 检测到 localhost 代理配置，但未镜像到 WSL。NAT 模式下的 WSL 不支持 localhost 代理。\r\n';
+    expect(__windowsWslProvisionerTest.decodeWindowsCommandOutput([Buffer.from(localizedWarning, 'utf16le')])).toBe(
+      localizedWarning
+    );
     expect(__windowsWslProvisionerTest.decodeWindowsCommandOutput([Buffer.from('Ubuntu-24.04\n', 'utf8')])).toBe(
       'Ubuntu-24.04\n'
     );
+  });
+
+  it('classifies guest DNS, transport, and non-network bootstrap failures', () => {
+    expect(classifyGuestNetworkFailure("Temporary failure resolving 'archive.ubuntu.com'")).toBe(
+      'guest_dns_unavailable'
+    );
+    expect(classifyGuestNetworkFailure('OPL_BOOTSTRAP_NETWORK_ERROR=dns_resolution_failed')).toBe(
+      'guest_dns_unavailable'
+    );
+    expect(classifyGuestNetworkFailure('OPL_BOOTSTRAP_NETWORK_ERROR=software_source_unavailable')).toBe(
+      'guest_network_unavailable'
+    );
+    expect(classifyGuestNetworkFailure('OPL_BOOTSTRAP_NETWORK_ERROR=localhost_proxy_unavailable')).toBe(
+      'guest_proxy_unavailable'
+    );
+    expect(
+      classifyGuestNetworkFailure(
+        "wsl: 检测到 localhost 代理配置，但未镜像到 WSL。NAT 模式下的 WSL 不支持 localhost 代理。\nOPL_BOOTSTRAP_NETWORK_ERROR=dns_resolution_failed\nTemporary failure resolving 'archive.ubuntu.com'"
+      )
+    ).toBe('guest_proxy_unavailable');
+    expect(classifyGuestNetworkFailure('The packaged Linux runtime seed is incomplete.')).toBeNull();
   });
 
   it('requires a non-negative active operation count', () => {

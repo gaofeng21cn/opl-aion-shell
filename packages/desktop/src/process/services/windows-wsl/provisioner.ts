@@ -14,6 +14,11 @@ const MAX_COMMAND_OUTPUT_BYTES = 128 * 1024;
 const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
 const ONLINE_CATALOG_TIMEOUT_MS = 30 * 1000;
 const ONLINE_CATALOG_RETRY_DELAYS_MS = [0, 2_000, 5_000] as const;
+const GUEST_NETWORK_ERROR_CODES = new Set([
+  'dns_resolution_failed',
+  'software_source_unavailable',
+  'localhost_proxy_unavailable',
+]);
 
 export type WindowsWslProvisioningStage =
   | 'checking_host'
@@ -138,11 +143,45 @@ export function decodeWindowsCommandOutput(chunks: Buffer[]): string {
       else oddByteNuls += 1;
     }
   }
-  const pairedBytes = Math.floor(bytes.length / 2);
-  if (pairedBytes > 0 && (oddByteNuls >= pairedBytes / 3 || evenByteNuls >= pairedBytes / 3)) {
+  // CJK UTF-16LE text has non-zero high bytes, so a one-third NUL threshold
+  // misses mixed warnings such as the localized WSL localhost-proxy notice.
+  // UTF-8 command output never contains embedded NULs; redirected wsl.exe
+  // output with NULs concentrated on odd bytes is therefore UTF-16LE.
+  if (oddByteNuls > evenByteNuls && oddByteNuls > 0) {
     return bytes.toString('utf16le').replace(/^\uFEFF/, '');
   }
   return bytes.toString('utf8');
+}
+
+export function classifyGuestNetworkFailure(
+  output: string
+): 'guest_dns_unavailable' | 'guest_network_unavailable' | 'guest_proxy_unavailable' | null {
+  if (/localhost/i.test(output) && /\bNAT\b/i.test(output)) {
+    return 'guest_proxy_unavailable';
+  }
+  const marker = output.match(/OPL_BOOTSTRAP_NETWORK_ERROR=([a-z_]+)/i)?.[1]?.toLowerCase();
+  if (marker && GUEST_NETWORK_ERROR_CODES.has(marker)) {
+    return marker === 'dns_resolution_failed'
+      ? 'guest_dns_unavailable'
+      : marker === 'localhost_proxy_unavailable'
+        ? 'guest_proxy_unavailable'
+        : 'guest_network_unavailable';
+  }
+  if (
+    /(?:Temporary failure resolving|Could not resolve|Name or service not known|Temporary failure in name resolution)/i.test(
+      output
+    )
+  ) {
+    return 'guest_dns_unavailable';
+  }
+  if (
+    /(?:Could not connect|Connection timed out|Network is unreachable|Failed to fetch|proxy.*(?:refused|unreachable)|connection refused)/i.test(
+      output
+    )
+  ) {
+    return 'guest_network_unavailable';
+  }
+  return null;
 }
 
 export function runWindowsWslCommand(
@@ -406,10 +445,18 @@ export class WindowsWslProvisioner {
     code: string
   ): Promise<WindowsWslCommandResult> {
     if (result.exitCode === 0 && !result.timedOut) return result;
-    throw new WindowsWslProvisioningError(`${stage} failed: ${bounded(result.stderr || result.stdout || code)}`, {
-      stage,
-      code,
-    });
+    const output = bounded(result.stderr || result.stdout || code);
+    const guestNetworkCode = stage === 'initializing_guest' ? classifyGuestNetworkFailure(output) : null;
+    throw new WindowsWslProvisioningError(
+      guestNetworkCode
+        ? 'The WSL guest could not reach the Ubuntu software sources. Check DNS, proxy, or VPN settings and retry.'
+        : `${stage} failed: ${output}`,
+      {
+        stage,
+        code: guestNetworkCode ?? code,
+        cause: result,
+      }
+    );
   }
 
   private async enableWslFeatures(): Promise<void> {
@@ -645,7 +692,7 @@ export class WindowsWslProvisioner {
   }
 
   private async bootstrapGuest(): Promise<void> {
-    this.progress('initializing_guest', 'Initializing the OPL Linux environment.');
+    this.progress('initializing_guest', 'Checking Ubuntu software sources and initializing the OPL Linux environment.');
     const bootstrapRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-linux', 'bootstrap'));
     const runtimeRoot = await this.translateWindowsPath(path.join(this.resourcesPath, 'bundled-aioncore', 'linux-x64'));
     const frameworkInstaller = await this.translateWindowsPath(path.join(this.resourcesPath, 'opl-install.sh'));

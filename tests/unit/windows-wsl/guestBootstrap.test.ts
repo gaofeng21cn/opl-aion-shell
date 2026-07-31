@@ -17,10 +17,22 @@ describe('OPL Linux guest bootstrap', () => {
 
   it('installs jq before parsing the product manifest', () => {
     const script = read('install-opl-linux.sh');
-    const dependencyInstall = script.indexOf('apt-get install -y --no-install-recommends');
+    const dependencyInstall = script.indexOf('apt_with_retries install install -y --no-install-recommends');
     const manifestRead = script.indexOf('framework_ref="$(jq -er');
     expect(dependencyInstall).toBeGreaterThan(-1);
     expect(manifestRead).toBeGreaterThan(dependencyInstall);
+  });
+
+  it('preflights Ubuntu DNS and retries apt without selecting a third-party mirror', () => {
+    const script = read('install-opl-linux.sh');
+    expect(script).toContain('getent ahosts "$apt_network_host"');
+    expect(script).toContain('OPL_BOOTSTRAP_NETWORK_ERROR=dns_resolution_failed');
+    expect(script).toContain('apt_with_retries update update');
+    expect(script).toContain('apt_with_retries install install -y --no-install-recommends');
+    expect(script).toContain('Acquire::Retries=2');
+    expect(script).toContain('Acquire::http::Timeout=30');
+    expect(script).toContain('Acquire::https::Timeout=30');
+    expect(script).not.toMatch(/mirrors?\.(aliyun|tuna|ustc|163)\.com/);
   });
 
   it('uses one owner-bound Framework PATH on execution and inspection routes', () => {

@@ -115,8 +115,23 @@ function provisioningError(error: unknown): {
   return { detail: String(error), restartRequired: false, code: null };
 }
 
-function localizedFailureDetail(failure: ReturnType<typeof provisioningError>, locale: string): string {
+export function localizedFailureDetail(failure: ReturnType<typeof provisioningError>, locale: string): string {
   const isChinese = locale.toLowerCase().startsWith('zh');
+  if (failure.code === 'guest_dns_unavailable') {
+    return isChinese
+      ? 'WSL 无法解析 Ubuntu 软件源（archive.ubuntu.com/security.ubuntu.com）。请检查网络、代理或 VPN 后点击“重试”；不需要重新安装。\n错误码：guest_dns_unavailable'
+      : 'WSL could not resolve the Ubuntu software sources (archive.ubuntu.com/security.ubuntu.com). Check your network, proxy, or VPN, then choose Retry; reinstalling is not required.\nError code: guest_dns_unavailable';
+  }
+  if (failure.code === 'guest_network_unavailable') {
+    return isChinese
+      ? 'WSL 无法连接 Ubuntu 软件源。若代理地址使用 localhost，请改用 WSL 可访问的代理地址；检查网络后点击“重试”。\n错误码：guest_network_unavailable'
+      : 'WSL could not connect to the Ubuntu software sources. If your proxy uses localhost, use a proxy address reachable from WSL, then choose Retry.\nError code: guest_network_unavailable';
+  }
+  if (failure.code === 'guest_proxy_unavailable') {
+    return isChinese
+      ? 'WSL 检测到代理使用 localhost，但该地址在 WSL NAT 中通常指向 guest 自己。请改用 WSL 可访问的 Windows 代理地址后点击“重试”。\n错误码：guest_proxy_unavailable'
+      : 'WSL detected a localhost proxy, which usually points to the guest itself under WSL NAT. Use a Windows proxy address reachable from WSL, then choose Retry.\nError code: guest_proxy_unavailable';
+  }
   const networkCatalogFailure =
     failure.code === 'distribution_catalog_unavailable' &&
     /(?:WININET_E_CANNOT_CONNECT|CANNOT_CONNECT|timed?\s*out|timeout|network|proxy|dns|could not connect|unable to reach)/i.test(
