@@ -2,7 +2,6 @@ import type { OplHomeAgentShortcut } from '@/common/config/oplProductProfile';
 import { useSyncExternalStore } from 'react';
 import { getOplPackageAppContributionsFromAppState } from './oplAppContributions';
 
-const STORAGE_KEY = 'opl.homeAgentShortcutPreferences.v2';
 const APP_STATE_FAST_CACHE_KEY = 'opl.appState.fast.v1';
 
 export type OplHomeShortcutPreferences = {
@@ -52,15 +51,6 @@ const EMPTY_PREFERENCES: OplHomeShortcutPreferences = {
 let currentPreferences: OplHomeShortcutPreferences | null = null;
 let observedAppStateRaw: string | null = null;
 const preferenceListeners = new Set<() => void>();
-
-function removeLegacyStoredPreferences(): void {
-  if (typeof localStorage === 'undefined') return;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Framework App-state remains authoritative when localStorage is unavailable.
-  }
-}
 
 function publishPreferences(preferences: OplHomeShortcutPreferences): OplHomeShortcutPreferences {
   if (
@@ -317,7 +307,6 @@ function sortShortcuts<T extends Pick<OplHomeAgentShortcut, 'shortcut_id'>>(
 }
 
 export function getOplHomeShortcutPreferences(): OplHomeShortcutPreferences {
-  removeLegacyStoredPreferences();
   if (typeof localStorage !== 'undefined') {
     const appStateRaw = localStorage.getItem(APP_STATE_FAST_CACHE_KEY);
     if (appStateRaw !== observedAppStateRaw) {

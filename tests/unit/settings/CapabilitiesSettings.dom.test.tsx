@@ -2631,7 +2631,6 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     fireEvent.click(screen.getByTestId('agent-package-home-toggle-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2651,7 +2650,6 @@ describe('Agents and capabilities settings', () => {
 
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     fireEvent.click(screen.getByTestId('agent-package-home-down-details-mas'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
     await waitFor(() =>
       expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
         actionId: 'agent_package_preferences_set',
@@ -2846,7 +2844,6 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(homeSwitch);
 
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
   it('rolls Home visibility back when fresh Framework readback is unavailable', async () => {
@@ -2859,7 +2856,6 @@ describe('Agents and capabilities settings', () => {
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
     expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('fast', { background: true, forceFresh: true });
     expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
   it('replaces optimistic Home visibility with a mismatched Framework projection', async () => {
@@ -2871,7 +2867,6 @@ describe('Agents and capabilities settings', () => {
 
     await waitFor(() => expect(homeSwitch).toHaveClass('arco-switch-checked'));
     expect(bridgeMocks.messageSuccess).not.toHaveBeenCalled();
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
   it('stops manifest installation when dry-run does not return a package identity', async () => {
@@ -3227,35 +3222,7 @@ describe('Agents and capabilities settings', () => {
     });
   });
 
-  it('clears and ignores legacy locally persisted shortcut preferences', () => {
-    localStorage.setItem(
-      'opl.homeAgentShortcutPreferences.v2',
-      JSON.stringify({
-        hiddenShortcutIds: ['grant'],
-        visibleShortcutIds: ['oma'],
-        orderedShortcutIds: ['book', 'research', 'ppt', 'grant'],
-      })
-    );
-
-    expect(resolveOplHomeAssistants([], homeShortcutAppState()).map((assistant) => assistant.id)).toEqual([
-      'research',
-      'grant',
-      'ppt',
-      'book',
-      'oma',
-    ]);
-    getOplHomeShortcutPreferences();
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
-  });
-
-  it('uses the persisted Framework App-state projection instead of the legacy local value', () => {
-    localStorage.setItem(
-      'opl.homeAgentShortcutPreferences.v2',
-      JSON.stringify({
-        hiddenShortcutIds: [],
-        orderedShortcutIds: ['research', 'grant', 'ppt', 'book'],
-      })
-    );
+  it('uses the persisted Framework App-state projection as the preference authority', () => {
     localStorage.setItem(
       'opl.appState.fast.v1',
       JSON.stringify({
@@ -3317,7 +3284,6 @@ describe('Agents and capabilities settings', () => {
       'oma',
     ]);
     getOplHomeShortcutPreferences();
-    expect(localStorage.getItem('opl.homeAgentShortcutPreferences.v2')).toBeNull();
   });
 
   it('keeps the Framework App-state projection authoritative over an in-memory optimistic preference', () => {
