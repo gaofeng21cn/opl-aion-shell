@@ -3434,26 +3434,6 @@
       },
       "actions": {
         "viewDetails": "查看详情"
-      },
-      "summaries": {
-        "documents": "创建、检查和修改 Office 文档",
-        "presentations": "创建和修改演示文稿",
-        "spreadsheets": "创建、分析和修改电子表格",
-        "pdf": "读取、创建和检查 PDF 文档",
-        "medAutoscience": "推进医学研究、论文和数据分析",
-        "medAutogrant": "规划和撰写医学科研基金",
-        "redcubeAi": "制作科研演示与视觉交付物",
-        "oplBookforge": "规划、撰写和整理长篇书稿",
-        "oplMetaAgent": "创建、检查和改进 OPL 智能体",
-        "masScholarSkills": "为医学科研智能体提供可复用科研能力",
-        "oplFlow": "管理 OPL 推荐工作流与受管 Codex 策略",
-        "officecli": "处理本机 Office 文档工作流",
-        "officecliDocx": "创建和修改 Word 文档",
-        "officecliPptx": "创建和修改 PowerPoint 演示文稿",
-        "officecliXlsx": "创建和修改 Excel 工作簿",
-        "mineruDocumentExtractor": "从复杂文档中提取结构化内容",
-        "uiUxProMax": "审查和优化界面体验",
-        "fallback": "支持 {{name}} 相关任务；详细触发条件可在详情中查看。"
       }
     },
     "account": {

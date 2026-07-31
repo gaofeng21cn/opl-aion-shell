@@ -3,7 +3,6 @@ import {
   buildCapabilitiesViewModel,
   readOplFlowCapabilityDependencySummary,
 } from '@/renderer/pages/settings/capabilitiesProjection';
-import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   oplRecord: (value: unknown) => (value && typeof value === 'object' && !Array.isArray(value) ? value : {}),
@@ -27,25 +26,6 @@ function appStateWithPackageDirectory(
     },
   };
 }
-
-describe('localizedCapabilitySummary', () => {
-  it.each([
-    ['mas', 'medAutoscience'],
-    ['med-auto-science', 'medAutoscience'],
-    ['mag', 'medAutogrant'],
-    ['med-auto-grant', 'medAutogrant'],
-    ['rca', 'redcubeAi'],
-    ['oma', 'oplMetaAgent'],
-    ['obf', 'oplBookforge'],
-    ['opl-book-forge', 'oplBookforge'],
-    ['mas-scholar-skills', 'masScholarSkills'],
-    ['opl-flow', 'oplFlow'],
-  ])('maps %s to the dedicated %s summary', (identity, summaryKey) => {
-    expect(localizedCapabilitySummary([identity], identity, (key) => key)).toBe(
-      `settings.uiOptimization.capabilities.summaries.${summaryKey}`
-    );
-  });
-});
 
 describe('buildCapabilitiesViewModel', () => {
   it('uses owner-projected localized directory metadata for every package', () => {

@@ -3433,26 +3433,6 @@
       },
       "actions": {
         "viewDetails": "View details"
-      },
-      "summaries": {
-        "documents": "Create, review, and edit Office documents",
-        "presentations": "Create and edit presentations",
-        "spreadsheets": "Create, analyze, and edit spreadsheets",
-        "pdf": "Read, create, and review PDF documents",
-        "medAutoscience": "Advance medical research, papers, and data analysis",
-        "medAutogrant": "Plan and write medical research grants",
-        "redcubeAi": "Produce research presentations and visual deliverables",
-        "oplBookforge": "Plan, write, and organize long-form books",
-        "oplMetaAgent": "Create, review, and improve OPL agents",
-        "masScholarSkills": "Provide reusable research capabilities for Med Auto Science",
-        "oplFlow": "Manage recommended OPL workflows and managed Codex policy",
-        "officecli": "Handle local Office document workflows",
-        "officecliDocx": "Create and edit Word documents",
-        "officecliPptx": "Create and edit PowerPoint presentations",
-        "officecliXlsx": "Create and edit Excel workbooks",
-        "mineruDocumentExtractor": "Extract structured content from complex documents",
-        "uiUxProMax": "Review and improve interface experiences",
-        "fallback": "Support {{name}} tasks; detailed trigger rules are available in details."
       }
     },
     "account": {

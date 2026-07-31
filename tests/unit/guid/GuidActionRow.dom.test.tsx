@@ -189,7 +189,6 @@ vi.mock('react-i18next', () => ({
         'guid.context.connections': 'Apps & connections',
         'guid.context.noConnections': 'No apps or connections available',
         'guid.workspace.manageRegistered': 'Manage folders',
-        'settings.uiOptimization.capabilities.summaries.documents': 'Create, review, and edit Office documents',
       };
       if (labels[key]) return labels[key];
       return String(options?.defaultValue ?? key);
@@ -279,24 +278,23 @@ describe('GuidActionRow composer controls', () => {
     );
   });
 
-  it('shows localized skill purposes without exposing raw trigger rules in the Home capability palette', async () => {
-    const rawTriggerRule = 'Use the forensic-folio-trigger when inspecting a document artifact.';
+  it('shows owner-projected skill descriptions in the Home capability palette', async () => {
+    const projectedDescription = 'Use the forensic-folio-trigger when inspecting a document artifact.';
     render(
       <GuidActionRow
         {...buildProps()}
-        allSkills={[{ name: 'documents', description: rawTriggerRule, isAuto: false }]}
+        allSkills={[{ name: 'documents', description: projectedDescription, isAuto: false }]}
       />
     );
 
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
-    expect(screen.getByText('Create, review, and edit Office documents')).toBeInTheDocument();
-    expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
+    expect(screen.getByText(projectedDescription)).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('guid-capability-palette-search'), {
       target: { value: 'forensic-folio-trigger' },
     });
     expect(screen.getByTestId('guid-capability-palette-item-skill-documents')).toBeInTheDocument();
-    expect(screen.queryByText(rawTriggerRule)).not.toBeInTheDocument();
+    expect(screen.getByText(projectedDescription)).toBeInTheDocument();
   });
 
   it('shows every dynamic Home shortcut and keeps optional skills independent from Package membership', async () => {

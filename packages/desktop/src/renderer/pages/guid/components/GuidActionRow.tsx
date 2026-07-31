@@ -32,7 +32,6 @@ import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 import {
   buildOplCodexAutoModelOption,
   formatOplCodexModelDisplay,
@@ -268,7 +267,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
         skillItems.push({
           id: `skill-${skill.name}`,
           label: skill.name,
-          description: localizedCapabilitySummary([skill.name], skill.name, t),
+          description: skill.description,
           keywords: ['skill', skill.description],
           icon: <Lightning {...OPL_CHROME_ICON_PROPS} />,
           active: isGuidSkillChecked(skill, enabledSkills, disabledBuiltinSkills),

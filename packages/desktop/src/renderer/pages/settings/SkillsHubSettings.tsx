@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import SettingsPageWrapper from './components/SettingsPageWrapper';
 import type { ManagedDependency } from '@/renderer/services/managedUpdateProjection';
-import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 // Skill 信息类型 / Skill info type
 interface SkillInfo {
@@ -109,12 +108,13 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
     [flowManagedSkillDependencies]
   );
   const flowManagedSkillSummary = useCallback(
-    (skillId: string) => {
-      const fallback = localizedCapabilitySummary([skillId], skillId, t);
+    (skillId: string, description?: string) => {
+      const projectedDescription = description?.trim();
+      if (projectedDescription) return projectedDescription;
       const guidance = flowManagedSkillDependencyById.get(skillId)?.guidance;
       return guidance
-        ? t(`settings.capabilitiesPage.groups.oplFlowManaged.outcomes.${guidance}`, { defaultValue: fallback })
-        : fallback;
+        ? t(`settings.capabilitiesPage.groups.oplFlowManaged.outcomes.${guidance}`, { defaultValue: skillId })
+        : skillId;
     },
     [flowManagedSkillDependencyById, t]
   );
@@ -272,7 +272,7 @@ const SkillsHubSettings: React.FC<SkillsHubSettingsProps> = ({
                   <div className='min-w-0'>
                     <Typography.Text className='font-600 text-t-primary'>{skill.name}</Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary break-words'>
-                      {flowManagedSkillSummary(skill.name)}
+                      {flowManagedSkillSummary(skill.name, skill.description)}
                     </Typography.Text>
                     <FlowCapabilityDetails
                       id={skill.name}

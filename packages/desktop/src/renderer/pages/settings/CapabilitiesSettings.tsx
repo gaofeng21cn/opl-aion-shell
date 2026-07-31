@@ -63,7 +63,6 @@ import {
   type CapabilityRefGroupViewModel,
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
-import { localizedCapabilitySummary } from '@/renderer/utils/ui/capabilitySummary';
 
 export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
 
@@ -356,13 +355,6 @@ function capabilityPackageRoleLabel(
           ? 'supportingCapability'
           : 'other';
   return t(`settings.capabilitiesPage.packageManager.roleLabels.${labelKey}`);
-}
-
-function capabilityLocalizedSummary(
-  item: CapabilityPurposeViewModel,
-  t: (key: string, options?: Record<string, string>) => string
-): string {
-  return localizedCapabilitySummary([item.packageId, item.key, item.title], item.title, t);
 }
 
 function capabilityCatalogGroupKey(
@@ -970,7 +962,6 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       if (!query) return true;
       return [
         item.title,
-        capabilityLocalizedSummary(item, t),
         item.description,
         item.packageId,
         item.packageRole,
@@ -1622,7 +1613,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               className='opl-settings-capability-description block text-13px text-t-secondary'
               data-testid={`capability-description-${item.key}`}
             >
-              {capabilityLocalizedSummary(item, t)}
+              {item.description}
             </Typography.Text>
             <div className='opl-settings-capability-facts mt-5px text-12px text-t-secondary'>
               <span className='opl-settings-capability-fact' data-testid={`capability-conversation-${item.key}`}>
@@ -2040,7 +2031,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                     {t('settings.uiOptimization.capabilities.details.purpose')}
                   </Typography.Text>
                   <Typography.Text className='break-words text-t-primary'>
-                    {capabilityLocalizedSummary(selectedCapability, t)}
+                    {selectedCapability.description}
                   </Typography.Text>
                 </div>
 

@@ -151,9 +151,6 @@ describe('SkillsHubSettings', () => {
     expect(screen.getByTestId('opl-flow-capability-mineru-document-extractor')).toHaveTextContent(
       'settings.capabilitiesPage.groups.oplFlowManaged.missing'
     );
-    expect(screen.getByTestId('opl-flow-capability-ui-ux-pro-max')).toHaveTextContent(
-      'settings.uiOptimization.capabilities.summaries.uiUxProMax'
-    );
     const details = screen.getByTestId('opl-flow-capability-details-ui-ux-pro-max') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details).toHaveTextContent('settings.uiOptimization.capabilities.details.source');
@@ -161,7 +158,7 @@ describe('SkillsHubSettings', () => {
     expect(details).toHaveTextContent('1.2.3');
   });
 
-  it('keeps a Flow skill trigger description in collapsed details and shows a localized purpose summary', async () => {
+  it('uses the owner-projected Flow skill description in the summary and collapsed details', async () => {
     render(
       <SkillsHubSettings
         withWrapper={false}
@@ -186,7 +183,7 @@ describe('SkillsHubSettings', () => {
       expect(screen.getByTestId('opl-flow-capability-details-med-autoscience')).toHaveTextContent('MAS skill')
     );
     const row = screen.getByTestId('opl-flow-capability-med-autoscience');
-    expect(row).toHaveTextContent('settings.uiOptimization.capabilities.summaries.medAutoscience');
+    expect(row).toHaveTextContent('MAS skill');
     const details = within(row).getByTestId('opl-flow-capability-details-med-autoscience') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(details).toHaveTextContent('MAS skill');

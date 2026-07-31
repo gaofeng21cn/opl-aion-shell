@@ -958,22 +958,6 @@ vi.mock('react-i18next', () => ({
         'settings.uiOptimization.capabilities.details.triggerRules': 'Trigger rules',
         'settings.uiOptimization.capabilities.details.source': 'Source',
         'settings.uiOptimization.capabilities.details.version': 'Version',
-        'settings.uiOptimization.capabilities.summaries.medAutoscience':
-          'Advance medical research, papers, and data analysis',
-        'settings.uiOptimization.capabilities.summaries.medAutogrant': 'Plan and write medical research grants',
-        'settings.uiOptimization.capabilities.summaries.redcubeAi':
-          'Produce research presentations and visual deliverables',
-        'settings.uiOptimization.capabilities.summaries.oplBookforge': 'Plan, write, and organize long-form books',
-        'settings.uiOptimization.capabilities.summaries.oplMetaAgent': 'Create, review, and improve OPL agents',
-        'settings.uiOptimization.capabilities.summaries.masScholarSkills':
-          translationMocks.language === 'zh-CN'
-            ? '为医学科研智能体提供可复用科研能力'
-            : 'Provide reusable research capabilities for Med Auto Science',
-        'settings.uiOptimization.capabilities.summaries.oplFlow':
-          translationMocks.language === 'zh-CN'
-            ? '管理 OPL 推荐工作流与受管 Codex 策略'
-            : 'Manage recommended OPL workflows and managed Codex policy',
-        'settings.uiOptimization.capabilities.summaries.fallback': 'Support {{name}} tasks',
         'settings.capabilitiesPage.packageManager.supportingFor': `Supports ${options?.parent ?? ''}`,
         'settings.capabilitiesPage.packageManager.composition': `Runnable agents ${options?.agents ?? ''} · Workflows ${options?.workflows ?? ''} · Supporting capabilities ${options?.supporting ?? ''}`,
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
@@ -1308,9 +1292,8 @@ describe('Agents and capabilities settings', () => {
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByTestId('capability-description-mas')).toHaveTextContent(
-      'Advance medical research, papers, and data analysis'
+      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
     );
-    expect(within(research).queryByText(/For research planning/)).not.toBeInTheDocument();
     expect(within(research).getByText('Available').closest('.arco-tag')).toHaveClass(
       '!text-[color:rgb(var(--gray-8))]'
     );
@@ -1320,7 +1303,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByTestId('capability-description-oma')).toHaveTextContent(
-      'Create, review, and improve OPL agents'
+      'For creating, taking over, inspecting, and improving OPL professional agents.'
     );
     expect(within(oma).getByText('Available')).toBeInTheDocument();
     expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(bookforge);
@@ -1477,7 +1460,7 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<AgentPackagesSettingsContent />);
 
     const search = screen.getByTestId('settings-agents-catalog-search');
-    fireEvent.change(search, { target: { value: 'advance medical' } });
+    fireEvent.change(search, { target: { value: 'research planning' } });
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
     expect(screen.getByTestId('capability-purpose-mas')).toBeInTheDocument();
 
@@ -1498,7 +1481,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('settings-agents-filter-empty')).not.toBeInTheDocument();
   });
 
-  it('searches dedicated capability summaries in Chinese', () => {
+  it('searches owner-projected capability descriptions in Chinese', () => {
     translationMocks.language = 'zh-CN';
     appStateOverrides.appState = appStateWithDirectory([
       {
@@ -1520,17 +1503,17 @@ describe('Agents and capabilities settings', () => {
 
     const search = screen.getByTestId('settings-agents-catalog-search');
     expect(screen.getByTestId('capability-description-mas-scholar-skills')).toHaveTextContent(
-      '为医学科研智能体提供可复用科研能力'
+      '供医学科研智能体使用的可复用医学科研能力。'
     );
     expect(screen.getByTestId('capability-description-opl-flow')).toHaveTextContent(
-      '管理 OPL 推荐工作流与受管 Codex 策略'
+      'OPL 推荐工作流配置与受管 Codex 策略。'
     );
 
-    fireEvent.change(search, { target: { value: '提供可复用' } });
+    fireEvent.change(search, { target: { value: '可复用医学科研' } });
     expect(screen.getByTestId('capability-purpose-mas-scholar-skills')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-opl-flow')).not.toBeInTheDocument();
 
-    fireEvent.change(search, { target: { value: '管理 opl' } });
+    fireEvent.change(search, { target: { value: '推荐工作流' } });
     expect(screen.getByTestId('capability-purpose-opl-flow')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
@@ -1671,7 +1654,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('settings-agents-group-frequent')).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('settings-agents-catalog-search'), {
-      target: { value: 'advance medical' },
+      target: { value: 'research planning' },
     });
     expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
       screen.getByTestId('capability-purpose-mas')
