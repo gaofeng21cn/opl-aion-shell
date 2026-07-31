@@ -372,6 +372,67 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     expect(bootstrapCalls).toBe(1);
   });
 
+  it('emits a 15-second heartbeat while guest initialization remains active', async () => {
+    vi.useFakeTimers();
+    const progress: Array<{ stage: string; elapsedSeconds?: number; heartbeat?: true }> = [];
+    let finishBootstrap: (() => void) | undefined;
+    let inspectCalls = 0;
+    const expectedBasePath = path.join(userDataPath, 'wsl', 'OPL-Linux');
+    const runCommand = vi.fn(async (command: string, args: string[]): Promise<WindowsWslCommandResult> => {
+      if (command === 'powershell.exe') {
+        return result(
+          0,
+          JSON.stringify({
+            distribution_name: 'OPL-Linux',
+            base_path: expectedBasePath,
+          })
+        );
+      }
+      if (args.join(' ') === '--status') return result(0);
+      if (args.join(' ') === '--list --verbose') {
+        return result(0, 'NAME          STATE           VERSION\r\nOPL-Linux     Stopped         2\r\n');
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-runtime-inspect')) {
+        inspectCalls += 1;
+        return inspectCalls === 1 ? result(1, '', 'identity missing') : result(0, JSON.stringify(identity()));
+      }
+      if (args.includes('wslpath')) {
+        return result(0, `/mnt/d/opl/${path.basename(args.at(-1) ?? 'resource')}\n`);
+      }
+      if (args.some((value) => value.endsWith('/install-opl-linux.sh'))) {
+        await new Promise<void>((resolve) => {
+          finishBootstrap = resolve;
+        });
+        return result(0);
+      }
+      if (args.includes('/opt/opl/bootstrap/opl-install.sh')) return result(0);
+      throw new Error(`Unexpected command: ${command} ${args.join(' ')}`);
+    });
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand,
+      onProgress: (value) => progress.push(value),
+    });
+
+    try {
+      const ready = provisioner.ensureReady();
+      for (let attempt = 0; attempt < 100 && !finishBootstrap; attempt += 1) await Promise.resolve();
+      expect(finishBootstrap).toBeTypeOf('function');
+      await vi.advanceTimersByTimeAsync(__windowsWslProvisionerTest.PROVISIONING_HEARTBEAT_INTERVAL_MS * 2);
+      expect(
+        progress
+          .filter((value) => value.stage === 'initializing_guest' && value.heartbeat)
+          .map((value) => value.elapsedSeconds)
+      ).toEqual([15, 30]);
+      finishBootstrap?.();
+      await ready;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('repairs a stale Framework ref from an older App-owned path', async () => {
     let inspectCalls = 0;
     let bootstrapCalls = 0;
