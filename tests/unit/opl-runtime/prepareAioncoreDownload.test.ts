@@ -14,6 +14,60 @@ function makeTempDir() {
   return dir;
 }
 
+function writeUpstreamManagedResources(outputDir: string, runtimeKey: string) {
+  const platform = runtimeKey.split('-')[0];
+  const nodeSuffix = runtimeKey.startsWith('win32-') ? runtimeKey.replace(/^win32-/, 'win-') : runtimeKey;
+  const nodeRoot = `node/node-v24.11.0-${nodeSuffix}`;
+  const nodeExecutable = platform === 'win32' ? 'node.exe' : 'bin/node';
+  const claudeExecutable = platform === 'win32' ? 'claude.exe' : 'claude';
+  const codexExecutables: Record<string, string> = {
+    'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
+    'linux-x64': 'vendor/x86_64-unknown-linux-musl/bin/codex',
+  };
+  const codexExecutable = codexExecutables[runtimeKey];
+  if (!codexExecutable) throw new Error(`Unsupported managed-resources fixture ${runtimeKey}`);
+  const codexRoot = `cli/codex/0.144.6/${runtimeKey}`;
+  const claudeRoot = `cli/claude/2.1.215/${runtimeKey}`;
+
+  for (const relativePath of [
+    `${nodeRoot}/${nodeExecutable}`,
+    `${claudeRoot}/${claudeExecutable}`,
+    `${codexRoot}/${codexExecutable}`,
+  ]) {
+    const filePath = path.join(outputDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, path.basename(filePath));
+  }
+  fs.writeFileSync(
+    path.join(outputDir, 'manifest.json'),
+    JSON.stringify({
+      schemaVersion: 2,
+      runtimeKey,
+      node: { version: '24.11.0', root: nodeRoot, executable: nodeExecutable },
+      clis: [
+        {
+          name: 'claude',
+          version: '2.1.215',
+          root: claudeRoot,
+          platformDirectory: runtimeKey,
+          executable: claudeExecutable,
+          requiredFiles: [],
+          requiredDirectories: [],
+        },
+        {
+          name: 'codex',
+          version: '0.144.6',
+          root: codexRoot,
+          platformDirectory: runtimeKey,
+          executable: codexExecutable,
+          requiredFiles: [],
+          requiredDirectories: [codexExecutable.split('/').slice(0, 2).join('/')],
+        },
+      ],
+    })
+  );
+}
+
 afterEach(() => {
   for (const dir of tempDirs.splice(0)) {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -408,6 +462,7 @@ describe('prepare-aioncore managed resources preparation', () => {
     const bundleOut = __test__.prepareManagedResources(binaryPath, targetDir, {
       attempts: 2,
       platform: 'darwin',
+      arch: 'arm64',
       retryDelayMs: 10,
       sleep: (ms: number) => delays.push(ms),
       logger: { log() {}, warn() {} },
@@ -424,9 +479,7 @@ describe('prepare-aioncore managed resources preparation', () => {
 
         expect(fs.existsSync(path.join(outputDir, 'acp', 'partial'))).toBe(false);
         expect(fs.readFileSync(path.join(dataDir, 'runtime-ready'), 'utf8')).toBe('ready');
-        const nodeBin = path.join(outputDir, 'node', 'node-v24.11.0-darwin-arm64', 'bin');
-        fs.mkdirSync(nodeBin, { recursive: true });
-        fs.writeFileSync(path.join(nodeBin, 'node'), 'node');
+        writeUpstreamManagedResources(outputDir, 'darwin-arm64');
       },
     });
 
@@ -434,6 +487,23 @@ describe('prepare-aioncore managed resources preparation', () => {
     expect(delays).toEqual([10]);
     expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
     expect(fs.existsSync(path.join(targetDir, '.prepare-data'))).toBe(false);
+    expect(fs.readdirSync(targetDir).some((entry) => entry.startsWith('.managed-resources-staging-'))).toBe(false);
+    const projection = JSON.parse(fs.readFileSync(path.join(bundleOut, 'manifest.json'), 'utf8'));
+    expect(projection).toMatchObject({
+      schema: 'opl_aioncore_managed_resources_projection.v1',
+      runtimeKey: 'darwin-arm64',
+      source: {
+        schemaVersion: 2,
+        cliNames: ['claude', 'codex'],
+      },
+      projection: {
+        includedCliNames: ['codex'],
+        excludedCliNames: ['claude'],
+      },
+    });
+    expect(projection.source.manifestSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(projection.clis.map((entry: { name: string }) => entry.name)).toEqual(['codex']);
+    expect(fs.existsSync(path.join(bundleOut, 'cli', 'claude'))).toBe(false);
   });
 
   it('validates managed Node against the explicit Linux target instead of the build host', () => {
@@ -448,6 +518,7 @@ describe('prepare-aioncore managed resources preparation', () => {
       attempts: 1,
       hostPlatform: 'win32',
       platform: 'linux',
+      arch: 'x64',
       logger: { log() {}, warn() {} },
       execFileSync(_command: string, args: string[]) {
         if (args.includes('--materialize-internal-file-symlinks')) {
@@ -455,15 +526,33 @@ describe('prepare-aioncore managed resources preparation', () => {
           return JSON.stringify({ materialized: [], hardLinked: [], copied: [], removedDangling: [] });
         }
         const outputDir = args[args.indexOf('--bundle-out') + 1];
-        const nodeBin = path.join(outputDir, 'node', 'node-v24.11.0-linux-x64', 'bin');
-        fs.mkdirSync(nodeBin, { recursive: true });
-        fs.writeFileSync(path.join(nodeBin, 'node'), 'node');
+        writeUpstreamManagedResources(outputDir, 'linux-x64');
       },
     });
 
     expect(bundleOut).toBe(path.join(targetDir, 'managed-resources'));
     expect(fs.existsSync(path.join(bundleOut, 'node', 'node-v24.11.0-linux-x64', 'bin', 'node'))).toBe(true);
     expect(materializeCalls).toBe(1);
+  });
+
+  it('does not publish or retain a partial projection when the final absence gate fails', () => {
+    const dir = makeTempDir();
+    const stagingDir = path.join(dir, 'staging');
+    const targetDir = path.join(dir, 'managed-resources');
+    writeUpstreamManagedResources(stagingDir, 'darwin-arm64');
+
+    const manifestPath = path.join(stagingDir, 'manifest.json');
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    const codex = manifest.clis.find((entry: { name: string }) => entry.name === 'codex');
+    fs.renameSync(path.join(stagingDir, ...codex.root.split('/')), path.join(stagingDir, 'claude'));
+    codex.root = 'claude';
+    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+
+    expect(() => __test__.projectManagedResources(stagingDir, targetDir, 'darwin-arm64')).toThrow(
+      /forbidden Claude\/raw producer paths: claude/
+    );
+    expect(fs.existsSync(targetDir)).toBe(false);
+    expect(fs.readdirSync(dir).some((entry) => entry.startsWith('managed-resources.projection-'))).toBe(false);
   });
 
   it('fails closed and removes partial output after all retries fail', () => {
@@ -539,6 +628,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
 
     const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.53');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
+    expect(cachePaths.resourcesRoot).toMatch(/-opl-codex-only-v1$/);
   });
 
   it('reuses a complete prepared runtime cache without downloading or preparing managed resources', () => {
@@ -547,7 +637,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const cacheRoot = path.join(dir, 'cache');
     const cacheRuntimeDir = path.join(
       cacheRoot,
-      'darwin-arm64-v0.1.55-b0c375ef072c601226acf0d14c83e467c560fc5da6324b8bc50d6ce0f41487a2',
+      'darwin-arm64-v0.1.55-b0c375ef072c601226acf0d14c83e467c560fc5da6324b8bc50d6ce0f41487a2-opl-codex-only-v1',
       'bundled-aioncore',
       'darwin-arm64'
     );
@@ -578,33 +668,26 @@ describe('prepare-aioncore prepared runtime cache', () => {
     fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'), 'npm runtime');
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const claudeRoot = path.join(managedResourcesDir, 'cli', 'claude', '2.1.215', 'darwin-arm64');
     const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.144.6', 'darwin-arm64');
     const codexExecutable = 'vendor/aarch64-apple-darwin/bin/codex';
-    fs.mkdirSync(claudeRoot, { recursive: true });
     fs.mkdirSync(path.join(codexRoot, ...codexExecutable.split('/').slice(0, -1)), { recursive: true });
-    fs.writeFileSync(path.join(claudeRoot, 'claude'), 'claude');
     fs.writeFileSync(path.join(codexRoot, ...codexExecutable.split('/')), 'codex');
     fs.writeFileSync(
       path.join(managedResourcesDir, 'manifest.json'),
       JSON.stringify({
-        schemaVersion: 2,
+        schema: 'opl_aioncore_managed_resources_projection.v1',
         runtimeKey: 'darwin-arm64',
+        source: {
+          schemaVersion: 2,
+          manifestSha256: 'a'.repeat(64),
+          cliNames: ['claude', 'codex'],
+        },
         node: {
           version: '24.11.0',
           root: 'node/node-v24.11.0-darwin-arm64',
           executable: 'bin/node',
         },
         clis: [
-          {
-            name: 'claude',
-            version: '2.1.215',
-            root: 'cli/claude/2.1.215/darwin-arm64',
-            platformDirectory: 'darwin-arm64',
-            executable: 'claude',
-            requiredFiles: [],
-            requiredDirectories: [],
-          },
           {
             name: 'codex',
             version: '0.144.6',
@@ -615,6 +698,17 @@ describe('prepare-aioncore prepared runtime cache', () => {
             requiredDirectories: ['vendor/aarch64-apple-darwin'],
           },
         ],
+        projection: {
+          includedCliNames: ['codex'],
+          excludedCliNames: ['claude'],
+          requiredAbsentPaths: [
+            'cli/claude',
+            'acp',
+            'node_modules/@anthropic-ai/claude-code',
+            'node_modules/claude-code',
+            'claude',
+          ],
+        },
       })
     );
     const previousCacheDir = process.env.AIONUI_AIONCORE_CACHE_DIR;
@@ -642,7 +736,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
       ).toBe(true);
       expect(
         fs.existsSync(path.join(targetDir, 'managed-resources', 'cli', 'claude', '2.1.215', 'darwin-arm64', 'claude'))
-      ).toBe(true);
+      ).toBe(false);
       expect(
         fs.existsSync(
           path.join(

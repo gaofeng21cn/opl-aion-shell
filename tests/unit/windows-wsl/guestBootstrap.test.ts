@@ -53,7 +53,12 @@ describe('OPL Linux guest bootstrap', () => {
   it('binds the packaged Codex realpath to one inspected command identity', () => {
     const installer = read('install-opl-linux.sh');
     expect(installer).toContain('managed_codex_path()');
-    expect(installer).toContain('select(.schemaVersion == 2 and .runtimeKey == "linux-x64")');
+    expect(installer).toContain(
+      'select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")'
+    );
+    expect(installer).toContain('select(.projection.includedCliNames == ["codex"])');
+    expect(installer).toContain('select(.projection.excludedCliNames == ["claude"])');
+    expect(installer).toContain('node_modules/@anthropic-ai/claude-code');
     expect(installer).toContain('codex_path="$(managed_codex_path "$carrier_root/current")"');
     expect(installer).toContain('ln -sfn "$codex_realpath" /usr/local/bin/codex');
     expect(installer).toContain('codex_command_digest: $codex_command_digest');
@@ -62,6 +67,7 @@ describe('OPL Linux guest bootstrap', () => {
     expect(inspect).toContain('export OPL_CODEX_BIN=/usr/local/bin/codex');
     expect(inspect).toContain('codex_command_realpath="$(readlink -f "$codex_command_path")"');
     expect(inspect).toContain('"sha256:$codex_command_sha256" != "$identity_codex_digest"');
+    expect(inspect).toContain('The packaged Linux managed-resources projection contains a forbidden path');
   });
 
   it('repairs an incomplete carrier activation and verifies managed Node on every startup', () => {

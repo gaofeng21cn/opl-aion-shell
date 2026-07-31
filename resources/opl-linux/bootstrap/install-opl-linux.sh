@@ -59,7 +59,11 @@ managed_codex_path() {
   [[ -f "$manifest" ]] || return 1
   relative_path="$(
     jq -er '
-      select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+      select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
+      | select(.source.schemaVersion == 2)
+      | select(.source.cliNames == ["claude", "codex"])
+      | select(.projection.includedCliNames == ["codex"])
+      | select(.projection.excludedCliNames == ["claude"])
       | [.clis[]? | select(.name == "codex")] as $matches
       | select($matches | length == 1)
       | $matches[0]
@@ -95,9 +99,20 @@ runtime_activation_complete() {
   [[ -f "$root/manifest.json" ]] || return 1
   [[ -x "$root/aioncore" ]] || return 1
   [[ -f "$root/managed-resources/manifest.json" ]] || return 1
+  for forbidden_path in \
+    cli/claude \
+    acp \
+    node_modules/@anthropic-ai/claude-code \
+    node_modules/claude-code \
+    claude; do
+    [[ ! -e "$root/managed-resources/$forbidden_path" ]] || return 1
+  done
   managed_node_version="$(
     jq -er '
-      select(.schemaVersion == 2 and .runtimeKey == "linux-x64")
+      select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
+      | select(.source.schemaVersion == 2)
+      | select(.projection.includedCliNames == ["codex"])
+      | select(.projection.excludedCliNames == ["claude"])
       | .node.version
       | select(type == "string" and test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
     ' "$root/managed-resources/manifest.json"

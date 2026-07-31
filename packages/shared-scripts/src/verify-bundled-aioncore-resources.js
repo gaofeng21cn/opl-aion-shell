@@ -4,10 +4,18 @@ const path = require('path');
 const REQUIRED_AIONCORE_VERSION = 'v0.1.55';
 const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.55';
 const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
-const REQUIRED_MANAGED_CLIS = {
-  claude: { version: '2.1.215' },
-  codex: { version: '0.144.6' },
-};
+const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
+const REQUIRED_CODEX_VERSION = '0.144.6';
+const REQUIRED_SOURCE_CLI_NAMES = ['claude', 'codex'];
+const REQUIRED_INCLUDED_CLI_NAMES = ['codex'];
+const REQUIRED_EXCLUDED_CLI_NAMES = ['claude'];
+const REQUIRED_ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
 const CODEX_EXECUTABLE_BY_RUNTIME = {
   'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
   'darwin-x64': 'vendor/x86_64-apple-darwin/bin/codex',
@@ -69,6 +77,15 @@ function readDirectories(root) {
   return fs
     .readdirSync(root, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function readFiles(root) {
+  if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return [];
+  return fs
+    .readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isFile())
     .map((entry) => entry.name)
     .sort();
 }
@@ -242,8 +259,36 @@ function expectedNodeRoot(runtimeKey) {
 }
 
 function expectedCliExecutable(name, runtimeKey) {
-  if (name === 'claude') return runtimeKey.startsWith('win32-') ? 'claude.exe' : 'claude';
   return CODEX_EXECUTABLE_BY_RUNTIME[runtimeKey] || '';
+}
+
+function requireForbiddenPathAbsence(managedResourcesDir, runtimeKey, checked, invalid) {
+  for (const relativePath of REQUIRED_ABSENT_PATHS) {
+    const checkedPath = bundledPath(runtimeKey, 'managed-resources', relativePath);
+    checked.push(checkedPath);
+    if (fs.existsSync(path.join(managedResourcesDir, ...relativePath.split('/')))) {
+      invalid.push(`${checkedPath}: forbidden Claude/raw producer path is present`);
+    }
+  }
+}
+
+function requireNoForbiddenProducerEntries(managedResourcesDir, runtimeKey, checked, invalid) {
+  if (!fs.existsSync(managedResourcesDir) || !fs.statSync(managedResourcesDir).isDirectory()) return;
+  const forbiddenNames = new Set(['claude', 'claude-code', 'acp', '@anthropic-ai']);
+  const visit = (currentDir) => {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const absolutePath = path.join(currentDir, entry.name);
+      const relativePath = path.relative(managedResourcesDir, absolutePath).split(path.sep).join('/');
+      if (forbiddenNames.has(entry.name) || entry.name.includes('claude')) {
+        const checkedPath = bundledPath(runtimeKey, 'managed-resources', relativePath);
+        checked.push(checkedPath);
+        invalid.push(`${checkedPath}: forbidden Claude/raw producer entry is present`);
+        continue;
+      }
+      if (entry.isDirectory()) visit(absolutePath);
+    }
+  };
+  visit(managedResourcesDir);
 }
 
 function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, invalid) {
@@ -257,9 +302,32 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
   }
 
   const rootManifest = readManifest(rootManifestPath);
-  if (!rootManifest || rootManifest.schemaVersion !== 2 || rootManifest.runtimeKey !== runtimeKey) {
-    invalid.push(`${rootManifestRelativePath}: schemaVersion/runtimeKey mismatch`);
+  if (!rootManifest || rootManifest.schema !== OPL_MANAGED_RESOURCES_SCHEMA || rootManifest.runtimeKey !== runtimeKey) {
+    invalid.push(`${rootManifestRelativePath}: projection schema/runtimeKey mismatch`);
     return;
+  }
+  if (
+    !hasExactStringEntries(readDirectories(managedResourcesDir), ['cli', 'node']) ||
+    !hasExactStringEntries(readFiles(managedResourcesDir), ['manifest.json']) ||
+    !hasExactStringEntries(readDirectories(path.join(managedResourcesDir, 'cli')), ['codex'])
+  ) {
+    invalid.push(`${rootManifestRelativePath}: final projection must contain only Node and Codex payloads`);
+  }
+  if (
+    rootManifest.source?.schemaVersion !== 2 ||
+    !hasExactStringEntries(rootManifest.source?.cliNames, REQUIRED_SOURCE_CLI_NAMES)
+  ) {
+    invalid.push(`${rootManifestRelativePath}: invalid upstream source manifest projection`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(rootManifest.source?.manifestSha256 || '')) {
+    invalid.push(`${rootManifestRelativePath}: upstream source manifest digest is invalid`);
+  }
+  if (
+    !hasExactStringEntries(rootManifest.projection?.includedCliNames, REQUIRED_INCLUDED_CLI_NAMES) ||
+    !hasExactStringEntries(rootManifest.projection?.excludedCliNames, REQUIRED_EXCLUDED_CLI_NAMES) ||
+    !hasExactStringEntries(rootManifest.projection?.requiredAbsentPaths, REQUIRED_ABSENT_PATHS)
+  ) {
+    invalid.push(`${rootManifestRelativePath}: Codex-only projection policy is invalid`);
   }
 
   const expectedNode = {
@@ -274,6 +342,13 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
   ) {
     invalid.push(`${rootManifestRelativePath}: invalid managed Node identity`);
   } else {
+    if (
+      !hasExactStringEntries(readDirectories(path.join(managedResourcesDir, 'node')), [
+        path.posix.basename(expectedNode.root),
+      ])
+    ) {
+      invalid.push(`${rootManifestRelativePath}: managed Node directory versions do not match ${expectedNode.version}`);
+    }
     const platform = runtimeKey.startsWith('win32-') ? 'win32' : runtimeKey.split('-', 1)[0];
     requireContractEntry(
       managedResourcesDir,
@@ -305,35 +380,32 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
 
   const clis = Array.isArray(rootManifest.clis) ? rootManifest.clis : [];
   const names = clis.map((entry) => entry?.name).sort();
-  if (!hasExactStringEntries(names, Object.keys(REQUIRED_MANAGED_CLIS).sort())) {
-    invalid.push(`${rootManifestRelativePath}: expected exactly claude and codex direct CLIs`);
+  if (!hasExactStringEntries(names, REQUIRED_INCLUDED_CLI_NAMES)) {
+    invalid.push(`${rootManifestRelativePath}: expected exactly codex direct CLI`);
     return;
   }
 
-  for (const [name, requirement] of Object.entries(REQUIRED_MANAGED_CLIS)) {
-    const cli = clis.find((entry) => entry?.name === name);
-    const expectedRoot = `cli/${name}/${requirement.version}/${runtimeKey}`;
-    const expectedExecutable = expectedCliExecutable(name, runtimeKey);
-    const expectedDirectories = name === 'codex' ? [expectedExecutable.split('/').slice(0, 2).join('/')] : [];
-    if (
-      cli.version !== requirement.version ||
-      cli.root !== expectedRoot ||
-      cli.platformDirectory !== runtimeKey ||
-      cli.executable !== expectedExecutable ||
-      !hasExactStringEntries(cli.requiredFiles, []) ||
-      !hasExactStringEntries(cli.requiredDirectories, expectedDirectories)
-    ) {
-      invalid.push(`${rootManifestRelativePath}: invalid managed ${name} CLI identity`);
-      continue;
+  const cli = clis.find((entry) => entry?.name === 'codex');
+  const expectedRoot = `cli/codex/${REQUIRED_CODEX_VERSION}/${runtimeKey}`;
+  const expectedExecutable = expectedCliExecutable('codex', runtimeKey);
+  const expectedDirectories = [expectedExecutable.split('/').slice(0, 2).join('/')];
+  if (
+    cli.version !== REQUIRED_CODEX_VERSION ||
+    cli.root !== expectedRoot ||
+    cli.platformDirectory !== runtimeKey ||
+    cli.executable !== expectedExecutable ||
+    !hasExactStringEntries(cli.requiredFiles, []) ||
+    !hasExactStringEntries(cli.requiredDirectories, expectedDirectories)
+  ) {
+    invalid.push(`${rootManifestRelativePath}: invalid managed codex CLI identity`);
+  } else {
+    const versionRoot = path.join(managedResourcesDir, 'cli', 'codex');
+    if (!hasExactStringEntries(readDirectories(versionRoot), [REQUIRED_CODEX_VERSION])) {
+      invalid.push(`${rootManifestRelativePath}: codex CLI directory versions do not match ${REQUIRED_CODEX_VERSION}`);
     }
-
-    const versionRoot = path.join(managedResourcesDir, 'cli', name);
-    if (!hasExactStringEntries(readDirectories(versionRoot), [requirement.version])) {
-      invalid.push(`${rootManifestRelativePath}: ${name} CLI directory versions do not match ${requirement.version}`);
-    }
-    const runtimeRoot = path.join(versionRoot, requirement.version);
+    const runtimeRoot = path.join(versionRoot, REQUIRED_CODEX_VERSION);
     if (!hasExactStringEntries(readDirectories(runtimeRoot), [runtimeKey])) {
-      invalid.push(`${rootManifestRelativePath}: ${name} CLI runtime directories do not match ${runtimeKey}`);
+      invalid.push(`${rootManifestRelativePath}: codex CLI runtime directories do not match ${runtimeKey}`);
     }
 
     const cliRoot = path.join(managedResourcesDir, ...expectedRoot.split('/'));
@@ -346,9 +418,8 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
     }
   }
 
-  if (fs.existsSync(path.join(managedResourcesDir, 'acp'))) {
-    invalid.push(`${rootManifestRelativePath}: legacy managed ACP directory is forbidden`);
-  }
+  requireForbiddenPathAbsence(managedResourcesDir, runtimeKey, checked, invalid);
+  requireNoForbiddenProducerEntries(managedResourcesDir, runtimeKey, checked, invalid);
   addInvalidSymlinks(managedResourcesDir, baseDir, runtimeKey, missing);
 }
 
@@ -370,6 +441,7 @@ function verifyBundledAioncoreResources({ resourcesDir, electronPlatformName, ta
   addSizeAccounting(sizeAccounting, runtimeKey, 'managed-node', baseDir, 'managed-resources', 'node');
   addSizeAccounting(sizeAccounting, runtimeKey, 'claude-cli', baseDir, 'managed-resources', 'cli', 'claude');
   addSizeAccounting(sizeAccounting, runtimeKey, 'codex-cli', baseDir, 'managed-resources', 'cli', 'codex');
+  addSizeAccounting(sizeAccounting, runtimeKey, 'raw-claude-producers', baseDir, 'managed-resources', 'acp');
 
   return { runtimeKey, checked, missing, invalid, sizeAccounting };
 }

@@ -10,6 +10,15 @@ type ResolveAioncoreManagedCodexInput = {
   homeDir?: string;
 };
 
+const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
+const REQUIRED_ABSENT_PATHS = [
+  'cli/claude',
+  'acp',
+  'node_modules/@anthropic-ai/claude-code',
+  'node_modules/claude-code',
+  'claude',
+];
+
 export type AioncoreManagedCodexResolution = {
   runtimeKey: string;
   version: string;
@@ -95,16 +104,35 @@ export function resolveAioncoreManagedCodex(
   const manifestPath = path.join(managedResourcesRoot, 'manifest.json');
   const manifest = readManifest(manifestPath);
 
-  if (manifest.schemaVersion !== 2) {
-    fail(`manifest schemaVersion must be 2: ${manifestPath}`);
+  if (manifest.schema !== MANAGED_RESOURCES_SCHEMA) {
+    fail(`manifest schema must be ${MANAGED_RESOURCES_SCHEMA}: ${manifestPath}`);
   }
   if (manifest.runtimeKey !== runtimeKey) {
     fail(`manifest runtimeKey must be ${runtimeKey}: ${manifestPath}`);
   }
 
+  if (
+    !isRecord(manifest.source) ||
+    manifest.source.schemaVersion !== 2 ||
+    typeof manifest.source.manifestSha256 !== 'string' ||
+    !/^[0-9a-f]{64}$/.test(manifest.source.manifestSha256) ||
+    JSON.stringify(manifest.source.cliNames) !== JSON.stringify(['claude', 'codex']) ||
+    !isRecord(manifest.projection) ||
+    JSON.stringify(manifest.projection.includedCliNames) !== JSON.stringify(['codex']) ||
+    JSON.stringify(manifest.projection.excludedCliNames) !== JSON.stringify(['claude']) ||
+    JSON.stringify(manifest.projection.requiredAbsentPaths) !== JSON.stringify(REQUIRED_ABSENT_PATHS)
+  ) {
+    fail(`manifest Codex-only projection policy is invalid: ${manifestPath}`);
+  }
+  for (const relativePath of REQUIRED_ABSENT_PATHS) {
+    if (fs.existsSync(path.join(managedResourcesRoot, ...relativePath.split('/')))) {
+      fail(`forbidden Claude/raw producer path is present: ${relativePath}`);
+    }
+  }
+
   const clis = Array.isArray(manifest.clis) ? manifest.clis : [];
   const codexEntries = clis.filter((entry) => isRecord(entry) && entry.name === 'codex');
-  if (codexEntries.length !== 1) {
+  if (clis.length !== 1 || codexEntries.length !== 1) {
     fail(`manifest must contain exactly one Codex CLI entry: ${manifestPath}`);
   }
 

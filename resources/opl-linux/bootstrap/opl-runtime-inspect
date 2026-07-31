@@ -24,6 +24,27 @@ if [[ ! -f "$managed_manifest" ]]; then
   printf 'The packaged Linux managed-resources manifest is missing: %s\n' "$managed_manifest" >&2
   exit 69
 fi
+if ! jq -e '
+  select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
+  | select(.source.schemaVersion == 2)
+  | select(.source.cliNames == ["claude", "codex"])
+  | select(.projection.includedCliNames == ["codex"])
+  | select(.projection.excludedCliNames == ["claude"])
+' "$managed_manifest" >/dev/null; then
+  printf 'The packaged Linux managed-resources projection manifest is invalid.\n' >&2
+  exit 65
+fi
+for forbidden_path in \
+  cli/claude \
+  acp \
+  node_modules/@anthropic-ai/claude-code \
+  node_modules/claude-code \
+  claude; do
+  if [[ -e "$managed_resources/$forbidden_path" ]]; then
+    printf 'The packaged Linux managed-resources projection contains a forbidden path: %s\n' "$forbidden_path" >&2
+    exit 65
+  fi
+done
 if ! managed_node_root="$(jq -er '.node.root | select(type == "string")' "$managed_manifest")" ||
   [[ ! "$managed_node_root" =~ ^node/node-v[0-9]+\.[0-9]+\.[0-9]+-linux-x64$ ]]; then
   printf 'The packaged Linux managed Node.js root is invalid.\n' >&2

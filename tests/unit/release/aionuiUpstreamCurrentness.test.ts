@@ -57,6 +57,18 @@ describe('AionUI upstream currentness', () => {
         },
       },
       managed_resources_schema: 2,
+      managed_resources_projection: {
+        schema: 'opl_aioncore_managed_resources_projection.v1',
+        included_cli_names: ['codex'],
+        excluded_cli_names: ['claude'],
+        required_absent_paths: [
+          'cli/claude',
+          'acp',
+          'node_modules/@anthropic-ai/claude-code',
+          'node_modules/claude-code',
+          'claude',
+        ],
+      },
       node_runtime: { version: '24.11.0' },
       claude_cli: { package: '@anthropic-ai/claude-code', version: '2.1.215' },
       codex_cli: { package: '@openai/codex', version: '0.144.6' },
@@ -76,6 +88,13 @@ describe('AionUI upstream currentness', () => {
     duplicateDigest.managed_runtime.aioncore.release_assets['linux-x64'].sha256 =
       duplicateDigest.managed_runtime.aioncore.release_assets['darwin-arm64'].sha256;
     expect(() => validateAionuiIntakeReceipt(duplicateDigest)).toThrow(/one distinct digest per platform asset/);
+  });
+
+  it('rejects an intake receipt that does not bind the Codex-only projection policy', () => {
+    const invalidProjection = structuredClone(receipt);
+    invalidProjection.managed_runtime.managed_resources_projection.included_cli_names = ['claude', 'codex'];
+
+    expect(() => validateAionuiIntakeReceipt(invalidProjection)).toThrow(/Codex-only policy is invalid/);
   });
 
   it('selects only the highest official stable semantic release', () => {

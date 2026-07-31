@@ -215,6 +215,29 @@ export function validateAionuiIntakeReceipt(value) {
   if (runtime.managed_resources_schema !== 2) {
     throw new Error('managed_runtime.managed_resources_schema must be 2');
   }
+  const projectionPolicy = requireObject(
+    runtime.managed_resources_projection,
+    'managed_runtime.managed_resources_projection'
+  );
+  if (projectionPolicy.schema !== 'opl_aioncore_managed_resources_projection.v1') {
+    throw new Error(
+      'managed_runtime.managed_resources_projection.schema must be opl_aioncore_managed_resources_projection.v1'
+    );
+  }
+  if (
+    JSON.stringify(projectionPolicy.included_cli_names) !== JSON.stringify(['codex']) ||
+    JSON.stringify(projectionPolicy.excluded_cli_names) !== JSON.stringify(['claude']) ||
+    JSON.stringify(projectionPolicy.required_absent_paths) !==
+      JSON.stringify([
+        'cli/claude',
+        'acp',
+        'node_modules/@anthropic-ai/claude-code',
+        'node_modules/claude-code',
+        'claude',
+      ])
+  ) {
+    throw new Error('managed_runtime.managed_resources_projection Codex-only policy is invalid');
+  }
   requireDigest(runtime.managed_resources_manifest_sha256, 'managed_runtime.managed_resources_manifest_sha256');
   if (runtime.codex_acp !== undefined) {
     throw new Error('managed_runtime.codex_acp is forbidden for schema v2 direct-CLI resources');
