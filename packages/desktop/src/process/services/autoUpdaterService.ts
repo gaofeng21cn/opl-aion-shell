@@ -11,6 +11,7 @@ import log from 'electron-log';
 import { EventEmitter } from 'events';
 import fs from 'node:fs';
 import * as path from 'node:path';
+import type { ExactUpdateReleaseTarget } from '../../common/update/updateTypes';
 import {
   recordAutoUpdateInstallNotAppliedIfNeeded,
   recordAutoUpdateQuitAndInstall,
@@ -66,6 +67,19 @@ export interface AutoUpdateStatus {
   error?: string;
 }
 
+export type AutoUpdaterReleaseTarget = ExactUpdateReleaseTarget;
+
+type AutoUpdateCheckOutcome = {
+  success: boolean;
+  updateInfo?: UpdateInfo;
+  error?: string;
+};
+
+type PendingUpdateOperation = {
+  downloadRequested: boolean;
+  promise: Promise<AutoUpdateCheckOutcome>;
+};
+
 export function isMissingPackagedUpdaterConfigError(message: string): boolean {
   return message.includes('app-update.yml') && /Cannot find|ENOENT|no such file|missing/i.test(message);
 }
@@ -91,6 +105,9 @@ class AutoUpdaterService extends EventEmitter {
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   private _statusSnapshot: AutoUpdateStatus | null = null;
   private _startupCheckStarted = false;
+  private readonly _updateOperations = new Map<string, PendingUpdateOperation>();
+  private readonly _verifiedTargets = new Set<string>();
+  private _updateOperationTail: Promise<void> = Promise.resolve();
   /** Stores registered autoUpdater event handlers for cleanup and test access */
   private readonly _autoUpdaterHandlers = new Map<string, (...args: unknown[]) => void>();
   private readonly _updaterCacheRoot = getDefaultAutoUpdateCacheRoot({
@@ -108,9 +125,9 @@ class AutoUpdaterService extends EventEmitter {
     autoUpdater.logger = log;
     (autoUpdater.logger as typeof log).transports.file.level = 'info';
 
-    // Standard-channel updates download in the background and prompt only
-    // after the package is ready to apply on restart.
-    autoUpdater.autoDownload = true;
+    // Exact Release identity must be verified before any bytes are downloaded.
+    // Startup checks explicitly request a download after the frozen target matches.
+    autoUpdater.autoDownload = false;
     autoUpdater.autoInstallOnAppQuit = true;
 
     // Set the correct update channel based on platform and architecture before
@@ -169,6 +186,9 @@ class AutoUpdaterService extends EventEmitter {
     this._statusBroadcastCallback = null;
     this._statusSnapshot = null;
     this._startupCheckStarted = false;
+    this._updateOperations.clear();
+    this._verifiedTargets.clear();
+    this._updateOperationTail = Promise.resolve();
   }
 
   /**
@@ -182,6 +202,9 @@ class AutoUpdaterService extends EventEmitter {
     this._statusBroadcastCallback = null;
     this._statusSnapshot = null;
     this._startupCheckStarted = false;
+    this._updateOperations.clear();
+    this._verifiedTargets.clear();
+    this._updateOperationTail = Promise.resolve();
     // Remove listeners from this EventEmitter instance
     this.removeAllListeners();
     // Remove each registered handler from autoUpdater to prevent
@@ -334,23 +357,56 @@ class AutoUpdaterService extends EventEmitter {
     }
   }
 
-  async checkForUpdates(): Promise<{ success: boolean; updateInfo?: UpdateInfo; error?: string }> {
+  private configureExactReleaseTarget(target: AutoUpdaterReleaseTarget): void {
+    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(target.repo)) {
+      throw new Error(`Invalid updater repository: ${target.repo}`);
+    }
+    if (!target.tagName || target.tagName.includes('/') || !target.updaterVersion) {
+      throw new Error('Invalid exact updater release target');
+    }
+
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: `https://github.com/${target.repo}/releases/download/${encodeURIComponent(target.tagName)}/`,
+      channel: getUpdateChannel(),
+    });
+    autoUpdater.allowDowngrade = false;
+  }
+
+  private updateTargetKey(target: AutoUpdaterReleaseTarget): string {
+    return `${target.repo}@${target.tagName}:${target.updaterVersion}`;
+  }
+
+  private async performUpdateCheck(
+    target: AutoUpdaterReleaseTarget | undefined,
+    operation: PendingUpdateOperation
+  ): Promise<AutoUpdateCheckOutcome> {
     try {
       if (!this._isInitialized) {
         throw new Error('AutoUpdaterService not initialized');
       }
       this.broadcastStatus({ status: 'checking' });
-      const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
-      if (missingConfigPath) {
+      const missingConfigPath = target ? null : this.resolveMissingPackagedUpdaterConfigMessage();
+      if (!target && missingConfigPath) {
         log.warn('Packaged auto-update config is unavailable; using manual release checks only:', missingConfigPath);
         this.broadcastStatus({ status: 'not-available' });
         return { success: true };
       }
 
+      if (target) {
+        this.configureExactReleaseTarget(target);
+      } else {
+        autoUpdater.allowDowngrade = false;
+      }
       const result = await autoUpdater.checkForUpdates();
       if (!result) {
         const { default: i18n } = await import('./i18n');
         return { success: false, error: i18n.t('update.errors.checkReturnedNull') };
+      }
+      if (target && result.updateInfo.version !== target.updaterVersion) {
+        throw new Error(
+          `Exact updater release mismatch: expected ${target.updaterVersion}, received ${result.updateInfo.version}`
+        );
       }
       // Only report updateInfo when electron-updater internally confirms the update is available.
       // When isUpdateAvailable is false, updateInfoAndProvider is NOT set internally,
@@ -365,6 +421,12 @@ class AutoUpdaterService extends EventEmitter {
         releaseDate: result.updateInfo.releaseDate,
         releaseNotes: typeof result.updateInfo.releaseNotes === 'string' ? result.updateInfo.releaseNotes : undefined,
       });
+      if (target) {
+        this._verifiedTargets.add(this.updateTargetKey(target));
+      }
+      if (operation.downloadRequested) {
+        await autoUpdater.downloadUpdate();
+      }
       return {
         success: true,
         updateInfo: result.updateInfo,
@@ -385,22 +447,45 @@ class AutoUpdaterService extends EventEmitter {
     }
   }
 
-  async downloadUpdate(): Promise<{ success: boolean; error?: string }> {
-    try {
-      if (!this._isInitialized) {
-        throw new Error('AutoUpdaterService not initialized');
-      }
-
-      await autoUpdater.downloadUpdate();
-      return { success: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      log.error('Download update failed:', message);
-      return {
-        success: false,
-        error: message,
-      };
+  private runUpdateCheck(
+    target: AutoUpdaterReleaseTarget | undefined,
+    downloadRequested: boolean
+  ): Promise<AutoUpdateCheckOutcome> {
+    const key = target ? this.updateTargetKey(target) : 'packaged-default';
+    const existing = this._updateOperations.get(key);
+    if (existing) {
+      existing.downloadRequested ||= downloadRequested;
+      return existing.promise;
     }
+
+    const operation = {
+      downloadRequested,
+    } as PendingUpdateOperation;
+    operation.promise = this._updateOperationTail
+      .then(() => this.performUpdateCheck(target, operation))
+      .finally(() => {
+        if (this._updateOperations.get(key) === operation) {
+          this._updateOperations.delete(key);
+        }
+      });
+    this._updateOperationTail = operation.promise.then(
+      (): void => undefined,
+      (): void => undefined
+    );
+    this._updateOperations.set(key, operation);
+    return operation.promise;
+  }
+
+  async checkForUpdates(target?: AutoUpdaterReleaseTarget): Promise<AutoUpdateCheckOutcome> {
+    return this.runUpdateCheck(target, false);
+  }
+
+  async downloadUpdate(target: AutoUpdaterReleaseTarget): Promise<{ success: boolean; error?: string }> {
+    if (!this._verifiedTargets.has(this.updateTargetKey(target))) {
+      return { success: false, error: 'Exact updater release target was not verified by the main process' };
+    }
+    const result = await this.runUpdateCheck(target, true);
+    return { success: result.success, error: result.error };
   }
 
   quitAndInstall(params?: { file_path?: string; version?: string }): void {
@@ -442,33 +527,14 @@ class AutoUpdaterService extends EventEmitter {
   /**
    * Check for updates and notify (for startup)
    */
-  async checkForUpdatesAndNotify(): Promise<void> {
+  async checkForUpdatesAndNotify(target?: AutoUpdaterReleaseTarget | null): Promise<void> {
     if (this._startupCheckStarted) return;
     this._startupCheckStarted = true;
-    try {
-      this.broadcastStatus({ status: 'checking' });
-      const missingConfigPath = this.resolveMissingPackagedUpdaterConfigMessage();
-      if (missingConfigPath) {
-        log.warn(
-          'Startup auto-update config is unavailable; manual update checks remain available:',
-          missingConfigPath
-        );
-        this.broadcastStatus({ status: 'not-available' });
-        return;
-      }
-      // Ensure clean state: prevent stale allowDowngrade=true from prior setAllowPrerelease(true) calls
-      autoUpdater.allowDowngrade = false;
-      await autoUpdater.checkForUpdatesAndNotify();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (isMissingPackagedUpdaterConfigError(message)) {
-        log.warn('Startup auto-update config is unavailable; manual update checks remain available:', message);
-        this.broadcastStatus({ status: 'not-available' });
-        return;
-      }
-      log.error('Auto-update check failed:', error);
-      this.broadcastStatus({ status: 'error', error: message });
+    if (target === null) {
+      this.broadcastStatus({ status: 'not-available' });
+      return;
     }
+    await this.runUpdateCheck(target, true);
   }
 }
 

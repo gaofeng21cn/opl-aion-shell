@@ -4,17 +4,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AutoUpdateStatus, StatusBroadcastCallback } from '../../services/autoUpdaterService';
+import type { UpdateCheckResult } from '../../../common/update/updateTypes';
+import type { UpdaterReleaseChannel } from '../../../common/update/updateChannel';
+import type {
+  AutoUpdaterReleaseTarget,
+  AutoUpdateStatus,
+  StatusBroadcastCallback,
+} from '../../services/autoUpdaterService';
 
 type AutoUpdaterRuntime = {
   initialize: (statusBroadcast?: StatusBroadcastCallback) => void;
-  checkForUpdatesAndNotify: () => Promise<void>;
+  checkForUpdatesAndNotify: (target: AutoUpdaterReleaseTarget | null) => Promise<void>;
 };
 
 export type AutoUpdaterBootstrapDeps = {
   env: NodeJS.ProcessEnv;
   loadAutoUpdater: () => Promise<AutoUpdaterRuntime>;
   loadStatusBroadcast: () => Promise<(status: AutoUpdateStatus) => void>;
+  loadUpdateChannel: () => Promise<UpdaterReleaseChannel>;
+  resolveUpdateCheck: (channel: UpdaterReleaseChannel) => Promise<UpdateCheckResult>;
   schedule: (callback: () => void, delayMs: number) => unknown;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
@@ -29,6 +37,8 @@ const defaultDeps: AutoUpdaterBootstrapDeps = {
   env: process.env,
   loadAutoUpdater: async () => (await import('../../services/autoUpdaterService')).autoUpdaterService,
   loadStatusBroadcast: async () => (await import('../../bridge/updateBridge')).createAutoUpdateStatusBroadcast(),
+  loadUpdateChannel: async () => (await import('../../bridge/oplRuntimeBridge')).readOplAppUpdaterReleaseChannel(),
+  resolveUpdateCheck: async (channel) => (await import('../../bridge/updateBridge')).resolveUpdateCheck({ channel }),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
   logInfo: (message) => console.log(message),
   logError: (message, error) => console.error(message, error),
@@ -50,9 +60,19 @@ export function createAutoUpdaterBootstrap(deps: AutoUpdaterBootstrapDeps = defa
       .then(([autoUpdater, statusBroadcast]) => {
         autoUpdater.initialize(statusBroadcast);
         deps.schedule(() => {
-          void autoUpdater
-            .checkForUpdatesAndNotify()
-            .catch((error) => deps.logError('[App] Startup auto-update check failed:', error));
+          void (async () => {
+            const channel = await deps.loadUpdateChannel();
+            const decision = await deps.resolveUpdateCheck(channel);
+            const target =
+              decision.updateAvailable && decision.latest
+                ? {
+                    repo: 'gaofeng21cn/one-person-lab-app',
+                    tagName: decision.latest.tagName,
+                    updaterVersion: decision.latest.updaterVersion,
+                  }
+                : null;
+            await autoUpdater.checkForUpdatesAndNotify(target);
+          })().catch((error) => deps.logError('[App] Startup auto-update check failed:', error));
         }, 3000);
       })
       .catch((error) => {

@@ -88,8 +88,10 @@ import type {
   CodexThreadTurnStartResult,
 } from '../types/codex/appServerThreads';
 import type {
+  AutoUpdateCheckResult,
   AutoUpdateStatus,
   AutoUpdateInstallRequest,
+  ExactUpdateReleaseTarget,
   UpdateCheckRequest,
   UpdateCheckResult,
   UpdateDownloadProgressEvent,
@@ -1063,14 +1065,11 @@ export const update = {
 
 export const autoUpdate = {
   check: bridge.buildProvider<
-    IBridgeResponse<{
-      checked?: boolean;
-      updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string };
-    }>,
+    IBridgeResponse<AutoUpdateCheckResult>,
     { channel?: 'stable' | 'nightly'; includeNightly?: boolean; includePrerelease?: boolean }
   >('auto-update.check'),
   getStatusSnapshot: bridge.buildProvider<AutoUpdateStatus | null, void>('auto-update.get-status-snapshot'),
-  download: bridge.buildProvider<IBridgeResponse, void>('auto-update.download'),
+  download: bridge.buildProvider<IBridgeResponse, ExactUpdateReleaseTarget>('auto-update.download'),
   quitAndInstall: bridge.buildProvider<void, AutoUpdateInstallRequest>('auto-update.quit-and-install'),
   status: bridge.buildEmitter<AutoUpdateStatus>('auto-update.status'),
 };

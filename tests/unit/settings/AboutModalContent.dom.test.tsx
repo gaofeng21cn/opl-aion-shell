@@ -73,6 +73,11 @@ const currentUpdateResult = {
   success: true,
   data: {
     checked: true,
+    decision: {
+      currentVersion: '26.5.27',
+      updateAvailable: false,
+      channel: 'stable',
+    },
   },
 };
 
@@ -101,6 +106,9 @@ describe('AboutModalContent OPL release metadata', () => {
     bridgeMocks.getStatusSnapshotInvoke.mockResolvedValue({ status: 'not-available' });
     bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue(currentUpdateResult);
     bridgeMocks.autoUpdateStatusOn.mockReturnValue(() => undefined);
+    bridgeMocks.getAppStateInvoke.mockResolvedValue({
+      parsed: { app_state: { update_channel: 'stable', release: { channel: 'stable' } } },
+    });
   });
 
   const renderAbout = () => render(<AboutModalContent />);
@@ -171,7 +179,23 @@ describe('AboutModalContent OPL release metadata', () => {
   it('rechecks on demand and reports an available release from the update service', async () => {
     bridgeMocks.autoUpdateCheckInvoke.mockResolvedValueOnce({
       success: true,
-      data: { checked: true, updateInfo: { version: '26.6.27' } },
+      data: {
+        checked: true,
+        decision: {
+          currentVersion: '26.5.27',
+          updateAvailable: true,
+          channel: 'stable',
+          latest: {
+            tagName: 'v26.6.27',
+            version: '26.6.27',
+            updaterVersion: '26.6.2700',
+            htmlUrl: 'https://example.test/releases/v26.6.27',
+            prerelease: false,
+            draft: false,
+            assets: [],
+          },
+        },
+      },
     });
 
     renderAbout();
@@ -184,15 +208,55 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenLastCalledWith({ channel: 'stable' });
   });
 
-  it('maps the framework preview channel to the nightly updater channel', async () => {
-    localStorage.clear();
-    cacheFastState({ channel: 'preview' });
+  it('uses a fresh framework Preview readback instead of a stale Stable cache', async () => {
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      parsed: { app_state: { update_channel: 'preview', release: { channel: 'preview' } } },
+    });
 
     renderAbout();
     await screen.findByText('You are up to date');
     fireEvent.click(screen.getByTestId('about-check-updates'));
 
+    await waitFor(() =>
+      expect(bridgeMocks.getAppStateInvoke).toHaveBeenCalledWith({
+        profile: 'fast',
+      })
+    );
     await waitFor(() => expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' }));
+  });
+
+  it('uses the frozen SemVer decision for a Preview candidate with a prerelease machine version', async () => {
+    localStorage.clear();
+    cacheFastState({ channel: 'preview' });
+    bridgeMocks.getAppStateInvoke.mockResolvedValueOnce({
+      parsed: { app_state: { update_channel: 'preview', release: { channel: 'preview' } } },
+    });
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValueOnce({
+      success: true,
+      data: {
+        checked: true,
+        decision: {
+          currentVersion: '26.7.2803',
+          updateAvailable: true,
+          channel: 'nightly',
+          latest: {
+            tagName: 'v26.7.31-nightly',
+            version: '26.7.31-nightly',
+            updaterVersion: '26.7.3190-nightly.0',
+            htmlUrl: 'https://example.test/releases/v26.7.31-nightly',
+            prerelease: true,
+            draft: false,
+            assets: [],
+          },
+        },
+      },
+    });
+
+    renderAbout();
+    await screen.findByText('You are up to date');
+    fireEvent.click(screen.getByTestId('about-check-updates'));
+
+    expect(await screen.findByText('Version 26.7.31-nightly available')).toBeInTheDocument();
   });
 
   it('updates from the shared main-process status event without running another check', async () => {

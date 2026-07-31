@@ -9,6 +9,7 @@ const translate = vi.hoisted(() => (key: string): string => {
     'update.checking': '正在检查更新',
     'update.availableTitle': '发现新版本',
     'update.downloadButton': '下载',
+    'update.downloadAndInstall': '下载并安装',
     'update.readyToInstall': '准备安装',
     'update.installWarning': '安装期间请勿手动打开应用，应用将自动重启。',
     'update.installNow': '立即安装',
@@ -158,11 +159,29 @@ describe('UpdateModal checking layout', () => {
     );
     bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
       success: true,
-      data: { checked: true, updateInfo: { version: '26.7.19' } },
-    });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
-      success: true,
-      data: { currentVersion: '26.7.18', updateAvailable: false },
+      data: {
+        checked: true,
+        decision: {
+          currentVersion: '26.7.18',
+          updateAvailable: true,
+          channel: 'stable',
+          latest: {
+            tagName: 'v26.7.19',
+            version: '26.7.19',
+            updaterVersion: '26.7.1900',
+            htmlUrl: 'https://example.test/releases/v26.7.19',
+            prerelease: false,
+            draft: false,
+            assets: [],
+          },
+        },
+        target: {
+          repo: 'gaofeng21cn/one-person-lab-app',
+          tagName: 'v26.7.19',
+          updaterVersion: '26.7.1900',
+        },
+        updateInfo: { version: '26.7.1900' },
+      },
     });
 
     render(<UpdateModal />);
@@ -184,54 +203,101 @@ describe('UpdateModal checking layout', () => {
     expect(screen.queryByText('update.downloadingTitle')).not.toBeInTheDocument();
   });
 
-  it('uses the app-state preview channel for both updater checks and ignores legacy local storage', async () => {
+  it('keeps an auto-update candidate available until the user starts its download', async () => {
+    const target = {
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.7.19',
+      updaterVersion: '26.7.1900',
+    };
+    bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      status: 'available',
+      version: '26.7.1900',
+    });
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
+      success: true,
+      data: {
+        checked: true,
+        decision: {
+          currentVersion: '26.7.18',
+          updateAvailable: true,
+          channel: 'stable',
+          latest: {
+            tagName: target.tagName,
+            version: '26.7.19',
+            updaterVersion: target.updaterVersion,
+            htmlUrl: 'https://example.test/releases/v26.7.19',
+            prerelease: false,
+            draft: false,
+            assets: [],
+          },
+        },
+        target,
+        updateInfo: { version: target.updaterVersion },
+      },
+    });
+    bridgeMocks.autoUpdateDownloadInvoke.mockResolvedValue({ success: true });
+
+    render(<UpdateModal />);
+    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledTimes(1));
+    window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
+
+    fireEvent.click(await screen.findByText('下载并安装'));
+
+    await waitFor(() => expect(bridgeMocks.autoUpdateDownloadInvoke).toHaveBeenCalledWith(target));
+  });
+
+  it('uses one frozen Preview decision and ignores legacy local storage', async () => {
     localStorage.setItem('update.includeNightly', 'false');
     bridgeMocks.getAppStateInvoke.mockResolvedValue({
       parsed: { app_state: { release: { channel: 'preview' } } },
     });
-    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({ success: true, data: { checked: true } });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
       success: true,
-      data: { currentVersion: '1.0.0', updateAvailable: false },
+      data: {
+        checked: true,
+        decision: { currentVersion: '1.0.0', updateAvailable: false, channel: 'nightly' },
+      },
     });
 
     render(<UpdateModal />);
     window.dispatchEvent(new CustomEvent('aionui-open-update-modal', { detail: { source: 'about' } }));
 
     await waitFor(() => expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' }));
-    expect(bridgeMocks.updateCheckInvoke).toHaveBeenCalledWith({ channel: 'nightly' });
+    expect(bridgeMocks.updateCheckInvoke).not.toHaveBeenCalled();
   });
 
   it('selects zh-CN release notes from hidden release blocks when the current language is Chinese', async () => {
     localStorage.setItem('test.i18nLanguage', 'zh-CN');
-    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({ success: true, data: { checked: true } });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
       success: true,
       data: {
-        currentVersion: '1.0.0',
-        updateAvailable: true,
-        latest: {
-          tagName: 'v1.1.0',
-          version: '1.1.0',
-          updaterVersion: '1.1.0',
-          name: 'v1.1.0',
-          body: [
-            'Public English intro',
-            '<!-- OPL_RELEASE_NOTES:en-US',
-            'English release notes',
-            '-->',
-            '<!-- OPL_RELEASE_NOTES:zh-CN',
-            '中文更新说明',
-            '-->',
-          ].join('\n'),
-          htmlUrl: 'https://example.test/releases/v1.1.0',
-          prerelease: false,
-          draft: false,
-          assets: [],
-          recommendedAsset: {
-            name: 'One Person Lab.dmg',
-            url: 'https://example.test/download.dmg',
-            size: 1024,
+        checked: true,
+        decision: {
+          currentVersion: '1.0.0',
+          updateAvailable: true,
+          latest: {
+            tagName: 'v1.1.0',
+            version: '1.1.0',
+            updaterVersion: '1.1.0',
+            name: 'v1.1.0',
+            body: [
+              'Public English intro',
+              '<!-- OPL_RELEASE_NOTES:en-US',
+              'English release notes',
+              '-->',
+              '<!-- OPL_RELEASE_NOTES:zh-CN',
+              '中文更新说明',
+              '-->',
+            ].join('\n'),
+            htmlUrl: 'https://example.test/releases/v1.1.0',
+            prerelease: false,
+            draft: false,
+            assets: [],
+            recommendedAsset: {
+              name: 'One Person Lab.dmg',
+              url: 'https://example.test/download.dmg',
+              size: 1024,
+            },
           },
         },
       },
@@ -260,31 +326,33 @@ describe('UpdateModal checking layout', () => {
 
   it('passes downloaded updater zip path to the App-managed installer', async () => {
     let progressListener: ((event: unknown) => void) | undefined;
-    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({ success: true, data: { checked: true } });
     bridgeMocks.updateDownloadProgressOn.mockImplementation((listener: (event: unknown) => void) => {
       progressListener = listener;
       return () => undefined;
     });
-    bridgeMocks.updateCheckInvoke.mockResolvedValue({
+    bridgeMocks.autoUpdateCheckInvoke.mockResolvedValue({
       success: true,
       data: {
-        currentVersion: '26.6.3',
-        updateAvailable: true,
-        latest: {
-          tagName: 'v26.6.5',
-          version: '26.6.5',
-          updaterVersion: '26.6.5',
-          name: 'v26.6.5',
-          body: '',
-          htmlUrl: 'https://example.test/releases/v26.6.5',
-          prerelease: false,
-          draft: false,
-          assets: [],
-          recommendedAsset: {
-            name: 'One-Person-Lab-26.6.5-mac-arm64.zip',
-            url: 'https://example.test/One-Person-Lab-26.6.5-mac-arm64.zip',
-            size: 1024,
-            updateRole: 'updater',
+        checked: true,
+        decision: {
+          currentVersion: '26.6.3',
+          updateAvailable: true,
+          latest: {
+            tagName: 'v26.6.5',
+            version: '26.6.5',
+            updaterVersion: '26.6.5',
+            name: 'v26.6.5',
+            body: '',
+            htmlUrl: 'https://example.test/releases/v26.6.5',
+            prerelease: false,
+            draft: false,
+            assets: [],
+            recommendedAsset: {
+              name: 'One-Person-Lab-26.6.5-mac-arm64.zip',
+              url: 'https://example.test/One-Person-Lab-26.6.5-mac-arm64.zip',
+              size: 1024,
+              updateRole: 'updater',
+            },
           },
         },
       },
