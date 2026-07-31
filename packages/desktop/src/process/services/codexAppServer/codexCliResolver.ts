@@ -7,6 +7,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { OplCodexRuntimeError, resolveOplCodexRuntimeIdentityFromEnv } from '../../backend/oplCodexRuntimeIdentity';
 
 type ResolverOptions = {
   env?: NodeJS.ProcessEnv;
@@ -26,6 +27,11 @@ function executable(candidate: string): boolean {
 
 export function resolveCodexCliPath(options: ResolverOptions = {}): string {
   const env = options.env ?? process.env;
+  const identity = resolveOplCodexRuntimeIdentityFromEnv(env);
+  if (identity) {
+    return identity.path;
+  }
+
   const homeDir = options.homeDir ?? os.homedir();
   const platform = options.platform ?? process.platform;
   const isExecutable = options.isExecutable ?? executable;
@@ -51,7 +57,11 @@ export function resolveCodexCliPath(options: ResolverOptions = {}): string {
   const candidates = [...new Set([...explicit, ...managed, ...fromPath])];
   const resolved = candidates.find(isExecutable);
   if (!resolved) {
-    throw new Error('Codex CLI executable was not found in OPL_CODEX_BIN, CODEX_HOME, OPL runtime, or PATH.');
+    const code = explicit.length > 0 ? 'USER_AGENT_COMMAND_NOT_FOUND' : 'USER_AGENT_NOT_INSTALLED';
+    throw new OplCodexRuntimeError(
+      code,
+      'Codex CLI executable was not found in OPL_CODEX_BIN, CODEX_HOME, OPL runtime, or PATH.'
+    );
   }
   return resolved;
 }

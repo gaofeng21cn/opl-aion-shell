@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { BackendStartupFailureInfo } from '@/common/types/platform/electron';
+import type { BackendStartupFailureInfo, OplCodexRuntimeErrorCode } from '@/common/types/platform/electron';
 
 type ErrorWithDetails = Error & {
+  code?: unknown;
   details?: {
     stage?: unknown;
     isPackaged?: unknown;
@@ -43,6 +44,13 @@ const TRANSIENT_CONCURRENT_STARTUP_PEER_CODE = 'BOOTSTRAP_PEER_ALREADY_RUNNING';
 const ASSISTANT_STORAGE_BOOTSTRAP_BOUNDARY_CODE = 'BOOTSTRAP_SERVER_FAILED';
 const ASSISTANT_BOOTSTRAP_CONTENTION_STAGE = 'router.assistant.bootstrap.concurrency_contended';
 const MAX_REPORTED_DIR_ENTRIES = 20;
+const OPL_CODEX_RUNTIME_ERROR_CODES = new Set<OplCodexRuntimeErrorCode>([
+  'USER_AGENT_NOT_INSTALLED',
+  'USER_AGENT_COMMAND_NOT_FOUND',
+  'MANAGED_RUNTIME_UNAVAILABLE',
+  'RUNTIME_ACTIVATION_REQUIRED',
+  'RUNTIME_IDENTITY_MISMATCH',
+]);
 
 function collectBackendStartupText(error: unknown): string {
   const parts: string[] = [];
@@ -98,6 +106,26 @@ function classifyPackageArchitectureMismatch(
     deviceArch: getString(details.deviceArch),
     expectedDownloadArch: getString(details.expectedDownloadArch),
     isRosettaTranslated: typeof details.isRosettaTranslated === 'boolean' ? details.isRosettaTranslated : undefined,
+  };
+}
+
+function classifyOplCodexRuntimeFailure(error: unknown): BackendStartupFailureInfo | undefined {
+  const code = (error as ErrorWithDetails | undefined)?.code;
+  if (typeof code !== 'string' || !OPL_CODEX_RUNTIME_ERROR_CODES.has(code as OplCodexRuntimeErrorCode)) {
+    return undefined;
+  }
+  const oplCodexRuntimeErrorCode = code as OplCodexRuntimeErrorCode;
+  if (oplCodexRuntimeErrorCode === 'RUNTIME_IDENTITY_MISMATCH') {
+    return {
+      reason: 'backend_startup_failed',
+      oplCodexRuntimeErrorCode,
+    };
+  }
+  return {
+    reason: 'backend_incomplete_installation',
+    incompleteInstallationKind: 'missing_backend_binary',
+    missingBackendBinary: true,
+    oplCodexRuntimeErrorCode,
   };
 }
 
@@ -206,6 +234,9 @@ export function classifyBackendStartupFailure(error: unknown): BackendStartupFai
   const details = getBackendStartupDetails(error);
   const packageArchitectureMismatch = classifyPackageArchitectureMismatch(details);
   if (packageArchitectureMismatch) return packageArchitectureMismatch;
+
+  const oplCodexRuntimeFailure = classifyOplCodexRuntimeFailure(error);
+  if (oplCodexRuntimeFailure) return oplCodexRuntimeFailure;
 
   const incompleteInstallation = classifyIncompleteInstallation(details);
   if (incompleteInstallation) return incompleteInstallation;
