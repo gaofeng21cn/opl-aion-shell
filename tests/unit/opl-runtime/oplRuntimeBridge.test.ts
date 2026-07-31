@@ -5,6 +5,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   __oplRuntimeBridgeTest,
+  readOplAppUpdaterReleaseChannel,
   runDesktopStartupMaintenance,
   runStartupMaintenanceForHost,
 } from '@/process/bridge/oplRuntimeBridge';
@@ -12,6 +13,37 @@ import {
 const tmpRoots: string[] = [];
 const OPTIONAL_DOMAIN_DETAIL_CAPABILITY = 'opl_app.domain_detail_views.v2';
 const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
+
+describe('OPL App updater channel readback', () => {
+  it('reads Preview from the Framework-owned fast state', async () => {
+    await expect(
+      readOplAppUpdaterReleaseChannel({
+        runCommand: vi.fn(async () => ({
+          surface: 'app_state_fast',
+          command: 'opl app state --profile fast --json',
+          stdout: '',
+          parsed: { app_state: { release: { channel: 'preview' } } },
+          ok: true,
+        })),
+      })
+    ).resolves.toBe('nightly');
+  });
+
+  it('fails closed to Stable when Framework state is unavailable', async () => {
+    await expect(
+      readOplAppUpdaterReleaseChannel({
+        runCommand: vi.fn(async () => ({
+          surface: 'app_state_fast',
+          command: 'opl app state --profile fast --json',
+          stdout: '',
+          parsed: null,
+          ok: false,
+          error: { message: 'unavailable' },
+        })),
+      })
+    ).resolves.toBe('stable');
+  });
+});
 
 function makeTempRoot(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));

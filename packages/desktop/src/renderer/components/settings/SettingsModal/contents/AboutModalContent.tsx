@@ -5,8 +5,9 @@
  */
 
 import { ipcBridge } from '@/common';
+import { resolveUpdaterReleaseChannel } from '@/common/update/updateChannel';
 import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUpdateStatus';
-import { oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
 import { Button, Modal, Typography } from '@arco-design/web-react';
@@ -22,14 +23,6 @@ type LinkItem =
 const OPL_APP_REPO_URL = 'https://github.com/gaofeng21cn/one-person-lab-app';
 const OPL_APP_RELEASES_URL = `${OPL_APP_REPO_URL}/releases`;
 const OPL_FRAMEWORK_URL = 'https://github.com/gaofeng21cn/one-person-lab';
-
-function resolveUpdaterChannel(appState: Record<string, unknown>): 'stable' | 'nightly' {
-  const release = oplRecord(appState.release);
-  const managedUpdate = oplRecord(appState.managed_update_plane);
-  const frameworkChannel =
-    oplString(release.channel) ?? oplString(appState.update_channel) ?? oplString(managedUpdate.update_channel);
-  return frameworkChannel === 'preview' ? 'nightly' : 'stable';
-}
 
 type AppVersions = {
   appVersion: string;
@@ -49,33 +42,6 @@ function formatReleaseChannel(
 ) {
   const normalized = channel?.trim() || 'stable';
   return t(`settings.runtimePage.releaseChannels.${normalized}`, { channel: normalized });
-}
-
-function parseVersionParts(version: string | undefined): number[] | null {
-  const normalized = version?.trim().replace(/^v/i, '');
-  if (!normalized) return null;
-  const parts = normalized.split('.');
-  if (parts.length < 2 || parts.length > 4) return null;
-  const numbers = parts.map((part) => {
-    if (!/^\d+$/.test(part)) return Number.NaN;
-    return Number(part);
-  });
-  if (numbers.some((part) => !Number.isSafeInteger(part))) return null;
-  return numbers;
-}
-
-function isNewerVersion(candidate: string | undefined, current: string): boolean {
-  const candidateParts = parseVersionParts(candidate);
-  const currentParts = parseVersionParts(current);
-  if (!candidateParts || !currentParts) return false;
-  const length = Math.max(candidateParts.length, currentParts.length);
-  for (let index = 0; index < length; index += 1) {
-    const candidatePart = candidateParts[index] ?? 0;
-    const currentPart = currentParts[index] ?? 0;
-    if (candidatePart > currentPart) return true;
-    if (candidatePart < currentPart) return false;
-  }
-  return false;
 }
 
 const AboutModalContent: React.FC = () => {
@@ -114,22 +80,23 @@ const AboutModalContent: React.FC = () => {
     }
     setUpdaterStatus({ status: 'checking' });
     try {
-      const channel = resolveUpdaterChannel(appStateQuery.appState);
+      const channel = resolveUpdaterReleaseChannel(getAppState(await appStateQuery.load('fast', { background: true })));
       const result = await ipcBridge.autoUpdate.check.invoke({ channel });
-      if (!result?.success) {
+      const decision = result?.data?.decision;
+      if (!decision) {
         setUpdaterStatus({ status: 'error' });
         return;
       }
-      const candidate = result.data?.updateInfo?.version || '';
+      const candidate = decision.latest?.updaterVersion || '';
       setUpdaterStatus(
-        candidate && isNewerVersion(candidate, currentAppVersion)
-          ? { status: 'available', version: candidate }
+        decision.updateAvailable && candidate
+          ? { status: 'available', version: decision.latest?.version || candidate }
           : { status: 'not-available' }
       );
     } catch {
       setUpdaterStatus({ status: 'error' });
     }
-  }, [appStateQuery.appState, currentAppVersion, isElectron, setUpdaterStatus]);
+  }, [appStateQuery, isElectron, setUpdaterStatus]);
 
   const openLink = async (url: string) => {
     try {

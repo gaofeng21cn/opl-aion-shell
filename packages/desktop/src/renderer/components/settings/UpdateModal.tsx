@@ -8,16 +8,21 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Progress, Message } from '@arco-design/web-react';
 import { CheckOne, Download, FolderOpen, Refresh, CloseOne, Install } from '@icon-park/react';
 import { ipcBridge } from '@/common';
+import { resolveUpdaterReleaseChannel } from '@/common/update/updateChannel';
 import AionModal from '@/renderer/components/base/AionModal';
 import MarkdownView from '@/renderer/components/Markdown';
-import type { UpdateDownloadProgressEvent, UpdateReleaseInfo, AutoUpdateStatus } from '@/common/update/updateTypes';
-import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import type {
+  AutoUpdateStatus,
+  ExactUpdateReleaseTarget,
+  UpdateDownloadProgressEvent,
+  UpdateReleaseInfo,
+} from '@/common/update/updateTypes';
+import { getAppState, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { useTranslation } from 'react-i18next';
 
 type UpdateStatus = 'checking' | 'upToDate' | 'available' | 'downloading' | 'downloaded' | 'success' | 'error';
 
 type UpdateInfo = UpdateReleaseInfo;
-type UpdateChannel = 'stable' | 'nightly';
 type ReleaseNotesLocale = 'zh-CN' | 'en-US';
 
 const OPL_APP_RELEASES_URL = 'https://github.com/gaofeng21cn/one-person-lab-app/releases';
@@ -39,14 +44,6 @@ const formatSize = (bytes: number): string => {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
   return `${(bytes / 1024).toFixed(1)} KB`;
-};
-
-const resolveUpdaterChannel = (appState: Record<string, unknown>): UpdateChannel => {
-  const release = oplRecord(appState.release);
-  const managedUpdate = oplRecord(appState.managed_update_plane);
-  const frameworkChannel =
-    oplString(release.channel) ?? oplString(appState.update_channel) ?? oplString(managedUpdate.update_channel);
-  return frameworkChannel === 'preview' ? 'nightly' : 'stable';
 };
 
 const resolveReleaseNotesLocale = (language?: string): ReleaseNotesLocale => {
@@ -99,6 +96,7 @@ const UpdateModal: React.FC = () => {
   // Whether electron-updater auto-update is available (determined automatically, not user-controllable)
   const [autoUpdateAvailable, setAutoUpdateAvailable] = useState(false);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<{ version: string; releaseNotes?: string } | null>(null);
+  const [autoUpdateTarget, setAutoUpdateTarget] = useState<ExactUpdateReleaseTarget | null>(null);
   const appStateVersion = __OPL_RELEASE_VERSION__ || __APP_VERSION__;
   const appStateVersionRef = useRef(appStateVersion);
   const autoUpdateStatusSequenceRef = useRef(0);
@@ -119,6 +117,7 @@ const UpdateModal: React.FC = () => {
     setReleasePageUrl('');
     setAutoUpdateAvailable(false);
     setAutoUpdateInfo(null);
+    setAutoUpdateTarget(null);
   };
 
   const hasCompatibleManualAsset = Boolean(updateInfo?.recommendedAsset);
@@ -134,7 +133,7 @@ const UpdateModal: React.FC = () => {
             version: evt.version || '',
             releaseNotes: evt.releaseNotes,
           });
-          setStatus('downloading');
+          setStatus('available');
           return;
         case 'not-available':
           setStatus('upToDate');
@@ -186,68 +185,52 @@ const UpdateModal: React.FC = () => {
       setCurrentVersion(fallbackCurrentVersion);
     }
     try {
-      const channel = resolveUpdaterChannel(getAppState(await appStateQuery.load('fast', { background: true })));
-      // Try auto-update (electron-updater) first
-      let autoUpdateOk = false;
-      let autoUpdateChecked = false;
-      try {
-        const res = await ipcBridge.autoUpdate.check.invoke({ channel });
-        autoUpdateChecked = Boolean(res?.success && res.data?.checked);
-        if (res?.success && res.data?.updateInfo) {
-          autoUpdateOk = true;
-          setAutoUpdateInfo({
-            version: res.data.updateInfo.version,
-            releaseNotes: res.data.updateInfo.releaseNotes,
-          });
-        } else if (res?.msg) {
-          console.warn('Auto-update check failed, using manual mode:', res.msg);
-        }
-      } catch (err) {
-        console.warn('Auto-update check error, using manual mode:', err);
-      }
-      setAutoUpdateAvailable(autoUpdateOk);
-
-      // Always run manual check for version info and release notes
-      const res = await ipcBridge.update.check.invoke({ channel });
-      if (!res?.success) {
-        if (autoUpdateChecked) {
-          setStatus(autoUpdateOk ? 'available' : 'upToDate');
-          return;
-        }
+      const channel = resolveUpdaterReleaseChannel(getAppState(await appStateQuery.load('fast', { background: true })));
+      const res = await ipcBridge.autoUpdate.check.invoke({ channel });
+      const decision = res?.data?.decision;
+      if (!decision) {
         throw new Error(res?.msg || t('update.checkFailed'));
       }
-      setCurrentVersion(fallbackCurrentVersion || res.data?.currentVersion || '');
+      const autoUpdateOk = Boolean(res.success && res.data?.updateInfo && res.data.target);
+      setAutoUpdateAvailable(autoUpdateOk);
+      setAutoUpdateTarget(res.data?.target ?? null);
+      setAutoUpdateInfo(
+        res.data?.updateInfo
+          ? {
+              version: res.data.updateInfo.version,
+              releaseNotes: res.data.updateInfo.releaseNotes,
+            }
+          : null
+      );
+      if (res.msg) {
+        console.warn('Auto-update check failed, using manual mode:', res.msg);
+      }
+      setCurrentVersion(fallbackCurrentVersion || decision.currentVersion || '');
+      if (decision.latest) {
+        setUpdateInfo(decision.latest);
+        setReleasePageUrl(decision.latest.htmlUrl || '');
+      }
 
       if (autoUpdateOk) {
-        // The standard updater downloads in the background. Manual release
-        // data remains display-only while the shared status drives progress.
-        if (res.data?.latest) {
-          setUpdateInfo(res.data.latest);
-          setReleasePageUrl(res.data.latest.htmlUrl || '');
-        }
         const snapshotSequence = autoUpdateStatusSequenceRef.current;
         const snapshot = await ipcBridge.autoUpdate.getStatusSnapshot.invoke();
         if (snapshot && autoUpdateStatusSequenceRef.current === snapshotSequence) {
           applyAutoUpdateStatus(snapshot);
         } else if (!snapshot) {
-          setStatus('downloading');
+          setStatus('available');
         }
         return;
       }
 
       // Manual mode
-      if (res.data?.updateAvailable && res.data.latest) {
-        setUpdateInfo(res.data.latest);
-        setReleasePageUrl(res.data.latest.htmlUrl || '');
-        if (!res.data.latest.recommendedAsset) {
+      if (decision.updateAvailable && decision.latest) {
+        if (!decision.latest.recommendedAsset) {
           setErrorMsg(t('update.noCompatibleAssetManual'));
         }
         setStatus('available');
         return;
       }
 
-      setUpdateInfo(res.data?.latest || null);
-      setReleasePageUrl(res.data?.latest?.htmlUrl || '');
       setStatus('upToDate');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -283,8 +266,8 @@ const UpdateModal: React.FC = () => {
         return;
       }
 
-      if (autoUpdateAvailable) {
-        const res = await ipcBridge.autoUpdate.download.invoke();
+      if (autoUpdateAvailable && autoUpdateTarget) {
+        const res = await ipcBridge.autoUpdate.download.invoke(autoUpdateTarget);
         if (!res?.success) {
           throw new Error(res?.msg || t('update.downloadStartFailed'));
         }

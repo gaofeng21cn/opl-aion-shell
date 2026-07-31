@@ -6,8 +6,10 @@
 
 import { ipcBridge } from '@/common';
 import type {
+  AutoUpdateCheckResult,
   AutoUpdateInstallRequest,
   UpdateCheckResult,
+  UpdateCheckRequest,
   UpdateDownloadProgressEvent,
   UpdateDownloadRequest,
   UpdateDownloadResult,
@@ -56,15 +58,14 @@ type OplComponentManifest = {
   release_version?: string;
   updater_version?: string;
   release_tag?: string;
+  quality_status?: string;
+  preview_kind?: string | null;
 };
 
-/** Parameters for auto-update check via electron-updater */
-interface AutoUpdateCheckParams {
-  channel?: 'stable' | 'nightly';
-  includeNightly?: boolean;
-  /** @deprecated Use channel or includeNightly. */
-  includePrerelease?: boolean;
-}
+type ReleaseQuality = 'stable' | 'preview';
+type ResolvedUpdateRelease = UpdateReleaseInfo & {
+  qualityStatus: ReleaseQuality;
+};
 
 const DEFAULT_REPO = 'gaofeng21cn/one-person-lab-app';
 const DEFAULT_USER_AGENT = 'OnePersonLabApp';
@@ -81,6 +82,7 @@ const ALLOWED_DOWNLOAD_HOSTS = new Set<string>([
   'release-assets.githubusercontent.com',
 ]);
 const MAX_REDIRECTS = 8;
+const MAX_RELEASE_PAGES = 10;
 
 const isAllowedAssetName = (name: string) => {
   const ext = path.extname(name);
@@ -138,33 +140,40 @@ const fetchOplComponentManifest = async (asset: GitHubReleaseApiAsset): Promise<
 const resolveReleaseVersions = async (
   rel: GitHubReleaseApi,
   requireOplManifest: boolean
-): Promise<{ displayVersion: string; updaterVersion: string } | null> => {
+): Promise<{ displayVersion: string; updaterVersion: string; qualityStatus: ReleaseQuality } | null> => {
   const displayVersion = displayVersionFromTag(rel.tag_name);
   if (!displayVersion) return null;
 
   if (!requireOplManifest) {
     const updaterVersion = normalizeTagToSemver(rel.tag_name);
-    return updaterVersion ? { displayVersion, updaterVersion } : null;
+    return updaterVersion
+      ? { displayVersion, updaterVersion, qualityStatus: rel.prerelease ? 'preview' : 'stable' }
+      : null;
   }
 
   const manifestAsset = rel.assets?.find((asset) => asset.name === OPL_COMPONENT_MANIFEST_NAME);
   if (!manifestAsset) {
     const updaterVersion = legacyOplTagFallback(displayVersion);
-    return updaterVersion ? { displayVersion, updaterVersion } : null;
+    return updaterVersion
+      ? { displayVersion, updaterVersion, qualityStatus: rel.prerelease ? 'preview' : 'stable' }
+      : null;
   }
   const manifest = await fetchOplComponentManifest(manifestAsset);
   const updaterVersion = manifest?.updater_version ? semver.valid(manifest.updater_version) : null;
+  const qualityStatus =
+    manifest?.quality_status === 'stable' || manifest?.quality_status === 'preview' ? manifest.quality_status : null;
   if (
     manifest?.surface_kind !== 'opl_app_component_manifest.v1' ||
     manifest.component_id !== 'opl-app' ||
     manifest.version !== displayVersion ||
     manifest.release_version !== displayVersion ||
     manifest.release_tag !== `v${displayVersion}` ||
-    !updaterVersion
+    !updaterVersion ||
+    !qualityStatus
   ) {
     return null;
   }
-  return { displayVersion, updaterVersion };
+  return { displayVersion, updaterVersion, qualityStatus };
 };
 
 /**
@@ -335,7 +344,7 @@ const fetchWithAllowlistedRedirects = async (rawUrl: string, signal: AbortSignal
   throw new Error((await getI18n()).t('update.errors.tooManyRedirects'));
 };
 
-const fetchGitHubReleasePayload = async (url: string): Promise<unknown> => {
+const fetchGitHubReleasePage = async (url: string): Promise<{ payload: unknown; hasNext: boolean }> => {
   // 添加超时控制，防止网络问题导致无限等待 / Add timeout to prevent infinite wait on network issues
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 秒超时 / 30 second timeout
@@ -353,7 +362,11 @@ const fetchGitHubReleasePayload = async (url: string): Promise<unknown> => {
       throw new Error((await getI18n()).t('update.errors.githubApiFailed', { status: res.status }));
     }
 
-    return (await res.json()) as unknown;
+    const linkHeader = res.headers?.get?.('link') ?? '';
+    return {
+      payload: (await res.json()) as unknown,
+      hasNext: linkHeader.split(',').some((part) => part.includes('rel="next"')),
+    };
   } catch (err: unknown) {
     if (err instanceof Error && err.name === 'AbortError') {
       throw new Error((await getI18n()).t('update.errors.githubApiTimeout'), { cause: err });
@@ -364,23 +377,25 @@ const fetchGitHubReleasePayload = async (url: string): Promise<unknown> => {
   }
 };
 
-const fetchGitHubLatestRelease = async (repo: string): Promise<GitHubReleaseApi> => {
-  const payload = await fetchGitHubReleasePayload(`https://api.github.com/repos/${repo}/releases/latest`);
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
-  }
-  return payload as GitHubReleaseApi;
-};
-
 const fetchGitHubReleases = async (repo: string): Promise<GitHubReleaseApi[]> => {
-  const payload = await fetchGitHubReleasePayload(`https://api.github.com/repos/${repo}/releases`);
-  if (!Array.isArray(payload)) {
-    throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
+  const releases: GitHubReleaseApi[] = [];
+  for (let page = 1; page <= MAX_RELEASE_PAGES; page += 1) {
+    const { payload, hasNext } = await fetchGitHubReleasePage(
+      `https://api.github.com/repos/${repo}/releases?per_page=100&page=${page}`
+    );
+    if (!Array.isArray(payload)) {
+      throw new Error((await getI18n()).t('update.errors.githubApiNotArray'));
+    }
+    releases.push(...(payload as GitHubReleaseApi[]));
+    if (!hasNext) return releases;
   }
-  return payload as GitHubReleaseApi[];
+  throw new Error(`GitHub release pagination exceeded ${MAX_RELEASE_PAGES} pages`);
 };
 
-const mapRelease = async (rel: GitHubReleaseApi, requireOplManifest: boolean): Promise<UpdateReleaseInfo | null> => {
+const mapRelease = async (
+  rel: GitHubReleaseApi,
+  requireOplManifest: boolean
+): Promise<ResolvedUpdateRelease | null> => {
   const versions = await resolveReleaseVersions(rel, requireOplManifest);
   if (!versions) return null;
 
@@ -399,10 +414,50 @@ const mapRelease = async (rel: GitHubReleaseApi, requireOplManifest: boolean): P
     publishedAt: rel.published_at,
     prerelease: Boolean(rel.prerelease),
     draft: Boolean(rel.draft),
+    qualityStatus: versions.qualityStatus,
     assets,
     recommendedAsset: pickRecommendedAsset(assets),
   };
 };
+
+export async function resolveUpdateCheck(
+  params: UpdateCheckRequest = {},
+  currentVersion = app.getVersion()
+): Promise<UpdateCheckResult> {
+  const repo = resolveRepo(params.repo);
+  const includePreview = params.channel === 'nightly' || Boolean(params.includeNightly ?? params.includePrerelease);
+  const releases = await fetchGitHubReleases(repo);
+  const candidates = (
+    await Promise.all(
+      releases
+        .filter((release) => release && !release.draft)
+        .map((release) => mapRelease(release, repo === DEFAULT_REPO))
+    )
+  ).filter((release): release is ResolvedUpdateRelease => Boolean(release));
+  const eligibleCandidates = includePreview
+    ? candidates
+    : candidates.filter((release) => release.qualityStatus === 'stable');
+
+  const currentSemver = semver.valid(currentVersion) || semver.coerce(currentVersion)?.version;
+  if (!currentSemver) {
+    return { currentVersion, updateAvailable: false };
+  }
+
+  const latestResolved = eligibleCandidates
+    .filter((release) => semver.valid(release.updaterVersion))
+    .toSorted((a, b) => semver.rcompare(a.updaterVersion, b.updaterVersion))[0];
+  if (!latestResolved) {
+    return { currentVersion, updateAvailable: false };
+  }
+
+  const { qualityStatus: _qualityStatus, ...latest } = latestResolved;
+  return {
+    currentVersion,
+    updateAvailable: semver.gt(latest.updaterVersion, currentSemver),
+    channel: includePreview ? 'nightly' : 'stable',
+    latest,
+  };
+}
 
 type DownloadState = {
   abortController: AbortController;
@@ -627,42 +682,7 @@ export function initUpdateBridge(): void {
   ipcBridge.update.check.provider(
     async (params): Promise<{ success: boolean; data?: UpdateCheckResult; msg?: string }> => {
       try {
-        const repo = resolveRepo(params?.repo);
-        const includePrerelease =
-          params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
-        const currentVersion = app.getVersion();
-
-        const releases = includePrerelease ? await fetchGitHubReleases(repo) : [await fetchGitHubLatestRelease(repo)];
-        const eligibleReleases = releases
-          .filter((r) => r && !r.draft)
-          .filter((r) => (includePrerelease ? true : !r.prerelease));
-        const candidates = (
-          await Promise.all(eligibleReleases.map((release) => mapRelease(release, repo === DEFAULT_REPO)))
-        ).filter((r): r is UpdateReleaseInfo => Boolean(r));
-
-        const currentSemver = semver.valid(currentVersion) || semver.coerce(currentVersion)?.version;
-        if (!currentSemver) {
-          return { success: true, data: { currentVersion, updateAvailable: false } };
-        }
-
-        const latest = candidates
-          .filter((r) => semver.valid(r.updaterVersion))
-          .toSorted((a, b) => semver.rcompare(a.updaterVersion, b.updaterVersion))[0];
-
-        if (!latest) {
-          return { success: true, data: { currentVersion, updateAvailable: false } };
-        }
-
-        const updateAvailable = semver.gt(latest.updaterVersion, currentSemver);
-        return {
-          success: true,
-          data: {
-            currentVersion,
-            updateAvailable,
-            channel: includePrerelease ? 'nightly' : 'stable',
-            latest,
-          },
-        };
+        return { success: true, data: await resolveUpdateCheck(params) };
       } catch (err: unknown) {
         return { success: false, msg: err instanceof Error ? err.message : String(err) };
       }
@@ -716,19 +736,23 @@ export function initUpdateBridge(): void {
   // Auto-updater IPC handlers (electron-updater)
   ipcBridge.autoUpdate.check.provider(
     async (
-      params: AutoUpdateCheckParams
+      params
     ): Promise<{
       success: boolean;
-      data?: { checked?: boolean; updateInfo?: { version: string; releaseDate?: string; releaseNotes?: string } };
+      data?: AutoUpdateCheckResult;
       msg?: string;
     }> => {
       try {
-        // Set prerelease preference before checking
-        const includePrerelease =
-          params?.channel === 'nightly' || Boolean(params?.includeNightly ?? params?.includePrerelease);
-        autoUpdaterService.setAllowPrerelease(includePrerelease);
-
-        const result = await autoUpdaterService.checkForUpdates();
+        const decision = await resolveUpdateCheck(params);
+        if (!decision.updateAvailable || !decision.latest) {
+          return { success: true, data: { checked: true, decision } };
+        }
+        const target = {
+          repo: DEFAULT_REPO,
+          tagName: decision.latest.tagName,
+          updaterVersion: decision.latest.updaterVersion,
+        };
+        const result = await autoUpdaterService.checkForUpdates(target);
         if (result.success && result.updateInfo) {
           // autoUpdaterService.checkForUpdates() only returns updateInfo when
           // electron-updater confirms isUpdateAvailable, so we can trust it directly.
@@ -736,6 +760,8 @@ export function initUpdateBridge(): void {
             success: true,
             data: {
               checked: true,
+              decision,
+              target,
               updateInfo: {
                 version: result.updateInfo.version,
                 releaseDate: result.updateInfo.releaseDate,
@@ -745,16 +771,16 @@ export function initUpdateBridge(): void {
             },
           };
         }
-        return { success: result.success, data: { checked: true }, msg: result.error };
+        return { success: result.success, data: { checked: true, decision, target }, msg: result.error };
       } catch (err: unknown) {
         return { success: false, msg: err instanceof Error ? err.message : String(err) };
       }
     }
   );
 
-  ipcBridge.autoUpdate.download.provider(async (): Promise<{ success: boolean; msg?: string }> => {
+  ipcBridge.autoUpdate.download.provider(async (target): Promise<{ success: boolean; msg?: string }> => {
     try {
-      const result = await autoUpdaterService.downloadUpdate();
+      const result = await autoUpdaterService.downloadUpdate(target);
       return { success: result.success, msg: result.error };
     } catch (err: unknown) {
       return { success: false, msg: err instanceof Error ? err.message : String(err) };
