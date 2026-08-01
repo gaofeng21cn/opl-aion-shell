@@ -265,9 +265,7 @@ export function isOplFlowInstalledFromAppState(appState: unknown): boolean {
 }
 
 /** Parse only the installed Framework projection; malformed or synthetic shapes fail closed. */
-export function resolveOplFlowCodexModelRecommendation(
-  appState: unknown
-): OplCodexModelRecommendation | null {
+export function resolveOplFlowCodexModelRecommendation(appState: unknown): OplCodexModelRecommendation | null {
   const payload = isRecord(appState) ? appState : {};
   const state = isRecord(payload.app_state) ? payload.app_state : payload;
   const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
@@ -276,9 +274,8 @@ export function resolveOplFlowCodexModelRecommendation(
   const flow = isRecord(packages['opl-flow']) ? packages['opl-flow'] : {};
   const presence = isRecord(flow.presence) ? flow.presence : {};
   const projection = isRecord(flow.model_projection) ? flow.model_projection : null;
-  const configuredDefault = projection && isRecord(projection.configured_default)
-    ? projection.configured_default
-    : null;
+  const configuredDefault =
+    projection && isRecord(projection.configured_default) ? projection.configured_default : null;
   const modelId = nonBlankString(configuredDefault?.model);
   const reasoningEffort = nonBlankString(configuredDefault?.reasoning_effort);
   const overridePrecedence = projection ? uniqueStringArray(projection.override_precedence) : null;

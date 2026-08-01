@@ -1150,7 +1150,7 @@ describe('useAcpModelInfo', () => {
     expect(setModelInvokeMock).not.toHaveBeenCalled();
   });
 
-  it('selects the first live catalog model for Auto and clears the fixed preference after confirmation', async () => {
+  it('falls back to the configured App model when live catalog metadata is absent', async () => {
     const fiveFiveInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.5',
       current_model_label: 'GPT-5.5',
@@ -1184,7 +1184,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'active-codex-conversation',
-        model_id: 'gpt-5.6-terra',
+        model_id: 'gpt-5.6-sol',
       });
     });
     await waitFor(() => {

@@ -150,10 +150,7 @@ export function useCanonicalCodexSettings({
 
   const selectAutoModel = useCallback(async () => {
     const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
-    const selection = resolveOplCodexAutoSelection(
-      model_info,
-      resolveOplFlowCodexModelRecommendation(freshAppState)
-    );
+    const selection = resolveOplCodexAutoSelection(model_info, resolveOplFlowCodexModelRecommendation(freshAppState));
     await configure('model', {
       model: selection.modelId,
       ...(selection.reasoningEffort ? { effort: selection.reasoningEffort } : {}),

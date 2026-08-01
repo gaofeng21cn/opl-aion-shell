@@ -48,11 +48,13 @@ const getAcpModelInfoKey = (conversation_id: string): AcpModelInfoKey => ['acp-m
 const CODEX_AUTO_PERSISTENCE_POLICY = getOplCodexAutoModelPolicy().persistence_policy;
 
 async function resolveFreshCodexAutoSelection(modelInfo: AcpModelInfo) {
-  const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
-  return resolveOplCodexAutoSelection(
-    modelInfo,
-    resolveOplFlowCodexModelRecommendation(freshAppState)
-  );
+  let freshAppState: unknown = null;
+  try {
+    freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true });
+  } catch {
+    // An unavailable or older App-state bridge means there is no fresh Flow recommendation.
+  }
+  return resolveOplCodexAutoSelection(modelInfo, resolveOplFlowCodexModelRecommendation(freshAppState));
 }
 
 const summarizeModelInfo = (info: AcpModelInfo | null | undefined) => {
@@ -137,6 +139,7 @@ function normalizeAcpModelInfo(value: unknown): AcpModelInfo | null {
       ? record.current_model_label.trim()
       : currentModelId;
   const hasExplicitAvailableModels = Array.isArray(record.available_models);
+  const hasExplicitCatalogModels = Array.isArray(record.catalog_models);
   const availableModels = normalizeAcpModelOptions(record.available_models);
   const catalogModels = normalizeAcpModelOptions(record.catalog_models);
   if (!currentModelId && !currentModelLabel && !hasExplicitAvailableModels) return null;
@@ -144,7 +147,7 @@ function normalizeAcpModelInfo(value: unknown): AcpModelInfo | null {
     current_model_id: currentModelId,
     current_model_label: currentModelLabel,
     available_models: availableModels,
-    catalog_models: catalogModels.length ? catalogModels : undefined,
+    catalog_models: hasExplicitCatalogModels ? catalogModels : undefined,
   };
 }
 
@@ -615,6 +618,12 @@ export const useAcpModelInfo = ({
         const confirmed = await ipcBridge.acpConversation.setModel.invoke({ conversation_id, model_id });
         confirmedModelInfo = confirmed.model_info ?? null;
         if (confirmedModelInfo) {
+          if (backend === 'codex' && !Array.isArray(confirmedModelInfo.catalog_models)) {
+            confirmedModelInfo = {
+              ...confirmedModelInfo,
+              catalog_models: previousModelInfo?.catalog_models ?? [],
+            };
+          }
           updateModelInfo(confirmedModelInfo);
         }
       } catch (error) {

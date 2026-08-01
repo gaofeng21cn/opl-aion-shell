@@ -1578,11 +1578,8 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
     value.delivery !== 'installed_package_metadata_only' ||
     value.absence_policy !== 'omit_opl_flow_context' ||
     value.status_source_ref !== 'app_state.agent_packages.status_index.packages.opl-flow' ||
-    JSON.stringify(value.status_planes) !== JSON.stringify([
-      'package_operational',
-      'experience_baseline',
-      'specialized_capabilities',
-    ]) ||
+    JSON.stringify(value.status_planes) !==
+      JSON.stringify(['package_operational', 'experience_baseline', 'specialized_capabilities']) ||
     value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
     value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh' ||
     value.app_role !== 'consume_generic_framework_projection_and_execute_projected_actions_only' ||

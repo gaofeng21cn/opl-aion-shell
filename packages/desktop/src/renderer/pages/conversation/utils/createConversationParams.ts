@@ -26,10 +26,7 @@ import { getManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { hasSpecificModelCapability } from '@/renderer/utils/model/modelCapabilities';
-import {
-  isOplFlowInstalledFromAppState,
-  resolveOplFlowCodexModelRecommendation,
-} from '@/common/types/opl/appState';
+import { isOplFlowInstalledFromAppState, resolveOplFlowCodexModelRecommendation } from '@/common/types/opl/appState';
 import { loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 
 type ModePreference = {
@@ -92,10 +89,7 @@ async function resolvePreferredAcpSelection(
     const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
     const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
     const modelInfo = buildCodexDefaultModelInfo(handshakeModels);
-    return resolveOplCodexAutoSelection(
-      modelInfo,
-      resolveOplFlowCodexModelRecommendation(freshAppState)
-    );
+    return resolveOplCodexAutoSelection(modelInfo, resolveOplFlowCodexModelRecommendation(freshAppState));
   }
 
   if (typeof preferredModelId === 'string' && preferredModelId.trim().length > 0) {
@@ -196,8 +190,7 @@ export async function buildCliAgentParams(
   const type = getConversationTypeForBackend(agentKey);
   const preferredMode = await resolvePreferredMode(agentKey);
   const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
-  const preferredAcpSelection =
-    type === 'acp' ? await resolvePreferredAcpSelection(agentKey, freshAppState) : null;
+  const preferredAcpSelection = type === 'acp' ? await resolvePreferredAcpSelection(agentKey, freshAppState) : null;
 
   let model: TProviderWithModel;
   if (type === 'aionrs') {

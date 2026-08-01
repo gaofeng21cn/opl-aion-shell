@@ -803,8 +803,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6',
-      current_model_label: 'gpt-5.6',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
