@@ -145,6 +145,24 @@ type BridgeProvider<Data, Params> = {
   invoke: Params extends undefined ? () => Promise<Data> : (params: Params) => Promise<Data>;
 };
 
+type RuntimeProviderTransportError = {
+  name: string;
+  message: string;
+  code?: string;
+};
+
+type RuntimeProviderTransportResult<Data> =
+  | {
+      transport: 'opl-runtime-provider.v1';
+      status: 'fulfilled';
+      value: Data;
+    }
+  | {
+      transport: 'opl-runtime-provider.v1';
+      status: 'rejected';
+      error: RuntimeProviderTransportError;
+    };
+
 function disabledTeamMutation<Data, Params>(inner: BridgeProvider<Data, Params>): BridgeProvider<Data, Params> {
   if (TEAM_MODE_ENABLED) {
     return inner;
@@ -676,13 +694,79 @@ function isWebUiBrowserMode(): boolean {
   );
 }
 
+function serializeRuntimeProviderError(error: unknown): RuntimeProviderTransportError {
+  const code =
+    error instanceof Error && 'code' in error && typeof (error as NodeJS.ErrnoException).code === 'string'
+      ? (error as NodeJS.ErrnoException).code
+      : undefined;
+  return {
+    name: error instanceof Error && error.name ? error.name : 'Error',
+    message: error instanceof Error ? error.message : String(error),
+    ...(code ? { code } : {}),
+  };
+}
+
+function isRuntimeProviderTransportResult<Data>(result: unknown): result is RuntimeProviderTransportResult<Data> {
+  if (!result || typeof result !== 'object') return false;
+  const candidate = result as Record<string, unknown>;
+  if (candidate.transport !== 'opl-runtime-provider.v1') return false;
+  if (candidate.status === 'fulfilled') return Object.prototype.hasOwnProperty.call(candidate, 'value');
+  if (candidate.status !== 'rejected' || !candidate.error || typeof candidate.error !== 'object') return false;
+
+  const error = candidate.error as Record<string, unknown>;
+  return (
+    typeof error.name === 'string' &&
+    typeof error.message === 'string' &&
+    (error.code === undefined || typeof error.code === 'string')
+  );
+}
+
+function runtimeElectronProvider<Data, Params>(channel: string): BridgeProvider<Data, Params> {
+  const transportProvider = bridge.buildProvider<RuntimeProviderTransportResult<Data>, Params>(channel);
+  const registerTransportProvider = transportProvider.provider as (
+    handler: (params: Params) => Promise<RuntimeProviderTransportResult<Data>>
+  ) => void;
+  return {
+    provider: (handler) => {
+      registerTransportProvider(async (params) => {
+        try {
+          return {
+            transport: 'opl-runtime-provider.v1',
+            status: 'fulfilled',
+            value: (await handler(params)) as Data,
+          };
+        } catch (error) {
+          return {
+            transport: 'opl-runtime-provider.v1',
+            status: 'rejected',
+            error: serializeRuntimeProviderError(error),
+          };
+        }
+      });
+    },
+    invoke: (async (params?: Params) => {
+      const result = await (transportProvider.invoke as (value?: Params) => Promise<unknown>)(params);
+      if (!isRuntimeProviderTransportResult<Data>(result)) {
+        throw new Error('OPL runtime IPC returned an invalid transport response.');
+      }
+      if (result.status === 'rejected') {
+        const restored = new Error(result.error.message);
+        restored.name = result.error.name;
+        if (result.error.code) (restored as NodeJS.ErrnoException).code = result.error.code;
+        throw restored;
+      }
+      return result.value;
+    }) as BridgeProvider<Data, Params>['invoke'],
+  };
+}
+
 function runtimeProvider<Data, Params>(
   channel: string,
   webRoute: string,
   mapBody?: (params: Params) => unknown,
   webMethod: 'POST' | 'PATCH' = 'POST'
 ): BridgeProvider<Data, Params> {
-  const electronProvider = bridge.buildProvider<Data, Params>(channel);
+  const electronProvider = runtimeElectronProvider<Data, Params>(channel);
   const webProvider =
     webMethod === 'PATCH' ? httpPatch<Data, Params>(webRoute, mapBody) : httpPost<Data, Params>(webRoute, mapBody);
   return {

@@ -47,7 +47,11 @@ const httpBridgeMocks = vi.hoisted(() => {
 const platformMocks = vi.hoisted(() => {
   const invokes = new Map<string, ReturnType<typeof vi.fn>>();
   const buildProvider = vi.fn((channel: string) => {
-    const invoke = vi.fn(async () => undefined);
+    const invoke = vi.fn(async () => ({
+      transport: 'opl-runtime-provider.v1',
+      status: 'fulfilled',
+      value: undefined,
+    }));
     invokes.set(channel, invoke);
     return { provider: vi.fn(), invoke };
   });
