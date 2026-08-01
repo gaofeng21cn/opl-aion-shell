@@ -11,7 +11,20 @@ import { parseOplStandardAgentDirectoryEntries } from '@/common/types/opl/appSta
 export type OplCodexReasoningEffort = string;
 export type OplCodexAutoModelPolicy = {
   authority: 'one-person-lab-app';
+  recommendation_authority: 'opl-flow';
+  policy_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow.model_projection';
+  projection_surface_kind: 'opl_codex_model_policy_projection.v1';
+  projection_presence_rule: 'consume_only_when_fresh_opl_flow_presence_installed_true_and_projection_is_valid';
+  app_role: 'resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override';
+  resolution_precedence: [
+    'explicit_user_selection',
+    'installed_opl_flow_recommendation',
+    'fresh_codex_live_default',
+    'app_fallback_when_flow_unavailable',
+  ];
+  app_fallback_role: 'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve';
   configured_default: { model: string; reasoning_effort: OplCodexReasoningEffort };
+  configured_default_role: 'app_fallback_not_flow_recommendation_authority';
   mode_default: 'auto';
   model_catalog_source: 'codex_cli_model_list';
   catalog_response_models_field: 'data';
@@ -216,14 +229,18 @@ export type OplOrdinaryForbiddenCapabilityPolicy = {
 
 export type OplFlowContextPolicy = {
   flow_id: 'opl-flow';
-  source: string;
-  policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json';
-  delivery: 'package_installed_user_profile_only';
+  source: 'framework-agent-package-projection';
+  presence_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow.presence';
+  presence_rule: 'inject_only_when_fresh_presence_installed_true';
+  delivery: 'installed_package_metadata_only';
+  absence_policy: 'omit_opl_flow_context';
+  status_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow';
+  status_planes: ['package_operational', 'experience_baseline', 'specialized_capabilities'];
   user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
   language_policy: 'follow_ui_locale_zh_only_when_ui_zh';
-  app_role: 'display_framework_projection_and_execute_projected_actions_only';
-  dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite';
-  migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback';
+  app_role: 'consume_generic_framework_projection_and_execute_projected_actions_only';
+  flow_policy_parsing: 'forbidden';
+  companion_inventory_storage: 'forbidden';
 };
 
 export type OplNewConversationAdditionalInstructionsPolicy = {
@@ -891,6 +908,22 @@ function readOplCodexAutoModelPolicy(
   }
   if (
     value.authority !== 'one-person-lab-app' ||
+    value.recommendation_authority !== 'opl-flow' ||
+    value.policy_source_ref !== 'app_state.agent_packages.status_index.packages.opl-flow.model_projection' ||
+    value.projection_surface_kind !== 'opl_codex_model_policy_projection.v1' ||
+    value.projection_presence_rule !==
+      'consume_only_when_fresh_opl_flow_presence_installed_true_and_projection_is_valid' ||
+    value.app_role !== 'resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override' ||
+    JSON.stringify(value.resolution_precedence) !==
+      JSON.stringify([
+        'explicit_user_selection',
+        'installed_opl_flow_recommendation',
+        'fresh_codex_live_default',
+        'app_fallback_when_flow_unavailable',
+      ]) ||
+    value.app_fallback_role !==
+      'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve' ||
+    value.configured_default_role !== 'app_fallback_not_flow_recommendation_authority' ||
     value.mode_default !== 'auto' ||
     value.model_catalog_source !== 'codex_cli_model_list' ||
     value.catalog_response_models_field !== 'data' ||
@@ -957,7 +990,21 @@ function readOplCodexAutoModelPolicy(
   }
   return {
     authority: 'one-person-lab-app',
+    recommendation_authority: 'opl-flow',
+    policy_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow.model_projection',
+    projection_surface_kind: 'opl_codex_model_policy_projection.v1',
+    projection_presence_rule: 'consume_only_when_fresh_opl_flow_presence_installed_true_and_projection_is_valid',
+    app_role: 'resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override',
+    resolution_precedence: [
+      'explicit_user_selection',
+      'installed_opl_flow_recommendation',
+      'fresh_codex_live_default',
+      'app_fallback_when_flow_unavailable',
+    ],
+    app_fallback_role:
+      'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve',
     configured_default: { model: defaultModel, reasoning_effort: defaultReasoningEffort },
+    configured_default_role: 'app_fallback_not_flow_recommendation_authority',
     mode_default: 'auto',
     model_catalog_source: 'codex_cli_model_list',
     catalog_response_models_field: 'data',
@@ -1522,30 +1569,42 @@ function readOplFlowContextPolicy(codex: Record<string, unknown>): OplFlowContex
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: codex.opl_flow_context must be an object');
   }
-  const source = typeof value.source === 'string' ? value.source.trim() : '';
+  const source = value.source;
   if (
     value.flow_id !== 'opl-flow' ||
-    !source ||
-    value.policy_source_ref !== 'gaofeng21cn/opl-flow:contracts/workflow-policy.json' ||
-    value.delivery !== 'package_installed_user_profile_only' ||
+    source !== 'framework-agent-package-projection' ||
+    value.presence_source_ref !== 'app_state.agent_packages.status_index.packages.opl-flow.presence' ||
+    value.presence_rule !== 'inject_only_when_fresh_presence_installed_true' ||
+    value.delivery !== 'installed_package_metadata_only' ||
+    value.absence_policy !== 'omit_opl_flow_context' ||
+    value.status_source_ref !== 'app_state.agent_packages.status_index.packages.opl-flow' ||
+    JSON.stringify(value.status_planes) !== JSON.stringify([
+      'package_operational',
+      'experience_baseline',
+      'specialized_capabilities',
+    ]) ||
     value.user_agents_policy !== 'respect_user_agents_no_overwrite_detect_conflicts' ||
     value.language_policy !== 'follow_ui_locale_zh_only_when_ui_zh' ||
-    value.app_role !== 'display_framework_projection_and_execute_projected_actions_only' ||
-    value.dependency_policy !== 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite' ||
-    value.migration_policy !== 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback'
+    value.app_role !== 'consume_generic_framework_projection_and_execute_projected_actions_only' ||
+    value.flow_policy_parsing !== 'forbidden' ||
+    value.companion_inventory_storage !== 'forbidden'
   ) {
     throw new Error('Invalid OPL product profile: codex.opl_flow_context is unsupported');
   }
   return {
     flow_id: 'opl-flow',
     source,
-    policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
-    delivery: 'package_installed_user_profile_only',
+    presence_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow.presence',
+    presence_rule: 'inject_only_when_fresh_presence_installed_true',
+    delivery: 'installed_package_metadata_only',
+    absence_policy: 'omit_opl_flow_context',
+    status_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow',
+    status_planes: ['package_operational', 'experience_baseline', 'specialized_capabilities'],
     user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-    app_role: 'display_framework_projection_and_execute_projected_actions_only',
-    dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite',
-    migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
+    app_role: 'consume_generic_framework_projection_and_execute_projected_actions_only',
+    flow_policy_parsing: 'forbidden',
+    companion_inventory_storage: 'forbidden',
   };
 }
 

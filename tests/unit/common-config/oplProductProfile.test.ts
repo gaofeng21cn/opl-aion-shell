@@ -762,18 +762,22 @@ describe('OPL generated product profile', () => {
 
     expect(policy).toEqual({
       flow_id: 'opl-flow',
-      source: 'opl-flow-package-policy',
-      policy_source_ref: 'gaofeng21cn/opl-flow:contracts/workflow-policy.json',
-      delivery: 'package_installed_user_profile_only',
+      source: 'framework-agent-package-projection',
+      presence_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow.presence',
+      presence_rule: 'inject_only_when_fresh_presence_installed_true',
+      delivery: 'installed_package_metadata_only',
+      absence_policy: 'omit_opl_flow_context',
+      status_source_ref: 'app_state.agent_packages.status_index.packages.opl-flow',
+      status_planes: ['package_operational', 'experience_baseline', 'specialized_capabilities'],
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
       language_policy: 'follow_ui_locale_zh_only_when_ui_zh',
-      app_role: 'display_framework_projection_and_execute_projected_actions_only',
-      dependency_policy: 'framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite',
-      migration_policy: 'framework_executes_conflict_retirement_with_backup_receipt_and_rollback',
+      app_role: 'consume_generic_framework_projection_and_execute_projected_actions_only',
+      flow_policy_parsing: 'forbidden',
+      companion_inventory_storage: 'forbidden',
     });
 
     policy.source = 'caller-local-source';
-    expect(getOplFlowContextPolicy().source).toBe('opl-flow-package-policy');
+    expect(getOplFlowContextPolicy().source).toBe('framework-agent-package-projection');
     expect(getOplFlowContextPolicy().optional_user_modes).toBeUndefined();
   });
 
@@ -799,8 +803,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-5.6',
+      current_model_label: 'gpt-5.6',
       available_models: [
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
@@ -898,7 +902,7 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'ultra' });
   });
 
   it('accepts an unknown Codex catalog default at its highest advertised reasoning effort', () => {

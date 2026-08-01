@@ -26,6 +26,7 @@ const {
   configServiceGetMock,
   configServiceSetMock,
   fetchManagedAgentsMock,
+  loadOplAppStateFromBridgeMock,
   responseStreamHandlerRef,
 } = vi.hoisted(() => ({
   getModelInvokeMock: vi.fn(),
@@ -37,6 +38,7 @@ const {
   configServiceGetMock: vi.fn(),
   configServiceSetMock: vi.fn(),
   fetchManagedAgentsMock: vi.fn(),
+  loadOplAppStateFromBridgeMock: vi.fn(),
   responseStreamHandlerRef: {
     current: undefined as ((message: IResponseMessage) => void) | undefined,
   },
@@ -75,6 +77,10 @@ vi.mock('@/common/config/configService', () => ({
 vi.mock('@/renderer/utils/model/agentTypes', () => ({
   MANAGED_AGENTS_SWR_KEY: 'managed-agents',
   fetchManagedAgents: fetchManagedAgentsMock,
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  loadOplAppStateFromBridge: loadOplAppStateFromBridgeMock,
 }));
 
 const buildModelInfo = (overrides: Partial<AcpModelInfo> = {}): AcpModelInfo => ({
@@ -162,6 +168,7 @@ describe('useAcpModelInfo', () => {
     configServiceGetMock.mockReturnValue({});
     configServiceSetMock.mockResolvedValue(undefined);
     fetchManagedAgentsMock.mockResolvedValue([]);
+    loadOplAppStateFromBridgeMock.mockResolvedValue(null);
   });
 
   afterEach(() => {
@@ -1143,7 +1150,7 @@ describe('useAcpModelInfo', () => {
     expect(setModelInvokeMock).not.toHaveBeenCalled();
   });
 
-  it('selects the first available App model for Auto and clears the fixed preference after confirmation', async () => {
+  it('selects the first live catalog model for Auto and clears the fixed preference after confirmation', async () => {
     const fiveFiveInfo: AcpModelInfo = {
       current_model_id: 'gpt-5.5',
       current_model_label: 'GPT-5.5',
@@ -1177,7 +1184,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'active-codex-conversation',
-        model_id: 'gpt-5.6-sol',
+        model_id: 'gpt-5.6-terra',
       });
     });
     await waitFor(() => {

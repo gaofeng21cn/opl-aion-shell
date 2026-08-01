@@ -22,8 +22,10 @@ import {
   normalizeCodexModelInfo,
   resolveOplCodexAutoSelection,
 } from '@/common/types/codex/codexModels';
+import { resolveOplFlowCodexModelRecommendation } from '@/common/types/opl/appState';
 import type { AcpModelInfo } from '@/common/types/platform/acpTypes';
 import { savePreferredCodexSelection } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
+import { loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AcpConfigSetStatus, AcpDerivedOption } from './useAcpConfigOptions';
 import type { UseAcpModelInfoResult } from './useAcpModelInfo';
@@ -147,7 +149,11 @@ export function useCanonicalCodexSettings({
   );
 
   const selectAutoModel = useCallback(async () => {
-    const selection = resolveOplCodexAutoSelection(model_info);
+    const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
+    const selection = resolveOplCodexAutoSelection(
+      model_info,
+      resolveOplFlowCodexModelRecommendation(freshAppState)
+    );
     await configure('model', {
       model: selection.modelId,
       ...(selection.reasoningEffort ? { effort: selection.reasoningEffort } : {}),

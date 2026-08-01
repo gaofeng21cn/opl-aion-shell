@@ -2165,11 +2165,11 @@ export interface ICreateConversationParams {
       use_binding?: Record<string, unknown>;
     };
     opl_flow_context?: {
-      flow_id: string;
-      source: string;
-      delivery: string;
-      language: string;
-      user_agents_policy: string;
+      flow_id: 'opl-flow';
+      source: 'framework-agent-package-projection';
+      delivery: 'installed_package_metadata_only';
+      language: 'follow_ui_locale_zh_only_when_ui_zh';
+      user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts';
     };
     /** Transient: MCP server ids selected on the Guid page. Consumed by the
      *  backend create handler and snapshotted into conversation.extra. */

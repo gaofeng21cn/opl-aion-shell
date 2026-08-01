@@ -74,6 +74,11 @@ export type OplStandardAgentCapabilityMetadata = {
   optionalSkillRefs: string[];
 };
 
+export type OplCodexModelRecommendation = {
+  modelId: string;
+  reasoningEffort: string;
+};
+
 export type OplStandardAgentHomeShortcut = {
   shortcutId: string;
   labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
@@ -245,6 +250,60 @@ export function getOplDirectorySkillIds(appState: unknown): string[] {
     for (const skillId of entry.capabilityMetadata.optionalSkillRefs) skillIds.add(skillId);
   }
   return Array.from(skillIds);
+}
+
+/** Use only the Framework package-presence projection; unknown or stale shapes fail closed. */
+export function isOplFlowInstalledFromAppState(appState: unknown): boolean {
+  const payload = isRecord(appState) ? appState : {};
+  const state = isRecord(payload.app_state) ? payload.app_state : payload;
+  const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
+  const statusIndex = isRecord(agentPackages.status_index) ? agentPackages.status_index : {};
+  const packages = isRecord(statusIndex.packages) ? statusIndex.packages : {};
+  const flow = isRecord(packages['opl-flow']) ? packages['opl-flow'] : {};
+  const presence = isRecord(flow.presence) ? flow.presence : {};
+  return presence.installed === true;
+}
+
+/** Parse only the installed Framework projection; malformed or synthetic shapes fail closed. */
+export function resolveOplFlowCodexModelRecommendation(
+  appState: unknown
+): OplCodexModelRecommendation | null {
+  const payload = isRecord(appState) ? appState : {};
+  const state = isRecord(payload.app_state) ? payload.app_state : payload;
+  const agentPackages = isRecord(state.agent_packages) ? state.agent_packages : {};
+  const statusIndex = isRecord(agentPackages.status_index) ? agentPackages.status_index : {};
+  const packages = isRecord(statusIndex.packages) ? statusIndex.packages : {};
+  const flow = isRecord(packages['opl-flow']) ? packages['opl-flow'] : {};
+  const presence = isRecord(flow.presence) ? flow.presence : {};
+  const projection = isRecord(flow.model_projection) ? flow.model_projection : null;
+  const configuredDefault = projection && isRecord(projection.configured_default)
+    ? projection.configured_default
+    : null;
+  const modelId = nonBlankString(configuredDefault?.model);
+  const reasoningEffort = nonBlankString(configuredDefault?.reasoning_effort);
+  const overridePrecedence = projection ? uniqueStringArray(projection.override_precedence) : null;
+  if (
+    presence.installed !== true ||
+    !projection ||
+    projection.surface_kind !== 'opl_codex_model_policy_projection.v1' ||
+    projection.authority !== 'opl-flow' ||
+    projection.mode_default !== 'auto' ||
+    projection.role !== 'package_recommendation_consumed_from_framework_projection' ||
+    !modelId ||
+    !reasoningEffort ||
+    !overridePrecedence ||
+    JSON.stringify(overridePrecedence) !==
+      JSON.stringify([
+        'explicit_user_override',
+        'opl_flow_recommendation',
+        'fresh_codex_model_catalog',
+        'app_fallback_when_flow_unavailable',
+      ]) ||
+    !isRecord(projection.catalog_policy)
+  ) {
+    return null;
+  }
+  return { modelId, reasoningEffort };
 }
 
 function hasPayloadValue(value: unknown): boolean {

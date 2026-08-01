@@ -17,6 +17,7 @@ import {
   normalizeCodexModelInfo,
   resolveOplCodexAutoSelection,
 } from '@/common/types/codex/codexModels';
+import { resolveOplFlowCodexModelRecommendation } from '@/common/types/opl/appState';
 import type {
   AcpAvailableModel,
   AcpConfigOptionDto,
@@ -25,6 +26,7 @@ import type {
 } from '@/common/types/platform/acpTypes';
 import { configService } from '@/common/config/configService';
 import { savePreferredCodexSelection, savePreferredModelId } from '@/renderer/pages/guid/hooks/agentSelectionUtils';
+import { loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 import { useManagedAgentRuntimeCatalog } from './useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import {
@@ -44,6 +46,14 @@ type AcpModelInfoFetchResult = {
 
 const getAcpModelInfoKey = (conversation_id: string): AcpModelInfoKey => ['acp-model-info', conversation_id] as const;
 const CODEX_AUTO_PERSISTENCE_POLICY = getOplCodexAutoModelPolicy().persistence_policy;
+
+async function resolveFreshCodexAutoSelection(modelInfo: AcpModelInfo) {
+  const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
+  return resolveOplCodexAutoSelection(
+    modelInfo,
+    resolveOplFlowCodexModelRecommendation(freshAppState)
+  );
+}
 
 const summarizeModelInfo = (info: AcpModelInfo | null | undefined) => {
   if (!info) return null;
@@ -716,7 +726,7 @@ export const useAcpModelInfo = ({
   const applyAutoSelection = useCallback(
     async (notify: boolean): Promise<void> => {
       if (!enabled || backend !== 'codex' || !model_info) return;
-      const selection = resolveOplCodexAutoSelection(model_info);
+      const selection = await resolveFreshCodexAutoSelection(model_info);
       try {
         const reportedCurrentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
         if (selection.modelId !== reportedCurrentModelId) {
@@ -794,7 +804,6 @@ export const useAcpModelInfo = ({
       return;
     const fixedPreference = configService.get('acp.config')?.codex?.preferredModelId?.trim();
     if (fixedPreference) return;
-    const selection = resolveOplCodexAutoSelection(model_info);
     const catalogSignature = JSON.stringify(
       (model_info.catalog_models ?? model_info.available_models).map((model) => ({
         id: model.id,
@@ -803,7 +812,7 @@ export const useAcpModelInfo = ({
       }))
     );
     const currentModelId = reportedCodexCurrentModelIdRef.current ?? model_info.current_model_id;
-    const key = `${conversation_id}:${selection.modelId}:${selection.reasoningEffort ?? ''}:${currentModelId ?? ''}:${thoughtLevel?.currentValue ?? 'unavailable'}:${catalogSignature}`;
+    const key = `${conversation_id}:${currentModelId ?? ''}:${thoughtLevel?.currentValue ?? 'unavailable'}:${catalogSignature}`;
     if (attemptedAutoResolutionKeysRef.current.has(key)) return;
     attemptedAutoResolutionKeysRef.current.add(key);
     autoSelectionRunningRef.current = true;

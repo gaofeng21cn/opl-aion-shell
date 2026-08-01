@@ -17,6 +17,7 @@ import {
   getOplDefaultCodexReasoningEffort,
   getOplRetiredCodexModels,
 } from '@/common/config/oplProductProfile';
+import type { OplCodexModelRecommendation } from '@/common/types/opl/appState';
 import type { AcpAvailableModel, AcpModelInfo } from '@/common/types/platform/acpTypes';
 
 export const DEFAULT_CODEX_MODEL_ID = getOplDefaultCodexModel();
@@ -129,8 +130,8 @@ function normalizeCodexModelOptions(availableModels: CodexModelOption[] | undefi
 }
 
 export function normalizeCodexModelInfo(modelInfo: AcpModelInfo): AcpModelInfo {
-  const catalogModels = mergeCodexCatalogOptions(modelInfo.catalog_models ?? modelInfo.available_models);
-  const availableModels = normalizeCodexModelOptions(catalogModels);
+  const catalogModels = normalizeRuntimeCodexCatalogOptions(modelInfo.catalog_models ?? modelInfo.available_models);
+  const availableModels = normalizeCodexModelOptions(mergeCodexCatalogOptions(catalogModels));
   const currentModelId = modelInfo.current_model_id ?? selectDefaultCodexModelId(availableModels);
   const currentModel =
     availableModels.find((model) => model.id === currentModelId) ??
@@ -148,37 +149,81 @@ export type CodexAutoSelection = {
   reasoningEffort: string | null;
 };
 
-export function resolveOplCodexAutoSelection(modelInfo?: AcpModelInfo | null): CodexAutoSelection {
-  const catalogModels = mergeCodexCatalogOptions(modelInfo?.catalog_models ?? modelInfo?.available_models);
+function supportedReasoningEfforts(model: AcpAvailableModel | undefined): string[] | null {
+  if (!model || !Array.isArray(model.supportedReasoningEfforts)) return null;
+  return Array.from(
+    new Set(
+      model.supportedReasoningEfforts
+        .map((option) => option.reasoningEffort?.trim())
+        .filter((value): value is string => Boolean(value))
+    )
+  );
+}
+
+function resolveSupportedReasoningEffort(
+  model: AcpAvailableModel | undefined,
+  preferredEffort: string | null | undefined,
+  fallbackEffort: string | null | undefined
+): string | null {
+  const preferred = preferredEffort?.trim() || null;
+  const fallback = fallbackEffort?.trim() || null;
+  const supported = supportedReasoningEfforts(model);
+  if (supported) {
+    if (preferred && supported.includes(preferred)) return preferred;
+    const advertisedDefault = model?.defaultReasoningEffort?.trim() || null;
+    if (advertisedDefault && supported.includes(advertisedDefault)) return advertisedDefault;
+    return supported.at(-1) ?? null;
+  }
+  return preferred ?? model?.defaultReasoningEffort?.trim() ?? fallback;
+}
+
+export function resolveOplCodexAutoSelection(
+  modelInfo?: AcpModelInfo | null,
+  recommendation?: OplCodexModelRecommendation | null
+): CodexAutoSelection {
+  const catalogModels = normalizeRuntimeCodexCatalogOptions(
+    modelInfo?.catalog_models ?? modelInfo?.available_models
+  );
+  const recommendedModel = recommendation
+    ? catalogModels.find((model) => model.id === recommendation.modelId)
+    : undefined;
   const catalogDefault = catalogModels.find((model) => model.isDefault);
-  const unknownCatalogDefault =
-    ACCEPT_UNKNOWN_CATALOG_DEFAULT && catalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id)
+  const acceptedCatalogDefault =
+    catalogDefault &&
+    (CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id) || ACCEPT_UNKNOWN_CATALOG_DEFAULT)
       ? catalogDefault
       : null;
   const knownModel = CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.find((id) => catalogModels.some((model) => model.id === id));
   const modelId =
-    unknownCatalogDefault?.id ??
+    recommendedModel?.id ??
+    acceptedCatalogDefault?.id ??
     knownModel ??
     catalogModels[0]?.id ??
     CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model;
   const selectedModel = catalogModels.find((model) => model.id === modelId);
-  const reasoningEffort = unknownCatalogDefault
-    ? (USE_HIGHEST_UNKNOWN_REASONING
-        ? unknownCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort?.trim()
-        : null) ||
-      unknownCatalogDefault.defaultReasoningEffort?.trim() ||
+  const preferredReasoningEffort = recommendedModel
+    ? recommendation?.reasoningEffort
+    : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
+      ? (USE_HIGHEST_UNKNOWN_REASONING
+          ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
+          : acceptedCatalogDefault.defaultReasoningEffort)
+      : CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
+        selectedModel?.defaultReasoningEffort;
+  return {
+    modelId,
+    reasoningEffort: resolveSupportedReasoningEffort(
+      selectedModel,
+      preferredReasoningEffort,
       CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
-    : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
-      selectedModel?.defaultReasoningEffort?.trim() ??
-      CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort);
-  return { modelId, reasoningEffort: reasoningEffort || null };
+    ),
+  };
 }
 
 export function buildCodexDefaultModelInfo(handshakeModels?: AcpModelInfo | null): AcpModelInfo {
   const normalized = handshakeModels == null ? null : normalizeCodexModelInfo(handshakeModels);
   const visibleModels =
     normalized?.available_models ?? DEFAULT_CODEX_MODELS.map((model) => ({ id: model.id, label: model.label }));
-  const catalogModels = normalized?.catalog_models ?? visibleModels;
+  const catalogModels = normalized?.catalog_models ?? [];
   const currentModelId = resolveOplCodexAutoSelection({
     current_model_id: null,
     current_model_label: null,

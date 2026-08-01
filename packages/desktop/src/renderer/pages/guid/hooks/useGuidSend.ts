@@ -7,7 +7,12 @@
 import { ipcBridge } from '@/common';
 import { filterOplOrdinaryMcpServers } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
-import { getOplDirectorySkillIds, resolveOplStandardAgentCapabilityMetadata } from '@/common/types/opl/appState';
+import {
+  getOplDirectorySkillIds,
+  isOplFlowInstalledFromAppState,
+  resolveOplFlowCodexModelRecommendation,
+  resolveOplStandardAgentCapabilityMetadata,
+} from '@/common/types/opl/appState';
 import { resolveLocaleKey } from '@/common/utils';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { buildAgentConversationParams } from '@/common/utils/buildAgentConversationParams';
@@ -22,6 +27,7 @@ import { getConversationCreateErrorMessage } from '@/renderer/pages/conversation
 import type { AcpModelInfo, AvailableAgent, EffectiveAgentInfo } from '../types';
 import { resolveOplPackageLaunchGate } from '../utils/oplHomeAssistants';
 import { resolveOplActiveShortcut, type OplActiveShortcut } from '../utils/activeShortcut';
+import { loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 
 function showOplAgentPackageLaunchBlocked(message: string, packageId: string, reason: string, actions: string[]) {
   Message.error({
@@ -235,6 +241,9 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       .map((server) => toSessionMcpServer(server));
 
     const finalEffectiveAgentType = effectiveAgentType;
+    const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
+    const oplFlowInstalled = isOplFlowInstalledFromAppState(freshAppState);
+    const oplFlowModelRecommendation = resolveOplFlowCodexModelRecommendation(freshAppState);
 
     // OpenClaw Gateway path
     if (selectedAgent === 'openclaw-gateway') {
@@ -250,6 +259,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: openclawAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
+        opl_flow_installed: oplFlowInstalled,
         extra: {
           default_files: initialFiles,
           runtime_validation: {
@@ -306,6 +316,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         custom_agent_id: nanobotAgentInfo?.custom_agent_id,
         custom_workspace: isCustomWorkspace,
         language,
+        opl_flow_installed: oplFlowInstalled,
         extra: {
           default_files: initialFiles,
           preset_enabled_skills: enabled_skills_to_send,
@@ -420,7 +431,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       const agentBackend = acpBackend || selectedAgent;
       const codexAutoSelection =
         agentBackend === 'codex' && selectedAcpModel === null
-          ? resolveOplCodexAutoSelection(currentAcpCachedModelInfo)
+          ? resolveOplCodexAutoSelection(currentAcpCachedModelInfo, oplFlowModelRecommendation)
           : null;
       const codexReasoningEffort = selectedReasoningEffort ?? codexAutoSelection?.reasoningEffort;
       const agentConversationParams = buildAgentConversationParams({
@@ -452,6 +463,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           selectedAcpModel || codexAutoSelection?.modelId || currentAcpCachedModelInfo?.current_model_id || undefined,
         config_options: codexReasoningEffort ? { reasoning_effort: codexReasoningEffort } : undefined,
         language,
+        opl_flow_installed: oplFlowInstalled,
         extra: {
           default_files: initialFiles,
           exclude_auto_inject_skills: excludeBuiltinSkills,

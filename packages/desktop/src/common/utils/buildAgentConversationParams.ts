@@ -35,6 +35,7 @@ export type BuildAgentConversationInput = {
   current_model_id?: string;
   config_options?: Record<string, string>;
   language?: string;
+  opl_flow_installed?: boolean;
   extra?: Partial<ICreateConversationParams['extra']>;
 };
 
@@ -66,6 +67,7 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
     current_model_id,
     config_options,
     language = 'zh-CN',
+    opl_flow_installed = false,
     extra: extraOverrides,
   } = input;
 
@@ -75,18 +77,21 @@ export function buildAgentConversationParams(input: BuildAgentConversationInput)
   const effectiveBackend = is_preset ? effectivePresetType : backend;
   const oplFlowContextPolicy = getOplFlowContextPolicy();
   const additionalInstructions = configService.get('codex.oplAppSessionContextAdditional')?.trim();
+  const { opl_flow_context: _callerFlowContext, ...allowedExtraOverrides } = extraOverrides ?? {};
   const extra: ICreateConversationParams['extra'] = {
     workspace,
     custom_workspace,
-    opl_flow_context: {
+    ...allowedExtraOverrides,
+  };
+  if (opl_flow_installed) {
+    extra.opl_flow_context = {
       flow_id: oplFlowContextPolicy.flow_id,
       source: oplFlowContextPolicy.source,
       delivery: oplFlowContextPolicy.delivery,
       language: oplFlowContextPolicy.language_policy,
       user_agents_policy: oplFlowContextPolicy.user_agents_policy,
-    },
-    ...extraOverrides,
-  };
+    };
+  }
 
   if (is_preset) {
     // Transient create-request fields: backend's create handler consumes

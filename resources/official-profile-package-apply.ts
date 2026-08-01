@@ -87,12 +87,6 @@ function requiredDependencyPresent(dependency: JsonRecord) {
   if (typeof dependency.status === 'string' && dependencyAbsenceStatuses.has(dependency.status)) {
     return false;
   }
-  if (
-    typeof dependency.physical_surface_status === 'string' &&
-    dependencyAbsenceStatuses.has(dependency.physical_surface_status)
-  ) {
-    return false;
-  }
   if (dependency.exports_satisfied === false) return false;
   if (Array.isArray(dependency.missing_required_export_ids) && dependency.missing_required_export_ids.length > 0) {
     return false;

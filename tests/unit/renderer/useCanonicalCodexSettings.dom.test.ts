@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CodexThreadDetail } from '@/common/types/codex/appServerThreads';
 import { useCanonicalCodexSettings } from '@/renderer/hooks/agent/useCanonicalCodexSettings';
 
-const { configureInvokeMock, readInvokeMock } = vi.hoisted(() => ({
+const { configureInvokeMock, readInvokeMock, loadOplAppStateFromBridgeMock } = vi.hoisted(() => ({
   configureInvokeMock: vi.fn(),
   readInvokeMock: vi.fn(),
+  loadOplAppStateFromBridgeMock: vi.fn(),
 }));
 
 vi.mock('@/common', () => ({
@@ -25,6 +26,10 @@ vi.mock('@/common/config/configService', () => ({
 
 vi.mock('@/renderer/pages/guid/hooks/agentSelectionUtils', () => ({
   savePreferredCodexSelection: vi.fn(async () => {}),
+}));
+
+vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
+  loadOplAppStateFromBridge: loadOplAppStateFromBridgeMock,
 }));
 
 function detail(permissionMode: 'read-only' | 'default' | 'full-access'): CodexThreadDetail {
@@ -59,6 +64,7 @@ describe('useCanonicalCodexSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     readInvokeMock.mockResolvedValue(detail('default'));
+    loadOplAppStateFromBridgeMock.mockResolvedValue(null);
   });
 
   it('returns and projects the permission mode confirmed by canonical readback', async () => {

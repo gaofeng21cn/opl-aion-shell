@@ -976,19 +976,22 @@
     "auto_model_policy": {
       "authority": "one-person-lab-app",
       "recommendation_authority": "opl-flow",
-      "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json#codex_model_policy",
-      "app_role": "display_live_catalog_and_submit_user_override",
+      "policy_source_ref": "app_state.agent_packages.status_index.packages.opl-flow.model_projection",
+      "projection_surface_kind": "opl_codex_model_policy_projection.v1",
+      "projection_presence_rule": "consume_only_when_fresh_opl_flow_presence_installed_true_and_projection_is_valid",
+      "app_role": "resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override",
       "resolution_precedence": [
         "explicit_user_selection",
         "installed_opl_flow_recommendation",
         "fresh_codex_live_default",
         "app_fallback_when_flow_unavailable"
       ],
-      "app_fallback_role": "availability_only_when_installed_opl_flow_recommendation_is_unavailable",
+      "app_fallback_role": "configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve",
       "configured_default": {
         "model": "gpt-5.6-sol",
         "reasoning_effort": "max"
       },
+      "configured_default_role": "app_fallback_not_flow_recommendation_authority",
       "mode_default": "auto",
       "model_catalog_source": "codex_cli_model_list",
       "catalog_response_models_field": "data",
@@ -1031,14 +1034,22 @@
     },
     "opl_flow_context": {
       "flow_id": "opl-flow",
-      "source": "opl-flow-package-policy",
-      "policy_source_ref": "gaofeng21cn/opl-flow:contracts/workflow-policy.json",
-      "delivery": "package_installed_user_profile_only",
+      "source": "framework-agent-package-projection",
+      "presence_source_ref": "app_state.agent_packages.status_index.packages.opl-flow.presence",
+      "presence_rule": "inject_only_when_fresh_presence_installed_true",
+      "delivery": "installed_package_metadata_only",
+      "absence_policy": "omit_opl_flow_context",
+      "status_source_ref": "app_state.agent_packages.status_index.packages.opl-flow",
+      "status_planes": [
+        "package_operational",
+        "experience_baseline",
+        "specialized_capabilities"
+      ],
       "user_agents_policy": "respect_user_agents_no_overwrite_detect_conflicts",
       "language_policy": "follow_ui_locale_zh_only_when_ui_zh",
-      "app_role": "display_framework_projection_and_execute_projected_actions_only",
-      "dependency_policy": "framework_resolves_declared_dependencies_without_app_lock_or_payload_prerequisite",
-      "migration_policy": "framework_executes_conflict_retirement_with_backup_receipt_and_rollback"
+      "app_role": "consume_generic_framework_projection_and_execute_projected_actions_only",
+      "flow_policy_parsing": "forbidden",
+      "companion_inventory_storage": "forbidden"
     },
     "new_conversation_additional_instructions": {
       "content_owner": "user",
@@ -2880,6 +2891,10 @@
       },
       "model_reasoning_policy_source": {
         "owner": "one-person-lab-app",
+        "recommendation_owner": "opl-flow",
+        "recommendation_projection_ref": "app_state.agent_packages.status_index.packages.opl-flow.model_projection",
+        "recommendation_projection_surface_kind": "opl_codex_model_policy_projection.v1",
+        "flow_policy_file_parsing": "forbidden",
         "source_refs": [
           "contracts/app-product-profile.json#codex",
           "contracts/app-product-profile.json#codex.auto_model_policy",
@@ -2889,6 +2904,7 @@
         "default_model_ref": "contracts/app-product-profile.json#codex.default_model",
         "default_reasoning_effort_ref": "contracts/app-product-profile.json#codex.default_reasoning_effort",
         "auto_model_policy_ref": "contracts/app-product-profile.json#codex.auto_model_policy",
+        "configured_default_role": "App fallback used only when no valid installed Flow projection and no usable live catalog resolution exists",
         "ordinary_surface": "home_and_conversation_shared_session_configuration_menu_with_model_reasoning_and_reset_rows",
         "settings_surface": "settings_access.model_access",
         "adapter_policy": "Aion/Hermes/shell render App-derived model and reasoning policy only",
@@ -3350,7 +3366,7 @@
             "localized_text_wrap_and_no_horizontal_overflow",
             "stable_hover_focus_disabled_loading_error_geometry"
           ],
-          "acceptance": "fresh_same_cohort_source_DOM_and_installed_pixel_review"
+          "acceptance": "fresh_app_artifact_identity_framework_compatibility_receipt_active_shell_contract_and_installed_16_scene_DOM_pixel_accessibility_review"
         },
         "required_viewports": ["desktop", "mobile"],
         "required_routes": [

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   emit: vi.fn(),
   appState: {} as Record<string, unknown>,
+  freshAppState: {} as Record<string, unknown>,
+  loadOplAppState: vi.fn(),
   messageError: vi.fn(),
 }));
 
@@ -52,6 +54,7 @@ vi.mock('@/renderer/utils/workspace/workspaceHistory', () => ({
 
 vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
   useOplAppState: () => ({ appState: mocks.appState }),
+  loadOplAppStateFromBridge: mocks.loadOplAppState,
 }));
 
 function buildMcpServer(id: string, name: string, builtin = false) {
@@ -238,6 +241,9 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     mocks.navigate.mockReset();
     mocks.emit.mockReset();
     mocks.appState = buildPackageAppState('mas', { operational_ready: true, launch_allowed: true });
+    mocks.freshAppState = {};
+    mocks.loadOplAppState.mockReset();
+    mocks.loadOplAppState.mockImplementation(async () => mocks.freshAppState);
     mocks.messageError.mockReset();
     sessionStorage.clear();
   });
@@ -348,6 +354,76 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(payload.extra.opl_agent_package_activation).toBeUndefined();
     expect(payload.extra.opl_assistant_route).toBeUndefined();
     expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
+  });
+
+  it('injects OPL Flow metadata from fresh canonical installed presence', async () => {
+    mocks.freshAppState = {
+      app_state: {
+        agent_packages: {
+          status_index: {
+            packages: {
+              'opl-flow': {
+                presence: { installed: true },
+                package_operational: { status: 'unavailable' },
+              },
+            },
+          },
+        },
+      },
+    };
+    const { result } = renderHook(() => useGuidSend(buildDeps()));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.loadOplAppState).toHaveBeenCalledWith('fast', { forceFresh: true });
+    expect(mocks.createConversation.mock.calls[0][0].extra.opl_flow_context).toEqual({
+      flow_id: 'opl-flow',
+      source: 'framework-agent-package-projection',
+      delivery: 'installed_package_metadata_only',
+      language: 'follow_ui_locale_zh_only_when_ui_zh',
+      user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+    });
+  });
+
+  it.each([
+    ['absent', {}],
+    [
+      'non-canonical readiness',
+      {
+        app_state: {
+          agent_packages: {
+            directory: { entries: [{ package_id: 'opl-flow', installed: true }] },
+            status_index: {
+              packages: {
+                'opl-flow': { operational_ready: true, presence: { present: true } },
+              },
+            },
+          },
+        },
+      },
+    ],
+  ])('omits OPL Flow metadata for %s fresh state', async (_label, freshAppState) => {
+    mocks.freshAppState = freshAppState;
+    const { result } = renderHook(() => useGuidSend(buildDeps()));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation.mock.calls[0][0].extra.opl_flow_context).toBeUndefined();
+  });
+
+  it('omits OPL Flow metadata when fresh state read fails', async () => {
+    mocks.loadOplAppState.mockRejectedValue(new Error('state unavailable'));
+    const { result } = renderHook(() => useGuidSend(buildDeps()));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    expect(mocks.createConversation.mock.calls[0][0].extra.opl_flow_context).toBeUndefined();
   });
 
   it('launches a user-visible non-default OMA shortcut without depending on default visibility', async () => {

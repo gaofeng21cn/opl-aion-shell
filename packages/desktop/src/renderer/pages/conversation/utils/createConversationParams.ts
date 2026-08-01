@@ -9,7 +9,11 @@ import { ipcBridge } from '@/common';
 import type { ICreateConversationParams } from '@/common/adapter/ipcBridge';
 import type { IProvider, TProviderWithModel } from '@/common/config/storage';
 import { assistantRuntimeKey, type Assistant } from '@/common/types/agent/assistantTypes';
-import { buildCodexDefaultModelInfo } from '@/common/types/codex/codexModels';
+import {
+  buildCodexDefaultModelInfo,
+  resolveOplCodexAutoSelection,
+  type CodexAutoSelection,
+} from '@/common/types/codex/codexModels';
 import { CODEX_MODE_NATIVE_FULL_ACCESS, normalizeCodexMode } from '@/common/types/codex/codexModes';
 import { resolveLocaleKey } from '@/common/utils';
 import { loadPresetAssistantResources } from '@/common/utils/presetAssistantResources';
@@ -22,6 +26,11 @@ import { getManagedAgents } from '@/renderer/hooks/agent/useManagedAgents';
 import { buildAgentRuntimeModelInfo } from '@/renderer/utils/model/agentRuntimeCatalog';
 import { getAgentModes } from '@/renderer/utils/model/agentModes';
 import { hasSpecificModelCapability } from '@/renderer/utils/model/modelCapabilities';
+import {
+  isOplFlowInstalledFromAppState,
+  resolveOplFlowCodexModelRecommendation,
+} from '@/common/types/opl/appState';
+import { loadOplAppStateFromBridge } from '@/renderer/hooks/system/useOplAppState';
 
 type ModePreference = {
   preferredMode?: string;
@@ -66,7 +75,10 @@ async function resolvePreferredMode(backend: string): Promise<string | undefined
   return undefined;
 }
 
-async function resolvePreferredAcpModelId(backend: string): Promise<string | undefined> {
+async function resolvePreferredAcpSelection(
+  backend: string,
+  freshAppState: unknown
+): Promise<CodexAutoSelection | { modelId: string; reasoningEffort: null } | null> {
   const acpConfig = configService.get('acp.config');
   const backendConfig = acpConfig?.[backend as string] as { preferredModelId?: string } | undefined;
   const preferredModelId = backendConfig?.preferredModelId;
@@ -74,17 +86,20 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   if (backend === 'codex') {
     const normalizedPreferredModelId = preferredModelId?.trim();
     if (normalizedPreferredModelId) {
-      return normalizedPreferredModelId;
+      return { modelId: normalizedPreferredModelId, reasoningEffort: null };
     }
     const agents = await getManagedAgents();
     const matched = agents.find((a) => (a.backend ?? a.agent_type) === backend);
     const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
     const modelInfo = buildCodexDefaultModelInfo(handshakeModels);
-    return modelInfo.current_model_id ?? undefined;
+    return resolveOplCodexAutoSelection(
+      modelInfo,
+      resolveOplFlowCodexModelRecommendation(freshAppState)
+    );
   }
 
   if (typeof preferredModelId === 'string' && preferredModelId.trim().length > 0) {
-    return preferredModelId;
+    return { modelId: preferredModelId, reasoningEffort: null };
   }
 
   // Fallback: last-seen model info persisted on the backend's agent_metadata row.
@@ -93,10 +108,10 @@ async function resolvePreferredAcpModelId(backend: string): Promise<string | und
   const handshakeModels = buildAgentRuntimeModelInfo(matched) ?? undefined;
   const handshakeModelId = handshakeModels?.current_model_id;
   if (typeof handshakeModelId === 'string' && handshakeModelId.trim().length > 0) {
-    return handshakeModelId;
+    return { modelId: handshakeModelId, reasoningEffort: null };
   }
 
-  return undefined;
+  return null;
 }
 
 function getAvailableAionrsModels(provider: IProvider): string[] {
@@ -180,7 +195,9 @@ export async function buildCliAgentParams(
   const agentKey = agent.backend || agent.agent_type;
   const type = getConversationTypeForBackend(agentKey);
   const preferredMode = await resolvePreferredMode(agentKey);
-  const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(agentKey) : undefined;
+  const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
+  const preferredAcpSelection =
+    type === 'acp' ? await resolvePreferredAcpSelection(agentKey, freshAppState) : null;
 
   let model: TProviderWithModel;
   if (type === 'aionrs') {
@@ -199,8 +216,12 @@ export async function buildCliAgentParams(
     workspace,
     model,
     session_mode: preferredMode,
-    current_model_id: preferredAcpModelId,
+    current_model_id: preferredAcpSelection?.modelId,
+    config_options: preferredAcpSelection?.reasoningEffort
+      ? { reasoning_effort: preferredAcpSelection.reasoningEffort }
+      : undefined,
     language,
+    opl_flow_installed: isOplFlowInstalledFromAppState(freshAppState),
   });
 }
 
@@ -231,8 +252,10 @@ export async function buildPresetAssistantParams(
 
   const preferredMode = await resolvePreferredMode(preset_agent_type);
   const type = getConversationTypeForBackend(preset_agent_type);
-  const preferredAcpModelId = type === 'acp' ? await resolvePreferredAcpModelId(preset_agent_type) : undefined;
   const model = {} as TProviderWithModel;
+  const freshAppState = await loadOplAppStateFromBridge('fast', { forceFresh: true }).catch((): null => null);
+  const preferredAcpSelection =
+    type === 'acp' ? await resolvePreferredAcpSelection(preset_agent_type, freshAppState) : null;
 
   return buildAgentConversationParams({
     backend: preset_agent_type,
@@ -250,6 +273,10 @@ export async function buildPresetAssistantParams(
     },
     model,
     session_mode: preferredMode,
-    current_model_id: preferredAcpModelId,
+    current_model_id: preferredAcpSelection?.modelId,
+    config_options: preferredAcpSelection?.reasoningEffort
+      ? { reasoning_effort: preferredAcpSelection.reasoningEffort }
+      : undefined,
+    opl_flow_installed: isOplFlowInstalledFromAppState(freshAppState),
   });
 }

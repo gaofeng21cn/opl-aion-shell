@@ -19,7 +19,7 @@ describe('buildAgentConversationParams OPL flow context', () => {
     configService.reset();
   });
 
-  it('keeps OPL Flow metadata and preset rules without generated App session context', () => {
+  it('injects installed OPL Flow metadata without generating App session context', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'Research plan',
@@ -32,38 +32,65 @@ describe('buildAgentConversationParams OPL flow context', () => {
         rules: 'Existing assistant rule.',
       },
       language: 'en-US',
+      opl_flow_installed: true,
     });
 
     expect(params.extra.preset_context).toBe('Existing assistant rule.');
     expect(params.extra.opl_flow_context).toEqual({
       flow_id: 'opl-flow',
-      source: 'opl-flow-package-policy',
-      delivery: 'package_installed_user_profile_only',
+      source: 'framework-agent-package-projection',
+      delivery: 'installed_package_metadata_only',
       language: 'follow_ui_locale_zh_only_when_ui_zh',
       user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
     });
     expect(params.extra).not.toHaveProperty('opl_app_session_context');
   });
 
-  it('preserves caller-provided OPL flow context overrides', () => {
+  it('rejects caller-provided OPL Flow context overrides', () => {
     const params = buildAgentConversationParams({
       backend: 'codex',
       name: 'General task',
       workspace: '/Users/example/workspace',
       model,
+      opl_flow_installed: true,
       extra: {
         opl_flow_context: {
-          flow_id: 'custom-flow',
-          source: 'test',
-          delivery: 'session_scoped_preset_context',
-          language: 'en-US',
+          flow_id: 'opl-flow',
+          source: 'framework-agent-package-projection',
+          delivery: 'installed_package_metadata_only',
+          language: 'follow_ui_locale_zh_only_when_ui_zh',
           user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
         },
       },
     });
 
-    expect(params.extra.opl_flow_context?.flow_id).toBe('custom-flow');
-    expect(params.extra.opl_flow_context?.language).toBe('en-US');
+    expect(params.extra.opl_flow_context).toEqual({
+      flow_id: 'opl-flow',
+      source: 'framework-agent-package-projection',
+      delivery: 'installed_package_metadata_only',
+      language: 'follow_ui_locale_zh_only_when_ui_zh',
+      user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+    });
+  });
+
+  it('omits OPL Flow metadata unless fresh installed presence is supplied', () => {
+    const params = buildAgentConversationParams({
+      backend: 'codex',
+      name: 'No installed Flow',
+      workspace: '/Users/example/workspace',
+      model,
+      extra: {
+        opl_flow_context: {
+          flow_id: 'opl-flow',
+          source: 'framework-agent-package-projection',
+          delivery: 'installed_package_metadata_only',
+          language: 'follow_ui_locale_zh_only_when_ui_zh',
+          user_agents_policy: 'respect_user_agents_no_overwrite_detect_conflicts',
+        },
+      },
+    });
+
+    expect(params.extra.opl_flow_context).toBeUndefined();
   });
 
   it('does not generate locale-specific base context', () => {
