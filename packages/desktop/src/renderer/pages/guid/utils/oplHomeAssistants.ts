@@ -310,13 +310,18 @@ function resolveOplAssistantsFromProfiles(
 /** Resolve the user-configured shortcut subset rendered on Home. */
 export function resolveOplHomeAssistants(backendAssistants: Assistant[], appState: unknown): OplHomeAssistant[] {
   const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
+  const installedPackageIds = new Set(
+    agentPackageDirectoryEntries(appState)
+      .filter((entry) => entry.installed)
+      .map((entry) => entry.packageId)
+  );
   const assistantsByPackage = new Map(
     resolveOplProfessionalAgentAssistants(backendAssistants, appState).map(
       (assistant) => [assistant.id, assistant] as const
     )
   );
   return shortcuts
-    .filter((shortcut) => shortcut.visible)
+    .filter((shortcut) => installedPackageIds.has(shortcut.package_id) && shortcut.visible)
     .flatMap((shortcut, index) => {
       const assistant = assistantsByPackage.get(shortcut.package_id);
       if (!assistant) return [];

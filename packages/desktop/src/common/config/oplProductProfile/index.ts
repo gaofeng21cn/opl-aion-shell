@@ -145,7 +145,7 @@ export type OplHomeAgentShortcut = {
 export type OplHomeComposerStateContract = {
   contract_id: 'opl_home_composer_state.v1';
   executor: 'codex';
-  shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]';
+  shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]';
   shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]';
   shortcut_availability_source_ref: 'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence';
   unknown_standard_agent_allowed: true;
@@ -1329,7 +1329,7 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
     value.executor !== 'codex' ||
     value.shortcut_package_ids !== undefined ||
     value.shortcut_package_membership_source_ref !==
-      'app_state.agent_packages.directory.entries[package_role=standard_agent]' ||
+      'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]' ||
     value.shortcut_preference_source_ref !== 'app_state.agent_packages.status_index.home_shortcut_preferences[]' ||
     value.shortcut_availability_source_ref !==
       'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence' ||
@@ -1364,7 +1364,8 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
   return {
     contract_id: 'opl_home_composer_state.v1',
     executor: 'codex',
-    shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+    shortcut_package_membership_source_ref:
+      'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
     shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
     shortcut_availability_source_ref:
       'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',

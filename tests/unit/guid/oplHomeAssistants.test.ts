@@ -257,7 +257,7 @@ describe('OPL home assistants', () => {
     expect(resolveOplActiveShortcut('unclaimed-runtime', appState)).toBeNull();
   });
 
-  it('projects clean directory packages onto Home and defers unavailable packages to the typed launch gate', () => {
+  it('keeps uninstalled directory packages in the catalog but omits their shortcuts from Home', () => {
     const appState = {
       agent_packages: {
         directory: {
@@ -319,13 +319,16 @@ describe('OPL home assistants', () => {
     const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
     expect(shortcuts.map((item) => item.shortcut_id)).toEqual(['grant', 'research', 'book', 'oma', 'ppt']);
     expect(shortcuts.every((item) => item.installed === false)).toBe(true);
-    expect(resolveOplHomeAssistants([], appState).map((item) => item.id)).toEqual([
-      'grant',
-      'research',
-      'book',
+    expect(resolveOplProfessionalAgentAssistants([], appState).map((item) => item.id)).toEqual([
+      'mag',
+      'mas',
+      'obf',
       'oma',
-      'ppt',
+      'rca',
     ]);
+    expect(resolveOplHomeAssistants([], appState)).toEqual([]);
+    delete (appState.agent_packages.directory.entries[0] as { installed?: boolean }).installed;
+    expect(resolveOplHomeAssistants([], appState)).toEqual([]);
     expect(resolveOplPackageLaunchGate(appState, 'mas')).toEqual({
       state: 'package_unavailable',
       launchAllowed: false,
