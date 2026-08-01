@@ -223,13 +223,13 @@ describe('HomeStarters', () => {
     expect(starter).not.toHaveAttribute('title');
   });
 
-  it('keeps package_unavailable selectable for recovery while marking the send gate', async () => {
+  it('keeps an installed but unavailable package selectable for recovery while marking the send gate', async () => {
     const appState = readyAppState();
     appState.agent_packages.status_index.packages.mag = {
       package_id: 'mag',
       operational_ready: false,
       launch_allowed: false,
-      launch_blocked_reason: 'package_not_installed',
+      launch_blocked_reason: 'package_disabled',
       allowed_when_blocked: ['status', 'doctor', 'repair'],
     };
     mocks.appState = appState;
@@ -239,7 +239,7 @@ describe('HomeStarters', () => {
     const unavailableStarter = screen.getByTestId('home-starter-grant');
     expect(unavailableStarter).not.toBeDisabled();
     expect(unavailableStarter).toHaveAttribute('data-opl-launch-ready', 'false');
-    expect(unavailableStarter).toHaveAttribute('title', expect.stringContaining('package_not_installed'));
+    expect(unavailableStarter).toHaveAttribute('title', expect.stringContaining('package_disabled'));
     await userEvent.click(unavailableStarter);
     expect(onSelect).toHaveBeenCalledWith('grant');
   });

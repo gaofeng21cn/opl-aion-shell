@@ -218,7 +218,8 @@ describe('OPL generated product profile', () => {
     expect(getOplHomeComposerStateContract()).toMatchObject({
       contract_id: 'opl_home_composer_state.v1',
       executor: 'codex',
-      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      shortcut_package_membership_source_ref:
+        'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
       shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
       shortcut_availability_source_ref:
         'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
@@ -327,7 +328,8 @@ describe('OPL generated product profile', () => {
 
   it('uses App state directory, status, and capability metadata as dynamic Agent authority', () => {
     expect(getOplHomeComposerStateContract()).toMatchObject({
-      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      shortcut_package_membership_source_ref:
+        'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
       shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
       shortcut_availability_source_ref:
         'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
