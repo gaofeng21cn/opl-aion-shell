@@ -1178,6 +1178,11 @@
     "blockedPanel": {
       "title": "完成最后一项设置"
     },
+    "officialProfile": {
+      "backgroundTitle": "后台准备",
+      "preparing": "官方扩展能力正在后台准备，不影响开始使用。",
+      "attention": "部分官方扩展能力暂未准备好，可以先进入应用，稍后在设置中处理。"
+    },
     "beginner": {
       "title": "正在准备",
       "readyTitle": "可以开始使用",

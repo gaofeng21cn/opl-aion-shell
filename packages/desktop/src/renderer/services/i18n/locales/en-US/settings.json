@@ -1177,6 +1177,11 @@
     "blockedPanel": {
       "title": "Finish the last setup item"
     },
+    "officialProfile": {
+      "backgroundTitle": "Background setup",
+      "preparing": "Official extensions are being prepared in the background. You can start using the app now.",
+      "attention": "Some official extensions still need attention. You can enter the app now and handle them later in Settings."
+    },
     "beginner": {
       "title": "Checking the essentials",
       "readyTitle": "Ready to start",

@@ -31,6 +31,7 @@ import type {
 import styles from './FirstRun.module.css';
 
 type MaintenanceAction = 'install_prep' | 'startup_maintenance';
+type OfficialProfileFirstInstallState = 'idle' | 'running' | 'completed' | 'failed';
 type AccessMethod = 'gateway_account' | 'api_key';
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 type FirstRunError = {
@@ -357,13 +358,14 @@ const FirstRun: React.FC = () => {
   const [initializeLoading, setInitializeLoading] = useState(false);
   const [initializeRevision, setInitializeRevision] = useState(0);
   const [initializeEvent, setInitializeEvent] = useState<FirstRunInitializeEvent>(null);
-  const [officialProfileFirstInstallCompleted, setOfficialProfileFirstInstallCompleted] = useState(false);
+  const [officialProfileFirstInstallState, setOfficialProfileFirstInstallState] =
+    useState<OfficialProfileFirstInstallState>('idle');
+  const [officialProfileFirstInstallError, setOfficialProfileFirstInstallError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<
     | MaintenanceAction
     | 'configure_codex'
     | 'gateway_account'
     | 'gateway_model_access'
-    | 'official_profile_first_install'
     | 'workspace_root'
     | 'workspace_open'
     | 'workspace_recheck'
@@ -388,12 +390,7 @@ const FirstRun: React.FC = () => {
   );
   const initializePending = initializeLoading && !initializeResult;
   const readyToLaunch = initialize?.setup_flow?.ready_to_launch === true;
-  const officialProfileFirstInstallRequired =
-    isMacRuntime && readyToLaunch && initialize?.setup_flow?.is_first_run === true;
-  const completionReady =
-    readyToLaunch && (!officialProfileFirstInstallRequired || officialProfileFirstInstallCompleted);
-  const officialProfileFirstInstallPending =
-    officialProfileFirstInstallRequired && !officialProfileFirstInstallCompleted;
+  const completionReady = readyToLaunch;
   const codexConfigBlocked = hasCodexConfigBlocker(initialize);
   const fullReadinessProgressText = formatFullReadinessProgressText(initialize);
   const maintenanceProgressText = formatMaintenanceProgressText(initialize);
@@ -719,27 +716,22 @@ const FirstRun: React.FC = () => {
 
     officialProfileAttemptedRevisionRef.current = initializeRevision;
     let active = true;
-    setActionLoading('official_profile_first_install');
-    setError(null);
+    setOfficialProfileFirstInstallState('running');
+    setOfficialProfileFirstInstallError(null);
     void ipcBridge.oplRuntime.applyOfficialProfile
       .invoke({ intent: 'first_install' })
       .then((result) => {
         assertBridgeResultOk(result);
         officialProfileCompletedRef.current = true;
         if (active) {
-          setOfficialProfileFirstInstallCompleted(true);
+          setOfficialProfileFirstInstallState('completed');
           setActionResult(result);
         }
       })
       .catch((err: unknown) => {
         if (!active) return;
-        setError({
-          source: 'maintenance',
-          detail: err instanceof Error ? err.message : String(err),
-        });
-      })
-      .finally(() => {
-        if (active) setActionLoading(null);
+        setOfficialProfileFirstInstallState('failed');
+        setOfficialProfileFirstInstallError(err instanceof Error ? err.message : String(err));
       });
 
     return () => {
@@ -1153,30 +1145,6 @@ const FirstRun: React.FC = () => {
                         </Button>
                       </div>
                     </div>
-                  ) : officialProfileFirstInstallPending ? (
-                    <div className={styles.firstRunStatePanel}>
-                      <span className={styles.firstRunStateIcon} aria-hidden='true'>
-                        {actionLoading === 'official_profile_first_install' ? <Spin /> : <Config />}
-                      </span>
-                      <h2>{t('settings.firstRun.blockedPanel.title')}</h2>
-                      <p data-testid='opl-first-run-beginner-summary'>
-                        {actionLoading === 'official_profile_first_install'
-                          ? t('settings.firstRun.beginner.summaryPreparing')
-                          : t('settings.firstRun.error.description')}
-                      </p>
-                      <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
-                        <Button
-                          type='primary'
-                          size='large'
-                          loading={actionLoading === 'official_profile_first_install'}
-                          disabled={requestInFlight}
-                          onClick={() => void refreshInitialize()}
-                          data-testid='opl-first-run-official-profile-retry'
-                        >
-                          {t('settings.firstRun.error.retry')}
-                        </Button>
-                      </div>
-                    </div>
                   ) : completionReady ? (
                     <div className={styles.firstRunStatePanel}>
                       <span
@@ -1189,14 +1157,39 @@ const FirstRun: React.FC = () => {
                       <p className={styles.firstRunReadyDescription} data-testid='opl-first-run-beginner-summary'>
                         {t('guid.uiOptimization.firstRun.completion.summary')}
                       </p>
+                      {officialProfileFirstInstallState === 'running' ? (
+                        <div
+                          className={styles.firstRunInitializeStatus}
+                          data-testid='opl-first-run-official-profile-background'
+                        >
+                          <span>{t('settings.firstRun.officialProfile.backgroundTitle')}</span>
+                          <strong>{t('settings.firstRun.officialProfile.preparing')}</strong>
+                        </div>
+                      ) : officialProfileFirstInstallState === 'failed' ? (
+                        <div
+                          className={styles.firstRunInitializeStatus}
+                          data-testid='opl-first-run-official-profile-background'
+                        >
+                          <span>{t('settings.firstRun.officialProfile.backgroundTitle')}</span>
+                          <strong>{t('settings.firstRun.officialProfile.attention')}</strong>
+                          <Button
+                            type='text'
+                            size='small'
+                            loading={initializeLoading}
+                            disabled={initializeLoading}
+                            onClick={() => void refreshInitialize()}
+                            data-testid='opl-first-run-official-profile-retry'
+                          >
+                            {t('settings.firstRun.error.retry')}
+                          </Button>
+                        </div>
+                      ) : null}
                       <div className={styles.firstRunTaskActions} data-testid='opl-first-run-primary-action'>
                         <Button
                           ref={readyEntryRef}
                           icon={<Right />}
                           type='primary'
                           size='large'
-                          loading={actionLoading === 'official_profile_first_install'}
-                          disabled={actionLoading === 'official_profile_first_install'}
                           onClick={() => navigate('/guid', { state: POST_INSTALL_SELF_CHECK_STATE })}
                         >
                           <span data-testid='opl-first-run-ready-entry'>
@@ -1316,9 +1309,9 @@ const FirstRun: React.FC = () => {
                     <span className={styles.firstRunMeta}> {maintenanceLabels.join(', ')}</span>
                   )}
                 </div>
-                {error && (
+                {(error || officialProfileFirstInstallError) && (
                   <div className={styles.firstRunTechnicalError} data-testid='opl-first-run-technical-error'>
-                    {error.detail}
+                    {error?.detail ?? officialProfileFirstInstallError}
                   </div>
                 )}
                 <div className={styles.firstRunSectionActions}>
