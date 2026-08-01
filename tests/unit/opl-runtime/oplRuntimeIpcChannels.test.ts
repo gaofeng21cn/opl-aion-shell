@@ -4,13 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const platformMocks = vi.hoisted(() => ({
-  buildProvider: vi.fn((_channel: string) => ({
-    provider: vi.fn(),
-    invoke: vi.fn(),
-  })),
+  buildProvider: vi.fn(),
   buildEmitter: vi.fn(() => ({
     emit: vi.fn(),
     on: vi.fn(),
@@ -30,6 +27,52 @@ vi.mock('@office-ai/platform', () => ({
 }));
 
 describe('OPL runtime IPC channel contract', () => {
+  beforeEach(() => {
+    platformMocks.buildProvider.mockReset();
+    platformMocks.buildProvider.mockImplementation((_channel: string) => {
+      let handler: ((params: unknown) => Promise<unknown>) | null = null;
+      return {
+        provider: vi.fn((nextHandler: (params: unknown) => Promise<unknown>) => {
+          handler = nextHandler;
+        }),
+        invoke: vi.fn(
+          (params?: unknown) =>
+            new Promise((resolve, reject) => {
+              if (!handler) {
+                reject(new Error('provider is not registered'));
+                return;
+              }
+              // Match @office-ai/platform@0.3.16: rejected handlers do not
+              // emit a callback, leaving invoke pending forever.
+              void handler(params).then(resolve);
+            })
+        ),
+      };
+    });
+  });
+
+  it('propagates rejected desktop OPL runtime providers through a resolve-only platform transport', async () => {
+    vi.resetModules();
+    vi.stubGlobal('window', { electronAPI: {} });
+    vi.stubGlobal('document', {});
+
+    try {
+      const { oplRuntime } = await import('@/common/adapter/ipcBridge');
+      oplRuntime.applyOfficialProfile.provider(async () => {
+        throw new Error('official profile install failed');
+      });
+
+      const transportTimeout = new Promise<never>((_resolve, reject) => {
+        setTimeout(() => reject(new Error('platform transport did not settle')), 50);
+      });
+      await expect(
+        Promise.race([oplRuntime.applyOfficialProfile.invoke({ intent: 'first_install' }), transportTimeout])
+      ).rejects.toThrow('official profile install failed');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses the App-owned managed update bridge channel names', async () => {
     vi.resetModules();
     platformMocks.buildProvider.mockClear();
@@ -142,7 +185,11 @@ describe('OPL runtime IPC channel contract', () => {
 
   it('keeps OPL runtime calls on desktop IPC when the Electron preload exists but aioncore has no port', async () => {
     vi.resetModules();
-    const electronInvoke = vi.fn().mockResolvedValue({ ok: true });
+    const electronInvoke = vi.fn().mockResolvedValue({
+      transport: 'opl-runtime-provider.v1',
+      status: 'fulfilled',
+      value: { ok: true },
+    });
     platformMocks.buildProvider.mockImplementation((channel: string) => ({
       provider: vi.fn(),
       invoke: channel === 'opl-runtime.get-initialize' ? electronInvoke : vi.fn(),
