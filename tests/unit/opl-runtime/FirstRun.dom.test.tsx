@@ -652,6 +652,7 @@ describe('FirstRun readiness page', () => {
 
   it('does not leave first-run automatically when first-run initialize confirms Core launch readiness', async () => {
     platformMocks.isMacOS.mockReturnValue(true);
+    bridgeMocks.applyOfficialProfileInvoke.mockImplementationOnce(() => new Promise(() => undefined));
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
       parsed: {
@@ -671,14 +672,19 @@ describe('FirstRun readiness page', () => {
     await waitFor(() =>
       expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledWith({ intent: 'first_install' })
     );
-    fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));
-    fireEvent.click(screen.getByTestId('opl-first-run-retry-button'));
-    await waitFor(() => expect(bridgeMocks.getInitializeInvoke).toHaveBeenCalledTimes(2));
+    const readyEntry = screen.getByRole('button', {
+      name: 'guid.uiOptimization.firstRun.completion.primaryAction',
+    });
+    expect(readyEntry).toBeEnabled();
+    expect(screen.getByTestId('opl-first-run-official-profile-background')).toHaveTextContent(
+      'settings.firstRun.officialProfile.preparing'
+    );
+    fireEvent.click(readyEntry);
     expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument();
     expect(screen.queryByTestId('opl-first-run-step-rail')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-progress')).not.toHaveTextContent('settings.firstRun.stepProgress');
-    expect(navigateMock).not.toHaveBeenCalledWith('/guid', expect.anything());
+    expect(navigateMock).toHaveBeenCalledWith('/guid', { state: { postInstallSelfCheck: true } });
   });
 
   it('keeps the completion state in place even when initialize reports a non-first-run ready install', async () => {
@@ -735,9 +741,13 @@ describe('FirstRun readiness page', () => {
 
     await waitFor(() => expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1));
     await waitFor(() =>
-      expect(screen.getByTestId('opl-first-run-user-error')).toHaveTextContent('settings.firstRun.error.blocked')
+      expect(screen.getByTestId('opl-first-run-official-profile-background')).toHaveTextContent(
+        'settings.firstRun.officialProfile.attention'
+      )
     );
-    expect(screen.queryByTestId('opl-first-run-ready-entry')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-first-run-user-error')).not.toBeInTheDocument();
+    expect(screen.getByTestId('opl-first-run-ready-entry')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })).toBeEnabled();
     expect(screen.queryByTestId('opl-first-run-enter-app')).not.toBeInTheDocument();
     expect(navigateMock).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'settings.firstRun.help' }));

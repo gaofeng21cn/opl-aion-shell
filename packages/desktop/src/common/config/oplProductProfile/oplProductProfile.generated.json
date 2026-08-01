@@ -31,6 +31,13 @@
     "desired_root_package_ids": ["mas", "mag", "rca", "oma", "obf", "opl-flow"],
     "apply_on": ["first_install", "explicit_restore"],
     "never_apply_on": ["app_startup", "silent_package_update", "app_update"],
+    "first_install_execution": {
+      "mode": "background_after_core_ready",
+      "guid_navigation_blocking": false,
+      "failure_scope": "package_local_nonblocking",
+      "unknown_or_timeout_policy": "keep_guid_entry_available_and_report_background_attention",
+      "retry_policy": "explicit_first_run_retry_or_settings_agents"
+    },
     "user_removal_policy": {
       "explicit_uninstall_is_persistent_preference": true,
       "reinstall_before_explicit_restore_allowed": false
