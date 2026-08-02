@@ -737,7 +737,17 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('default_assistants');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('non_default_assistants');
     expect(OPL_PRODUCT_PROFILE.gui.home).not.toHaveProperty('home_purpose_entries');
-    expect(OPL_PRODUCT_PROFILE.companion_payloads.additional_package_skill_ids).toEqual(['opl-meta-agent']);
+    expect(OPL_PRODUCT_PROFILE.companion_payloads.capability_strategy_consumer).toEqual({
+      strategy_authority: 'opl-flow',
+      compiler_authority: 'opl-framework',
+      runtime_projection_ref: 'app_state.agent_packages.status_index.packages.opl-flow.capability_strategy',
+      full_build_lock_kind: 'opl_flow_capability_build_lock.v1',
+      app_policy_inventory_allowed: false,
+      app_direct_workflow_policy_parse_allowed: false,
+    });
+    expect(OPL_PRODUCT_PROFILE.companion_payloads).not.toHaveProperty('default_packaged_codex_skill_ids');
+    expect(OPL_PRODUCT_PROFILE.companion_payloads).not.toHaveProperty('additional_package_skill_ids');
+    expect(OPL_PRODUCT_PROFILE.companion_payloads).not.toHaveProperty('official_codex_runtime_capabilities');
   });
 
   it.each([[], [{ shortcut_id: 'legacy-static-shortcut' }]])(

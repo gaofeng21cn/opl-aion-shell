@@ -6197,42 +6197,14 @@
       "cli_and_app_share_skill_semantics": true
     },
     "exposure_classes_ref": "contracts/app-install-exposure-policy.json#exposure_classes",
-    "tools": ["officecli", "mineru_open_api"],
     "domain_modules": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-meta-agent", "opl-bookforge"],
-    "ecosystem_modules": ["officecli", "mineru", "opl-meta-agent", "opl-bookforge"],
-    "management_authority": {
-      "officecli": "app_or_cli_managed",
-      "mineru": "app_or_cli_managed",
-      "opl-meta-agent": "app_or_cli_managed",
-      "opl-bookforge": "app_or_cli_managed"
-    },
-    "upstream_packages": {
-      "officecli": {
-        "owner": "iOfficeAI/OfficeCLI",
-        "source_policy": "latest_stable_at_full_build",
-        "selected_input_provenance_policy": "when_selected_record_exact_version_commit_and_digest",
-        "package_unit": "atomic_upstream_release",
-        "skill_ids": [
-          "officecli",
-          "officecli-docx",
-          "officecli-pptx",
-          "officecli-xlsx",
-          "officecli-academic-paper",
-          "officecli-data-dashboard",
-          "officecli-financial-model",
-          "officecli-pitch-deck"
-        ],
-        "default_app_visible": false,
-        "codex_exposure": "task_routed_native_skill_discovery",
-        "semantic_vendoring_allowed": false
-      }
-    },
-    "official_codex_runtime_capabilities": {
-      "owner": "openai_primary_runtime",
-      "preferred_capability_ids": ["documents", "presentations", "spreadsheets", "pdf"],
-      "distribution_policy": "preinstall_or_verify_official_plugin_without_opl_skill_mirror",
-      "fallback_policy": "officecli_for_offline_or_deterministic_office_workflows",
-      "default_app_visible": false
+    "capability_strategy_consumer": {
+      "strategy_authority": "opl-flow",
+      "compiler_authority": "opl-framework",
+      "runtime_projection_ref": "app_state.agent_packages.status_index.packages.opl-flow.capability_strategy",
+      "full_build_lock_kind": "opl_flow_capability_build_lock.v1",
+      "app_policy_inventory_allowed": false,
+      "app_direct_workflow_policy_parse_allowed": false
     },
     "native_automation": {
       "owner": "app_automation_surface",
@@ -6246,9 +6218,6 @@
       "executor": "codex_cli",
       "executor_selector_visible": false
     },
-    "default_packaged_codex_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
-    "additional_package_skill_ids": ["opl-meta-agent"],
-    "domain_plugin_skill_ids": ["med-autoscience", "med-autogrant", "redcube-ai", "opl-bookforge"],
     "domain_plugin_skills_must_not_be_companion_mirrors": true,
     "class": "opl_base_integrations",
     "opl_packages_projection_ref": "contracts/app-install-exposure-policy.json#exposure_classes.codex_surface",

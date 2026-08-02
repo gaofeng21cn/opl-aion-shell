@@ -594,6 +594,15 @@ export type OplNativeAutomationPolicy = {
   executor_selector_visible: false;
 };
 
+export type OplCapabilityStrategyConsumer = {
+  strategy_authority: 'opl-flow';
+  compiler_authority: 'opl-framework';
+  runtime_projection_ref: 'app_state.agent_packages.status_index.packages.opl-flow.capability_strategy';
+  full_build_lock_kind: 'opl_flow_capability_build_lock.v1';
+  app_policy_inventory_allowed: false;
+  app_direct_workflow_policy_parse_allowed: false;
+};
+
 type AppProductProfile = {
   schema_version: 2;
   owner: 'one-person-lab-app';
@@ -689,11 +698,7 @@ type AppProductProfile = {
     new_conversation_additional_instructions: OplNewConversationAdditionalInstructionsPolicy;
   };
   companion_payloads: {
-    default_packaged_codex_skill_ids: string[];
-    additional_package_skill_ids: string[];
-    official_codex_runtime_capabilities: {
-      preferred_capability_ids: string[];
-    };
+    capability_strategy_consumer: OplCapabilityStrategyConsumer;
     native_automation: OplNativeAutomationPolicy;
   };
   first_run: {
@@ -1665,6 +1670,28 @@ function readOplNativeAutomationPolicy(companionPayloads: Record<string, unknown
   return expected;
 }
 
+function readOplCapabilityStrategyConsumer(companionPayloads: Record<string, unknown>): OplCapabilityStrategyConsumer {
+  const consumer = companionPayloads.capability_strategy_consumer;
+  if (!isRecord(consumer)) {
+    throw new Error('Invalid OPL product profile: companion_payloads.capability_strategy_consumer must be an object');
+  }
+
+  const expected: OplCapabilityStrategyConsumer = {
+    strategy_authority: 'opl-flow',
+    compiler_authority: 'opl-framework',
+    runtime_projection_ref: 'app_state.agent_packages.status_index.packages.opl-flow.capability_strategy',
+    full_build_lock_kind: 'opl_flow_capability_build_lock.v1',
+    app_policy_inventory_allowed: false,
+    app_direct_workflow_policy_parse_allowed: false,
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (consumer[key] !== value) {
+      throw new Error(`Invalid OPL product profile: companion_payloads.capability_strategy_consumer.${key} is invalid`);
+    }
+  }
+  return expected;
+}
+
 function validateOplProductProfile(value: unknown): AppProductProfile {
   if (!isRecord(value)) {
     throw new Error('Invalid OPL product profile: root must be an object');
@@ -1749,6 +1776,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   }
   const visibleSettingsTabs = readStringArray(settings, 'visible_tabs', 'settings');
   const developerProfile = readDeveloperProfileSettings(settings);
+  const capabilityStrategyConsumer = readOplCapabilityStrategyConsumer(companionPayloads);
   const nativeAutomation = readOplNativeAutomationPolicy(companionPayloads);
   const expectedTabs = [
     'general',
@@ -2031,31 +2059,6 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const agentPackageRegistry = readAgentPackageRegistry(gui);
   const oplFlowContext = readOplFlowContextPolicy(codex);
   const newConversationAdditionalInstructions = readNewConversationAdditionalInstructionsPolicy(codex);
-  const defaultPackagedCodexSkillIds = readStringArray(
-    companionPayloads,
-    'default_packaged_codex_skill_ids',
-    'companion_payloads'
-  );
-  const additionalPackageSkillIds = readStringArray(
-    companionPayloads,
-    'additional_package_skill_ids',
-    'companion_payloads'
-  );
-  const officialCodexRuntimeCapabilities = companionPayloads.official_codex_runtime_capabilities;
-  if (!isRecord(officialCodexRuntimeCapabilities)) {
-    throw new Error('Invalid OPL product profile: missing official Codex runtime capabilities');
-  }
-  const officialCodexRuntimeCapabilityIds = readStringArray(
-    officialCodexRuntimeCapabilities,
-    'preferred_capability_ids',
-    'companion_payloads.official_codex_runtime_capabilities'
-  );
-  if (!additionalPackageSkillIds.includes('opl-meta-agent')) {
-    throw new Error('Invalid OPL product profile: explicit OMA package policy must be declared');
-  }
-  if (defaultPackagedCodexSkillIds.includes('morph-ppt') || additionalPackageSkillIds.includes('morph-ppt')) {
-    throw new Error('Invalid OPL product profile: morph-ppt must not be part of App skill wiring');
-  }
 
   const appDoesNotOwn = readStringArray(boundary, 'app_does_not_own', 'boundary');
   for (const forbidden of [
@@ -2194,11 +2197,7 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       new_conversation_additional_instructions: newConversationAdditionalInstructions,
     },
     companion_payloads: {
-      default_packaged_codex_skill_ids: defaultPackagedCodexSkillIds,
-      additional_package_skill_ids: additionalPackageSkillIds,
-      official_codex_runtime_capabilities: {
-        preferred_capability_ids: officialCodexRuntimeCapabilityIds,
-      },
+      capability_strategy_consumer: capabilityStrategyConsumer,
       native_automation: nativeAutomation,
     },
     first_run: {
