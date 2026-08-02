@@ -249,7 +249,7 @@
             "narrow_drawer_behavior": "icon_and_label",
             "keyboard_reachable": true,
             "home_content_effect": "navigation_only_no_dashboard",
-            "route_gate_boundary": "native_phase_one_and_default_release_gate_remain_optional"
+            "route_gate_boundary": "default_release_gate_requires_runtime_native_phase_one_candidate_parity_may_omit_runtime"
           }
         },
         "right_context_inspector_default_state": "collapsed",
@@ -626,10 +626,10 @@
         "project_affinity_states": ["unbound", "bound"],
         "project_affinity_cardinality": "zero_or_one",
         "projectless_session_semantics": "no_user_selected_project_affinity_not_no_runtime_cwd",
-        "projectless_detection": "explicit_project_id_absent_or_managed_scratch_never_inferred_from_recorded_cwd_or_runtime_pwd",
-        "recorded_cwd_role": "canonical_runtime_workspace_preserved_independently_of_sidebar_project_affinity",
+        "projectless_detection": "explicit_project_id_absent_defines_unbound_identity_while_managed_scratch_recorded_cwd_never_creates_directory_group",
+        "recorded_cwd_role": "canonical_runtime_workspace_and_derived_directory_group_fallback_when_explicit_project_id_absent_and_not_managed_scratch",
         "project_affinity_source": "explicit_project_id_projection",
-        "project_affinity_role": "explicit_project_id_for_sidebar_grouping_and_new_session_project_shortcut_never_inferred_from_recorded_cwd",
+        "project_affinity_role": "explicit_project_id_wins_for_sidebar_grouping_non_managed_scratch_recorded_cwd_only_supplies_derived_directory_group",
         "managed_scratch_presentation": "user_documents_codex_subtree_preserves_recorded_cwd_and_renders_unbound_without_leaf_directory_project_groups",
         "workspace_binding_role": "new_session_initial_cwd_and_explicit_project_affinity_assignment_are_distinct",
         "runtime_pwd_role": "turn_cwd_or_command_pwd_execution_context_not_persisted_as_project_affinity",

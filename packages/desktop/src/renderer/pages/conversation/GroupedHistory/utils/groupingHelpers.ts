@@ -34,6 +34,37 @@ export const getConversationPinnedAt = (conversation: TChatConversation): number
   return 0;
 };
 
+const MANAGED_CODEX_SCRATCH_PATTERNS = [
+  /^\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/home\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^[a-z]:\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/mnt\/[a-z]\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+];
+
+export const isManagedCodexScratchWorkspace = (workspace: string): boolean => {
+  const normalized = workspace
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/\/{2,}/g, '/');
+  return MANAGED_CODEX_SCRATCH_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+export const getConversationDirectoryGroup = (conversation: TChatConversation): string | null => {
+  const workspace = conversation.extra?.workspace?.trim() ?? '';
+  const isCanonicalCodex = conversation.type === 'acp' && conversation.extra.backend === 'codex';
+  if (isCanonicalCodex) {
+    const explicitProjectId = conversation.extra.canonical_project_id?.trim() ?? '';
+    if (explicitProjectId) return explicitProjectId;
+    if (!workspace || isManagedCodexScratchWorkspace(workspace)) return null;
+
+    // Recorded cwd supplies presentation and a new-task shortcut only. It never
+    // creates canonical project affinity or mutates the registered workspace set.
+    return workspace;
+  }
+
+  return conversation.extra?.custom_workspace && workspace ? workspace : null;
+};
+
 export const groupConversationsByWorkspace = (
   conversations: TChatConversation[],
   t: (key: string) => string,
@@ -43,11 +74,7 @@ export const groupConversationsByWorkspace = (
   const withoutWorkspaceConvs: TChatConversation[] = [];
 
   conversations.forEach((conv) => {
-    const workspace = conv.extra?.workspace;
-    const custom_workspace = conv.extra?.custom_workspace;
-    const isCanonicalCodex = conv.type === 'acp' && conv.extra.backend === 'codex';
-    const canonicalProjectId = isCanonicalCodex ? conv.extra.canonical_project_id?.trim() : undefined;
-    const projectWorkspace = isCanonicalCodex ? canonicalProjectId : custom_workspace ? workspace : undefined;
+    const projectWorkspace = getConversationDirectoryGroup(conv);
 
     if (projectWorkspace) {
       if (!allWorkspaceGroups.has(projectWorkspace)) {
@@ -71,10 +98,8 @@ export const groupConversationsByWorkspace = (
       time,
       workspaceGroup: {
         workspace,
-        // This grouping path only sees custom (user-chosen) workspaces —
-        // non-custom conversations end up in `withoutWorkspaceConvs` above
-        // and never reach this helper. Passing `false` is therefore correct
-        // without consulting `extra.is_temporary_workspace` per-row.
+        // Managed scratch workspaces are excluded before this point, so every
+        // remaining workspace renders as a normal directory group.
         display_name: getWorkspaceDisplayName(workspace, false, t),
         conversations: sortedConvs,
       },

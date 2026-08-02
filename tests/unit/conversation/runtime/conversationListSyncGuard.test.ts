@@ -102,7 +102,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     ]);
   });
 
-  it('projects a managed Documents Codex task as a projectless sidebar row', () => {
+  it('keeps a managed Documents Codex task projectless and ungrouped', () => {
     const workspace = '/Users/example/Documents/Codex/2026-07-28/temporary-task';
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
 
@@ -112,7 +112,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     ]);
   });
 
-  it('does not group a legacy canonical row from its recorded cwd', () => {
+  it('auto-loads an unregistered canonical cwd as a directory group', () => {
     const legacy = {
       id: 'legacy-codex',
       name: 'Legacy task',
@@ -127,8 +127,34 @@ describe('mergeCanonicalThreadDirectory', () => {
     } as TChatConversation;
 
     expect(groupConversationsByWorkspace([legacy], (key) => key)[0]?.items).toEqual([
-      expect.objectContaining({ type: 'conversation', conversation: legacy }),
+      expect.objectContaining({
+        type: 'workspace',
+        workspaceGroup: expect.objectContaining({ workspace: '/tmp/runtime-only', conversations: [legacy] }),
+      }),
     ]);
+  });
+
+  it('keeps a canonical task without cwd projectless and ungrouped', () => {
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace: '', projectId: '' })]));
+
+    expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: projected }),
+    ]);
+  });
+
+  it('keeps Linux, Windows, and WSL managed Codex scratch paths ungrouped', () => {
+    for (const workspace of [
+      '/home/example/Documents/Codex/2026-08-02/temporary-task',
+      'C:\\Users\\example\\Documents\\Codex\\2026-08-02\\temporary-task',
+      '/mnt/c/Users/example/Documents/Codex/2026-08-02/temporary-task',
+    ]) {
+      const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId: '' })]));
+
+      expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+        expect.objectContaining({ type: 'conversation', conversation: projected }),
+      ]);
+    }
   });
 
   it('keeps explicit project affinity when canonical recorded cwd is absent', () => {
@@ -160,7 +186,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(projected.extra).toMatchObject({ workspace: '', custom_workspace: false });
   });
 
-  it('does not rebuild project affinity from a canonical recorded cwd', () => {
+  it('groups a canonical recorded cwd without rebuilding project affinity', () => {
     const cached = {
       id: 'local-stale-projectless',
       name: 'Stale projectless task',
@@ -177,6 +203,13 @@ describe('mergeCanonicalThreadDirectory', () => {
     const [projected] = mergeCanonicalThreadDirectory([cached], directory([thread({ projectId: '' })]));
 
     expect(projected.extra).toMatchObject({ workspace: '/tmp/project', custom_workspace: false });
+    expect(projected.extra.canonical_project_id).toBeUndefined();
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({
+        type: 'workspace',
+        workspaceGroup: expect.objectContaining({ workspace: '/tmp/project' }),
+      }),
+    ]);
   });
 
   it('keeps a legacy missing explicit affinity marker projectless', () => {
