@@ -292,13 +292,21 @@ export class GuiBaselineManifestWriter {
     if (input.accessibility.named_controls.length === 0) {
       throw new Error(`Evidence ${input.id} must record named controls`);
     }
-    if (
-      input.accessibility.focus.focused_control === 'none' ||
-      !input.accessibility.focus.focus_visible ||
-      !input.accessibility.overflow.passed ||
-      !input.accessibility.rendered_contrast.passed
-    ) {
-      throw new Error(`Evidence ${input.id} failed accessibility checks`);
+    const failedAccessibilityChecks = [
+      input.accessibility.focus.focused_control === 'none' ? 'focused_control' : null,
+      !input.accessibility.focus.focus_visible ? 'focus_visible' : null,
+      !input.accessibility.overflow.passed ? 'overflow' : null,
+      !input.accessibility.rendered_contrast.passed ? 'rendered_contrast' : null,
+    ].filter((check): check is string => check !== null);
+    if (failedAccessibilityChecks.length > 0) {
+      const accessibilityFailure = {
+        focus: input.accessibility.focus,
+        overflow: input.accessibility.overflow.violations,
+        contrast: input.accessibility.rendered_contrast.checks.filter((check) => !check.passed),
+      };
+      throw new Error(
+        `Evidence ${input.id} failed accessibility checks: ${failedAccessibilityChecks.join(', ')}; ${JSON.stringify(accessibilityFailure)}`
+      );
     }
 
     const failedAnchors = input.anchors.filter((anchor) => !anchor.matched);
