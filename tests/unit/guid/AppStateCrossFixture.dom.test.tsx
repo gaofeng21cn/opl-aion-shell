@@ -21,12 +21,13 @@ vi.mock('react-i18next', () => ({
 }));
 
 const APP_FIXTURE_ROOT = process.env.OPL_APP_ROOT?.trim() ?? '';
+const APP_FIXTURE_REF = process.env.OPL_APP_FIXTURE_REF?.trim() || 'origin/main';
 const FAST_FIXTURE = 'contracts/fixtures/opl-app-state-fast.fixture.json';
-const UNKNOWN_AGENT_FIXTURE = 'contracts/fixtures/opl-app-state-unknown-agent.fixture.json';
+const UNKNOWN_AGENT_FIXTURE = 'contracts/fixtures/opl-app-state-runtime-v2-unknown-agent.fixture.json';
 
 function readCanonicalFixture(relativePath: string): Record<string, unknown> {
   if (!APP_FIXTURE_ROOT) throw new Error('OPL_APP_ROOT is required for the App-owned cross-fixture tests.');
-  const bytes = execFileSync('git', ['-C', APP_FIXTURE_ROOT, 'show', `origin/main:${relativePath}`], {
+  const bytes = execFileSync('git', ['-C', APP_FIXTURE_ROOT, 'show', `${APP_FIXTURE_REF}:${relativePath}`], {
     encoding: 'utf8',
   });
   const parsed: unknown = JSON.parse(bytes);
