@@ -5,11 +5,17 @@
  */
 
 import React, { type PropsWithChildren } from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { VirtuosoMockContext } from 'react-virtuoso';
 import type { IMessageText } from '@/common/chat/chatLib';
 import { MessageListLoadingProvider, MessageListProvider } from '@/renderer/pages/conversation/Messages/hooks';
 import MessageList from '@/renderer/pages/conversation/Messages/MessageList';
+
+const messageListMocks = vi.hoisted(() => ({
+  locationState: {} as { targetMessageId?: string },
+  scrollToIndex: vi.fn(),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -20,13 +26,13 @@ vi.mock('react-i18next', () => ({
 vi.mock('react-router-dom', () => ({
   useLocation: () => ({
     key: 'location-key',
-    state: {},
+    state: messageListMocks.locationState,
   }),
 }));
 
 vi.mock('@arco-design/web-react', () => ({
   Image: {
-    PreviewGroup: ({ children }: PropsWithChildren) => <>{children}</>,
+    PreviewGroup: ({ children }: PropsWithChildren) => <div data-testid='image-preview-group'>{children}</div>,
   },
 }));
 
@@ -51,7 +57,8 @@ vi.mock('@/renderer/pages/conversation/Messages/useAutoScroll', () => ({
     handlePointerDown: () => {},
     showScrollButton: false,
     scrollToBottom: () => {},
-    scrollElementIntoView: () => {},
+    scrollToIndex: messageListMocks.scrollToIndex,
+    handleTotalListHeightChanged: () => {},
     hideScrollButton: () => {},
   }),
 }));
@@ -122,17 +129,17 @@ vi.mock('@icon-park/react', () => ({
   Down: () => <span>down</span>,
 }));
 
-function createTextMessage(): IMessageText {
+function createTextMessage(index = 1): IMessageText {
   return {
-    id: 'message-1',
-    msg_id: 'msg-1',
+    id: `message-${index}`,
+    msg_id: `msg-${index}`,
     conversation_id: 'conversation-1',
     type: 'text',
     position: 'left',
     content: {
-      content: 'streaming reply',
+      content: `streaming reply ${index}`,
     },
-    created_at: 1,
+    created_at: index,
   };
 }
 
@@ -142,14 +149,21 @@ function Wrapper({
   loading = false,
 }: PropsWithChildren<{ messages?: IMessageText[]; loading?: boolean }>): JSX.Element {
   return (
-    <MessageListLoadingProvider value={loading}>
-      <MessageListProvider value={messages}>{children}</MessageListProvider>
-    </MessageListLoadingProvider>
+    <VirtuosoMockContext.Provider value={{ viewportHeight: 640, itemHeight: 96 }}>
+      <MessageListLoadingProvider value={loading}>
+        <MessageListProvider value={messages}>{children}</MessageListProvider>
+      </MessageListLoadingProvider>
+    </VirtuosoMockContext.Provider>
   );
 }
 
 describe('MessageList', () => {
-  it('renders message rows with external margin spacing in the plain scroll list', () => {
+  beforeEach(() => {
+    messageListMocks.locationState = {};
+    messageListMocks.scrollToIndex.mockReset();
+  });
+
+  it('contains message row margins inside the virtualized measurement boundary', () => {
     render(<MessageList />, {
       wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
     });
@@ -160,6 +174,15 @@ describe('MessageList', () => {
     const messageRow = screen.getByTestId('message-text-left');
     expect(messageRow.className).toContain('m-t-10px');
     expect(messageRow.className).not.toContain('pt-10px');
+    expect(messageRow.closest<HTMLElement>('[data-item-index]')).toHaveStyle({ display: 'flow-root' });
+  });
+
+  it('keeps the image preview group mounted around the virtualized scroller', () => {
+    render(<MessageList />, {
+      wrapper: ({ children }) => <Wrapper>{children}</Wrapper>,
+    });
+
+    expect(screen.getByTestId('image-preview-group')).toContainElement(screen.getByTestId('message-list-scroller'));
   });
 
   it('renders the current task summary inside the timeline scroller', () => {
@@ -170,7 +193,41 @@ describe('MessageList', () => {
     const scroller = screen.getByTestId('message-list-scroller');
     const summary = screen.getByTestId('timeline-task-summary');
     expect(scroller).toContainElement(summary);
-    expect(screen.getByTestId('message-list-content').firstElementChild).toBe(summary);
+    expect(screen.getByTestId('message-list-content')).toBeInTheDocument();
+  });
+
+  it('keeps the rendered DOM bounded for a long conversation', async () => {
+    const messages = Array.from({ length: 1000 }, (_, index) => createTextMessage(index));
+
+    render(
+      <VirtuosoMockContext.Provider value={{ viewportHeight: 320, itemHeight: 64 }}>
+        <MessageList />
+      </VirtuosoMockContext.Provider>,
+      {
+        wrapper: ({ children }) => <Wrapper messages={messages}>{children}</Wrapper>,
+      }
+    );
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId('message-text-left').length).toBeGreaterThan(0);
+    });
+    expect(screen.getAllByTestId('message-text-left').length).toBeLessThan(40);
+  });
+
+  it('jumps to an offscreen target message by processed-list index', async () => {
+    const messages = Array.from({ length: 1000 }, (_, index) => createTextMessage(index));
+    messageListMocks.locationState = { targetMessageId: 'message-500' };
+
+    render(<MessageList />, {
+      wrapper: ({ children }) => <Wrapper messages={messages}>{children}</Wrapper>,
+    });
+
+    await waitFor(() => {
+      expect(messageListMocks.scrollToIndex).toHaveBeenCalledWith(500, {
+        behavior: 'smooth',
+        align: 'center',
+      });
+    });
   });
 
   it('renders the empty slot when there are no messages', () => {

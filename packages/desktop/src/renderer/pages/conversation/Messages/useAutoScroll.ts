@@ -5,15 +5,16 @@
  */
 
 /**
- * useAutoScroll - Auto-scroll hook for a plain scroll container
+ * useAutoScroll - Auto-scroll state for the virtualized message list
  *
  * Strategy:
  * - Track whether the user has intentionally scrolled away from the bottom.
  * - Observe content/scroller size changes and keep the list pinned to bottom
  *   only while auto-follow mode is active.
- * - Use DOM-native scrollIntoView for explicit message jumps.
+ * - Use Virtuoso's index API for explicit jumps, including unmounted rows.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import type { VirtuosoHandle } from 'react-virtuoso';
 import type { TMessage } from '@/common/chat/chatLib';
 
 const PROGRAMMATIC_SCROLL_GUARD_MS = 150;
@@ -23,11 +24,12 @@ const FOLLOW_BOTTOM_THRESHOLD_PX = 4;
 interface UseAutoScrollOptions {
   messages: TMessage[];
   itemCount: number;
+  virtualListRef?: RefObject<VirtuosoHandle | null>;
 }
 
-interface ScrollElementIntoViewOptions {
-  behavior?: ScrollBehavior;
-  block?: ScrollLogicalPosition;
+interface ScrollToItemOptions {
+  behavior?: 'auto' | 'smooth';
+  align?: 'start' | 'center' | 'end';
 }
 
 interface UseAutoScrollReturn {
@@ -38,7 +40,8 @@ interface UseAutoScrollReturn {
   handlePointerDown: () => void;
   showScrollButton: boolean;
   scrollToBottom: (behavior?: ScrollBehavior) => void;
-  scrollElementIntoView: (element: HTMLElement | null, options?: ScrollElementIntoViewOptions) => void;
+  scrollToIndex: (index: number, options?: ScrollToItemOptions) => void;
+  handleTotalListHeightChanged: () => void;
   hideScrollButton: () => void;
 }
 
@@ -46,7 +49,7 @@ const getBottomGap = (element: HTMLElement): number => {
   return element.scrollHeight - element.clientHeight - element.scrollTop;
 };
 
-export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): UseAutoScrollReturn {
+export function useAutoScroll({ messages, itemCount, virtualListRef }: UseAutoScrollOptions): UseAutoScrollReturn {
   const [scrollerEl, setScrollerEl] = useState<HTMLDivElement | null>(null);
   const [contentEl, setContentEl] = useState<HTMLDivElement | null>(null);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -111,6 +114,12 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     });
   }, [scrollerEl, scrollToBottom]);
 
+  const handleTotalListHeightChanged = useCallback(() => {
+    if (!scrollerEl) return;
+    scheduleAutoFollow();
+    updateBottomState(scrollerEl);
+  }, [scheduleAutoFollow, scrollerEl, updateBottomState]);
+
   const handleScrollerRef = useCallback((ref: HTMLDivElement | null) => {
     setScrollerEl(ref);
   }, []);
@@ -119,20 +128,20 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     setContentEl(ref);
   }, []);
 
-  const scrollElementIntoView = useCallback(
-    (element: HTMLElement | null, options?: ScrollElementIntoViewOptions) => {
-      if (!element) return;
+  const scrollToIndex = useCallback(
+    (index: number, options?: ScrollToItemOptions) => {
+      if (!virtualListRef?.current || index < 0 || index >= itemCount) return;
 
       userScrolledRef.current = false;
       setShowScrollButton(false);
       markProgrammaticScroll();
-      element.scrollIntoView({
+      virtualListRef.current.scrollToIndex({
+        index,
         behavior: options?.behavior ?? 'smooth',
-        block: options?.block ?? 'start',
-        inline: 'nearest',
+        align: options?.align ?? 'start',
       });
     },
-    [markProgrammaticScroll]
+    [itemCount, markProgrammaticScroll, virtualListRef]
   );
 
   const handleScroll = useCallback(
@@ -238,7 +247,8 @@ export function useAutoScroll({ messages, itemCount }: UseAutoScrollOptions): Us
     handlePointerDown,
     showScrollButton,
     scrollToBottom,
-    scrollElementIntoView,
+    scrollToIndex,
+    handleTotalListHeightChanged,
     hideScrollButton,
   };
 }

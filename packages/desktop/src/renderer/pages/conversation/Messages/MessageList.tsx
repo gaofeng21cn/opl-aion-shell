@@ -18,6 +18,7 @@ import classNames from 'classnames';
 import React, { createContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
+import { Virtuoso, type Components, type ItemProps, type ListProps, type VirtuosoHandle } from 'react-virtuoso';
 import { uuid } from '@renderer/utils/common';
 import './messages.css';
 import HOC from '@renderer/utils/ui/HOC';
@@ -97,6 +98,58 @@ const highlightStyle: React.CSSProperties = {
 };
 
 const getUnhandledMessageType = (_message: never): string => 'unknown';
+
+type MessageListVirtuosoContext = {
+  emptySlot?: React.ReactNode;
+  timelineHeaderSlot?: React.ReactNode;
+  handleContentRef: (ref: HTMLDivElement | null) => void;
+};
+
+type VirtualizedListProps = ListProps & { context: MessageListVirtuosoContext };
+type VirtualizedItemProps = ItemProps<IProcessedItem> & { context: MessageListVirtuosoContext };
+
+const VirtualizedMessageItem = React.forwardRef<HTMLDivElement, VirtualizedItemProps>(
+  ({ context: _context, item: _item, style, ...props }, forwardedRef) => (
+    <div {...props} ref={forwardedRef} style={{ ...style, display: 'flow-root' }} />
+  )
+);
+VirtualizedMessageItem.displayName = 'VirtualizedMessageItem';
+
+const VirtualizedMessageList = React.forwardRef<HTMLDivElement, VirtualizedListProps>(
+  ({ context, style, ...props }, forwardedRef) => (
+    <div
+      {...props}
+      ref={(element) => {
+        context.handleContentRef(element);
+        if (typeof forwardedRef === 'function') forwardedRef(element);
+        else if (forwardedRef) forwardedRef.current = element;
+      }}
+      data-testid='message-list-content'
+      style={{ ...style, overflowAnchor: 'none' }}
+    />
+  )
+);
+VirtualizedMessageList.displayName = 'VirtualizedMessageList';
+
+const VirtualizedMessageListHeader: React.FC<{ context: MessageListVirtuosoContext }> = ({ context }) => (
+  <>
+    {context.timelineHeaderSlot}
+    <div className='h-10px' />
+  </>
+);
+
+const VirtualizedMessageListFooter: React.FC = () => <div className='h-20px' />;
+
+const VirtualizedMessageListEmpty: React.FC<{ context: MessageListVirtuosoContext }> = ({ context }) =>
+  context.emptySlot ? <div className='min-h-240px flex items-center justify-center'>{context.emptySlot}</div> : null;
+
+const virtualizedMessageListComponents: Components<IProcessedItem, MessageListVirtuosoContext> = {
+  EmptyPlaceholder: VirtualizedMessageListEmpty,
+  Footer: VirtualizedMessageListFooter,
+  Header: VirtualizedMessageListHeader,
+  Item: VirtualizedMessageItem,
+  List: VirtualizedMessageList,
+};
 
 // Image preview context
 export const ImagePreviewContext = createContext<{ inPreviewGroup: boolean }>({ inPreviewGroup: false });
@@ -239,6 +292,7 @@ const MessageList: React.FC<{
   const targetMessageId = locationState.targetMessageId;
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | undefined>();
   const handledTargetKeyRef = useRef<string>('');
+  const virtualListRef = useRef<VirtuosoHandle>(null);
 
   // Pre-process message list to group tool outputs into summary cards
   const processedList = useMemo(() => {
@@ -350,12 +404,24 @@ const MessageList: React.FC<{
     handlePointerDown,
     showScrollButton,
     scrollToBottom,
-    scrollElementIntoView,
+    scrollToIndex,
+    handleTotalListHeightChanged,
     hideScrollButton,
   } = useAutoScroll({
     messages: list,
     itemCount: processedList.length,
+    virtualListRef,
   });
+
+  const handleVirtuosoScrollerRef = React.useCallback(
+    (ref: HTMLElement | Window | null) => handleScrollerRef(ref instanceof HTMLDivElement ? ref : null),
+    [handleScrollerRef]
+  );
+
+  const virtuosoContext = useMemo<MessageListVirtuosoContext>(
+    () => ({ emptySlot, handleContentRef, timelineHeaderSlot }),
+    [emptySlot, handleContentRef, timelineHeaderSlot]
+  );
 
   useEffect(() => {
     if (!targetMessageId || processedList.length === 0) {
@@ -376,12 +442,9 @@ const MessageList: React.FC<{
     setHighlightedMessageId(targetMessageId);
     hideScrollButton();
 
-    requestAnimationFrame(() => {
-      const targetElement = document.getElementById(`message-${getProcessedItemAnchorId(processedList[targetIndex])}`);
-      scrollElementIntoView(targetElement, {
-        behavior: 'smooth',
-        block: 'center',
-      });
+    scrollToIndex(targetIndex, {
+      behavior: 'smooth',
+      align: 'center',
     });
 
     const timer = window.setTimeout(() => {
@@ -389,7 +452,7 @@ const MessageList: React.FC<{
     }, 2400);
 
     return () => window.clearTimeout(timer);
-  }, [hideScrollButton, location.key, processedList, scrollElementIntoView, targetMessageId]);
+  }, [hideScrollButton, location.key, processedList, scrollToIndex, targetMessageId]);
 
   useEffect(() => {
     const handleMessageJump = (event: Event) => {
@@ -414,14 +477,9 @@ const MessageList: React.FC<{
       if (targetIndex < 0) return;
 
       hideScrollButton();
-      requestAnimationFrame(() => {
-        const targetElement = document.getElementById(
-          `message-${getProcessedItemAnchorId(processedList[targetIndex])}`
-        );
-        scrollElementIntoView(targetElement, {
-          block: detail.align || 'start',
-          behavior: detail.behavior || 'smooth',
-        });
+      scrollToIndex(targetIndex, {
+        align: detail.align || 'start',
+        behavior: detail.behavior || 'smooth',
       });
     };
 
@@ -429,7 +487,7 @@ const MessageList: React.FC<{
     return () => {
       window.removeEventListener(CHAT_MESSAGE_JUMP_EVENT, handleMessageJump);
     };
-  }, [conversationContext?.conversation_id, hideScrollButton, processedList, scrollElementIntoView]);
+  }, [conversationContext?.conversation_id, hideScrollButton, processedList, scrollToIndex]);
 
   // Click scroll button
   const handleScrollButtonClick = () => {
@@ -486,32 +544,28 @@ const MessageList: React.FC<{
       {/* Use PreviewGroup to wrap all messages for cross-message image preview */}
       <Image.PreviewGroup actionsLayout={['zoomIn', 'zoomOut', 'originalSize', 'rotateLeft', 'rotateRight']}>
         <ImagePreviewContext.Provider value={{ inPreviewGroup: true }}>
-          <div
-            ref={handleScrollerRef}
+          <Virtuoso<IProcessedItem, MessageListVirtuosoContext>
+            ref={virtualListRef}
+            data={processedList}
             data-testid='message-list-scroller'
+            context={virtuosoContext}
+            components={virtualizedMessageListComponents}
+            computeItemKey={(_index, item) => getProcessedItemAnchorId(item)}
+            itemContent={renderItem}
+            alignToBottom
+            defaultItemHeight={96}
+            increaseViewportBy={{ top: 320, bottom: 480 }}
+            minOverscanItemCount={{ top: 2, bottom: 2 }}
+            scrollerRef={handleVirtuosoScrollerRef}
+            totalListHeightChanged={handleTotalListHeightChanged}
             // Break out of the parent's 20px horizontal padding so the scrollbar hugs the
             // window edge, while re-applying that padding inside to keep message content inset.
             className='flex-1 h-full overflow-y-auto pb-10px box-border -mx-20px px-20px'
-            style={{ overflowAnchor: 'none' }}
+            style={{ height: '100%', overflowAnchor: 'none' }}
             onPointerDown={handlePointerDown}
             onScroll={handleScroll}
             onWheel={handleWheel}
-          >
-            <div ref={handleContentRef} data-testid='message-list-content' style={{ overflowAnchor: 'none' }}>
-              {timelineHeaderSlot}
-              <div className='h-10px' />
-              {processedList.length === 0 && emptySlot ? (
-                <div className='min-h-240px flex items-center justify-center'>{emptySlot}</div>
-              ) : (
-                processedList.map((item, index) => (
-                  <React.Fragment key={getProcessedItemAnchorId(item) || index}>
-                    {renderItem(index, item)}
-                  </React.Fragment>
-                ))
-              )}
-              <div className='h-20px' />
-            </div>
-          </div>
+          />
         </ImagePreviewContext.Provider>
       </Image.PreviewGroup>
 

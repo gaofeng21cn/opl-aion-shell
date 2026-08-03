@@ -7,6 +7,7 @@
 import type { UIEvent } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { VirtuosoHandle } from 'react-virtuoso';
 import type { TMessage } from '@/common/chat/chatLib';
 import { useAutoScroll } from '@/renderer/pages/conversation/Messages/useAutoScroll';
 
@@ -150,6 +151,34 @@ describe('useAutoScroll', () => {
     });
   });
 
+  it('auto-follows when Virtuoso reports a new total list height', () => {
+    const scroller = createScroller({ scrollTop: 600 });
+    const content = createContent();
+    const { result } = renderHook(() =>
+      useAutoScroll({
+        messages: [createLeftMessage('hello')],
+        itemCount: 1,
+      })
+    );
+
+    attachElements(result, scroller, content);
+    act(() => {
+      vi.runAllTimers();
+    });
+    vi.mocked(scroller.scrollTo).mockClear();
+    scroller.scrollHeight = 1080;
+
+    act(() => {
+      result.current.handleTotalListHeightChanged();
+      vi.runAllTimers();
+    });
+
+    expect(scroller.scrollTo).toHaveBeenCalledWith({
+      top: 680,
+      behavior: 'auto',
+    });
+  });
+
   it('does not auto-follow after the user scrolls up', () => {
     const scroller = createScroller({ scrollTop: 600 });
     const content = createContent();
@@ -281,27 +310,29 @@ describe('useAutoScroll', () => {
     });
   });
 
-  it('scrolls a target element into view for explicit message jumps', () => {
+  it('scrolls an unmounted target row by index for explicit message jumps', () => {
+    const virtualList = {
+      scrollToIndex: vi.fn(),
+    } as unknown as VirtuosoHandle;
     const { result } = renderHook(() =>
       useAutoScroll({
         messages: [createLeftMessage('hello')],
         itemCount: 1,
+        virtualListRef: { current: virtualList },
       })
     );
-    const target = document.createElement('div');
-    target.scrollIntoView = vi.fn();
 
     act(() => {
-      result.current.scrollElementIntoView(target, {
+      result.current.scrollToIndex(0, {
         behavior: 'smooth',
-        block: 'center',
+        align: 'center',
       });
     });
 
-    expect(target.scrollIntoView).toHaveBeenCalledWith({
+    expect(virtualList.scrollToIndex).toHaveBeenCalledWith({
+      index: 0,
       behavior: 'smooth',
-      block: 'center',
-      inline: 'nearest',
+      align: 'center',
     });
   });
 });
