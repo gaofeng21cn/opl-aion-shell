@@ -2317,6 +2317,10 @@ describe('Agents and capabilities settings', () => {
     expect(
       screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).closest('.settings-capabilities-tabs')
     ).not.toBeNull();
+    expect(
+      screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).querySelector('.text-t-primary')
+    ).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Manually added' }).querySelector('.text-t-secondary')).not.toBeNull();
     expect(screen.getByTestId('skills-detail')).toHaveAttribute(
       'data-flow-skills',
       'opl-flow,officecli-pptx,officecli-docx'
@@ -2339,6 +2343,10 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Manually added' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
     expect(screen.getByRole('tab', { name: 'Manually added' }).closest('.settings-capabilities-tabs')).not.toBeNull();
+    expect(
+      screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).querySelector('.text-t-secondary')
+    ).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Manually added' }).querySelector('.text-t-primary')).not.toBeNull();
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('settings-capabilities-primary-action').closest('[role="tabpanel"]')).toHaveAttribute(
       'aria-hidden',

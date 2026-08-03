@@ -2718,18 +2718,21 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           <Typography.Text className='text-t-secondary'>{t('settings.capabilitiesPage.description')}</Typography.Text>
         </div>
       </header>
-      <div data-testid='settings-capabilities-primary'>
+      <div className='settings-capabilities-tabs' data-testid='settings-capabilities-primary'>
         <Tabs
           activeTab={activeTab}
           onChange={(key) => {
             if (isCapabilitiesTab(key)) onTabChange(key);
           }}
           type='line'
-          className='settings-capabilities-tabs'
         >
           <Tabs.TabPane
             key='opl_flow_managed'
-            title={t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Recommended by OPL Flow' })}
+            title={
+              <span className={activeTab === 'opl_flow_managed' ? 'text-t-primary' : 'text-t-secondary'}>
+                {t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Recommended by OPL Flow' })}
+              </span>
+            }
           >
             <div id='opl-flow-managed' data-testid='settings-capabilities-opl-flow-managed'>
               <div data-testid='settings-capabilities-technical-details'>
@@ -2747,7 +2750,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           </Tabs.TabPane>
           <Tabs.TabPane
             key='manual_and_third_party'
-            title={t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manually added' })}
+            title={
+              <span className={activeTab === 'manual_and_third_party' ? 'text-t-primary' : 'text-t-secondary'}>
+                {t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manually added' })}
+              </span>
+            }
           >
             <div
               id='third-party'
