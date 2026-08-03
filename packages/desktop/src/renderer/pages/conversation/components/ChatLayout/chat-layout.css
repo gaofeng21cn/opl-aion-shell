@@ -39,7 +39,7 @@
   flex: 0 0 auto;
 }
 
-.conversation-header-tools [data-testid='conversation-side-panel-toggle'] {
+[data-testid='conversation-side-panel-toggle'] {
   color: var(--text-secondary) !important;
 }
 

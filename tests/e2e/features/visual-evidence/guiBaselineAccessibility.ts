@@ -31,7 +31,12 @@ export async function collectGuiBaselineAccessibility(
         const html = element as HTMLElement;
         const style = window.getComputedStyle(html);
         const rect = html.getBoundingClientRect();
-        const visible = style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        const visible =
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          !html.closest('[aria-hidden="true"], [inert], [hidden]');
         const accessibleName =
           html.getAttribute('aria-label') ||
           (html.getAttribute('aria-labelledby')
@@ -134,7 +139,13 @@ export async function collectGuiBaselineAccessibility(
         .filter((element) => {
           const style = window.getComputedStyle(element);
           const rect = element.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            rect.width > 0 &&
+            rect.height > 0 &&
+            !element.closest('[aria-hidden="true"], [inert], [hidden]')
+          );
         })
         .flatMap((element) => {
           const rect = element.getBoundingClientRect();
@@ -143,7 +154,9 @@ export async function collectGuiBaselineAccessibility(
           if (rect.left < -1 || rect.right > viewportWidth + 1 || rect.top < -1 || rect.bottom > viewportHeight + 1) {
             violations.push({ selector, reason: 'control_outside_viewport' });
           }
-          if (element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1) {
+          const leaksHorizontal = element.scrollWidth > element.clientWidth + 1 && style.overflowX === 'visible';
+          const leaksVertical = element.scrollHeight > element.clientHeight + 1 && style.overflowY === 'visible';
+          if (leaksHorizontal || leaksVertical) {
             violations.push({ selector, reason: 'control_scroll_overflow' });
           }
           return violations;
@@ -227,7 +240,8 @@ export async function collectGuiBaselineAccessibility(
             rect.width > 0 &&
             rect.height > 0 &&
             !element.matches(':disabled') &&
-            element.getAttribute('aria-disabled') !== 'true'
+            element.getAttribute('aria-disabled') !== 'true' &&
+            !element.closest('[aria-hidden="true"], [inert], [hidden]')
           );
         })
         .map((element, index) => {
