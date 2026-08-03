@@ -66,26 +66,27 @@ export async function collectGuiBaselineAccessibility(
     throw new Error(`GUI baseline accessibility found no named controls under ${rootSelector}`);
 
   const initialActive = await activeDescription(page);
-  const visibleControlSelector = CONTROL_SELECTOR.split(',')
-    .map((selector) => `${rootSelector} ${selector}:not(:disabled):not([aria-disabled="true"]):visible`)
-    .join(',');
-  const firstControl = page.locator(visibleControlSelector).first();
-  await firstControl.focus();
-  const focusedControl = await activeDescription(page);
-  if (focusedControl === 'none') {
-    throw new Error(`GUI baseline accessibility could not focus a named control under ${rootSelector}`);
-  }
-  const focusVisible = await page.evaluate(() => {
-    const active = document.activeElement;
-    return active instanceof HTMLElement && active.matches(':focus-visible');
-  });
-
   const overlayBefore = options.escapeSelector
     ? await page
         .locator(options.escapeSelector)
         .isVisible()
         .catch(() => false)
     : false;
+  const focusRootSelector = overlayBefore && options.escapeSelector ? options.escapeSelector : rootSelector;
+  const visibleControlSelector = CONTROL_SELECTOR.split(',')
+    .map((selector) => `${focusRootSelector} ${selector}:not(:disabled):not([aria-disabled="true"]):visible`)
+    .join(',');
+  const firstControl = page.locator(visibleControlSelector).first();
+  await firstControl.focus();
+  const focusedControl = await activeDescription(page);
+  if (focusedControl === 'none') {
+    throw new Error(`GUI baseline accessibility could not focus a named control under ${focusRootSelector}`);
+  }
+  const focusVisible = await page.evaluate(() => {
+    const active = document.activeElement;
+    return active instanceof HTMLElement && active.matches(':focus-visible');
+  });
+
   await page.keyboard.press('Escape');
   const overlayAfter = options.escapeSelector
     ? await page
