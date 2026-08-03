@@ -5,12 +5,14 @@ import { readRuntimeWorkItemProjectionV2 } from '@/renderer/pages/runtime/projec
 import { resolveOplHomeAssistants, resolveOplPackageLaunchGate } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
 const APP_FIXTURE_ROOT = process.env.OPL_APP_ROOT?.trim() ?? '';
+const APP_FIXTURE_REF = process.env.OPL_APP_FIXTURE_REF?.trim() || 'origin/main';
 const FAST_FIXTURE = 'contracts/fixtures/opl-app-state-fast.fixture.json';
-const UNKNOWN_AGENT_FIXTURE = 'contracts/fixtures/opl-app-state-unknown-agent.fixture.json';
+const MAS_RUNTIME_FIXTURE = 'contracts/fixtures/opl-app-state-runtime-v2-mas-detail.fixture.json';
+const UNKNOWN_AGENT_FIXTURE = 'contracts/fixtures/opl-app-state-runtime-v2-unknown-agent.fixture.json';
 
 function readCanonicalFixture(relativePath: string): Record<string, unknown> {
   if (!APP_FIXTURE_ROOT) throw new Error('OPL_APP_ROOT is required for the App-owned cross-fixture tests.');
-  const bytes = execFileSync('git', ['-C', APP_FIXTURE_ROOT, 'show', `origin/main:${relativePath}`], {
+  const bytes = execFileSync('git', ['-C', APP_FIXTURE_ROOT, 'show', `${APP_FIXTURE_REF}:${relativePath}`], {
     encoding: 'utf8',
   });
   const parsed: unknown = JSON.parse(bytes);
@@ -52,10 +54,34 @@ describe.skipIf(!APP_FIXTURE_ROOT)('Shell/App app-state cross-fixtures', () => {
     expect(readRuntimeWorkItemProjectionV2(fixture)).toEqual({ state: 'missing', projection: null });
   });
 
-  it('discovers the unknown Agent and shortcut from the App fixture while failing closed on incomplete Runtime V2', () => {
+  it('reads the App-owned MAS Runtime V2 descriptor without embedding domain payload', () => {
+    const fixture = readCanonicalFixture(MAS_RUNTIME_FIXTURE);
+    const result = readRuntimeWorkItemProjectionV2(fixture);
+
+    expect(result.state).toBe('ready');
+    expect(result.projection?.items).toHaveLength(1);
+    expect(result.projection?.items[0]).toMatchObject({
+      agentId: 'mas',
+      domainDetailViews: [
+        {
+          viewId: 'research-roadmap',
+          viewKind: 'research-roadmap',
+          title: 'Research roadmap',
+          schemaRef: 'contracts/schemas/v2/mas-research-trajectory-snapshot-v2.schema.json',
+          schemaVersion: null,
+          availability: 'unread',
+        },
+      ],
+    });
+    expect(JSON.stringify(fixture)).not.toContain('medical_narrative');
+    expect(JSON.stringify(fixture)).not.toContain('current_focus_node_refs');
+  });
+
+  it('discovers the unknown Agent and shortcut from a complete generic Runtime V2 fixture', () => {
     const fixture = readCanonicalFixture(UNKNOWN_AGENT_FIXTURE);
     const entries = parseOplStandardAgentDirectoryEntries(fixture);
     const assistants = resolveOplHomeAssistants([], fixture);
+    const runtime = readRuntimeWorkItemProjectionV2(fixture);
 
     expect(entries.map((entry) => entry.packageId)).toEqual(['future.agent-lab']);
     expect(entries[0]?.homeShortcuts.map((shortcut) => shortcut.shortcutId)).toEqual(['future-main']);
@@ -77,6 +103,18 @@ describe.skipIf(!APP_FIXTURE_ROOT)('Shell/App app-state cross-fixtures', () => {
       launchAllowed: true,
       launchBlockedReason: null,
     });
-    expect(readRuntimeWorkItemProjectionV2(fixture)).toEqual({ state: 'invalid', projection: null });
+    expect(runtime.state).toBe('ready');
+    expect(runtime.projection?.items).toEqual([
+      expect.objectContaining({
+        agentId: 'future.agent-lab',
+        domainDetailViews: [
+          expect.objectContaining({
+            viewId: 'future-view',
+            viewKind: 'future_agent_view',
+            availability: 'unread',
+          }),
+        ],
+      }),
+    ]);
   });
 });
