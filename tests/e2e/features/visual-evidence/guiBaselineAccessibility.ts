@@ -98,34 +98,37 @@ export async function collectGuiBaselineAccessibility(
       : 'overlay_not_closed'
     : 'no_overlay_expected';
 
-  const overflow = await page.evaluate((root) => {
-    const host = document.querySelector<HTMLElement>(root);
-    if (!host) return [{ selector: root, reason: 'root_missing' }];
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    return Array.from(host.querySelectorAll<HTMLElement>(CONTROL_SELECTOR))
-      .filter((element) => {
-        const style = window.getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-      })
-      .flatMap((element) => {
-        const rect = element.getBoundingClientRect();
-        const selector = element.dataset.testid || element.getAttribute('aria-label') || element.tagName;
-        const violations: Array<{ selector: string; reason: string }> = [];
-        if (rect.left < -1 || rect.right > viewportWidth + 1 || rect.top < -1 || rect.bottom > viewportHeight + 1) {
-          violations.push({ selector, reason: 'control_outside_viewport' });
-        }
-        if (element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1) {
-          violations.push({ selector, reason: 'control_scroll_overflow' });
-        }
-        return violations;
-      })
-      .slice(0, 8);
-  }, rootSelector);
+  const overflow = await page.evaluate(
+    ({ root, controlSelector }) => {
+      const host = document.querySelector<HTMLElement>(root);
+      if (!host) return [{ selector: root, reason: 'root_missing' }];
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      return Array.from(host.querySelectorAll<HTMLElement>(controlSelector))
+        .filter((element) => {
+          const style = window.getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        })
+        .flatMap((element) => {
+          const rect = element.getBoundingClientRect();
+          const selector = element.dataset.testid || element.getAttribute('aria-label') || element.tagName;
+          const violations: Array<{ selector: string; reason: string }> = [];
+          if (rect.left < -1 || rect.right > viewportWidth + 1 || rect.top < -1 || rect.bottom > viewportHeight + 1) {
+            violations.push({ selector, reason: 'control_outside_viewport' });
+          }
+          if (element.scrollWidth > element.clientWidth + 1 || element.scrollHeight > element.clientHeight + 1) {
+            violations.push({ selector, reason: 'control_scroll_overflow' });
+          }
+          return violations;
+        })
+        .slice(0, 8);
+    },
+    { root: rootSelector, controlSelector: CONTROL_SELECTOR }
+  );
 
   const contrastChecks = await page.evaluate(
-    ({ root, minimum }) => {
+    ({ root, minimum, controlSelector }) => {
       const parseColor = (value: string): [number, number, number, number] | null => {
         const trimmed = value.trim();
         const rgb = trimmed.match(/^rgba?\(([^)]+)\)$/i);
@@ -174,7 +177,7 @@ export async function collectGuiBaselineAccessibility(
       };
       const host = document.querySelector<HTMLElement>(root);
       if (!host) return [];
-      return Array.from(host.querySelectorAll<HTMLElement>(CONTROL_SELECTOR))
+      return Array.from(host.querySelectorAll<HTMLElement>(controlSelector))
         .filter((element) => {
           const style = window.getComputedStyle(element);
           const rect = element.getBoundingClientRect();
@@ -196,7 +199,7 @@ export async function collectGuiBaselineAccessibility(
         })
         .slice(0, 24);
     },
-    { root: rootSelector, minimum: minimumTextContrast }
+    { root: rootSelector, minimum: minimumTextContrast, controlSelector: CONTROL_SELECTOR }
   );
 
   return {
