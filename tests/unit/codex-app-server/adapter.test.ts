@@ -163,6 +163,27 @@ describe('CodexAppServerAdapter', () => {
     });
   });
 
+  it('uses thread/list fields without hydrating every active thread', async () => {
+    request.mockResolvedValueOnce({
+      data: [
+        rawThread('active-1', {
+          status: { type: 'active' },
+          turns: [{ id: 'turn-1', status: 'inProgress', items: [] }],
+        }),
+        rawThread('active-2', { status: { type: 'active' } }),
+      ],
+      nextCursor: null,
+    });
+
+    const result = await adapter.listThreads({ includeArchived: false });
+
+    expect(result.threads).toMatchObject([
+      { id: 'active-1', status: 'running', activeTurnId: 'turn-1' },
+      { id: 'active-2', status: 'running', activeTurnId: null },
+    ]);
+    expect(request.mock.calls.map(([method]) => method)).toEqual(['thread/list']);
+  });
+
   it('repairs an OPL-injected canonical title from the original user prompt', async () => {
     const pollutedTitle = '[Assistant Rules] OPL App 会话上下文';
     const injectedPrompt = '[Assistant Rules]\n## OPL App 会话上下文\n\nOPL routes.\n[/Assistant Rules]\n\n测试';

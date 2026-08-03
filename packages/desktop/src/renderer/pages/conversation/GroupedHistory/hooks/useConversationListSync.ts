@@ -107,9 +107,41 @@ type ConversationListSyncSnapshot = {
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
 
+export const createSingleFlightDirtyReplay = (operation: () => Promise<void>): (() => Promise<void>) => {
+  let running = false;
+  let dirty = false;
+  let activePromise: Promise<void> | null = null;
+
+  const request = (): Promise<void> => {
+    dirty = true;
+    if (!running) {
+      running = true;
+      activePromise = (async () => {
+        try {
+          while (dirty) {
+            dirty = false;
+            // Refreshes are intentionally serialized; a concurrent request only marks the trailing replay dirty.
+            // eslint-disable-next-line no-await-in-loop
+            await operation();
+          }
+        } finally {
+          running = false;
+          activePromise = null;
+          if (dirty) void request().catch(() => {});
+        }
+      })();
+    }
+    return activePromise ?? Promise.resolve();
+  };
+
+  return request;
+};
+
 const listeners = new Set<() => void>();
 
 let isStoreInitialized = false;
+let localConversationsState: TChatConversation[] = [];
+let canonicalDirectoryState: CodexThreadDirectory | null = null;
 let conversationsState: TChatConversation[] = [];
 let generatingConversationIdsState = new Set<string>();
 let completionUnreadConversationIdsState = new Set<string>();
@@ -117,7 +149,8 @@ let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
 let pendingCanonicalConversationIdsState = new Set<string>();
 let canonicalArchiveStateByThreadIdState = new Map<string, boolean>();
-let refreshSequenceState = 0;
+const pendingLocalConversationRefreshIdsState = new Set<string>();
+const deletedConversationIdsState = new Set<string>();
 let activeConversationIdState: string | null = null;
 let snapshotState: ConversationListSyncSnapshot = {
   conversations: conversationsState,
@@ -197,39 +230,51 @@ export const visibleConversationIds = (conversations: TChatConversation[]): Set<
   return new Set(conversations.map((conversation) => conversation.id));
 };
 
-const refreshConversations = (createdConversation?: TChatConversation) => {
-  if (
-    createdConversation?.type === 'acp' &&
-    createdConversation.extra.backend === 'codex' &&
-    canonicalCodexThreadId(createdConversation)
-  ) {
-    pendingCanonicalConversationIdsState = new Set(pendingCanonicalConversationIdsState).add(createdConversation.id);
-  }
+const isVisibleHistoryConversation = (conversation: TChatConversation): boolean => {
+  const extra = conversation.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
+  return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
+};
 
-  const refreshSequence = ++refreshSequenceState;
-  void Promise.allSettled([
+const applyConversationProjection = () => {
+  conversationsState = mergeCanonicalThreadDirectory(
+    localConversationsState.filter(isVisibleHistoryConversation),
+    canonicalDirectoryState,
+    pendingCanonicalConversationIdsState
+  );
+  conversation_idsState = visibleConversationIds(conversationsState);
+  emitStoreChange();
+};
+
+const upsertLocalConversation = (conversation: TChatConversation) => {
+  const index = localConversationsState.findIndex((candidate) => candidate.id === conversation.id);
+  if (index < 0) {
+    localConversationsState = [conversation, ...localConversationsState];
+    return;
+  }
+  const next = [...localConversationsState];
+  next[index] = conversation;
+  localConversationsState = next;
+};
+
+const refreshConversationDirectory = async () => {
+  const [localResult, canonicalResult] = await Promise.allSettled([
     ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
     ipcBridge.codexThreads.list.invoke({ includeArchived: true }),
-  ]).then(([localResult, canonicalResult]) => {
-    if (refreshSequence !== refreshSequenceState) return;
+  ]);
 
-    const items =
-      localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items) ? localResult.value.items : [];
-    if (localResult.status === 'rejected') {
-      console.error('[WorkspaceGroupedHistory] Failed to load shell conversation cache:', localResult.reason);
-    }
-    if (canonicalResult.status === 'rejected') {
-      console.error('[WorkspaceGroupedHistory] Failed to load canonical Codex task directory:', canonicalResult.reason);
-    }
+  if (localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items)) {
+    localConversationsState = localResult.value.items;
+  } else if (localResult.status === 'rejected') {
+    console.error('[WorkspaceGroupedHistory] Failed to load shell conversation cache:', localResult.reason);
+  }
+  if (canonicalResult.status === 'rejected') {
+    console.error('[WorkspaceGroupedHistory] Failed to load canonical Codex task directory:', canonicalResult.reason);
+  }
 
-    const filteredData = items.filter((conv) => {
-      // Legacy rows from the pre-provider-probe health check flow are hidden
-      // from normal history. New health checks must not create conversations.
-      const extra = conv.extra as { is_health_check?: boolean; team_id?: string; teamId?: string } | undefined;
-      return extra?.is_health_check !== true && !extra?.team_id && !extra?.teamId;
-    });
-    const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
-    if (canonicalDirectory && canonicalDirectory.host !== 'webui-local-cache') {
+  const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
+  if (canonicalDirectory) {
+    canonicalDirectoryState = canonicalDirectory;
+    if (canonicalDirectory.host !== 'webui-local-cache') {
       const nextArchiveStateByThreadId = canonicalDirectory.complete
         ? new Map<string, boolean>()
         : new Map(canonicalArchiveStateByThreadIdState);
@@ -238,24 +283,64 @@ const refreshConversations = (createdConversation?: TChatConversation) => {
       });
       canonicalArchiveStateByThreadIdState = nextArchiveStateByThreadId;
     }
-    conversationsState = mergeCanonicalThreadDirectory(
-      filteredData,
-      canonicalDirectory,
-      pendingCanonicalConversationIdsState
-    );
-    conversation_idsState = visibleConversationIds(conversationsState);
 
-    if (canonicalDirectory) {
-      const returnedThreadIds = new Set(canonicalDirectory.threads.map((thread) => thread.id));
-      const localById = new Map(items.map((conversation) => [conversation.id, conversation]));
-      pendingCanonicalConversationIdsState = new Set(
-        [...pendingCanonicalConversationIdsState].filter((conversationId) => {
-          const threadId = canonicalCodexThreadId(localById.get(conversationId));
-          return Boolean(threadId && !returnedThreadIds.has(threadId));
-        })
-      );
+    const returnedThreadIds = new Set(canonicalDirectory.threads.map((thread) => thread.id));
+    const localById = new Map(localConversationsState.map((conversation) => [conversation.id, conversation]));
+    pendingCanonicalConversationIdsState = new Set(
+      [...pendingCanonicalConversationIdsState].filter((conversationId) => {
+        const threadId = canonicalCodexThreadId(localById.get(conversationId));
+        return Boolean(threadId && !returnedThreadIds.has(threadId));
+      })
+    );
+  }
+
+  applyConversationProjection();
+};
+
+const requestConversationDirectoryRefresh = createSingleFlightDirtyReplay(refreshConversationDirectory);
+
+const refreshChangedLocalConversations = async () => {
+  const conversationIds = [...pendingLocalConversationRefreshIdsState];
+  pendingLocalConversationRefreshIdsState.clear();
+  const results = await Promise.allSettled(
+    conversationIds.map((conversationId) => ipcBridge.conversation.get.invoke({ id: conversationId }))
+  );
+  let changed = false;
+  results.forEach((result, index) => {
+    const conversationId = conversationIds[index];
+    if (!conversationId || deletedConversationIdsState.has(conversationId)) return;
+    if (result.status === 'fulfilled') {
+      upsertLocalConversation(result.value);
+      changed = true;
+      return;
     }
-    emitStoreChange();
+    console.error('[WorkspaceGroupedHistory] Failed to refresh changed conversation:', conversationId, result.reason);
+  });
+  if (changed) applyConversationProjection();
+};
+
+const requestChangedLocalConversationsRefresh = createSingleFlightDirtyReplay(refreshChangedLocalConversations);
+
+const refreshLocalConversation = (conversationId: string) => {
+  deletedConversationIdsState.delete(conversationId);
+  pendingLocalConversationRefreshIdsState.add(conversationId);
+  void requestChangedLocalConversationsRefresh().catch((error) => {
+    console.error('[WorkspaceGroupedHistory] Failed to drain changed conversations:', error);
+  });
+};
+
+const refreshConversations = (createdConversation?: TChatConversation) => {
+  if (
+    createdConversation?.type === 'acp' &&
+    createdConversation.extra.backend === 'codex' &&
+    canonicalCodexThreadId(createdConversation)
+  ) {
+    pendingCanonicalConversationIdsState = new Set(pendingCanonicalConversationIdsState).add(createdConversation.id);
+    upsertLocalConversation(createdConversation);
+    applyConversationProjection();
+  }
+  void requestConversationDirectoryRefresh().catch((error) => {
+    console.error('[WorkspaceGroupedHistory] Failed to drain conversation directory refresh:', error);
   });
 };
 
@@ -342,13 +427,26 @@ const initializeConversationListSyncStore = () => {
   addEventListener('chat.history.refresh', refreshConversations);
   ipcBridge.conversation.listChanged.on((event) => {
     if (event.action === 'deleted') {
+      deletedConversationIdsState.add(event.conversation_id);
+      pendingLocalConversationRefreshIdsState.delete(event.conversation_id);
+      localConversationsState = localConversationsState.filter(
+        (conversation) => conversation.id !== event.conversation_id
+      );
       clearGenerating(event.conversation_id);
       clearCompletionUnreadState(event.conversation_id);
       clearCompleted(event.conversation_id);
       const nextPendingIds = new Set(pendingCanonicalConversationIdsState);
       nextPendingIds.delete(event.conversation_id);
       pendingCanonicalConversationIdsState = nextPendingIds;
+      applyConversationProjection();
+      refreshConversations();
+      return;
     }
+    if (event.action === 'updated') {
+      refreshLocalConversation(event.conversation_id);
+      return;
+    }
+    deletedConversationIdsState.delete(event.conversation_id);
     refreshConversations();
   });
   ipcBridge.conversation.responseStream.on((message) => {
