@@ -204,7 +204,8 @@ function capabilityReadbackStatus(status: string): CapabilityAvailabilityStatus 
 }
 
 function capabilityReasonLabel(reason: string, t: (key: string, options?: Record<string, string>) => string): string {
-  return t(`settings.capabilitiesPage.reasonCodes.${reason}`, {
+  const normalizedReason = reason === 'required_exports_missing' ? 'required_export_missing' : reason;
+  return t(`settings.capabilitiesPage.reasonCodes.${normalizedReason}`, {
     defaultValue: t('settings.capabilitiesPage.reasonCodes.other'),
   });
 }

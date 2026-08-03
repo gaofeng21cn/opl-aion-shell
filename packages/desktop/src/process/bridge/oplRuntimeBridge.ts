@@ -82,20 +82,18 @@ const MANAGED_NODE_VERSION = 'v22.21.1';
 const STANDARD_BOOTSTRAP_RESOURCE = 'opl-install.sh';
 const OPL_FRAMEWORK_REPO_NAME = 'one-person-lab';
 const OPL_APP_REQUIRED_FRAMEWORK_API_RANGE = 'p19.stage-runtime';
-const OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS = [] as const;
-const OPL_APP_RUNTIME_CAPABILITY_CONTRACT_PATH = [
+const OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS = ['opl_dynamic_package_directory'] as const;
+const OPL_FRAMEWORK_RUNTIME_CAPABILITY_CONTRACT_PATH = [
   'contracts',
   'opl-framework',
   'app-runtime-fast-work-item-projection-contract.json',
 ] as const;
-const OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE = 'incompatible_missing_required_capability';
-const OPL_MODULE_PATH_ENV_KEYS = [
-  'OPL_MODULE_PATH_MEDAUTOSCIENCE',
-  'OPL_MODULE_PATH_MEDAUTOGRANT',
-  'OPL_MODULE_PATH_REDCUBE',
-  'OPL_MODULE_PATH_OPLMETAAGENT',
-  'OPL_MODULE_PATH_OPLBOOKFORGE',
+const OPL_FRAMEWORK_COMPONENT_COMPATIBILITY_CONTRACT_PATH = [
+  'contracts',
+  'opl-framework',
+  'app-component-compatibility-receipt-contract.json',
 ] as const;
+const OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE = 'incompatible_missing_required_capability';
 let standardBootstrapCompleted = false;
 let standardBootstrapInFlight: Promise<void> | null = null;
 let desktopStartupMaintenanceTask: Promise<IOplRuntimeCommandResult> | null = null;
@@ -1189,6 +1187,17 @@ function readStringArray(value: unknown): string[] {
   return [...new Set(value.map(normalizeOptionalString).filter((entry): entry is string => entry !== null))];
 }
 
+function readCapabilityIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((entry) => (isRecord(entry) ? normalizeOptionalString(entry.capability_id) : null))
+        .filter((entry): entry is string => entry !== null)
+    ),
+  ];
+}
+
 function readFrameworkIdentity(packageRoot: string): {
   frameworkVersion: string;
   frameworkApiVersion: string;
@@ -1199,9 +1208,17 @@ function readFrameworkIdentity(packageRoot: string): {
   const publicSurfaceIndex = readJsonRecordFile(
     path.join(packageRoot, 'contracts', 'opl-framework', 'public-surface-index.json')
   );
-  const capabilityContract = readJsonRecordFile(path.join(packageRoot, ...OPL_APP_RUNTIME_CAPABILITY_CONTRACT_PATH));
-  const compatibilityCapabilities = isRecord(capabilityContract?.compatibility_capabilities)
-    ? capabilityContract.compatibility_capabilities
+  const runtimeCapabilityContract = readJsonRecordFile(
+    path.join(packageRoot, ...OPL_FRAMEWORK_RUNTIME_CAPABILITY_CONTRACT_PATH)
+  );
+  const runtimeCompatibilityCapabilities = isRecord(runtimeCapabilityContract?.compatibility_capabilities)
+    ? runtimeCapabilityContract.compatibility_capabilities
+    : null;
+  const componentCompatibilityContract = readJsonRecordFile(
+    path.join(packageRoot, ...OPL_FRAMEWORK_COMPONENT_COMPATIBILITY_CONTRACT_PATH)
+  );
+  const producerObservation = isRecord(componentCompatibilityContract?.producer_observation)
+    ? componentCompatibilityContract.producer_observation
     : null;
   if (packageManifest?.name !== 'opl-framework') {
     throw new Error('Selected OPL Framework carrier must have package identity opl-framework.');
@@ -1214,7 +1231,12 @@ function readFrameworkIdentity(packageRoot: string): {
   return {
     frameworkVersion,
     frameworkApiVersion,
-    producerCapabilityIds: readStringArray(compatibilityCapabilities?.ids),
+    producerCapabilityIds: [
+      ...new Set([
+        ...readStringArray(runtimeCompatibilityCapabilities?.ids),
+        ...readCapabilityIds(producerObservation?.capabilities),
+      ]),
+    ],
   };
 }
 
@@ -1302,11 +1324,6 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
     return buildFrameworkCarrierSelection(developerCheckout, 'developer_checkout', 'active', spec);
   }
 
-  const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
-  if (packagedFullRuntime) {
-    return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
-  }
-
   const explicitInstallOrigin = normalizeOptionalString(env.OPL_APP_INSTALL_ORIGIN);
   if (
     explicitInstallOrigin &&
@@ -1316,6 +1333,7 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
   }
   const homebrewCaskInstall =
     explicitInstallOrigin === 'homebrew_cask' || (!explicitInstallOrigin && hasHomebrewCaskReceipt(env));
+  const packagedFullRuntime = resolvePackagedFullRuntimeRoot(env);
   if (homebrewCaskInstall) {
     const formulaRoot = resolveHomebrewFormulaRoot(env);
     if (formulaRoot) {
@@ -1330,16 +1348,22 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
         spec
       );
     }
+    if (packagedFullRuntime) {
+      return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
+    }
     throw new Error(
       'This Homebrew Cask install has neither the system Formula nor the transition Framework-managed carrier available.'
     );
   }
 
   const managedRoot = resolveManagedInstallCheckoutRoot(env);
-  if (!managedRoot) {
-    throw new Error('The Framework-managed OPL base carrier is missing.');
+  if (managedRoot) {
+    return buildFrameworkCarrierSelection(managedRoot, 'framework_managed_install', 'active', spec);
   }
-  return buildFrameworkCarrierSelection(managedRoot, 'framework_managed_install', 'active', spec);
+  if (packagedFullRuntime) {
+    return buildFrameworkCarrierSelection(packagedFullRuntime, 'packaged_full_runtime', 'active', spec);
+  }
+  throw new Error('The Framework-managed OPL base carrier is missing.');
 }
 
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
@@ -1353,6 +1377,7 @@ function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): Resolv
     ...resolved,
     env: {
       ...resolved.env,
+      OPL_FRAMEWORK_UPDATE_TARGET_ROOT: selection.packageRoot,
       OPL_FRAMEWORK_SELECTED_CARRIER: selection.receipt.selected_carrier,
       OPL_FRAMEWORK_VERSION: selection.receipt.framework_version,
       OPL_FRAMEWORK_API_VERSION: selection.receipt.framework_api_version,
@@ -1427,15 +1452,6 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
     OPL_PACKAGED_SKILLS_ROOT: baseEnv.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(runtimeHome, 'skills'),
     OPL_CODEX_BIN: baseEnv.OPL_CODEX_BIN?.trim() || path.join(runtimeHome, 'bin', 'codex'),
     OPL_FAMILY_RUNTIME_PROVIDER: baseEnv.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
-    OPL_MODULE_PATH_MEDAUTOSCIENCE:
-      baseEnv.OPL_MODULE_PATH_MEDAUTOSCIENCE?.trim() || path.join(runtimeHome, 'modules', 'mas'),
-    OPL_MODULE_PATH_MEDAUTOGRANT:
-      baseEnv.OPL_MODULE_PATH_MEDAUTOGRANT?.trim() || path.join(runtimeHome, 'modules', 'mag'),
-    OPL_MODULE_PATH_REDCUBE: baseEnv.OPL_MODULE_PATH_REDCUBE?.trim() || path.join(runtimeHome, 'modules', 'rca'),
-    OPL_MODULE_PATH_OPLMETAAGENT:
-      baseEnv.OPL_MODULE_PATH_OPLMETAAGENT?.trim() || path.join(runtimeHome, 'modules', 'meta-agent'),
-    OPL_MODULE_PATH_OPLBOOKFORGE:
-      baseEnv.OPL_MODULE_PATH_OPLBOOKFORGE?.trim() || path.join(runtimeHome, 'modules', 'bookforge'),
     ...(fs.existsSync(prefilledNodeModulesDir) ? { OPL_PREFILLED_NODE_MODULES_DIR: prefilledNodeModulesDir } : {}),
     ...(fs.existsSync(hermesBin) ? { OPL_HERMES_BIN: hermesBin } : {}),
     PATH: pathEntries,
@@ -1453,22 +1469,11 @@ function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.
     return standardEnv;
   }
 
-  const mergedEnv: NodeJS.ProcessEnv = {
+  return {
     ...standardEnv,
     ...fullRuntimeEnv,
     PATH: normalizePathEntries([fullRuntimeEnv.PATH, standardEnv.PATH]),
   };
-  if (developerModePrefersLocalCheckout(standardEnv)) {
-    for (const key of OPL_MODULE_PATH_ENV_KEYS) {
-      const explicitPath = normalizeOptionalString(standardEnv[key]);
-      if (explicitPath) {
-        mergedEnv[key] = explicitPath;
-      } else {
-        delete mergedEnv[key];
-      }
-    }
-  }
-  return mergedEnv;
 }
 
 function resetOplAppProcessInstanceIdForTest(): string {

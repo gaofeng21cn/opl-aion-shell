@@ -113,11 +113,7 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(installed?.env.CODEX_HOME).toBeUndefined();
     expect(installed?.env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(expectedHome, 'skills'));
     expect(installed?.env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
-    expect(installed?.env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(expectedHome, 'modules', 'mas'));
-    expect(installed?.env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(expectedHome, 'modules', 'mag'));
-    expect(installed?.env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(expectedHome, 'modules', 'rca'));
-    expect(installed?.env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(expectedHome, 'modules', 'meta-agent'));
-    expect(installed?.env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(expectedHome, 'modules', 'bookforge'));
+    expect(Object.keys(installed?.env ?? {}).filter((key) => key.startsWith('OPL_MODULE_PATH_'))).toEqual([]);
     expect(installed?.env.OPL_CODEX_BIN).toBeUndefined();
     expect(installed?.env.OPL_HERMES_BIN).toBeUndefined();
     expect(installed?.env.PATH?.split(path.delimiter).slice(0, 4)).toEqual([
@@ -210,5 +206,6 @@ describe('ensurePackagedOplFullRuntime', () => {
     expect(prefix).toContain('if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ]');
     expect(prefix).toContain('unset OPL_TEMPORAL_ADDRESS_SOURCE');
     expect(prefix).not.toContain('OPL_CODEX_BIN');
+    expect(prefix).not.toContain('OPL_MODULE_PATH_');
   });
 });

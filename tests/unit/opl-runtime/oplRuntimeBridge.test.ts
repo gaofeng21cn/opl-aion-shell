@@ -12,6 +12,7 @@ import {
 
 const tmpRoots: string[] = [];
 const OPTIONAL_DOMAIN_DETAIL_CAPABILITY = 'opl_app.domain_detail_views.v2';
+const DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY = 'opl_dynamic_package_directory';
 const MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 
 describe('OPL App updater channel readback', () => {
@@ -55,7 +56,8 @@ function makeFrameworkCarrier(
   packageRoot: string,
   version = '26.6.27',
   apiVersion = 'p19.stage-runtime',
-  capabilityIds: string[] = [OPTIONAL_DOMAIN_DETAIL_CAPABILITY]
+  capabilityIds: string[] = [OPTIONAL_DOMAIN_DETAIL_CAPABILITY],
+  componentCapabilityIds: string[] = [DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY]
 ): void {
   fs.mkdirSync(path.join(packageRoot, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(packageRoot, 'dist', 'entrypoints'), { recursive: true });
@@ -72,6 +74,15 @@ function makeFrameworkCarrier(
   fs.writeFileSync(
     path.join(packageRoot, 'contracts', 'opl-framework', 'app-runtime-fast-work-item-projection-contract.json'),
     JSON.stringify({ compatibility_capabilities: { ids: capabilityIds } }),
+    'utf8'
+  );
+  fs.writeFileSync(
+    path.join(packageRoot, 'contracts', 'opl-framework', 'app-component-compatibility-receipt-contract.json'),
+    JSON.stringify({
+      producer_observation: {
+        capabilities: componentCapabilityIds.map((capabilityId) => ({ capability_id: capabilityId })),
+      },
+    }),
     'utf8'
   );
 }
@@ -788,11 +799,7 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(runtimeHome, 'skills'));
     expect(env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
     expect(env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
-    expect(env.OPL_MODULE_PATH_MEDAUTOSCIENCE).toBe(path.join(runtimeHome, 'modules', 'mas'));
-    expect(env.OPL_MODULE_PATH_MEDAUTOGRANT).toBe(path.join(runtimeHome, 'modules', 'mag'));
-    expect(env.OPL_MODULE_PATH_REDCUBE).toBe(path.join(runtimeHome, 'modules', 'rca'));
-    expect(env.OPL_MODULE_PATH_OPLMETAAGENT).toBe(path.join(runtimeHome, 'modules', 'meta-agent'));
-    expect(env.OPL_MODULE_PATH_OPLBOOKFORGE).toBe(path.join(runtimeHome, 'modules', 'bookforge'));
+    expect(Object.keys(env).filter((key) => key.startsWith('OPL_MODULE_PATH_'))).toEqual([]);
     expect(env.OPL_PREFILLED_NODE_MODULES_DIR).toBe(path.join(runtimeHome, 'opl', 'node_modules'));
     expect(env.OPL_HERMES_BIN).toBe(path.join(runtimeHome, 'bin', 'hermes'));
     expect(env.PATH?.split(path.delimiter).slice(0, 3)).toEqual([
@@ -996,7 +1003,7 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
-  it('keeps ordinary and managed-update commands on the active packaged Full Framework', () => {
+  it('uses the installed Formula Framework while retaining Full runtime toolchain paths', () => {
     const homeDir = makeTempRoot('opl-update-bridge-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const packagedRoot = path.join(runtimeHome, 'opl');
@@ -1011,6 +1018,12 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.mkdirSync(path.join(packagedRoot, 'dist', 'modules', 'connect'), { recursive: true });
     fs.writeFileSync(
       path.join(packagedRoot, 'dist', 'modules', 'connect', 'managed-update-kernel.js'),
+      'export {}\n',
+      'utf8'
+    );
+    fs.mkdirSync(path.join(formulaRoot, 'dist', 'modules', 'connect'), { recursive: true });
+    fs.writeFileSync(
+      path.join(formulaRoot, 'dist', 'modules', 'connect', 'managed-update-kernel.js'),
       'export {}\n',
       'utf8'
     );
@@ -1043,17 +1056,18 @@ describe('OPL runtime bridge command whitelist', () => {
       __oplRuntimeBridgeTest.buildUpdateRepairCommand({ componentId: 'opl_base' }),
       __oplRuntimeBridgeTest.buildUpdateRollbackCommand({ componentId: 'opl_base' }),
     ];
+    const resolvedFormulaRoot = fs.realpathSync(formulaRoot);
     for (const spec of specs) {
       const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(spec, env);
       expect(command.command).toBe(path.join(runtimeHome, 'node', 'bin', 'node'));
-      expect(command.args[0]).toBe(path.join(packagedRoot, 'dist', 'entrypoints', 'cli.js'));
-      expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('packaged_full_runtime');
-      expect(command.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(packagedRoot);
+      expect(command.args[0]).toBe(path.join(resolvedFormulaRoot, 'dist', 'entrypoints', 'cli.js'));
+      expect(command.env.OPL_FRAMEWORK_SELECTED_CARRIER).toBe('system_homebrew_formula');
+      expect(command.env.OPL_FRAMEWORK_UPDATE_TARGET_ROOT).toBe(resolvedFormulaRoot);
       expect(command.env.OPL_ACTIVE_FRAMEWORK_COUNT).toBe('1');
     }
   });
 
-  it('fails closed instead of switching an active legacy Full runtime to Formula for updates', () => {
+  it('does not fall back to packaged Full when the selected Formula lacks an update surface', () => {
     const homeDir = makeTempRoot('opl-legacy-full-update-home');
     const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
     const packagedRoot = path.join(runtimeHome, 'opl');
@@ -1138,14 +1152,14 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(selection.receipt).toMatchObject({
       framework_version: '0.2.2',
       framework_api_version: 'p19.stage-runtime',
-      producer_capability_ids: [],
-      required_capability_ids: [],
+      producer_capability_ids: [DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY],
+      required_capability_ids: [DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY],
       missing_required_capability_ids: [],
       compatibility_status: 'compatible',
     });
     const command = __oplRuntimeBridgeTest.buildOplSpawnCommand(appStateSpec, env);
     expect(command.args.slice(-5)).toEqual(['app', 'state', '--profile', 'fast', '--json']);
-    expect(command.env.OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS).toBe('');
+    expect(command.env.OPL_APP_REQUIRED_FRAMEWORK_CAPABILITY_IDS).toBe(DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY);
   });
 
   it('activates a current carrier that publishes the optional domain detail capability', () => {
@@ -1165,8 +1179,8 @@ describe('OPL runtime bridge command whitelist', () => {
 
     const selection = __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, appStateSpec);
     expect(selection.receipt).toMatchObject({
-      producer_capability_ids: [OPTIONAL_DOMAIN_DETAIL_CAPABILITY],
-      required_capability_ids: [],
+      producer_capability_ids: [OPTIONAL_DOMAIN_DETAIL_CAPABILITY, DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY],
+      required_capability_ids: [DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY],
       missing_required_capability_ids: [],
       compatibility_status: 'compatible',
     });
@@ -1177,6 +1191,32 @@ describe('OPL runtime bridge command whitelist', () => {
       'fast',
       '--json',
     ]);
+  });
+
+  it('fails App-state activation when the selected Framework lacks dynamic package discovery', () => {
+    const homeDir = makeTempRoot('opl-missing-dynamic-package-capability-home');
+    const managedRoot = path.join(homeDir, '.opl', 'one-person-lab');
+    makeFrameworkCarrier(managedRoot, '0.3.4', 'p19.stage-runtime', [OPTIONAL_DOMAIN_DETAIL_CAPABILITY], []);
+    const appStateSpec = __oplRuntimeBridgeTest.buildAppStateCommand('fast');
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_APP_INSTALL_ORIGIN: 'direct_download',
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(() => __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, appStateSpec)).toThrow(
+      /opl_dynamic_package_directory/
+    );
+    expect(
+      __oplRuntimeBridgeTest.resolveOplFrameworkCarrier(env, __oplRuntimeBridgeTest.buildUpdateStatusCommand()).receipt
+    ).toMatchObject({
+      compatibility_status: 'incompatible_missing_required_capability',
+      missing_required_capability_ids: [DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY],
+    });
   });
 
   it('keeps canonical update and bootstrap surfaces reachable without optional domain details', () => {
@@ -1333,6 +1373,15 @@ describe('OPL runtime bridge command whitelist', () => {
     fs.writeFileSync(
       path.join(developerCheckout, 'contracts', 'opl-framework', 'app-runtime-fast-work-item-projection-contract.json'),
       JSON.stringify({ compatibility_capabilities: { ids: [OPTIONAL_DOMAIN_DETAIL_CAPABILITY] } }),
+      'utf8'
+    );
+    fs.writeFileSync(
+      path.join(developerCheckout, 'contracts', 'opl-framework', 'app-component-compatibility-receipt-contract.json'),
+      JSON.stringify({
+        producer_observation: {
+          capabilities: [{ capability_id: DYNAMIC_PACKAGE_DIRECTORY_CAPABILITY }],
+        },
+      }),
       'utf8'
     );
     fs.writeFileSync(

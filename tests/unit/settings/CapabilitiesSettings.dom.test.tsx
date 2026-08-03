@@ -609,21 +609,21 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                 capability_exposure: { status: 'visible' },
                 operational_ready: false,
                 launch_allowed: false,
-                launch_blocked_reason: 'required_export_missing',
+                launch_blocked_reason: 'required_exports_missing',
                 allowed_when_blocked: ['status', 'doctor', 'repair'],
                 dependency_readiness: {
                   status: 'repair_required',
                   required_count: 1,
                   ready_count: 0,
                   checks: [
-                    { package_id: 'example-provider', ready: false, failure_reasons: ['required_export_missing'] },
+                    { package_id: 'example-provider', ready: false, failure_reasons: ['required_exports_missing'] },
                   ],
                 },
                 repair_action: {
                   action_id: 'agent_package_repair',
                   command_ref: 'opl app action execute --action agent_package_repair --payload <json> --json',
                   enabled: true,
-                  reason_code: 'required_export_missing',
+                  reason_code: 'required_exports_missing',
                 },
                 dependent_guard: {
                   required_by_package_ids: ['consumer-agent'],

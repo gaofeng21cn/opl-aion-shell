@@ -86,11 +86,6 @@ function buildRuntimeEnv(runtimeHome: string): NodeJS.ProcessEnv {
       OPL_PACKAGED_SKILLS_ROOT: path.join(runtimeHome, 'skills'),
       OPL_FAMILY_RUNTIME_PROVIDER: process.env.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
       ...existingFileEnv('OPL_HERMES_BIN', path.join(runtimeHome, 'bin', 'hermes')),
-      OPL_MODULE_PATH_MEDAUTOSCIENCE: path.join(runtimeHome, 'modules', 'mas'),
-      OPL_MODULE_PATH_MEDAUTOGRANT: path.join(runtimeHome, 'modules', 'mag'),
-      OPL_MODULE_PATH_REDCUBE: path.join(runtimeHome, 'modules', 'rca'),
-      OPL_MODULE_PATH_OPLMETAAGENT: path.join(runtimeHome, 'modules', 'meta-agent'),
-      OPL_MODULE_PATH_OPLBOOKFORGE: path.join(runtimeHome, 'modules', 'bookforge'),
       PATH: pathEntries.join(path.delimiter),
     },
   });
@@ -342,11 +337,6 @@ export function buildOplFullRuntimeShellPrefix(runtimeHome: string | null | unde
     `export OPL_PACKAGED_SKILLS_ROOT=${shellQuote(path.join(normalized, 'skills'))}`,
     'export OPL_FAMILY_RUNTIME_PROVIDER="${OPL_FAMILY_RUNTIME_PROVIDER:-temporal}"',
     'if [ -z "${OPL_TEMPORAL_ADDRESS:-}" ] && [ -z "${TEMPORAL_ADDRESS:-}" ] && [ -z "${OPL_TEMPORAL_SERVICE_START_COMMAND:-}" ]; then export OPL_TEMPORAL_ADDRESS="127.0.0.1:7233"; export OPL_TEMPORAL_ADDRESS_SOURCE="packaged_local_default"; elif [ "${OPL_TEMPORAL_ADDRESS_SOURCE:-}" = "packaged_local_default" ] && [ "${OPL_TEMPORAL_ADDRESS:-}" != "127.0.0.1:7233" ]; then unset OPL_TEMPORAL_ADDRESS_SOURCE; fi',
-    `export OPL_MODULE_PATH_MEDAUTOSCIENCE=${shellQuote(path.join(normalized, 'modules', 'mas'))}`,
-    `export OPL_MODULE_PATH_MEDAUTOGRANT=${shellQuote(path.join(normalized, 'modules', 'mag'))}`,
-    `export OPL_MODULE_PATH_REDCUBE=${shellQuote(path.join(normalized, 'modules', 'rca'))}`,
-    `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(path.join(normalized, 'modules', 'meta-agent'))}`,
-    `export OPL_MODULE_PATH_OPLBOOKFORGE=${shellQuote(path.join(normalized, 'modules', 'bookforge'))}`,
     fs.existsSync(path.join(normalized, 'bin', 'hermes'))
       ? `export OPL_HERMES_BIN=${shellQuote(path.join(normalized, 'bin', 'hermes'))}`
       : '',
