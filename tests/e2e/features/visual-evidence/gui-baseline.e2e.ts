@@ -977,11 +977,16 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
       id: 'home-default-desktop-light-zh',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
-        anchor('home_starters', '[data-testid="opl-home-starters"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
-      coverageGaps: [],
+      coverageGaps: [
+        {
+          id: 'installed_package_home_starters',
+          reason:
+            'Package-discovered Home starters require installed-cohort evidence and are not injected by source E2E.',
+        },
+      ],
       setup: async (page) => {
         await goToGuid(page);
         await setNavigationRailExpanded(page, true);
