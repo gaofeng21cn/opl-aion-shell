@@ -39,6 +39,10 @@
   flex: 0 0 auto;
 }
 
+.conversation-header-tools [data-testid='conversation-side-panel-toggle'] {
+  color: var(--text-secondary) !important;
+}
+
 .chat-layout-right-sider {
   position: relative;
   min-height: 0;

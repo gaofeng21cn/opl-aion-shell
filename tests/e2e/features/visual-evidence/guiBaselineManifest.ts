@@ -50,7 +50,14 @@ export type GuiBaselineAccessibilityEvidence = {
   rendered_contrast: {
     passed: boolean;
     minimum_ratio: number;
-    checks: Array<{ id: string; ratio: number | null; passed: boolean; foreground: string; background: string }>;
+    checks: Array<{
+      id: string;
+      ratio: number | null;
+      minimum_required: number;
+      passed: boolean;
+      foreground: string;
+      background: string;
+    }>;
   };
 };
 

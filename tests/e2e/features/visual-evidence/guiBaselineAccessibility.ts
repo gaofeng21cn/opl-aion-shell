@@ -179,15 +179,29 @@ export async function collectGuiBaselineAccessibility(
         const backgroundLum = luminance(background);
         return (Math.max(foregroundLum, backgroundLum) + 0.05) / (Math.min(foregroundLum, backgroundLum) + 0.05);
       };
-      const backgroundFor = (element: HTMLElement): string => {
+      const composite = (
+        foreground: [number, number, number, number],
+        background: [number, number, number, number]
+      ): [number, number, number, number] => {
+        const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+        if (alpha <= 0) return [0, 0, 0, 0];
+        return [
+          (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+          (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+          (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+          alpha,
+        ];
+      };
+      const backgroundFor = (element: HTMLElement): [number, number, number, number] => {
         let current: HTMLElement | null = element;
+        const layers: Array<[number, number, number, number]> = [];
         while (current) {
           const color = window.getComputedStyle(current).backgroundColor;
           const parsed = parseColor(color);
-          if (parsed && parsed[3] > 0) return color;
+          if (parsed && parsed[3] > 0) layers.push(parsed);
           current = current.parentElement;
         }
-        return 'rgb(255, 255, 255)';
+        return layers.toReversed().reduce(composite, [255, 255, 255, 1]);
       };
       const host = document.querySelector<HTMLElement>(root);
       if (!host) return [];
@@ -208,14 +222,19 @@ export async function collectGuiBaselineAccessibility(
           const foreground = window.getComputedStyle(element).color;
           const background = backgroundFor(element);
           const parsedForeground = parseColor(foreground);
-          const parsedBackground = parseColor(background);
-          const value = parsedForeground && parsedBackground ? ratio(parsedForeground, parsedBackground) : null;
+          const compositedForeground = parsedForeground ? composite(parsedForeground, background) : null;
+          const value = compositedForeground ? ratio(compositedForeground, background) : null;
+          const minimumRequired = element.innerText.trim() ? minimum : 3;
           return {
             id: element.dataset.testid || element.getAttribute('aria-label') || `control-${index}`,
             ratio: value,
-            passed: value !== null && value >= minimum,
+            minimum_required: minimumRequired,
+            passed: value !== null && value >= minimumRequired,
             foreground,
-            background,
+            background: `rgb(${background
+              .slice(0, 3)
+              .map((channel) => Math.round(channel))
+              .join(', ')})`,
           };
         })
         .slice(0, 24);
