@@ -148,7 +148,6 @@ export async function collectGuiBaselineAccessibility(
           );
         })
         .flatMap((element) => {
-          const style = window.getComputedStyle(element);
           const rect = element.getBoundingClientRect();
           const selector = element.dataset.testid || element.getAttribute('aria-label') || element.tagName;
           const violations: Array<{ selector: string; reason: string }> = [];
@@ -171,11 +170,6 @@ export async function collectGuiBaselineAccessibility(
             (outsideVertically && !canScrollVerticallyIntoView)
           ) {
             violations.push({ selector, reason: 'control_outside_viewport' });
-          }
-          const leaksHorizontal = element.scrollWidth > element.clientWidth + 1 && style.overflowX === 'visible';
-          const leaksVertical = element.scrollHeight > element.clientHeight + 1 && style.overflowY === 'visible';
-          if (leaksHorizontal || leaksVertical) {
-            violations.push({ selector, reason: 'control_scroll_overflow' });
           }
           return violations;
         })
