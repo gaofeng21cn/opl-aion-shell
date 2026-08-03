@@ -583,7 +583,7 @@ async function homeComposerVisualCheck(
 
   const optionalModelPass =
     resting.modelFontSize === null ||
-    (resting.modelFontSize === '13px' &&
+    (resting.modelFontSize === '12px' &&
       resting.modelLineHeight === '18px' &&
       resting.modelIconWidth !== null &&
       resting.modelIconHeight !== null &&
