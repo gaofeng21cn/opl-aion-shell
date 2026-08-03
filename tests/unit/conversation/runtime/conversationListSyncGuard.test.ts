@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import type { TChatConversation } from '@/common/config/storage';
 import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
 import {
+  createSingleFlightDirtyReplay,
   getSidebarStreamGuardDecision,
   mergeCanonicalThreadDirectory,
   visibleConversationIds,
@@ -41,6 +42,43 @@ const directory = (threads: CodexThreadDescriptor[], complete = true): CodexThre
   host: 'host-a',
   complete,
   threads,
+});
+
+describe('createSingleFlightDirtyReplay', () => {
+  it('coalesces a burst into one in-flight refresh and one trailing replay', async () => {
+    const releases: Array<() => void> = [];
+    let active = 0;
+    let maxActive = 0;
+    const operation = vi.fn(async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      active -= 1;
+    });
+    const requestRefresh = createSingleFlightDirtyReplay(operation);
+
+    const refresh = requestRefresh();
+    for (let index = 0; index < 50; index += 1) requestRefresh();
+
+    expect(operation).toHaveBeenCalledTimes(1);
+    releases.shift()?.();
+    await vi.waitFor(() => expect(operation).toHaveBeenCalledTimes(2));
+    expect(maxActive).toBe(1);
+
+    releases.shift()?.();
+    await refresh;
+    expect(operation).toHaveBeenCalledTimes(2);
+    expect(maxActive).toBe(1);
+  });
+
+  it('accepts a new refresh after a failed operation', async () => {
+    const operation = vi.fn().mockRejectedValueOnce(new Error('temporary failure')).mockResolvedValueOnce(undefined);
+    const requestRefresh = createSingleFlightDirtyReplay(operation);
+
+    await expect(requestRefresh()).rejects.toThrow('temporary failure');
+    await expect(requestRefresh()).resolves.toBeUndefined();
+    expect(operation).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('getSidebarStreamGuardDecision', () => {

@@ -1015,7 +1015,7 @@ export class CodexAppServerAdapter {
     for (const { thread, archived } of rawThreads) {
       let hydrated = thread;
       const repairPollutedTitle = hasPollutedOplThreadTitle(thread);
-      if (thread.status.type === 'active' || repairPollutedTitle) {
+      if (repairPollutedTitle) {
         try {
           hydrated = await this.readRawThread(thread.id);
         } catch {
