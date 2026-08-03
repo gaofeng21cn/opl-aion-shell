@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,9 @@ type JsonRecord = Record<string, unknown>;
 
 export type GuiVisualReviewManifest = {
   schema?: string;
+  baseline_id?: string;
+  approval_receipt_schema?: string;
+  approval_receipt_sha256?: string;
   entries?: Array<{
     scene_id?: string;
     reference_screenshot_sha256?: string;
@@ -17,11 +21,14 @@ export type GuiVisualReviewManifest = {
 };
 
 export type GuiVisualComparisonOptions = {
-  contract: JsonRecord;
+  contractBytes: Buffer | string;
+  approvalReceiptBytes?: Buffer | string;
   referenceDir: string;
   candidateDir: string;
   outputDir: string;
   shellCommit: string;
+  appContractCommit: string;
+  appContractSha256: string;
   packageOrDevBuildIdentity: string;
   osVersion: string;
   architecture: string;
@@ -147,6 +154,8 @@ function reviewAccepted(
 function requireBinding(options: GuiVisualComparisonOptions): void {
   for (const [field, value] of Object.entries({
     shellCommit: options.shellCommit,
+    appContractCommit: options.appContractCommit,
+    appContractSha256: options.appContractSha256,
     packageOrDevBuildIdentity: options.packageOrDevBuildIdentity,
     osVersion: options.osVersion,
     architecture: options.architecture,
@@ -157,11 +166,24 @@ function requireBinding(options: GuiVisualComparisonOptions): void {
   if (!/^[0-9a-f]{40}$/.test(options.shellCommit)) {
     throw new Error('Comparison shellCommit must be an exact 40-character lowercase Git commit');
   }
+  if (!/^[0-9a-f]{40}$/.test(options.appContractCommit)) {
+    throw new Error('Comparison appContractCommit must be an exact 40-character lowercase Git commit');
+  }
+  if (!/^[0-9a-f]{64}$/.test(options.appContractSha256)) {
+    throw new Error('Comparison appContractSha256 must be an exact SHA256');
+  }
 }
 
 export async function compareGuiVisualCohort(options: GuiVisualComparisonOptions): Promise<JsonRecord> {
   requireBinding(options);
-  const contract = options.contract;
+  const contractBytes = Buffer.isBuffer(options.contractBytes)
+    ? options.contractBytes
+    : Buffer.from(options.contractBytes, 'utf8');
+  const actualContractSha256 = createHash('sha256').update(contractBytes).digest('hex');
+  if (actualContractSha256 !== options.appContractSha256) {
+    throw new Error('App contract bytes do not match appContractSha256');
+  }
+  const contract = record(JSON.parse(contractBytes.toString('utf8')));
   const comparison = record(contract.comparison_contract);
   const maskPolicy = record(comparison.mask_policy);
   const humanReview = record(comparison.human_review);
@@ -169,6 +191,55 @@ export async function compareGuiVisualCohort(options: GuiVisualComparisonOptions
   const candidate = record(contract.candidate);
   const scenes = Array.isArray(contract.scene_matrix) ? contract.scene_matrix.map(record) : [];
   if (!scenes.length) throw new Error('Visual cohort contract must contain at least one scene');
+  const baselineId = asString(reference.baseline_id, 'reference.baseline_id');
+  const approvalReceiptSchema = asString(reference.approval_receipt_schema, 'reference.approval_receipt_schema');
+  const referenceState = asString(reference.state, 'reference.state');
+  if (!['capture_and_human_approval_required', 'approved'].includes(referenceState)) {
+    throw new Error(`Unsupported App visual reference state: ${referenceState}`);
+  }
+  const approvalReceiptSha = reference.approval_receipt_sha256;
+  const approvalReceiptFile = reference.approval_receipt_file;
+  if (
+    approvalReceiptSha !== null &&
+    approvalReceiptSha !== undefined &&
+    !/^[0-9a-f]{64}$/.test(String(approvalReceiptSha))
+  ) {
+    throw new Error('reference.approval_receipt_sha256 must be an exact SHA256 when present');
+  }
+  if (referenceState === 'approved' && !approvalReceiptSha) {
+    throw new Error('Approved App visual reference requires an approval receipt SHA256');
+  }
+  if (referenceState === 'capture_and_human_approval_required' && (approvalReceiptFile || approvalReceiptSha)) {
+    throw new Error('Pending App visual reference cannot claim an approval receipt');
+  }
+  let approvalReceiptVerified = false;
+  if (referenceState === 'approved') {
+    if (typeof approvalReceiptFile !== 'string' || !approvalReceiptFile || !options.approvalReceiptBytes) {
+      throw new Error('Approved App visual reference requires readable approval receipt bytes');
+    }
+    const approvalReceiptBytes = Buffer.isBuffer(options.approvalReceiptBytes)
+      ? options.approvalReceiptBytes
+      : Buffer.from(options.approvalReceiptBytes, 'utf8');
+    if (createHash('sha256').update(approvalReceiptBytes).digest('hex') !== approvalReceiptSha) {
+      throw new Error('Approval receipt bytes do not match the App contract SHA256');
+    }
+    const approvalReceipt = record(JSON.parse(approvalReceiptBytes.toString('utf8')));
+    if (approvalReceipt.schema !== approvalReceiptSchema) {
+      throw new Error('Approval receipt schema does not match the App contract');
+    }
+    approvalReceiptVerified = true;
+  }
+  if (options.reviewManifest) {
+    if (options.reviewManifest.baseline_id !== baselineId) {
+      throw new Error('Visual review manifest baseline_id does not match the App-owned baseline');
+    }
+    if (options.reviewManifest.approval_receipt_schema !== approvalReceiptSchema) {
+      throw new Error('Visual review manifest approval receipt schema does not match the App contract');
+    }
+    if (approvalReceiptSha && options.reviewManifest.approval_receipt_sha256 !== approvalReceiptSha) {
+      throw new Error('Visual review manifest approval receipt SHA256 does not match the App contract');
+    }
+  }
 
   const channelThreshold = asNumber(
     comparison.pixel_channel_delta_threshold,
@@ -271,12 +342,9 @@ export async function compareGuiVisualCohort(options: GuiVisualComparisonOptions
     const meanAbsoluteChannelDelta = absoluteChannelDeltaTotal / (comparedPixelCount * channels);
     const pixelThresholdsPassed =
       changedPixelRatio <= changedPixelRatioMax && meanAbsoluteChannelDelta <= meanAbsoluteChannelDeltaMax;
-    const visualDeltaReviewed = reviewAccepted(
-      options.reviewManifest,
-      sceneId,
-      referenceScreenshotSha256,
-      candidateScreenshotSha256
-    );
+    const visualDeltaReviewed =
+      approvalReceiptVerified &&
+      reviewAccepted(options.reviewManifest, sceneId, referenceScreenshotSha256, candidateScreenshotSha256);
     const diffPath = path.join(options.outputDir, `${sceneId}.diff.png`);
     await sharp(diff, {
       raw: {
@@ -312,20 +380,30 @@ export async function compareGuiVisualCohort(options: GuiVisualComparisonOptions
       max_channel_delta: maxChannelDelta,
       pixel_thresholds_passed: pixelThresholdsPassed,
       visual_delta_reviewed: visualDeltaReviewed,
-      scene_bound_visual_parity: pixelThresholdsPassed && visualDeltaReviewed,
+      approval_receipt_verified: approvalReceiptVerified,
+      scene_bound_visual_parity:
+        pixelThresholdsPassed && visualDeltaReviewed && referenceState === 'approved' && approvalReceiptVerified,
       diff_png: diffPath,
     });
   }
 
   const allPixelThresholdsPassed = sceneResults.every((scene) => scene.pixel_thresholds_passed === true);
   const allScenesReviewed = sceneResults.every((scene) => scene.visual_delta_reviewed === true);
-  const allScenesPassed = sceneResults.every((scene) => scene.scene_bound_visual_parity === true);
+  const allScenesPassed =
+    sceneResults.every((scene) => scene.scene_bound_visual_parity === true) &&
+    referenceState === 'approved' &&
+    approvalReceiptVerified;
   return {
     schema: 'opl_shell_gui_visual_comparison_report.v1',
     status: allScenesPassed ? 'passed' : allPixelThresholdsPassed ? 'review_pending' : 'failed',
     binding: {
-      reference_product_build: `${asString(reference.bundle_version, 'reference.bundle_version')}+${asString(reference.build, 'reference.build')}`,
-      reference_observed_at: asString(reference.observed_on, 'reference.observed_on'),
+      baseline_id: baselineId,
+      reference_state: referenceState,
+      approval_receipt_schema: approvalReceiptSchema,
+      approval_receipt_sha256: approvalReceiptSha ?? null,
+      approval_receipt_verified: approvalReceiptVerified,
+      app_contract_commit: options.appContractCommit,
+      app_contract_sha256: options.appContractSha256,
       app_contract_ref: asString(candidate.app_contract_ref, 'candidate.app_contract_ref'),
       shell_commit: options.shellCommit,
       package_or_dev_build_identity: options.packageOrDevBuildIdentity,
@@ -363,10 +441,50 @@ async function readJson(filePath: string): Promise<JsonRecord> {
   return record(JSON.parse(await fs.readFile(filePath, 'utf8')));
 }
 
+const APP_CONTRACT_PATH = 'contracts/app-gui-visual-reference-cohort.json';
+
+function git(repoRoot: string, args: string[], encoding: 'utf8' | 'buffer' = 'utf8'): string | Buffer {
+  return execFileSync('git', args, {
+    cwd: repoRoot,
+    encoding,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+function loadAppContractSnapshot(appRepoRoot: string): {
+  contractBytes: Buffer;
+  appContractCommit: string;
+  appContractSha256: string;
+  approvalReceiptBytes?: Buffer;
+} {
+  const appContractCommit = String(git(appRepoRoot, ['rev-parse', 'origin/main^{commit}'])).trim();
+  if (!/^[0-9a-f]{40}$/.test(appContractCommit)) {
+    throw new Error(`App origin/main did not resolve to an exact commit: ${appContractCommit}`);
+  }
+  const contractBytes = git(appRepoRoot, ['show', `${appContractCommit}:${APP_CONTRACT_PATH}`], 'buffer') as Buffer;
+  const contract = record(JSON.parse(contractBytes.toString('utf8')));
+  const reference = record(contract.reference);
+  let approvalReceiptBytes: Buffer | undefined;
+  if (reference.state === 'approved') {
+    const receiptFile = asString(reference.approval_receipt_file, 'reference.approval_receipt_file');
+    if (path.posix.basename(receiptFile) !== receiptFile) {
+      throw new Error('App approval receipt file must be a plain filename');
+    }
+    const receiptPath = path.posix.join(path.posix.dirname(APP_CONTRACT_PATH), receiptFile);
+    approvalReceiptBytes = git(appRepoRoot, ['show', `${appContractCommit}:${receiptPath}`], 'buffer') as Buffer;
+  }
+  return {
+    contractBytes,
+    appContractCommit,
+    appContractSha256: createHash('sha256').update(contractBytes).digest('hex'),
+    approvalReceiptBytes,
+  };
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const required = [
-    'contract',
+    'app-repo-root',
     'reference-dir',
     'candidate-dir',
     'output-dir',
@@ -380,12 +498,16 @@ async function main(): Promise<void> {
     if (!args[field]) throw new Error(`Missing required --${field}`);
   }
   const reviewManifest = args['review-manifest'] ? await readJson(args['review-manifest']) : undefined;
+  const appContract = loadAppContractSnapshot(args['app-repo-root']);
   const report = await compareGuiVisualCohort({
-    contract: await readJson(args.contract),
+    contractBytes: appContract.contractBytes,
+    approvalReceiptBytes: appContract.approvalReceiptBytes,
     referenceDir: args['reference-dir'],
     candidateDir: args['candidate-dir'],
     outputDir: args['output-dir'],
     shellCommit: args['shell-commit'],
+    appContractCommit: appContract.appContractCommit,
+    appContractSha256: appContract.appContractSha256,
     packageOrDevBuildIdentity: args['package-or-dev-build-identity'],
     osVersion: args['os-version'],
     architecture: args.architecture,

@@ -7,12 +7,21 @@ import { describe, expect, it } from 'vitest';
 
 import { compareGuiVisualCohort } from '../../scripts/compare-gui-visual-cohort';
 
+const APPROVAL_RECEIPT = {
+  schema: 'opl_app_gui_visual_baseline_approval_receipt.v1',
+  baseline_id: 'opl-app-approved-visual-baseline-v1',
+};
+const APPROVAL_RECEIPT_BYTES = Buffer.from(JSON.stringify(APPROVAL_RECEIPT), 'utf8');
+const APPROVAL_RECEIPT_SHA256 = createHash('sha256').update(APPROVAL_RECEIPT_BYTES).digest('hex');
+
 function createContract(masks: unknown[] = []): Record<string, unknown> {
   return {
     reference: {
-      bundle_version: '26.707.72221',
-      build: '5307',
-      observed_on: '2026-07-15',
+      baseline_id: 'opl-app-approved-visual-baseline-v1',
+      state: 'approved',
+      approval_receipt_schema: 'opl_app_gui_visual_baseline_approval_receipt.v1',
+      approval_receipt_file: 'app-gui-visual-baseline-approval-receipt.json',
+      approval_receipt_sha256: APPROVAL_RECEIPT_SHA256,
     },
     candidate: {
       app_contract_ref: 'contracts/app-gui-product-contract.json#gui_maintenance_policy.visual_comparison_protocol',
@@ -43,6 +52,19 @@ function createContract(masks: unknown[] = []): Record<string, unknown> {
         masks,
       },
     ],
+  };
+}
+
+function contractBinding(contract: Record<string, unknown>): {
+  contractBytes: Buffer;
+  approvalReceiptBytes: Buffer;
+  appContractSha256: string;
+} {
+  const contractBytes = Buffer.from(JSON.stringify(contract), 'utf8');
+  return {
+    contractBytes,
+    approvalReceiptBytes: APPROVAL_RECEIPT_BYTES,
+    appContractSha256: createHash('sha256').update(contractBytes).digest('hex'),
   };
 }
 
@@ -82,16 +104,20 @@ describe('compareGuiVisualCohort', () => {
     const referenceSha = createHash('sha256').update(referenceBytes).digest('hex');
     const candidateSha = createHash('sha256').update(candidateBytes).digest('hex');
     const report = await compareGuiVisualCohort({
-      contract: createContract(),
+      ...contractBinding(createContract()),
       referenceDir: fixture.referenceDir,
       candidateDir: fixture.candidateDir,
       outputDir: fixture.outputDir,
       shellCommit: 'a'.repeat(40),
+      appContractCommit: 'b'.repeat(40),
       packageOrDevBuildIdentity: 'dev-fixture',
       osVersion: 'macOS fixture',
       architecture: 'arm64',
       displayScale: '2',
       reviewManifest: {
+        baseline_id: 'opl-app-approved-visual-baseline-v1',
+        approval_receipt_schema: 'opl_app_gui_visual_baseline_approval_receipt.v1',
+        approval_receipt_sha256: APPROVAL_RECEIPT_SHA256,
         entries: [
           {
             scene_id: 'composer',
@@ -113,11 +139,12 @@ describe('compareGuiVisualCohort', () => {
     const fixture = await createFixture();
     await writePng(fixture.candidatePath, [220, 20, 20, 255, 40, 40, 40, 255, 60, 60, 60, 255, 80, 80, 80, 255]);
     const report = await compareGuiVisualCohort({
-      contract: createContract(),
+      ...contractBinding(createContract()),
       referenceDir: fixture.referenceDir,
       candidateDir: fixture.candidateDir,
       outputDir: fixture.outputDir,
       shellCommit: 'a'.repeat(40),
+      appContractCommit: 'b'.repeat(40),
       packageOrDevBuildIdentity: 'dev-fixture',
       osVersion: 'macOS fixture',
       architecture: 'arm64',
@@ -133,11 +160,12 @@ describe('compareGuiVisualCohort', () => {
     const fixture = await createFixture();
     await writePng(fixture.candidatePath, [220, 20, 20, 255, 40, 40, 40, 255, 60, 60, 60, 255, 80, 80, 80, 255]);
     const report = await compareGuiVisualCohort({
-      contract: createContract([{ x: 0, y: 0, width: 1, height: 1, reason: 'caret_blink' }]),
+      ...contractBinding(createContract([{ x: 0, y: 0, width: 1, height: 1, reason: 'caret_blink' }])),
       referenceDir: fixture.referenceDir,
       candidateDir: fixture.candidateDir,
       outputDir: fixture.outputDir,
       shellCommit: 'a'.repeat(40),
+      appContractCommit: 'b'.repeat(40),
       packageOrDevBuildIdentity: 'dev-fixture',
       osVersion: 'macOS fixture',
       architecture: 'arm64',
@@ -148,11 +176,12 @@ describe('compareGuiVisualCohort', () => {
     expect(report.all_pixel_thresholds_passed).toBe(true);
     await expect(
       compareGuiVisualCohort({
-        contract: createContract([{ x: 0, y: 0, width: 2, height: 2, reason: 'caret_blink' }]),
+        ...contractBinding(createContract([{ x: 0, y: 0, width: 2, height: 2, reason: 'caret_blink' }])),
         referenceDir: fixture.referenceDir,
         candidateDir: fixture.candidateDir,
         outputDir: fixture.outputDir,
         shellCommit: 'a'.repeat(40),
+        appContractCommit: 'b'.repeat(40),
         packageOrDevBuildIdentity: 'dev-fixture',
         osVersion: 'macOS fixture',
         architecture: 'arm64',
@@ -164,11 +193,12 @@ describe('compareGuiVisualCohort', () => {
   it('rejects non-exact Shell bindings and output-unsafe scene ids', async () => {
     const fixture = await createFixture();
     const options = {
-      contract: createContract(),
+      ...contractBinding(createContract()),
       referenceDir: fixture.referenceDir,
       candidateDir: fixture.candidateDir,
       outputDir: fixture.outputDir,
       shellCommit: 'not-an-exact-commit',
+      appContractCommit: 'b'.repeat(40),
       packageOrDevBuildIdentity: 'dev-fixture',
       osVersion: 'macOS fixture',
       architecture: 'arm64',
@@ -183,8 +213,9 @@ describe('compareGuiVisualCohort', () => {
     await expect(
       compareGuiVisualCohort({
         ...options,
-        contract: unsafeContract,
+        ...contractBinding(unsafeContract),
         shellCommit: 'a'.repeat(40),
+        appContractCommit: 'b'.repeat(40),
       })
     ).rejects.toThrow(/output-safe identifier/);
   });

@@ -5,10 +5,13 @@ import os from 'os';
 import path from 'path';
 import sharp from 'sharp';
 import { test, expect } from '../../fixtures';
-import { goToGuid, httpDelete, httpGet, httpInvoke, httpPost, takeScreenshot } from '../../helpers';
+import { goToGuid, goToSettings, httpDelete, httpGet, httpInvoke, httpPost } from '../../helpers';
+import { collectGuiBaselineAccessibility } from './guiBaselineAccessibility';
 import {
   GuiBaselineManifestWriter,
+  readAppGuiVisualReferenceContract,
   requireCleanShellHead,
+  type AppGuiVisualReferenceContract,
   type GuiBaselineAnchorEvidence,
   type GuiBaselineCoverageGap,
   type GuiBaselineLayoutCheck,
@@ -17,9 +20,9 @@ import {
 } from './guiBaselineManifest';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
-const MANIFEST_PATH = path.resolve(__dirname, '../../screenshots/gui-baseline-manifest.json');
 const E2E_MODE = process.env.E2E_PACKAGED === '1' ? 'E2E_PACKAGED=1' : process.env.E2E_DEV === '1' ? 'E2E_DEV=1' : '';
 const RUN_COMMAND = [
+  'GUI_BASELINE_EVIDENCE_DIR=<task-owned-evidence-dir>',
   'AIONUI_E2E_PRODUCT_PROFILE=1',
   E2E_MODE,
   'E2E_SCREENSHOTS=1',
@@ -58,12 +61,89 @@ type VisualTarget = {
   viewport: { name: string; width: number; height: number };
   theme: GuiBaselineTheme;
   locale: GuiBaselineLocale;
+  contractRoute: string;
+  contractState: string;
   anchors: AnchorTarget[];
   coverageGaps: GuiBaselineCoverageGap[];
   verifyBackdrop?: boolean;
+  accessibilityRoot?: string;
+  escapeSelector?: string;
   setup: (page: Page) => Promise<Record<string, string | number | boolean>>;
   layoutChecks: (page: Page) => Promise<GuiBaselineLayoutCheck[]>;
 };
+type VisualTargetDefinition = Omit<
+  VisualTarget,
+  'screenshotName' | 'viewport' | 'theme' | 'locale' | 'contractRoute' | 'contractState'
+>;
+
+function resolveAppRepoRoot(): string {
+  const explicit = process.env.OPL_APP_REPO_ROOT;
+  if (explicit) return fs.realpathSync(explicit);
+  let current = REPO_ROOT;
+  while (true) {
+    const candidate = path.join(current, 'one-person-lab-app');
+    if (fs.existsSync(path.join(candidate, '.git'))) return fs.realpathSync(candidate);
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  throw new Error('Set OPL_APP_REPO_ROOT to the canonical one-person-lab-app checkout');
+}
+
+function resolveEvidenceRoot(): string {
+  const explicit = process.env.GUI_BASELINE_EVIDENCE_DIR;
+  if (!explicit) throw new Error('Set GUI_BASELINE_EVIDENCE_DIR to a task-owned evidence directory');
+  const evidenceRoot = path.resolve(explicit);
+  const relativeToRepo = path.relative(REPO_ROOT, evidenceRoot);
+  if (relativeToRepo === '' || (!relativeToRepo.startsWith('..') && !path.isAbsolute(relativeToRepo))) {
+    throw new Error('GUI_BASELINE_EVIDENCE_DIR must be outside the Shell worktree');
+  }
+  fs.mkdirSync(evidenceRoot, { recursive: true });
+  return fs.realpathSync(evidenceRoot);
+}
+
+async function takeEvidenceScreenshot(page: Page, evidenceRoot: string, sceneId: string): Promise<string> {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(sceneId)) {
+    throw new Error(`GUI baseline scene id is not output-safe: ${sceneId}`);
+  }
+  const screenshotPath = path.join(evidenceRoot, 'screenshots', `${sceneId}.png`);
+  fs.mkdirSync(path.dirname(screenshotPath), { recursive: true });
+  await page.screenshot({ path: screenshotPath, fullPage: false });
+  return screenshotPath;
+}
+
+function bindTargetsToAppContract(
+  contract: AppGuiVisualReferenceContract,
+  definitions: VisualTargetDefinition[]
+): VisualTarget[] {
+  const byId = new Map(definitions.map((definition) => [definition.id, definition]));
+  if (byId.size !== definitions.length)
+    throw new Error('Shell GUI visual target definitions contain duplicate scene ids');
+  const targets = contract.scene_matrix.map((scene) => {
+    const definition = byId.get(scene.id);
+    if (!definition) throw new Error(`Shell GUI harness has no implementation for App scene ${scene.id}`);
+    const viewport = contract.capture_contract.supported_viewports[scene.viewport];
+    if (!viewport) throw new Error(`App scene ${scene.id} has no supported viewport binding`);
+    return {
+      ...definition,
+      screenshotName: `gui-baseline/${scene.id}`,
+      viewport: { name: scene.viewport, ...viewport },
+      theme: scene.theme,
+      locale: scene.locale,
+      contractRoute: scene.route,
+      contractState: scene.state,
+    };
+  });
+  if (targets.length !== definitions.length) {
+    const unknown = definitions.filter(
+      (definition) => !contract.scene_matrix.some((scene) => scene.id === definition.id)
+    );
+    throw new Error(
+      `Shell GUI harness defines scenes absent from App authority: ${unknown.map((scene) => scene.id).join(', ')}`
+    );
+  }
+  return targets;
+}
 
 const anchor = (
   id: string,
@@ -692,6 +772,45 @@ async function openConversationModelMenu(page: Page): Promise<void> {
   await expect(page.getByText(/Auto \(recommended\)/i).last()).toBeVisible();
 }
 
+async function openHomeModelMenu(page: Page): Promise<void> {
+  const trigger = page.locator('[data-testid="guid-model-selector"]');
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(page.locator('.arco-dropdown-menu:visible, [role="menu"]:visible').last()).toBeVisible();
+}
+
+async function openHomeCapabilityPalette(page: Page): Promise<void> {
+  const trigger = page.locator('[data-testid="file-upload-btn"]');
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(page.locator('[data-testid="guid-capability-palette"]')).toBeVisible();
+}
+
+async function openConversationCommandMenu(page: Page): Promise<void> {
+  const input = page.locator('[data-testid="conversation-composer"] textarea').first();
+  await expect(input).toBeVisible();
+  await input.fill('/');
+  await expect(page.locator('[role="listbox"]')).toBeVisible();
+}
+
+async function openSettingsScene(
+  page: Page,
+  tab: 'general' | 'appearance' | 'capabilities' | 'environment',
+  readySelector: string,
+  route?: string
+): Promise<void> {
+  await goToSettings(page, tab);
+  if (route) {
+    await page.evaluate((target) => {
+      window.location.hash = `#${target}`;
+    }, route);
+    await page.waitForFunction((target) => window.location.hash === `#${target}`, route, { timeout: 10_000 });
+  }
+  await expect(page.locator(readySelector)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.arco-message')).toHaveCount(0, { timeout: 10_000 });
+  await waitForStablePaint(page);
+}
+
 async function openEnvironmentPopover(page: Page): Promise<void> {
   await page.locator('.conversation-environment-trigger').click();
   await expect(page.locator('[data-testid="conversation-environment-popover"]')).toBeVisible();
@@ -790,7 +909,8 @@ async function captureTarget(
   electronApp: ElectronApplication,
   writer: GuiBaselineManifestWriter,
   shellHead: string,
-  target: VisualTarget
+  target: VisualTarget,
+  evidenceRoot: string
 ): Promise<void> {
   await applyAppearance(page, electronApp, target.viewport, target.theme, target.locale);
   const state = await target.setup(page);
@@ -801,7 +921,13 @@ async function captureTarget(
   }
 
   const route = await page.evaluate(() => window.location.hash.replace(/^#/, ''));
-  const screenshotPath = await takeScreenshot(page, target.screenshotName);
+  const expectedRoutePattern = new RegExp(
+    `^${target.contractRoute.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/:[a-zA-Z0-9_]+/g, '[^/?#]+')}$`
+  );
+  expect(route, `${target.id}: route must match App-owned contract ${target.contractRoute}`).toMatch(
+    expectedRoutePattern
+  );
+  const screenshotPath = await takeEvidenceScreenshot(page, evidenceRoot, target.id);
   const screenshotChecks =
     target.id.startsWith('home-') && target.verifyBackdrop !== false
       ? [await homeBackdropPaintCheck(page, screenshotPath)]
@@ -809,6 +935,11 @@ async function captureTarget(
   for (const check of screenshotChecks) {
     expect(check.passed, `${check.id}: ${check.details}`).toBe(true);
   }
+  const accessibility = await collectGuiBaselineAccessibility(page, {
+    rootSelector: target.accessibilityRoot ?? MAIN_CONTENT_SELECTOR,
+    escapeSelector: target.escapeSelector,
+  });
+  expect(accessibility.focus.escape_outcome).not.toBe('overlay_not_closed');
   writer.add({
     id: target.id,
     shell_head: shellHead,
@@ -816,15 +947,16 @@ async function captureTarget(
     viewport: target.viewport,
     theme: target.theme,
     locale: target.locale,
-    state,
-    screenshot_path: path.relative(REPO_ROOT, screenshotPath),
+    state: { ...state, contract_state: target.contractState },
+    screenshot_path: path.relative(evidenceRoot, screenshotPath),
     anchors,
     layout_checks: [...layoutChecks, ...screenshotChecks],
     coverage_gaps: target.coverageGaps,
+    accessibility,
   });
 }
 
-function buildTargets(conversationId: string): VisualTarget[] {
+function buildTargets(conversationId: string): VisualTargetDefinition[] {
   const railMainChecks = async (page: Page) => [
     await disjointCheck(page, 'navigation_rail_does_not_cover_main', NAVIGATION_RAIL_SELECTOR, MAIN_CONTENT_SELECTOR),
   ];
@@ -842,11 +974,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
 
   return [
     {
-      id: 'home-desktop-light-zh-CN-rail-expanded',
-      screenshotName: 'gui-baseline/home/desktop/light/zh-CN/rail-expanded',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'light',
-      locale: 'zh-CN',
+      id: 'home-default-desktop-light-zh',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_starters', '[data-testid="opl-home-starters"]'),
@@ -867,11 +995,7 @@ function buildTargets(conversationId: string): VisualTarget[] {
       ],
     },
     {
-      id: 'home-mobile-dark-en-US-rail-closed',
-      screenshotName: 'gui-baseline/home/mobile/dark/en-US/rail-closed',
-      viewport: { name: 'mobile', width: 400, height: 600 },
-      theme: 'dark',
-      locale: 'en-US',
+      id: 'home-default-narrow-light-en',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
@@ -887,117 +1011,88 @@ function buildTargets(conversationId: string): VisualTarget[] {
       layoutChecks: async (page) => [
         await viewportCheck(page, 'mobile_home_main_within_viewport', MAIN_CONTENT_SELECTOR),
         await textOverflowCheck(page, 'mobile_home_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
-        await homeComposerVisualCheck(page, 'rgb(32, 34, 36)', false),
-      ],
-    },
-    {
-      id: 'home-desktop-light-zh-CN-starter-active',
-      screenshotName: 'gui-baseline/home/desktop/light/zh-CN/starter-active',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'light',
-      locale: 'zh-CN',
-      anchors: [
-        anchor('home_route', '[data-testid="opl-guid-entry"]'),
-        anchor('home_starters', '[data-testid="opl-home-starters"]'),
-        anchor('home_starter_active', '[data-testid="home-starter-mas"][aria-pressed="true"][data-opl-active="true"]'),
-        anchor('home_input', '[data-testid="guid-input-card-shell"]'),
-        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
-      ],
-      coverageGaps: [],
-      setup: async (page) => {
-        await goToGuid(page);
-        await setNavigationRailExpanded(page, true);
-        await expectHomeLocale(page, 'zh-CN');
-        const starter = page.locator('[data-testid="home-starter-mas"]');
-        await starter.click();
-        await expect(starter).toHaveAttribute('aria-pressed', 'true');
-        await expect(starter).toHaveAttribute('data-opl-active', 'true');
-        await expect(starter.locator('[data-testid="starter-active-check"]')).toHaveCount(0);
-        await expect(page.locator('[data-testid="guid-input-card-shell"]')).toBeVisible();
-        await waitForStablePaint(page);
-        return { route_kind: 'home', rail: 'expanded', starter: 'mas', starter_state: 'active' };
-      },
-      layoutChecks: async (page) => [
-        ...(await railMainChecks(page)),
-        await textOverflowCheck(page, 'home_active_starter_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
-        await homeStarterGeometryCheck(page),
         await homeComposerVisualCheck(page, 'rgb(255, 255, 255)', false),
       ],
     },
     {
-      id: 'home-mobile-dark-en-US-action-sheet-open',
-      screenshotName: 'gui-baseline/home/mobile/dark/en-US/action-sheet-open',
-      viewport: { name: 'mobile', width: 400, height: 600 },
-      theme: 'dark',
-      locale: 'en-US',
+      id: 'home-model-menu-desktop-light-en',
       anchors: [
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
-        anchor('mobile_action_sheet', '[role="dialog"][aria-modal="true"]'),
-        anchor(
-          'mobile_attach',
-          '[data-testid="mobile-action-sheet-attach-file"], [data-testid="mobile-action-sheet-attach-host-files"]'
+        anchor('home_input', '[data-testid="guid-input-card-shell"]'),
+        anchor('home_model_control', '[data-testid="guid-model-selector"]'),
+        anchor('home_model_menu', '.arco-dropdown-menu:visible, [role="menu"]:visible'),
+        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+      ],
+      coverageGaps: [],
+      escapeSelector: '.arco-dropdown-menu:visible, [role="menu"]:visible',
+      setup: async (page) => {
+        await goToGuid(page);
+        await setNavigationRailExpanded(page, true);
+        await expectHomeLocale(page, 'en-US');
+        await openHomeModelMenu(page);
+        return { route_kind: 'home', rail: 'expanded', model_menu: 'open' };
+      },
+      layoutChecks: async (page) => [
+        ...(await railMainChecks(page)),
+        await viewportCheck(
+          page,
+          'home_model_menu_within_viewport',
+          '.arco-dropdown-menu:visible, [role="menu"]:visible'
         ),
-        anchor('mobile_permission', '[data-testid="mobile-action-sheet-permission"]'),
-        anchor('mobile_reasoning', '[data-testid="mobile-action-sheet-reasoning"]'),
-        anchor('mobile_model', '[data-testid="mobile-action-sheet-model"]'),
+        await textOverflowCheck(page, 'home_model_menu_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+        await homeComposerVisualCheck(page, 'rgb(255, 255, 255)', false),
+      ],
+    },
+    {
+      id: 'home-capability-palette-desktop-dark-zh',
+      anchors: [
+        anchor('home_route', '[data-testid="opl-guid-entry"]'),
+        anchor('home_capability_palette_trigger', '[data-testid="file-upload-btn"][aria-expanded="true"]'),
+        anchor('home_capability_palette', '[data-testid="guid-capability-palette"]'),
+        anchor('home_capability_palette_search', '[data-testid="guid-capability-palette-search"]'),
       ],
       coverageGaps: [],
       verifyBackdrop: false,
+      escapeSelector: '[data-testid="guid-capability-palette"]',
       setup: async (page) => {
         await goToGuid(page);
-        await setNavigationRailExpanded(page, false);
-        await openMobileActionSheet(page, '[data-testid="file-upload-btn"]');
-        return { route_kind: 'home', rail: 'closed', composer_surface: 'mobile_action_sheet' };
+        await setNavigationRailExpanded(page, true);
+        await expectHomeLocale(page, 'zh-CN');
+        await openHomeCapabilityPalette(page);
+        return { route_kind: 'home', rail: 'expanded', capability_palette: 'open' };
       },
       layoutChecks: async (page) => [
-        await viewportCheck(page, 'mobile_home_action_sheet_within_viewport', '[role="dialog"][aria-modal="true"]'),
+        ...(await railMainChecks(page)),
+        await viewportCheck(page, 'home_capability_palette_within_viewport', '[data-testid="guid-capability-palette"]'),
         await textOverflowCheck(
           page,
-          'mobile_home_action_sheet_text_does_not_overflow',
-          '[role="dialog"][aria-modal="true"]'
+          'home_capability_palette_text_does_not_overflow',
+          '[data-testid="guid-capability-palette"]'
         ),
       ],
     },
     {
-      id: 'runtime-desktop-light-en-US-overview',
-      screenshotName: 'gui-baseline/runtime/desktop/light/en-US/overview',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'light',
-      locale: 'en-US',
+      id: 'rail-selected-desktop-light-en',
       anchors: [
-        anchor('runtime_route', '[data-testid="runtime-v2-page"]'),
-        anchor(
-          'runtime_state',
-          '[data-testid="runtime-work-item-list"], [data-testid="runtime-projection-unavailable"]'
-        ),
+        anchor('rail_selected_conversation', `#c-${conversationId}[data-selected="true"][aria-current="page"]`),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
       coverageGaps: [],
       setup: async (page) => {
-        await goToRuntime(page);
+        await openFixtureConversation(page, conversationId, 'closed');
         await setNavigationRailExpanded(page, true);
-        return {
-          route_kind: 'runtime',
-          runtime_state: (await page
-            .locator('[data-testid="runtime-work-item-list"]')
-            .isVisible()
-            .catch(() => false))
-            ? 'work_item_projection'
-            : 'projection_unavailable',
-        };
+        await expectConversationLocale(page, 'en-US');
+        await expect(page.locator(`#c-${conversationId}`)).toHaveAttribute('aria-current', 'page');
+        return { route_kind: 'ordinary_conversation', rail: 'expanded', rail_row: 'selected' };
       },
       layoutChecks: async (page) => [
         ...(await railMainChecks(page)),
-        await viewportCheck(page, 'runtime_main_within_viewport', MAIN_CONTENT_SELECTOR),
-        await textOverflowCheck(page, 'runtime_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
+        await viewportCheck(page, 'selected_rail_row_within_viewport', `#c-${conversationId}`),
+        await textOverflowCheck(page, 'selected_rail_row_text_does_not_overflow', NAVIGATION_RAIL_SELECTOR),
       ],
     },
     {
-      id: 'conversation-desktop-light-en-US-composer-controls',
-      screenshotName: 'gui-baseline/conversation/desktop/light/en-US/composer-controls',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'light',
-      locale: 'en-US',
+      id: 'conversation-default-desktop-light-zh',
       anchors: [
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
@@ -1009,23 +1104,20 @@ function buildTargets(conversationId: string): VisualTarget[] {
       coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
-        await expectConversationLocale(page, 'en-US');
+        await expectConversationLocale(page, 'zh-CN');
         return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', composer: 'decision_ready' };
       },
       layoutChecks: conversationChecks,
     },
     {
-      id: 'conversation-desktop-light-en-US-model-menu-open',
-      screenshotName: 'gui-baseline/conversation/desktop/light/en-US/model-menu-open',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'light',
-      locale: 'en-US',
+      id: 'conversation-model-menu-desktop-dark-en',
       anchors: [
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
         anchor('conversation_model_control', '[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn'),
         anchor('conversation_model_menu', 'text="Auto (recommended)"'),
       ],
       coverageGaps: [],
+      escapeSelector: '[role="menu"]:visible, .arco-dropdown-menu:visible',
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
         await openConversationModelMenu(page);
@@ -1038,214 +1130,161 @@ function buildTargets(conversationId: string): VisualTarget[] {
       ],
     },
     {
-      id: 'conversation-desktop-dark-zh-CN-environment-open',
-      screenshotName: 'gui-baseline/conversation/desktop/dark/zh-CN/environment-open',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'dark',
-      locale: 'zh-CN',
+      id: 'conversation-command-menu-desktop-light-en',
       anchors: [
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
-        anchor('conversation_environment_trigger', '.conversation-environment-trigger'),
-        anchor('conversation_environment_popover', '[data-testid="conversation-environment-popover"]'),
-        anchor(
-          'conversation_environment_browser_address',
-          '[data-testid="conversation-environment-popover"] input[aria-label]'
-        ),
-        anchor(
-          'conversation_environment_browser_open',
-          '[data-testid="conversation-environment-popover"] button[aria-label]'
-        ),
+        anchor('conversation_composer', '[data-testid="conversation-composer"]'),
+        anchor('conversation_command_menu', '[role="listbox"]'),
+        anchor('conversation_command_option', '[role="listbox"] [role="option"]'),
       ],
       coverageGaps: [],
+      escapeSelector: '[role="listbox"]',
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
-        await openEnvironmentPopover(page);
-        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', environment: 'open' };
+        await expectConversationLocale(page, 'en-US');
+        await openConversationCommandMenu(page);
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', command_menu: 'open' };
       },
       layoutChecks: async (page) => [
         ...(await conversationChecks(page)),
-        await viewportCheck(
-          page,
-          'conversation_environment_popover_within_viewport',
-          '[data-testid="conversation-environment-popover"]'
-        ),
-        await textOverflowCheck(
-          page,
-          'conversation_environment_text_does_not_overflow',
-          '[data-testid="conversation-environment-popover"]'
-        ),
+        await viewportCheck(page, 'conversation_command_menu_within_viewport', '[role="listbox"]'),
+        await textOverflowCheck(page, 'conversation_command_menu_text_does_not_overflow', '[role="listbox"]'),
       ],
     },
     {
-      id: 'conversation-desktop-dark-zh-CN-files-open',
-      screenshotName: 'gui-baseline/conversation/desktop/dark/zh-CN/files-open',
-      viewport: { name: 'desktop', width: 1440, height: 960 },
-      theme: 'dark',
-      locale: 'zh-CN',
+      id: 'conversation-default-narrow-dark-zh',
       anchors: [
         anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
-        anchor('conversation_files_surface', '[data-testid="conversation-side-panel-surface"]'),
-        anchor('conversation_files_content', '[data-testid="conversation-side-panel"]'),
-        anchor('conversation_workspace_tree', '[data-testid="conversation-side-panel"] .workspace-tree'),
-      ],
-      coverageGaps: [],
-      setup: async (page) => {
-        await openFixtureConversation(page, conversationId, 'open');
-        await expectConversationLocale(page, 'zh-CN');
-        await expect(page.locator('[data-testid="conversation-side-panel"] .workspace-tree')).toBeVisible({
-          timeout: 30_000,
-        });
-        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', files: 'desktop_open' };
-      },
-      layoutChecks: async (page) => [
-        ...(await conversationChecks(page)),
-        await disjointCheck(
-          page,
-          'main_column_does_not_cover_files',
-          '[data-testid="conversation-main-column"]',
-          '[data-testid="conversation-side-panel-surface"]'
-        ),
-        await disjointCheck(
-          page,
-          'composer_does_not_cover_files',
-          '[data-testid="conversation-composer"]',
-          '[data-testid="conversation-side-panel-surface"]'
-        ),
-        await textOverflowCheck(
-          page,
-          'conversation_files_text_does_not_overflow',
-          '[data-testid="conversation-side-panel-surface"]'
-        ),
-      ],
-    },
-    {
-      id: 'conversation-mobile-light-en-US-composer',
-      screenshotName: 'gui-baseline/conversation/mobile/light/en-US/composer',
-      viewport: { name: 'mobile', width: 400, height: 600 },
-      theme: 'light',
-      locale: 'en-US',
-      anchors: [
-        anchor('conversation_timeline', '[data-testid="message-list-scroller"]'),
-        anchor('conversation_composer', '[data-testid="conversation-composer"]'),
-        anchor('mobile_rail_closed', `${NAVIGATION_RAIL_SELECTOR}.collapsed`, 'attached'),
+        anchor('narrow_rail_closed', `${NAVIGATION_RAIL_SELECTOR}.collapsed`, 'attached'),
       ],
       coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
         await setNavigationRailExpanded(page, false);
-        await expectConversationLocale(page, 'en-US');
-        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', composer: 'mobile' };
+        await expectConversationLocale(page, 'zh-CN');
+        return { route_kind: 'ordinary_conversation', fixture: 'persisted_with_workspace', composer: 'narrow' };
       },
       layoutChecks: async (page) => [
         ...(await conversationChecks(page)),
         await viewportCheck(
           page,
-          'mobile_conversation_composer_within_viewport',
+          'narrow_conversation_composer_within_viewport',
           '[data-testid="conversation-composer"]'
         ),
       ],
     },
     {
-      id: 'conversation-mobile-light-en-US-preview-open',
-      screenshotName: 'gui-baseline/conversation/mobile/light/en-US/preview-open',
-      viewport: { name: 'mobile', width: 400, height: 600 },
-      theme: 'light',
-      locale: 'en-US',
+      id: 'rail-hover-actions-desktop-dark-zh',
       anchors: [
-        anchor('conversation_preview_surface', '[data-testid="conversation-preview-surface"]'),
-        anchor('conversation_timeline_hidden', '[data-testid="conversation-timeline-surface"]', 'hidden'),
-        anchor('conversation_composer_hidden', '[data-testid="conversation-composer"]', 'hidden'),
-        anchor(
-          'conversation_files_layer_closed',
-          '[data-testid="conversation-side-panel-layer"][aria-hidden="true"]',
-          'attached'
-        ),
-        anchor(
-          'conversation_files_surface_closed',
-          '[data-testid="conversation-side-panel-surface"][aria-hidden="true"]',
-          'attached'
-        ),
+        anchor('rail_hovered_conversation', `#c-${conversationId}:hover`),
+        anchor('rail_hover_actions', `#c-${conversationId} > div.absolute`),
+        anchor('rail_hover_edit_action', `#c-${conversationId} > div.absolute > span`),
+        anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
       coverageGaps: [],
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
-        await setNavigationRailExpanded(page, false);
-        await openWorkspacePreview(page, 'README.md');
-        await waitForSettledTransform(page, '[data-testid="conversation-preview-surface"]');
-        return {
-          route_kind: 'ordinary_conversation',
-          fixture: 'persisted_with_workspace',
-          preview: 'mobile_open',
-          files: 'closed_by_preview',
-        };
+        await setNavigationRailExpanded(page, true);
+        await expectConversationLocale(page, 'zh-CN');
+        await page.locator(`#c-${conversationId}`).hover();
+        await expect(page.locator(`#c-${conversationId} > div.absolute`)).toBeVisible();
+        return { route_kind: 'ordinary_conversation', rail: 'expanded', rail_row: 'hover_actions_visible' };
       },
       layoutChecks: async (page) => [
-        await viewportCheck(page, 'mobile_preview_within_viewport', '[data-testid="conversation-preview-surface"]'),
-        await viewportWidthCoverageCheck(
-          page,
-          'mobile_preview_owns_readable_canvas',
-          '[data-testid="conversation-preview-surface"]',
-          0.9
-        ),
-        await outsideViewportCheck(
-          page,
-          'mobile_files_surface_outside_viewport',
-          '[data-testid="conversation-side-panel-surface"]'
-        ),
-        await disjointCheck(
-          page,
-          'mobile_files_surface_does_not_cover_preview',
-          '[data-testid="conversation-side-panel-surface"]',
-          '[data-testid="conversation-preview-surface"]'
-        ),
-        await textOverflowCheck(
-          page,
-          'mobile_preview_text_does_not_overflow',
-          '[data-testid="conversation-preview-surface"]'
-        ),
+        ...(await railMainChecks(page)),
+        await viewportCheck(page, 'rail_hover_actions_within_viewport', `#c-${conversationId} > div.absolute`),
+        await textOverflowCheck(page, 'rail_hover_row_text_does_not_overflow', `#c-${conversationId}`),
       ],
     },
+    ...buildSettingsTargets(),
   ];
 }
 
-function buildEmptyHistoryTarget(): VisualTarget {
-  return {
-    id: 'home-desktop-light-zh-CN-empty-history',
-    screenshotName: 'gui-baseline/home/desktop/light/zh-CN/empty-history',
-    viewport: { name: 'desktop', width: 1440, height: 960 },
-    theme: 'light',
-    locale: 'zh-CN',
+function buildSettingsTargets(): VisualTargetDefinition[] {
+  const settingsTarget = (
+    id: string,
+    tab: 'general' | 'appearance' | 'capabilities' | 'environment',
+    pageSelector: string,
+    primarySelector: string,
+    route?: string
+  ): VisualTargetDefinition => ({
+    id,
+    accessibilityRoot: '.settings-page-wrapper',
     anchors: [
-      anchor('home_route', '[data-testid="opl-guid-entry"]'),
-      anchor('conversation_history_empty', '[data-testid="conversation-history-empty"]'),
-      anchor('conversation_history_empty_icon', '[data-testid="conversation-history-empty"] svg'),
-      anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
+      anchor('settings_page_wrapper', '.settings-page-wrapper'),
+      anchor('settings_page_content', '.settings-page-content'),
+      anchor('settings_page', pageSelector),
+      anchor('settings_primary', primarySelector),
     ],
     coverageGaps: [],
     setup: async (page) => {
-      await goToGuid(page);
-      await setNavigationRailExpanded(page, true);
-      await expectHomeLocale(page, 'zh-CN');
-      await expect(page.locator('[data-testid="conversation-history-empty"]').first()).toBeVisible();
-      await expect(page.locator('[data-testid="conversation-history-empty"] .arco-empty')).toHaveCount(0);
-      return { route_kind: 'home', rail: 'expanded', conversation_history: 'empty' };
+      await openSettingsScene(page, tab, pageSelector, route);
+      return { route_kind: `settings_${tab}`, settings_page: 'ready' };
     },
     layoutChecks: async (page) => [
-      await disjointCheck(page, 'navigation_rail_does_not_cover_main', NAVIGATION_RAIL_SELECTOR, MAIN_CONTENT_SELECTOR),
-      await textOverflowCheck(page, 'home_empty_history_text_does_not_overflow', MAIN_CONTENT_SELECTOR),
-      await compactConversationHistoryEmptyCheck(page),
+      await viewportCheck(page, `${id}_within_viewport`, '.settings-page-wrapper'),
+      await textOverflowCheck(page, `${id}_text_does_not_overflow`, '.settings-page-content'),
     ],
-  };
+  });
+
+  return [
+    settingsTarget(
+      'settings-general-desktop-light-zh',
+      'general',
+      '[data-testid="settings-page-overview"]',
+      '[data-testid="settings-overview-primary"]'
+    ),
+    settingsTarget(
+      'settings-appearance-desktop-dark-en',
+      'appearance',
+      '[data-testid="settings-page-preferences"]',
+      '[data-testid="settings-preferences-primary"]'
+    ),
+    settingsTarget(
+      'settings-capabilities-desktop-light-en',
+      'capabilities',
+      '[data-testid="settings-page-capabilities"]',
+      '[data-testid="settings-capabilities-primary"]'
+    ),
+    settingsTarget(
+      'settings-maintenance-desktop-dark-zh',
+      'environment',
+      '[data-testid="settings-page-maintenance"]',
+      '[data-testid="settings-maintenance-primary"]',
+      '/settings/environment?section=updates'
+    ),
+    settingsTarget(
+      'settings-general-narrow-light-en',
+      'general',
+      '[data-testid="settings-page-overview"]',
+      '[data-testid="settings-overview-primary"]'
+    ),
+    settingsTarget(
+      'settings-capabilities-narrow-dark-zh',
+      'capabilities',
+      '[data-testid="settings-page-capabilities"]',
+      '[data-testid="settings-capabilities-primary"]'
+    ),
+  ];
 }
 
 test.describe.configure({ timeout: 240_000 });
 
-test('writes route-bound GUI baseline evidence for Home and ordinary conversations', async ({ page, electronApp }) => {
+test('writes App-contract-bound GUI baseline evidence for all 16 scenes', async ({ page, electronApp }) => {
   test.skip(!process.env.E2E_SCREENSHOTS, 'GUI baseline evidence is opt-in');
 
+  const evidenceRoot = resolveEvidenceRoot();
   const shellHead = requireCleanShellHead(REPO_ROOT);
-  const writer = new GuiBaselineManifestWriter(REPO_ROOT, MANIFEST_PATH, shellHead, RUN_COMMAND);
+  const appVisualReference = readAppGuiVisualReferenceContract(resolveAppRepoRoot());
+  const writer = new GuiBaselineManifestWriter(
+    REPO_ROOT,
+    evidenceRoot,
+    path.join(evidenceRoot, 'gui-baseline-manifest.json'),
+    shellHead,
+    RUN_COMMAND,
+    appVisualReference.binding
+  );
   let conversationId: string | null = null;
   let originalSettings: ClientSettings | null = null;
 
@@ -1256,13 +1295,14 @@ test('writes route-bound GUI baseline evidence for Home and ordinary conversatio
     await ensureRendererReady(page);
     originalSettings = await httpGet<ClientSettings>(page, '/api/settings/client');
     await removeFixtureConversations(page);
-    await captureTarget(page, electronApp, writer, shellHead, buildEmptyHistoryTarget());
     conversationId = await createFixtureConversation(page);
 
-    for (const target of buildTargets(conversationId)) {
+    const targets = bindTargetsToAppContract(appVisualReference.contract, buildTargets(conversationId));
+    expect(targets).toHaveLength(16);
+    for (const target of targets) {
       // Evidence states intentionally share one Electron window and must run in order.
       // eslint-disable-next-line no-await-in-loop
-      await captureTarget(page, electronApp, writer, shellHead, target);
+      await captureTarget(page, electronApp, writer, shellHead, target, evidenceRoot);
     }
   } finally {
     if (conversationId) {
