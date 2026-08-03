@@ -1158,8 +1158,12 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
       },
       layoutChecks: async (page) => [
         ...(await conversationChecks(page)),
-        await viewportCheck(page, 'conversation_model_menu_within_viewport', 'text="Auto (recommended)"'),
-        await textOverflowCheck(page, 'conversation_model_menu_text_does_not_overflow', 'text="Auto (recommended)"'),
+        await viewportCheck(page, 'conversation_model_menu_within_viewport', '[data-testid="opl-codex-session-menu"]'),
+        await textOverflowCheck(
+          page,
+          'conversation_model_menu_text_does_not_overflow',
+          '[data-testid="opl-codex-session-menu"]'
+        ),
       ],
     },
     {
