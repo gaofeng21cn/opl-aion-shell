@@ -11,6 +11,7 @@ import { mapAcpCommandsToSlashCommands } from '@/common/chat/slash/acpMapping';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import type { TokenUsageData } from '@/common/config/storage';
+import type { CodexThreadDescriptor } from '@/common/types/codex/appServerThreads';
 import { useAddOrUpdateMessage } from '@/renderer/pages/conversation/Messages/hooks';
 import { logStreamTerminalObserved } from '@/renderer/pages/conversation/runtime/useConversationRuntimeView';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
@@ -33,9 +34,94 @@ export type UseAcpMessageReturn = {
   hasThinkingMessage: boolean;
   slashCommands: SlashCommandItem[];
   fetchSlashCommands: () => void;
+  reconcileCanonicalThread: (thread: CodexThreadDescriptor) => void;
+  markCanonicalSnapshotCovered: (sequence: number) => void;
+  replayCanonicalMessages: (messages: IResponseMessage[]) => void;
 };
 
 const slashCommandsInFlight = new Map<string, Promise<SlashCommandItem[]>>();
+const CANONICAL_REPLAY_LIMIT = 512;
+const CANONICAL_REPLAY_CONVERSATION_LIMIT = 128;
+
+type CanonicalReplayEntry = {
+  sequence: number;
+  message: IResponseMessage;
+};
+
+type CanonicalReplayState = {
+  nextSequence: number;
+  entries: CanonicalReplayEntry[];
+};
+
+export type CanonicalStreamReplay = {
+  complete: boolean;
+  nextSequence: number;
+  messages: IResponseMessage[];
+};
+
+const canonicalReplayByConversation = new Map<string, CanonicalReplayState>();
+const canonicalSequenceByMessage = new WeakMap<IResponseMessage, number>();
+let canonicalReplayListenerInstalled = false;
+
+function canonicalReplayState(conversationId: string): CanonicalReplayState {
+  const existing = canonicalReplayByConversation.get(conversationId);
+  if (existing) {
+    canonicalReplayByConversation.delete(conversationId);
+    canonicalReplayByConversation.set(conversationId, existing);
+    return existing;
+  }
+
+  const state: CanonicalReplayState = {
+    nextSequence: 0,
+    entries: [],
+  };
+  canonicalReplayByConversation.set(conversationId, state);
+  if (canonicalReplayByConversation.size > CANONICAL_REPLAY_CONVERSATION_LIMIT) {
+    const oldestConversationId = canonicalReplayByConversation.keys().next().value;
+    if (typeof oldestConversationId === 'string') canonicalReplayByConversation.delete(oldestConversationId);
+  }
+  return state;
+}
+
+function recordCanonicalStreamMessage(message: IResponseMessage): void {
+  if (!message.conversation_id) return;
+  const state = canonicalReplayState(message.conversation_id);
+  state.nextSequence += 1;
+  canonicalSequenceByMessage.set(message, state.nextSequence);
+  state.entries.push({ sequence: state.nextSequence, message });
+  if (state.entries.length > CANONICAL_REPLAY_LIMIT) {
+    state.entries.splice(0, state.entries.length - CANONICAL_REPLAY_LIMIT);
+  }
+}
+
+function ensureCanonicalReplayListener(): void {
+  if (canonicalReplayListenerInstalled) return;
+  canonicalReplayListenerInstalled = true;
+  ipcBridge.codexThreads.responseStream.on(recordCanonicalStreamMessage);
+}
+
+export function captureCanonicalReplayCursor(conversationId: string): number {
+  return canonicalReplayState(conversationId).nextSequence;
+}
+
+export function readCanonicalStreamReplay(conversationId: string, afterSequence: number): CanonicalStreamReplay {
+  const state = canonicalReplayState(conversationId);
+  const firstSequence = state.entries[0]?.sequence ?? state.nextSequence + 1;
+  return {
+    complete: afterSequence >= firstSequence - 1,
+    nextSequence: state.nextSequence,
+    messages: state.entries.filter((entry) => entry.sequence > afterSequence).map((entry) => entry.message),
+  };
+}
+
+function canonicalMessageSequence(message: IResponseMessage): number {
+  return canonicalSequenceByMessage.get(message) ?? 0;
+}
+
+export function resetCanonicalReplayForTests(): void {
+  canonicalReplayByConversation.clear();
+  canonicalReplayListenerInstalled = false;
+}
 
 function fetchAcpSlashCommands(conversation_id: string): Promise<SlashCommandItem[]> {
   const existing = slashCommandsInFlight.get(conversation_id);
@@ -75,6 +161,8 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   // Use refs to sync state for immediate access in event handlers
   const runningRef = useRef(running);
   const aiProcessingRef = useRef(aiProcessing);
+  const handledCanonicalSequenceRef = useRef(0);
+  const canonicalReconcileGenerationRef = useRef(0);
   const setAiProcessing = useCallback<React.Dispatch<React.SetStateAction<boolean>>>((value) => {
     const nextValue =
       typeof value === 'function' ? (value as (previousValue: boolean) => boolean)(aiProcessingRef.current) : value;
@@ -495,8 +583,20 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   );
 
   useEffect(() => {
+    // This listener intentionally outlives an individual AcpChat mount so
+    // canonical events remain replayable while the user views another Session.
+    ensureCanonicalReplayListener();
+  }, []);
+
+  useEffect(() => {
     const disposeAcp = ipcBridge.acpConversation.responseStream.on(handleResponseMessage);
-    const disposeCanonical = ipcBridge.codexThreads.responseStream.on(handleResponseMessage);
+    const disposeCanonical = ipcBridge.codexThreads.responseStream.on((message) => {
+      handleResponseMessage(message);
+      handledCanonicalSequenceRef.current = Math.max(
+        handledCanonicalSequenceRef.current,
+        canonicalMessageSequence(message)
+      );
+    });
     return () => {
       disposeAcp();
       disposeCanonical();
@@ -506,6 +606,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
   // Reset state when conversation changes and restore actual running status
   useEffect(() => {
     let cancelled = false;
+    const canonicalGeneration = canonicalReconcileGenerationRef.current;
 
     setThought({ subject: '', description: '' });
     setAcpStatus(null);
@@ -530,7 +631,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
 
     void getConversationOrNull(conversation_id)
       .then((res) => {
-        if (cancelled) {
+        if (cancelled || canonicalGeneration !== canonicalReconcileGenerationRef.current) {
           return;
         }
 
@@ -564,7 +665,7 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
         }
       })
       .catch((error: unknown) => {
-        if (cancelled) return;
+        if (cancelled || canonicalGeneration !== canonicalReconcileGenerationRef.current) return;
         setRunning(false);
         runningRef.current = false;
         if (!aiProcessingRef.current) {
@@ -631,6 +732,43 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
       .catch(() => {});
   }, [conversation_id]);
 
+  const reconcileCanonicalThread = useCallback(
+    (thread: CodexThreadDescriptor) => {
+      canonicalReconcileGenerationRef.current += 1;
+      const isRunning = Boolean(thread.activeTurnId) || thread.status === 'running';
+      turnFinishedRef.current = !isRunning;
+      setRunning(isRunning);
+      runningRef.current = isRunning;
+      setAiProcessing(isRunning);
+      aiProcessingRef.current = isRunning;
+      setHasHydratedRunningState(true);
+      if (!isRunning) {
+        setThought({ subject: '', description: '' });
+        hasContentInTurnRef.current = false;
+        hasThinkingMessageRef.current = false;
+        activeThinkingRef.current = null;
+        setHasThinkingMessage(false);
+      }
+    },
+    [setAiProcessing]
+  );
+
+  const replayCanonicalMessages = useCallback(
+    (messages: IResponseMessage[]) => {
+      messages.forEach((message) => {
+        const sequence = canonicalMessageSequence(message);
+        if (sequence > 0 && sequence <= handledCanonicalSequenceRef.current) return;
+        handleResponseMessage(message);
+        handledCanonicalSequenceRef.current = Math.max(handledCanonicalSequenceRef.current, sequence);
+      });
+    },
+    [handleResponseMessage]
+  );
+
+  const markCanonicalSnapshotCovered = useCallback((sequence: number) => {
+    handledCanonicalSequenceRef.current = Math.max(handledCanonicalSequenceRef.current, sequence);
+  }, []);
+
   return {
     thought,
     setThought,
@@ -645,5 +783,8 @@ export const useAcpMessage = (conversation_id: string, options?: { skipWarmup?: 
     hasThinkingMessage,
     slashCommands,
     fetchSlashCommands,
+    reconcileCanonicalThread,
+    markCanonicalSnapshotCovered,
+    replayCanonicalMessages,
   };
 };

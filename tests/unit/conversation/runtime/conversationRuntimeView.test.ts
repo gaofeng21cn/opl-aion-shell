@@ -20,6 +20,7 @@ import {
   localStopAcknowledgedConversationRuntimeView,
   localStopRequested,
   localStopRequestedConversationRuntimeView,
+  reconcileCanonicalThreadRuntime,
   resetConversationRuntimeViewStoreForTest,
   turnCompleted,
   turnCompletedConversationRuntimeView,
@@ -386,6 +387,34 @@ describe('conversationRuntimeViewStore', () => {
       canSendMessage: true,
       hasBackendRuntime: false,
       hydrated: false,
+    });
+  });
+
+  it('uses canonical idle readback to release a stale local running gate after returning to a Session', () => {
+    resetConversationRuntimeViewStoreForTest();
+    localSendStarted(conversation_id);
+    localSendAccepted(
+      conversation_id,
+      'turn-1',
+      runtime({
+        state: 'running',
+        can_send_message: false,
+        has_task: true,
+        task_status: 'running',
+        is_processing: true,
+        turn_id: 'turn-1',
+      })
+    );
+
+    reconcileCanonicalThreadRuntime(conversation_id, null, 'turn-1');
+
+    expect(getConversationRuntimeViewSnapshot(conversation_id)).toMatchObject({
+      activeTurnId: null,
+      state: 'idle',
+      isProcessing: false,
+      canSendMessage: true,
+      localSubmitting: false,
+      hydrated: true,
     });
   });
 });

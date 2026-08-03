@@ -23,6 +23,7 @@ export type ConversationRuntimeView = {
 export type ConversationRuntimeViewLogEvent =
   | 'runtime_hydrated'
   | 'runtime_hydrate_missing_summary'
+  | 'canonical_thread_reconciled'
   | 'turn_completed_applied'
   | 'turn_completed_missing_runtime'
   | 'runtime_release_confirmed'
@@ -418,6 +419,56 @@ export const hydrateFailed = (conversation_id: string, reason: string): Conversa
     conversation_id,
     hydrateFailedConversationRuntimeView(runtimeViews.get(conversation_id), conversation_id, reason)
   );
+
+export const reconcileCanonicalThreadRuntime = (
+  conversation_id: string,
+  activeTurnId: string | null,
+  lastTurnId: string | null
+): ConversationRuntimeViewLogEntry[] => {
+  const metadata = getRuntimeMetadata(conversation_id);
+  metadata.pendingLocalSendSeq = null;
+  metadata.pendingStopTurnId = null;
+  if (!activeTurnId && lastTurnId) {
+    metadata.lastCompletedTurnId = lastTurnId;
+  }
+
+  const runtime: TConversationRuntimeSummary = activeTurnId
+    ? {
+        state: 'running',
+        can_send_message: false,
+        has_task: true,
+        task_status: 'running',
+        is_processing: true,
+        pending_confirmations: 0,
+        turn_id: activeTurnId,
+      }
+    : {
+        state: 'idle',
+        can_send_message: true,
+        has_task: false,
+        task_status: 'finished',
+        is_processing: false,
+        pending_confirmations: 0,
+        turn_id: null,
+      };
+  const snapshot = hydrateSucceededConversationRuntimeView(
+    runtimeViews.get(conversation_id),
+    conversation_id,
+    runtime,
+    metadata,
+    { preservePendingLocalSend: false }
+  );
+  return setConversationRuntimeSnapshot(conversation_id, {
+    view: snapshot.view,
+    logs: [
+      createLog('info', 'canonical_thread_reconciled', snapshot.view, {
+        active_turn_id: activeTurnId,
+        last_turn_id: lastTurnId,
+      }),
+      ...snapshot.logs,
+    ],
+  });
+};
 
 export const turnCompleted = (
   conversation_id: string,

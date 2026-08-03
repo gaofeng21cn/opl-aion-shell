@@ -6,10 +6,17 @@
 
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { useAcpMessage } from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
+import {
+  captureCanonicalReplayCursor,
+  readCanonicalStreamReplay,
+  resetCanonicalReplayForTests,
+  useAcpMessage,
+} from '@/renderer/pages/conversation/platforms/acp/useAcpMessage';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
 import { resetWarmupConversationStateForTests } from '@/renderer/pages/conversation/utils/warmupConversation';
 import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import type { TChatConversation } from '@/common/config/storage';
+import type { CodexThreadDescriptor } from '@/common/types/codex/appServerThreads';
 
 const {
   addOrUpdateMessageMock,
@@ -17,6 +24,8 @@ const {
   getSlashCommandsInvokeMock,
   responseStreamOnMock,
   responseStreamHandlerRef,
+  canonicalStreamHandlers,
+  canonicalActiveHandlers,
 } = vi.hoisted(() => ({
   addOrUpdateMessageMock: vi.fn(),
   ensureRuntimeInvokeMock: vi.fn(),
@@ -25,6 +34,8 @@ const {
   responseStreamHandlerRef: {
     current: undefined as ((message: IResponseMessage) => void) | undefined,
   },
+  canonicalStreamHandlers: [] as Array<(message: IResponseMessage) => void>,
+  canonicalActiveHandlers: new Set<(message: IResponseMessage) => void>(),
 }));
 
 vi.mock('@/renderer/pages/conversation/Messages/hooks', () => ({
@@ -47,7 +58,11 @@ vi.mock('@/common', () => ({
     },
     codexThreads: {
       responseStream: {
-        on: responseStreamOnMock,
+        on: vi.fn((handler: (message: IResponseMessage) => void) => {
+          canonicalStreamHandlers.push(handler);
+          canonicalActiveHandlers.add(handler);
+          return vi.fn(() => canonicalActiveHandlers.delete(handler));
+        }),
       },
     },
     conversation: {
@@ -81,9 +96,76 @@ describe('useAcpMessage', () => {
     vi.clearAllMocks();
     resetWarmupConversationStateForTests();
     responseStreamHandlerRef.current = undefined;
+    canonicalStreamHandlers.length = 0;
+    canonicalActiveHandlers.clear();
+    resetCanonicalReplayForTests();
     sessionStorage.clear();
     ensureRuntimeInvokeMock.mockResolvedValue(undefined);
     getSlashCommandsInvokeMock.mockResolvedValue([]);
+  });
+
+  it('replays canonical events that arrived while the Session view was unmounted', async () => {
+    vi.mocked(getConversationOrNull).mockResolvedValue(null);
+    const first = renderHook(() => useAcpMessage('conv-1'));
+
+    expect(canonicalStreamHandlers).toHaveLength(2);
+    canonicalStreamHandlers[0]({
+      type: 'text',
+      data: 'already covered by the snapshot',
+      msg_id: 'message-0',
+      turn_id: 'turn-1',
+      conversation_id: 'conv-1',
+    });
+    const cursor = captureCanonicalReplayCursor('conv-1');
+    first.unmount();
+    expect(canonicalActiveHandlers.size).toBe(1);
+
+    [...canonicalActiveHandlers][0]({
+      type: 'text',
+      data: 'completed in the background',
+      msg_id: 'message-1',
+      turn_id: 'turn-1',
+      conversation_id: 'conv-1',
+    });
+    [...canonicalActiveHandlers][0]({
+      type: 'finish',
+      data: null,
+      msg_id: 'turn-1',
+      turn_id: 'turn-1',
+      conversation_id: 'conv-1',
+    });
+
+    const replay = readCanonicalStreamReplay('conv-1', cursor);
+    expect(replay.complete).toBe(true);
+    expect(replay.messages.map((message) => message.msg_id)).not.toContain('message-0');
+    expect(replay.messages.map((message) => message.type)).toEqual(['text', 'finish']);
+    expect(readCanonicalStreamReplay('conv-1', replay.nextSequence).messages).toEqual([]);
+  });
+
+  it('does not apply a canonical event twice when it was already handled live during readback', async () => {
+    vi.mocked(getConversationOrNull).mockResolvedValue(null);
+    const { result } = renderHook(() => useAcpMessage('conv-1'));
+    const cursor = captureCanonicalReplayCursor('conv-1');
+    const message: IResponseMessage = {
+      type: 'text',
+      data: 'arrived during canonical readback',
+      msg_id: 'message-1',
+      turn_id: 'turn-1',
+      conversation_id: 'conv-1',
+    };
+
+    act(() => {
+      canonicalActiveHandlers.forEach((handler) => handler(message));
+    });
+    const replay = readCanonicalStreamReplay('conv-1', cursor);
+    expect(replay.messages).toEqual([message]);
+    expect(addOrUpdateMessageMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.markCanonicalSnapshotCovered(cursor);
+      result.current.replayCanonicalMessages(replay.messages);
+    });
+    expect(addOrUpdateMessageMock).toHaveBeenCalledTimes(1);
   });
 
   it('completes hydration when the conversation lookup fails', async () => {
@@ -124,6 +206,55 @@ describe('useAcpMessage', () => {
       expect(result.current.hasHydratedRunningState).toBe(true);
     });
     expect(result.current.aiProcessing).toBe(true);
+  });
+
+  it('does not let stale database hydration override canonical idle state', async () => {
+    const conversationDeferred = deferred<TChatConversation | null>();
+    vi.mocked(getConversationOrNull).mockReturnValue(conversationDeferred.promise);
+    const { result } = renderHook(() => useAcpMessage('conv-1'));
+
+    const canonicalThread: CodexThreadDescriptor = {
+      id: 'thread-1',
+      title: 'Thread 1',
+      summary: '',
+      status: 'idle',
+      projectId: 'project-1',
+      workspace: '/workspace',
+      host: 'local',
+      owner: null,
+      goal: null,
+      parentThreadId: null,
+      ancestorThreadIds: [],
+      activeTurnId: null,
+      archived: false,
+      updatedAt: '2026-08-03T00:00:00.000Z',
+    };
+
+    act(() => {
+      result.current.reconcileCanonicalThread(canonicalThread);
+    });
+
+    expect(result.current.running).toBe(false);
+    expect(result.current.aiProcessing).toBe(false);
+    expect(result.current.hasHydratedRunningState).toBe(true);
+
+    await act(async () => {
+      conversationDeferred.resolve({
+        id: 'conv-1',
+        runtime: {
+          state: 'running',
+          can_send_message: false,
+          has_task: true,
+          is_processing: true,
+          pending_confirmations: 0,
+          turn_id: 'stale-turn',
+        },
+      } as TChatConversation);
+      await conversationDeferred.promise;
+    });
+
+    expect(result.current.running).toBe(false);
+    expect(result.current.aiProcessing).toBe(false);
   });
 
   it('emits a synthetic thinking done update on finish when the stream never sends one', async () => {

@@ -173,7 +173,7 @@ function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
     const status = turnStatus(turn.status);
     const createdAt = typeof turn.startedAt === 'number' ? isoFromSeconds(turn.startedAt) : null;
     const items = Array.isArray(turn.items) ? turn.items : [];
-    items.forEach((value) => {
+    items.forEach((value, itemIndex) => {
       if (!isRecord(value) || typeof value.id !== 'string') return;
       let role: CodexThreadHistoryItem['role'] = 'unknown';
       let kind: CodexThreadHistoryItem['kind'] = 'text';
@@ -191,7 +191,11 @@ function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
         const summary = Array.isArray(value.summary) ? value.summary.filter((entry) => typeof entry === 'string') : [];
         const content = Array.isArray(value.content) ? value.content.filter((entry) => typeof entry === 'string') : [];
         text = [...summary, ...content].join('\n');
-        data = { content: text, subject: 'Reasoning', status: 'done' };
+        data = {
+          content: text,
+          subject: 'Reasoning',
+          status: status === 'in_progress' && itemIndex === items.length - 1 ? 'thinking' : 'done',
+        };
       } else if (value.type === 'plan') {
         role = 'assistant';
         kind = 'plan';
@@ -210,11 +214,20 @@ function historyFromTurns(turns: JsonRecord[]): CodexThreadHistoryItem[] {
         role = 'tool';
         kind = 'tool';
         text = threadItemTitle(value);
+        const itemStatus = optionalString(value.status);
+        const toolStatus =
+          itemStatus === 'failed' || itemStatus === 'error'
+            ? 'failed'
+            : itemStatus === 'inProgress' || itemStatus === 'in_progress' || itemStatus === 'running'
+              ? 'in_progress'
+              : status === 'in_progress' && itemIndex === items.length - 1
+                ? 'in_progress'
+                : 'completed';
         data = toolCallMessage(
           { conversationId: 'history', workspace: '', turnId: null },
           value,
           turnId,
-          threadItemFailed(value) ? 'failed' : 'completed',
+          threadItemFailed(value) ? 'failed' : toolStatus,
           Date.now()
         )?.data;
       }

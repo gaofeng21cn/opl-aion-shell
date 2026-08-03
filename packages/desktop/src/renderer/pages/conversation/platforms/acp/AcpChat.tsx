@@ -57,10 +57,14 @@ const AcpChat: React.FC<{
   loadedMcpStatuses,
 }) => {
   useMessageLstCache(conversation_id);
-  useCanonicalCodexHistory(conversation_id, canonicalThreadId);
-  usePendingConfirmationsRecovery(conversation_id, canonicalThreadId);
   const teamPermission = useTeamPermission();
   const messageState = useAcpMessage(conversation_id, { skipWarmup: Boolean(teamPermission) });
+  useCanonicalCodexHistory(conversation_id, canonicalThreadId, {
+    reconcileCanonicalThread: messageState.reconcileCanonicalThread,
+    markCanonicalSnapshotCovered: messageState.markCanonicalSnapshotCovered,
+    replayCanonicalMessages: messageState.replayCanonicalMessages,
+  });
+  usePendingConfirmationsRecovery(conversation_id, canonicalThreadId);
 
   return (
     <ConversationProvider
