@@ -610,6 +610,10 @@ async function homeComposerVisualCheck(
 async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promise<GuiBaselineLayoutCheck> {
   const homeEntry = page.locator('[data-testid="opl-guid-entry"]');
   const box = await requiredBox(homeEntry, 'home_backdrop_clears_stale_pixels');
+  const composerBox = await requiredBox(
+    page.locator('[data-testid="guid-input-card-shell"]'),
+    'home_backdrop_clears_stale_pixels_composer'
+  );
   const viewport = page.viewportSize();
   if (!viewport) throw new Error('Home backdrop check requires an explicit viewport');
 
@@ -633,7 +637,7 @@ async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promi
 
   const scaleX = metadata.width / viewport.width;
   const scaleY = metadata.height / viewport.height;
-  const inset = Math.min(16, Math.max(4, box.width / 10));
+  const inset = Math.min(4, Math.max(2, box.width / 100));
   const bandHeight = Math.min(10, Math.max(4, box.height / 20));
   const left = Math.max(0, Math.round((box.x + inset) * scaleX));
   const right = Math.min(metadata.width, Math.round((box.x + box.width - inset) * scaleX));
@@ -648,8 +652,27 @@ async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promi
     .toBuffer({ resolveWithObject: true });
 
   let matchingPixels = 0;
+  let sampledPixels = 0;
+  let excludedPixels = 0;
   const pixelCount = info.width * info.height;
   for (let offset = 0; offset < data.length; offset += info.channels) {
+    const pixelIndex = offset / info.channels;
+    const column = pixelIndex % info.width;
+    const row = Math.floor(pixelIndex / info.width);
+    const viewportX = (left + column + 0.5) / scaleX;
+    const viewportY = (top + row + 0.5) / scaleY;
+    const composerShadowInset = 8;
+    const coveredByComposer =
+      viewportX >= composerBox.x - composerShadowInset &&
+      viewportX <= composerBox.x + composerBox.width + composerShadowInset &&
+      viewportY >= composerBox.y - composerShadowInset &&
+      viewportY <= composerBox.y + composerBox.height + composerShadowInset;
+    if (coveredByComposer) {
+      excludedPixels += 1;
+      continue;
+    }
+
+    sampledPixels += 1;
     const matchesBackground =
       Math.abs(data[offset] - background.red) <= 6 &&
       Math.abs(data[offset + 1] - background.green) <= 6 &&
@@ -658,12 +681,12 @@ async function homeBackdropPaintCheck(page: Page, screenshotPath: string): Promi
     if (matchesBackground) matchingPixels += 1;
   }
 
-  const matchingRatio = matchingPixels / pixelCount;
-  const passed = background.alpha >= 250 && matchingRatio >= 0.97;
+  const matchingRatio = sampledPixels > 0 ? matchingPixels / sampledPixels : 0;
+  const passed = background.alpha >= 250 && sampledPixels >= 16 && matchingRatio >= 0.97;
   return {
     id: 'home_backdrop_clears_stale_pixels',
     passed,
-    details: `computed=${background.css} alpha=${background.alpha} bottom_band_match=${matchingRatio.toFixed(3)}`,
+    details: `computed=${background.css} alpha=${background.alpha} bottom_band_match=${matchingRatio.toFixed(3)} sampled_pixels=${sampledPixels} excluded_composer_pixels=${excludedPixels} band_pixels=${pixelCount}`,
   };
 }
 
