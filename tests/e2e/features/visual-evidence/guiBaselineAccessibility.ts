@@ -47,7 +47,8 @@ export async function collectGuiBaselineAccessibility(
           html.getAttribute('placeholder') ||
           '';
         const role = html.getAttribute('role') || html.tagName.toLowerCase();
-        const focusable = !html.hasAttribute('disabled') && html.tabIndex >= 0;
+        const focusable =
+          !html.matches(':disabled') && html.getAttribute('aria-disabled') !== 'true' && html.tabIndex >= 0;
         const id = html.dataset.testid || html.getAttribute('name') || `${role}-${index}`;
         return {
           id,
@@ -66,7 +67,7 @@ export async function collectGuiBaselineAccessibility(
 
   const initialActive = await activeDescription(page);
   const visibleControlSelector = CONTROL_SELECTOR.split(',')
-    .map((selector) => `${rootSelector} ${selector}:visible`)
+    .map((selector) => `${rootSelector} ${selector}:not(:disabled):not([aria-disabled="true"]):visible`)
     .join(',');
   const firstControl = page.locator(visibleControlSelector).first();
   await firstControl.focus();
@@ -181,7 +182,14 @@ export async function collectGuiBaselineAccessibility(
         .filter((element) => {
           const style = window.getComputedStyle(element);
           const rect = element.getBoundingClientRect();
-          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+          return (
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            rect.width > 0 &&
+            rect.height > 0 &&
+            !element.matches(':disabled') &&
+            element.getAttribute('aria-disabled') !== 'true'
+          );
         })
         .map((element, index) => {
           const foreground = window.getComputedStyle(element).color;
