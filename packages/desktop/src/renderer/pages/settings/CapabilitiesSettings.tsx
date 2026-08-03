@@ -2725,6 +2725,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             if (isCapabilitiesTab(key)) onTabChange(key);
           }}
           type='line'
+          className='settings-capabilities-tabs'
         >
           <Tabs.TabPane
             key='opl_flow_managed'

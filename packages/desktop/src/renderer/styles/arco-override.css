@@ -435,6 +435,20 @@ body[arco-theme='dark'] .arco-message-error {
   }
 }
 
+/* Capabilities settings page tabs: keep the active title and ink on the
+ * theme primary tokens so dark themes do not inherit the light-only
+ * ConfigProvider primary (#4E5969) as readable text. */
+.settings-capabilities-tabs {
+  .arco-tabs-header-title-active,
+  .arco-tabs-header-title-active:hover {
+    color: var(--color-text-1);
+  }
+
+  .arco-tabs-header-ink {
+    background: var(--color-primary);
+  }
+}
+
 /* Guid (homepage) mobile: cap model / permission pills so long values
  * truncate instead of pushing the `+` and send buttons off-screen.
  * Driven by LayoutContext.isMobile (data-mobile attribute) so it fires
