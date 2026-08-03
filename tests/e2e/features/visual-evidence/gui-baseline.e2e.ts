@@ -768,15 +768,18 @@ async function expectConversationLocale(page: Page, locale: GuiBaselineLocale): 
 }
 
 async function openConversationModelMenu(page: Page): Promise<void> {
-  await page.locator('[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn').first().click();
-  await expect(page.getByText(/Auto \(recommended\)/i).last()).toBeVisible();
+  const trigger = page.locator('[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn').first();
+  await trigger.focus();
+  await trigger.press('ArrowDown');
+  await expect(page.locator('[data-testid="opl-codex-session-menu"]')).toBeVisible();
 }
 
 async function openHomeModelMenu(page: Page): Promise<void> {
   const trigger = page.locator('[data-testid="guid-model-selector"]');
   await expect(trigger).toBeVisible();
-  await trigger.click();
-  await expect(page.locator('.arco-dropdown-menu:visible, [role="menu"]:visible').last()).toBeVisible();
+  await trigger.focus();
+  await trigger.press('ArrowDown');
+  await expect(page.locator('[data-testid="opl-codex-session-menu"]')).toBeVisible();
 }
 
 async function openHomeCapabilityPalette(page: Page): Promise<void> {

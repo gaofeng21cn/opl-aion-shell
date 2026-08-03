@@ -77,7 +77,12 @@ export async function collectGuiBaselineAccessibility(
     .map((selector) => `${focusRootSelector} ${selector}:not(:disabled):not([aria-disabled="true"]):visible`)
     .join(',');
   const firstControl = page.locator(visibleControlSelector).first();
-  await firstControl.focus();
+  const focusedInsideRoot = await page
+    .locator(`${focusRootSelector} :focus`)
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!focusedInsideRoot) await firstControl.focus();
   const focusedControl = await activeDescription(page);
   if (focusedControl === 'none') {
     throw new Error(`GUI baseline accessibility could not focus a named control under ${focusRootSelector}`);
@@ -88,6 +93,13 @@ export async function collectGuiBaselineAccessibility(
   });
 
   await page.keyboard.press('Escape');
+  if (options.escapeSelector && overlayBefore) {
+    await page
+      .locator(options.escapeSelector)
+      .first()
+      .waitFor({ state: 'hidden', timeout: 3_000 })
+      .catch(() => {});
+  }
   const overlayAfter = options.escapeSelector
     ? await page
         .locator(options.escapeSelector)
