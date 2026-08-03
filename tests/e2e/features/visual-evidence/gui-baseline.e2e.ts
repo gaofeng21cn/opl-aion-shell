@@ -939,7 +939,9 @@ async function captureTarget(
     rootSelector: target.accessibilityRoot ?? MAIN_CONTENT_SELECTOR,
     escapeSelector: target.escapeSelector,
   });
-  expect(accessibility.focus.escape_outcome).not.toBe('overlay_not_closed');
+  expect(accessibility.focus.escape_outcome, `${target.id}: ${JSON.stringify(accessibility.focus)}`).not.toBe(
+    'overlay_not_closed'
+  );
   writer.add({
     id: target.id,
     shell_head: shellHead,
@@ -1025,11 +1027,11 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
         anchor('home_route', '[data-testid="opl-guid-entry"]'),
         anchor('home_input', '[data-testid="guid-input-card-shell"]'),
         anchor('home_model_control', '[data-testid="guid-model-selector"]'),
-        anchor('home_model_menu', '.arco-dropdown-menu:visible, [role="menu"]:visible'),
+        anchor('home_model_menu', '[data-testid="opl-codex-session-menu"]'),
         anchor('desktop_rail_expanded', `${NAVIGATION_RAIL_SELECTOR}:not(.collapsed)`),
       ],
       coverageGaps: [],
-      escapeSelector: '.arco-dropdown-menu:visible, [role="menu"]:visible',
+      escapeSelector: '[data-testid="opl-codex-session-menu"]',
       setup: async (page) => {
         await goToGuid(page);
         await setNavigationRailExpanded(page, true);
@@ -1119,10 +1121,10 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
       anchors: [
         anchor('conversation_composer', '[data-testid="conversation-composer"]'),
         anchor('conversation_model_control', '[data-testid="acp-sendbox-decision-controls"] .sendbox-model-btn'),
-        anchor('conversation_model_menu', 'text="Auto (recommended)"'),
+        anchor('conversation_model_menu', '[data-testid="opl-codex-session-menu"]'),
       ],
       coverageGaps: [],
-      escapeSelector: '[role="menu"]:visible, .arco-dropdown-menu:visible',
+      escapeSelector: '[data-testid="opl-codex-session-menu"]',
       setup: async (page) => {
         await openFixtureConversation(page, conversationId, 'closed');
         await openConversationModelMenu(page);
