@@ -201,7 +201,7 @@ export async function collectGuiBaselineAccessibility(
           if (parsed && parsed[3] > 0) layers.push(parsed);
           current = current.parentElement;
         }
-        return layers.toReversed().reduce(composite, [255, 255, 255, 1]);
+        return layers.toReversed().reduce((background, layer) => composite(layer, background), [255, 255, 255, 1]);
       };
       const host = document.querySelector<HTMLElement>(root);
       if (!host) return [];
