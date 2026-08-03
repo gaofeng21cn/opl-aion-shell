@@ -152,7 +152,24 @@ export async function collectGuiBaselineAccessibility(
           const rect = element.getBoundingClientRect();
           const selector = element.dataset.testid || element.getAttribute('aria-label') || element.tagName;
           const violations: Array<{ selector: string; reason: string }> = [];
-          if (rect.left < -1 || rect.right > viewportWidth + 1 || rect.top < -1 || rect.bottom > viewportHeight + 1) {
+          let canScrollHorizontallyIntoView = false;
+          let canScrollVerticallyIntoView = false;
+          let ancestor = element.parentElement;
+          while (ancestor) {
+            const ancestorStyle = window.getComputedStyle(ancestor);
+            canScrollHorizontallyIntoView ||=
+              ['auto', 'scroll'].includes(ancestorStyle.overflowX) && ancestor.scrollWidth > ancestor.clientWidth + 1;
+            canScrollVerticallyIntoView ||=
+              ['auto', 'scroll'].includes(ancestorStyle.overflowY) && ancestor.scrollHeight > ancestor.clientHeight + 1;
+            if (ancestor === host) break;
+            ancestor = ancestor.parentElement;
+          }
+          const outsideHorizontally = rect.left < -1 || rect.right > viewportWidth + 1;
+          const outsideVertically = rect.top < -1 || rect.bottom > viewportHeight + 1;
+          if (
+            (outsideHorizontally && !canScrollHorizontallyIntoView) ||
+            (outsideVertically && !canScrollVerticallyIntoView)
+          ) {
             violations.push({ selector, reason: 'control_outside_viewport' });
           }
           const leaksHorizontal = element.scrollWidth > element.clientWidth + 1 && style.overflowX === 'visible';
