@@ -1115,7 +1115,9 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
         await openFixtureConversation(page, conversationId, 'closed');
         await setNavigationRailExpanded(page, true);
         await expectConversationLocale(page, 'en-US');
-        await expect(page.locator(`#c-${conversationId}`)).toHaveAttribute('aria-current', 'page');
+        const selectedRow = page.locator(`#c-${conversationId}`);
+        await selectedRow.scrollIntoViewIfNeeded();
+        await expect(selectedRow).toHaveAttribute('aria-current', 'page');
         return { route_kind: 'ordinary_conversation', rail: 'expanded', rail_row: 'selected' };
       },
       layoutChecks: async (page) => [
@@ -1224,7 +1226,9 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
         await openFixtureConversation(page, conversationId, 'closed');
         await setNavigationRailExpanded(page, true);
         await expectConversationLocale(page, 'zh-CN');
-        await page.locator(`#c-${conversationId}`).hover();
+        const hoveredRow = page.locator(`#c-${conversationId}`);
+        await hoveredRow.scrollIntoViewIfNeeded();
+        await hoveredRow.hover();
         await expect(page.locator(`#c-${conversationId} > div.absolute`)).toBeVisible();
         return { route_kind: 'ordinary_conversation', rail: 'expanded', rail_row: 'hover_actions_visible' };
       },
