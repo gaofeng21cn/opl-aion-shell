@@ -77,12 +77,24 @@ export async function collectGuiBaselineAccessibility(
     .map((selector) => `${focusRootSelector} ${selector}:not(:disabled):not([aria-disabled="true"]):visible`)
     .join(',');
   const firstControl = page.locator(visibleControlSelector).first();
+  const activeControlsOverlay =
+    overlayBefore && options.escapeSelector
+      ? await page.evaluate((overlaySelector) => {
+          const active = document.activeElement;
+          if (!(active instanceof HTMLElement)) return false;
+          const activeDescendantId = active.getAttribute('aria-activedescendant');
+          if (!activeDescendantId) return false;
+          const overlay = document.querySelector(overlaySelector);
+          const activeDescendant = document.getElementById(activeDescendantId);
+          return Boolean(overlay && activeDescendant && overlay.contains(activeDescendant));
+        }, options.escapeSelector)
+      : false;
   const focusedInsideRoot = await page
     .locator(`${focusRootSelector} :focus`)
     .first()
     .isVisible()
     .catch(() => false);
-  if (!focusedInsideRoot) await firstControl.focus();
+  if (!focusedInsideRoot && !activeControlsOverlay) await firstControl.focus();
   const focusedControl = await activeDescription(page);
   if (focusedControl === 'none') {
     throw new Error(`GUI baseline accessibility could not focus a named control under ${focusRootSelector}`);
