@@ -148,6 +148,7 @@ export async function collectGuiBaselineAccessibility(
           );
         })
         .flatMap((element) => {
+          const style = window.getComputedStyle(element);
           const rect = element.getBoundingClientRect();
           const selector = element.dataset.testid || element.getAttribute('aria-label') || element.tagName;
           const violations: Array<{ selector: string; reason: string }> = [];
