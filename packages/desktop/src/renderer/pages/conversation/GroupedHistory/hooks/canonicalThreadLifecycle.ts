@@ -40,6 +40,7 @@ export function projectCanonicalCodexThread(
   const parsedTimestamp = Date.parse(thread.updatedAt);
   const modifiedAt = Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
   const explicitProjectId = thread.projectId.trim() || canonicalProjectId(cached);
+  const { acp_session_id: _legacyAcpSessionId, ...cachedExtra } = cached?.extra ?? {};
   return {
     ...(cached ?? {
       id: thread.id,
@@ -53,12 +54,11 @@ export function projectCanonicalCodexThread(
     modified_at: modifiedAt,
     status: thread.status === 'running' ? 'running' : 'finished',
     extra: {
-      ...cached?.extra,
+      ...cachedExtra,
       backend: 'codex',
       workspace: thread.workspace,
       custom_workspace: Boolean(explicitProjectId),
       canonical_project_id: explicitProjectId || undefined,
-      acp_session_id: thread.id,
       canonical_thread_id: thread.id,
       canonical_thread_stub: cached ? false : options.materialized !== true,
       canonical_thread_host: thread.host,

@@ -125,13 +125,14 @@ describe('mergeCanonicalThreadDirectory', () => {
       type: 'acp',
       extra: {
         backend: 'codex',
-        acp_session_id: 'thread-1',
+        canonical_thread_id: 'thread-1',
         canonical_thread_stub: true,
         workspace: '/tmp/project',
         custom_workspace: true,
         canonical_project_id: 'project',
       },
     });
+    expect(projected.extra).not.toHaveProperty('acp_session_id');
     expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
       expect.objectContaining({
         type: 'workspace',
@@ -433,7 +434,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged[1]).toMatchObject({ id: 'thread-1', name: 'Canonical task' });
   });
 
-  it('matches migrated cache rows by canonical id when the ACP session id differs', () => {
+  it('matches migrated cache rows by canonical id and drops the legacy ACP session mirror', () => {
     const cached = {
       id: 'local-1',
       name: 'Migrated task',
@@ -453,12 +454,12 @@ describe('mergeCanonicalThreadDirectory', () => {
       expect.objectContaining({
         id: 'local-1',
         extra: expect.objectContaining({
-          acp_session_id: 'thread-1',
           canonical_thread_id: 'thread-1',
           pinned: true,
         }),
       }),
     ]);
+    expect(merged[0]?.extra).not.toHaveProperty('acp_session_id');
   });
 
   it('deduplicates local canonical rows only when the App Server returns that task', () => {

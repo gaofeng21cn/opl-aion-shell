@@ -58,7 +58,9 @@ const AcpChat: React.FC<{
 }) => {
   useMessageLstCache(conversation_id);
   const teamPermission = useTeamPermission();
-  const messageState = useAcpMessage(conversation_id, { skipWarmup: Boolean(teamPermission) });
+  const messageState = useAcpMessage(conversation_id, {
+    skipWarmup: Boolean(teamPermission) || Boolean(canonicalThreadId),
+  });
   useCanonicalCodexHistory(conversation_id, canonicalThreadId, {
     reconcileCanonicalThread: messageState.reconcileCanonicalThread,
     markCanonicalSnapshotCovered: messageState.markCanonicalSnapshotCovered,

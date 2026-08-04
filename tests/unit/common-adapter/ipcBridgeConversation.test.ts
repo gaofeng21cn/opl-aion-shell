@@ -67,7 +67,7 @@ describe('ipcBridge conversation clone payload', () => {
     httpBridgeMocks.calls.length = 0;
   });
 
-  it('sends only the strict create fields for canonical Codex conversations', async () => {
+  it('materializes a canonical Codex task without a private Core resume contract', async () => {
     const { conversation } = await import('@/common/adapter/ipcBridge');
 
     await conversation.createWithConversation.invoke({
@@ -85,7 +85,6 @@ describe('ipcBridge conversation clone payload', () => {
         extra: {
           backend: 'codex',
           workspace: '/tmp/project',
-          acp_session_id: 'canonical-thread-1',
           canonical_thread_id: 'canonical-thread-1',
         },
       } as never,
@@ -103,12 +102,11 @@ describe('ipcBridge conversation clone payload', () => {
         extra: {
           backend: 'codex',
           workspace: '/tmp/project',
-          acp_session_id: 'canonical-thread-1',
           canonical_thread_id: 'canonical-thread-1',
         },
       },
-      resume_session_id: 'canonical-thread-1',
     });
+    expect(call?.body).not.toHaveProperty('resume_session_id');
     expect(call?.body).not.toHaveProperty('conversation.source');
     expect(call?.body).not.toHaveProperty('conversation.id');
     expect(call?.body).not.toHaveProperty('conversation.created_at');
@@ -133,23 +131,23 @@ describe('ipcBridge conversation clone payload', () => {
     expect(httpBridgeMocks.calls.at(-1)?.body).not.toHaveProperty('resume_session_id');
   });
 
-  it('rejects a canonical task whose projected ACP session identity drifted', async () => {
+  it('does not interpret a legacy projected ACP session as Core resume authority', async () => {
     const { conversation } = await import('@/common/adapter/ipcBridge');
 
-    await expect(
-      conversation.createWithConversation.invoke({
-        conversation: {
-          id: 'canonical-thread-1',
-          created_at: 1700000000000,
-          type: 'acp',
-          name: 'Canonical task',
-          extra: {
-            backend: 'codex',
-            acp_session_id: 'stale-thread',
-            canonical_thread_id: 'canonical-thread-1',
-          },
-        } as never,
-      })
-    ).rejects.toThrow('Canonical Codex task identity does not match');
+    await conversation.createWithConversation.invoke({
+      conversation: {
+        id: 'canonical-thread-1',
+        created_at: 1700000000000,
+        type: 'acp',
+        name: 'Canonical task',
+        extra: {
+          backend: 'codex',
+          acp_session_id: 'legacy-local-session',
+          canonical_thread_id: 'canonical-thread-1',
+        },
+      } as never,
+    });
+
+    expect(httpBridgeMocks.calls.at(-1)?.body).not.toHaveProperty('resume_session_id');
   });
 });

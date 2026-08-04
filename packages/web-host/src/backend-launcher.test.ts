@@ -222,7 +222,7 @@ describe('buildSpawnEnv', () => {
     expect(env.AIONUI_WORK_DIR).toBe('/w');
     expect(env.AIONUI_LOG_DIR).toBe('/l');
     expect(env.AIONUI_BUILTIN_SKILLS_PATH).toBe('/w/aioncore-empty-builtin-skills');
-    expect(env.AIONUI_SKILL_WORKSPACE_MATERIALIZATION).toBe('global_only');
+    expect(env.AIONUI_SKILL_WORKSPACE_MATERIALIZATION).toBeUndefined();
     expect(env.PATH).toBe(process.env.PATH); // inherits
   });
 

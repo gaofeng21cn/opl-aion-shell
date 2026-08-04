@@ -243,7 +243,6 @@ export function buildSpawnEnv(dirs: BackendDirConfig, extraEnv: NodeJS.ProcessEn
     // projections. Point official AionCore at an empty built-in skill corpus so
     // its auto-inject catalog remains empty without patching AionCore.
     AIONUI_BUILTIN_SKILLS_PATH: getOplAioncoreBuiltinSkillsPath(dirs),
-    AIONUI_SKILL_WORKSPACE_MATERIALIZATION: 'global_only',
     AIONUI_CACHE_DIR: dirs.cacheDir,
     AIONUI_WORK_DIR: dirs.workDir,
     AIONUI_LOG_DIR: dirs.logDir,
