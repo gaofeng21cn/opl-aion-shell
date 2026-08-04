@@ -131,3 +131,14 @@ export function buildAtFileInsertion(item: FileOrFolderItem): string | null {
   }
   return `@${escapeAtFilePath(path)}`;
 }
+
+export type AtFileMenuKeyAction = 'dismiss' | 'up' | 'down' | 'accept' | null;
+
+export function resolveAtFileMenuKey(key: string, hasItems: boolean): AtFileMenuKeyAction {
+  if (key === 'Escape') return 'dismiss';
+  if (!hasItems) return null;
+  if (key === 'ArrowDown') return 'down';
+  if (key === 'ArrowUp') return 'up';
+  if (key === 'Enter' || key === 'Tab') return 'accept';
+  return null;
+}

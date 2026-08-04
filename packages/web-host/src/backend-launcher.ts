@@ -180,6 +180,7 @@ export type BackendStartupErrorDetails = {
   serverListeningObserved?: boolean;
   serverListeningObservedAfterMs?: number;
   serverListeningLine?: string;
+  healthTimeoutKeptAlive?: boolean;
 };
 
 export type BackendStartOptions = {
@@ -258,6 +259,7 @@ const FETCH_FORBIDDEN_PORTS = new Set([
 
 const FETCH_COMPATIBLE_PORT_MAX_ATTEMPTS = 50;
 const AIONCORE_LISTENING_PREFIX = 'AIONCORE_LISTENING ';
+const AIONCORE_READY_MARKER = 'AIONCORE_READY';
 const BACKEND_PORT_REPORT_TIMEOUT_MS = 30_000;
 const PEER_ALREADY_RUNNING_BOUNDARY_CODE = 'BOOTSTRAP_PEER_ALREADY_RUNNING';
 const PEER_RETRY_MAX_ATTEMPTS = 5;
@@ -378,6 +380,10 @@ function clearHealthCheckErrorDiagnostics(diagnostics: HealthCheckDiagnostics): 
   delete diagnostics.healthCheckLastErrorName;
   delete diagnostics.healthCheckLastErrorCauseMessage;
   delete diagnostics.healthCheckLastErrorCauseCode;
+}
+
+function isAioncoreReadyLine(line: string): boolean {
+  return line === AIONCORE_READY_MARKER;
 }
 
 function parseAioncoreListeningPort(line: string): number | undefined {
@@ -612,6 +618,11 @@ export class BackendLifecycleManager {
     let serverListeningObserved = false;
     let serverListeningObservedAfterMs: number | undefined;
     let serverListeningLine: string | undefined;
+    let serverReadyObserved = false;
+    let resolveReady: () => void = () => {};
+    const readySignal = new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    });
     let backendPid: number | undefined;
     const makeStartupError = (
       stage: BackendStartupStage,
@@ -798,6 +809,11 @@ export class BackendLifecycleManager {
           serverListeningObservedAfterMs = Date.now() - startupStartedAt;
           serverListeningLine = trimmed;
           resolveReportedPort(port);
+        } else if (isAioncoreReadyLine(trimmed)) {
+          if (!serverReadyObserved) {
+            serverReadyObserved = true;
+            resolveReady();
+          }
         } else if (
           !serverListeningObserved &&
           this._port > 0 &&
@@ -832,23 +848,29 @@ export class BackendLifecycleManager {
       }
       throw error;
     }
-    const health = await Promise.race([this.waitForHealth(port), startupFailure]);
-    if (!health.ok) {
+    const healthOrReady = await Promise.race([
+      this.waitForHealth(port).then((health) => ({ kind: 'health' as const, health })),
+      readySignal.then(() => ({ kind: 'ready' as const })),
+      startupFailure,
+    ]);
+    if (healthOrReady.kind === 'health' && !healthOrReady.health.ok) {
+      const keptAlive = !!(options?.allowPendingOnHealthTimeout && this.childProcess);
       const healthTimeoutError = makeStartupError(
         'health_timeout',
         'aioncore failed to start within timeout',
         undefined,
         {
-          ...health.diagnostics,
+          ...healthOrReady.health.diagnostics,
+          healthTimeoutKeptAlive: keptAlive,
         }
       );
-      if (options?.allowPendingOnHealthTimeout && this.childProcess) {
+      if (keptAlive && this.childProcess) {
         startupSettled = true;
         console.warn(`[aioncore] health check timed out; keeping process alive on port ${this._port}`);
-        void Promise.resolve(options.onHealthTimeout?.(healthTimeoutError)).catch((error) => {
+        void Promise.resolve(options?.onHealthTimeout?.(healthTimeoutError)).catch((error) => {
           console.error('[aioncore] health timeout handler failed:', error);
         });
-        this.continueWaitingForHealth(this._port, this.childProcess, startupStartedAt, options.onReady);
+        this.continueWaitingForHealth(this._port, this.childProcess, startupStartedAt, readySignal, options?.onReady);
         return this._port;
       }
       startupSettled = true;
@@ -863,9 +885,15 @@ export class BackendLifecycleManager {
     startupSettled = true;
     this._status = 'running';
     this.restartCount = 0;
-    console.info(
-      `[aioncore] health ready on port ${this._port} after ${health.diagnostics.healthCheckAttempts} attempts, elapsed_ms=${health.diagnostics.healthCheckElapsedMs}, data-dir: ${dbPath}`
-    );
+    if (healthOrReady.kind === 'ready') {
+      console.info(
+        `[aioncore] ready signal received on port ${this._port}, elapsed_ms=${Date.now() - startupStartedAt}, data-dir: ${dbPath}`
+      );
+    } else {
+      console.info(
+        `[aioncore] health ready on port ${this._port} after ${healthOrReady.health.diagnostics.healthCheckAttempts} attempts, elapsed_ms=${healthOrReady.health.diagnostics.healthCheckElapsedMs}, data-dir: ${dbPath}`
+      );
+    }
     return this._port;
   }
 
@@ -957,20 +985,28 @@ export class BackendLifecycleManager {
     port: number,
     childProcess: ChildProcess,
     startupStartedAt: number,
+    readySignal: Promise<void>,
     onReady?: (port: number) => Promise<void> | void
   ): void {
     void (async () => {
-      const health = await this.waitForHealth(
-        port,
-        Number.POSITIVE_INFINITY,
-        () => this.childProcess === childProcess && this._status === 'starting'
-      );
-      if (!health.ok || this.childProcess !== childProcess || this._status !== 'starting') return;
+      const outcome = await Promise.race([
+        this.waitForHealth(
+          port,
+          Number.POSITIVE_INFINITY,
+          () => this.childProcess === childProcess && this._status === 'starting'
+        ).then((health) => ({ kind: 'health' as const, health })),
+        readySignal.then(() => ({ kind: 'ready' as const })),
+      ]);
+      if (this.childProcess !== childProcess || this._status !== 'starting') return;
+      if (outcome.kind === 'health' && !outcome.health.ok) return;
       this._status = 'running';
       this.restartCount = 0;
-      const elapsedMs = health.diagnostics.healthCheckElapsedMs ?? Date.now() - startupStartedAt;
+      const elapsedMs =
+        outcome.kind === 'health'
+          ? (outcome.health.diagnostics.healthCheckElapsedMs ?? Date.now() - startupStartedAt)
+          : Date.now() - startupStartedAt;
       console.info(
-        `[aioncore] late health ready on port ${port} after ${health.diagnostics.healthCheckAttempts} attempts, elapsed_ms=${elapsedMs}, data-dir: ${this._lastDbPath}`
+        `[aioncore] late ${outcome.kind === 'ready' ? 'ready signal' : 'health ready'} on port ${port}, elapsed_ms=${elapsedMs}, data-dir: ${this._lastDbPath}`
       );
       await onReady?.(port);
     })().catch((error) => {

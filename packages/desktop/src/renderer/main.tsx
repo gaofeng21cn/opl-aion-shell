@@ -40,7 +40,7 @@ import '@/common/adapter/browser';
 
 // React and core dependencies
 import type { PropsWithChildren } from 'react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { TFunction } from 'i18next';
 
@@ -85,6 +85,8 @@ import { repairAllCronJobTimeZonesOnce } from '@renderer/pages/cron/repairCronJo
 import { startManagedUpdateMaintenanceScheduler } from './services/managedUpdateMaintenance';
 
 // Components and utilities
+import BackendStartingView from './components/layout/BackendStartingView';
+import BackendStartupGate from './components/layout/BackendStartupGate';
 import Layout from './components/layout/Layout';
 import Router from './components/layout/Router';
 import Sider from './components/layout/Sider';
@@ -104,6 +106,7 @@ import {
   type BackendStartupFailureDialogRoute,
 } from './components/layout/InstallationIntegrityDialog';
 import AppLoader, { type AppLoaderStep } from './components/layout/AppLoader';
+import { createRuntimeInstallationReconciler } from './services/runtime/runtimeInstallationReconciler';
 
 const arcoLocales: Record<string, typeof enUS> = {
   'zh-CN': zhCN,
@@ -154,45 +157,47 @@ function resolveRuntimeResourceLabel(event: IRuntimeStatusEvent, t: TFunction): 
 const RuntimeFailureDialogs: React.FC = () => {
   const { t } = useTranslation();
   const [modal, modalContextHolder] = Modal.useModal();
-  const shownFailuresRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    return ipcBridge.runtime.statusChanged.on((event: IRuntimeStatusEvent) => {
-      if (event.phase !== 'failed') {
-        return;
-      }
-      const signature = [
-        event.resource,
-        event.resource_id ?? '',
-        event.scope.kind,
-        event.scope.id,
-        event.failure_kind ?? 'unknown',
-        event.message ?? '',
-      ].join('|');
-      if (shownFailuresRef.current.has(signature)) {
-        return;
-      }
-      shownFailuresRef.current.add(signature);
+    const reconciler = createRuntimeInstallationReconciler({
+      showDialog: (event) => {
+        const resource = resolveRuntimeResourceLabel(event, t);
+        const description = getRuntimeComponentInstallationDescription(t, resource);
+        const controller = showInstallationIntegrityModal(modal, t, description);
+        return { close: () => controller.close() };
+      },
+      report: (event) => captureRuntimeInstallationIntegrityFailure(event),
+    });
 
+    const offStatus = ipcBridge.runtime.statusChanged.on((event: IRuntimeStatusEvent) => {
+      if (
+        (event.phase === 'failed' && isInstallationIntegrityFailure(event.failure_kind)) ||
+        (event.phase === 'ready' && event.resource === 'node')
+      ) {
+        reconciler.handleStatus(event);
+        return;
+      }
+
+      if (event.phase !== 'failed') return;
       const resource = resolveRuntimeResourceLabel(event, t);
-      const installationIntegrityFailure = isInstallationIntegrityFailure(event.failure_kind);
-      const description = installationIntegrityFailure
-        ? getRuntimeComponentInstallationDescription(t, resource)
-        : t('settings.runtimeStatus.failedUnknown', { resource });
-      if (installationIntegrityFailure) {
-        captureRuntimeInstallationIntegrityFailure(event);
-        showInstallationIntegrityModal(modal, t, description);
-        return;
-      }
-
       modal.error({
         title: t('common.error'),
-        content: <InstallationIntegrityContent description={description} />,
+        content: <InstallationIntegrityContent description={t('settings.runtimeStatus.failedUnknown', { resource })} />,
         okText: t('common.confirm'),
         closable: false,
         maskClosable: false,
       });
     });
+
+    const onBeforeUnload = () => reconciler.flushPending();
+    window.addEventListener('beforeunload', onBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      offStatus();
+      reconciler.flushPending();
+      reconciler.dispose();
+    };
   }, [modal, t]);
 
   return <>{modalContextHolder}</>;
@@ -366,18 +371,25 @@ const BackendStartupFailureDialog: React.FC<{
 void registerPwa();
 
 const root = createRoot(document.getElementById('root')!);
-const backendStartupFailure = window.__backendStartupFailure;
-const backendStartupFailureDialogRoute = getBackendStartupFailureDialogRoute(backendStartupFailure);
-if (backendStartupFailure && backendStartupFailureDialogRoute) {
-  root.render(
-    <Config>
-      <BackendStartupFailureDialog failure={backendStartupFailure} route={backendStartupFailureDialogRoute} />
-    </Config>
-  );
-} else {
-  root.render(
-    <AppProviders>
-      <App />
-    </AppProviders>
-  );
-}
+root.render(
+  <BackendStartupGate
+    renderStarting={() => (
+      <Config>
+        <BackendStartingView />
+      </Config>
+    )}
+    renderFailure={(failure) => {
+      const route = getBackendStartupFailureDialogRoute(failure);
+      return route ? (
+        <Config>
+          <BackendStartupFailureDialog failure={failure} route={route} />
+        </Config>
+      ) : null;
+    }}
+    renderApp={() => (
+      <AppProviders>
+        <App />
+      </AppProviders>
+    )}
+  />
+);

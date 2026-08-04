@@ -34,6 +34,8 @@ export type BackendStartupFailureReason =
   | 'backend_recoverable_database_corruption'
   | 'backend_transient_concurrent_startup'
   | 'backend_startup_directory_unavailable'
+  | 'backend_startup_pending_slow'
+  | 'backend_startup_exited'
   | 'backend_startup_failed';
 
 export type OplCodexRuntimeErrorCode =
@@ -75,5 +77,9 @@ declare global {
     __initialLanguage?: string | null;
     __backendStartupFailed?: boolean;
     __backendStartupFailure?: BackendStartupFailureInfo | null;
+    __backendStartupBridge?: {
+      getState: () => BackendStartupFailureInfo | null;
+      subscribe: (callback: (state: BackendStartupFailureInfo | null) => void) => () => void;
+    };
   }
 }

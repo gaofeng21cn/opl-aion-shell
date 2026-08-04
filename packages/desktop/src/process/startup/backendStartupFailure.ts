@@ -10,6 +10,8 @@ type ErrorWithDetails = Error & {
   code?: unknown;
   details?: {
     stage?: unknown;
+    serverListeningObserved?: unknown;
+    healthTimeoutKeptAlive?: unknown;
     isPackaged?: unknown;
     causeMessage?: unknown;
     stderrTail?: unknown;
@@ -230,6 +232,21 @@ function classifyTransientConcurrentStartupFailure(
   };
 }
 
+function classifyPendingSlowStartup(details: ErrorWithDetails['details']): BackendStartupFailureInfo | undefined {
+  if (!details) return undefined;
+  if (details.stage !== 'health_timeout') return undefined;
+  if (details.serverListeningObserved !== true) return undefined;
+  if (details.healthTimeoutKeptAlive !== true) return undefined;
+  return { reason: 'backend_startup_pending_slow' };
+}
+
+function classifyBackendStartupExited(details: ErrorWithDetails['details']): BackendStartupFailureInfo | undefined {
+  if (!details) return undefined;
+  if (details.stage !== 'early_exit') return undefined;
+  if (details.serverListeningObserved !== true) return undefined;
+  return { reason: 'backend_startup_exited' };
+}
+
 export function classifyBackendStartupFailure(error: unknown): BackendStartupFailureInfo {
   const details = getBackendStartupDetails(error);
   const packageArchitectureMismatch = classifyPackageArchitectureMismatch(details);
@@ -237,6 +254,12 @@ export function classifyBackendStartupFailure(error: unknown): BackendStartupFai
 
   const oplCodexRuntimeFailure = classifyOplCodexRuntimeFailure(error);
   if (oplCodexRuntimeFailure) return oplCodexRuntimeFailure;
+
+  const pendingSlowStartup = classifyPendingSlowStartup(details);
+  if (pendingSlowStartup) return pendingSlowStartup;
+
+  const backendStartupExited = classifyBackendStartupExited(details);
+  if (backendStartupExited) return backendStartupExited;
 
   const incompleteInstallation = classifyIncompleteInstallation(details);
   if (incompleteInstallation) return incompleteInstallation;

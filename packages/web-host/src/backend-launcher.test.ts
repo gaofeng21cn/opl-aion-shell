@@ -399,6 +399,23 @@ describe('BackendLifecycleManager.start (success path)', () => {
     fetchSpy.mockRestore();
   });
 
+  it('accepts AIONCORE_READY as the authoritative foreground readiness signal', async () => {
+    const child = makeFakeChild();
+    vi.mocked(spawn).mockReturnValue(child as unknown as ChildProcess);
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => new Promise<Response>(() => {}));
+
+    const mgr = new BackendLifecycleManager(APP_META_PACKAGED, () => '/abs/path/aioncore');
+    const startPromise = mgr.start('/db/path');
+
+    await Promise.resolve();
+    emitListening(child, 55556);
+    child.stdout?.emit('data', Buffer.from('AIONCORE_READY\n'));
+
+    await expect(startPromise).resolves.toBe(55556);
+    expect(mgr.status).toBe('running');
+    fetchSpy.mockRestore();
+  });
+
   it('spawns with correct args, waits for /health, reports running', async () => {
     const child = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(child as unknown as ChildProcess);
@@ -877,12 +894,14 @@ describe('BackendLifecycleManager.start (health timeout)', () => {
         details: expect.objectContaining({
           stage: 'health_timeout',
           port: 33335,
+          healthTimeoutKeptAlive: true,
         }),
       })
     );
 
-    fetchSpy.mockResolvedValue(new Response('ok', { status: 200 }) as unknown as Response);
-    await vi.advanceTimersByTimeAsync(250);
+    child.stdout?.emit('data', Buffer.from('AIONCORE_READY\n'));
+    await Promise.resolve();
+    await Promise.resolve();
     await Promise.resolve();
 
     expect(mgr.status).toBe('running');

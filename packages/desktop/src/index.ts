@@ -331,10 +331,17 @@ ipcMain.handle('backend:recover-corrupted-database', async () => {
   });
 });
 
+function broadcastBackendStartupState(state: BackendStartupFailureInfo | null): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('backend-startup-state', state);
+  }
+}
+
 function markBackendStartupFailed(error: unknown): void {
   backendStartupFailed = true;
   backendStartupFailureInfo = classifyBackendStartupFailure(error);
   (globalThis as typeof globalThis & { __backendStartupFailed?: boolean }).__backendStartupFailed = true;
+  broadcastBackendStartupState(backendStartupFailureInfo);
 }
 
 function registerCronResumeBridge(backendPort: number): void {
@@ -408,6 +415,7 @@ function markBackendReady(backendPort: number, source: string): void {
   backendStartupFailed = false;
   backendStartupFailureInfo = null;
   (globalThis as typeof globalThis & { __backendStartupFailed?: boolean }).__backendStartupFailed = false;
+  broadcastBackendStartupState(null);
   void ensureAdminUserOnce(backendPort);
   scheduleBackendMigrations();
 }
@@ -680,6 +688,9 @@ const handleAppReady = async (): Promise<void> => {
           allowPendingOnHealthTimeout: !(isWebUIMode || isResetPasswordMode),
           onHealthTimeout: async (error) => {
             markBackendStartupFailed(error);
+            if (backendStartupFailureInfo?.reason === 'backend_startup_pending_slow') {
+              return;
+            }
             await captureBackendStartupFailure(error);
           },
           onPendingExit: async (error) => {

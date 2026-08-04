@@ -23,6 +23,7 @@ export type InstallationIntegrityDialogKind =
   | 'transient_concurrent_startup'
   | 'startup_directory_permission_denied'
   | 'startup_directory_unavailable'
+  | 'backend_exited'
   | 'generic_startup_failure';
 
 export type StartupSupportEnvironment = {
@@ -175,6 +176,10 @@ export function getBackendStartupFailureDialogRoute(
             ? 'startup_directory_permission_denied'
             : 'startup_directory_unavailable',
       };
+    case 'backend_startup_exited':
+      return { kind: 'installation_integrity', diagnosticsKind: 'backend_exited' };
+    case 'backend_startup_pending_slow':
+      return null;
     case 'backend_startup_failed':
       return { kind: 'installation_integrity', diagnosticsKind: 'generic_startup_failure' };
     default: {
@@ -199,6 +204,8 @@ export function getInstallationIntegrityTitle(
       return t('common.backendStartup.startupDirectory.title');
     case 'generic_startup_failure':
       return t('common.backendStartup.genericFailure.title');
+    case 'backend_exited':
+      return t('common.backendStartup.exited.title');
     case 'incomplete_installation':
       return t('common.backendStartup.incompleteInstallation.title');
   }
@@ -223,6 +230,8 @@ export function getInstallationIntegrityDescription(
       return t('common.backendStartup.startupDirectory.unavailableDescription');
     case 'generic_startup_failure':
       return t('common.backendStartup.genericFailure.description');
+    case 'backend_exited':
+      return t('common.backendStartup.exited.description');
     case 'incomplete_installation':
       return getBackendStartupInstallationDescription(t);
   }
@@ -243,6 +252,8 @@ export function getInstallationIntegritySecondaryText(
       return t('common.backendStartup.startupDirectory.unavailableAction');
     case 'generic_startup_failure':
       return t('common.backendStartup.genericFailure.action');
+    case 'backend_exited':
+      return t('common.backendStartup.exited.action');
     case 'incomplete_installation':
       return undefined;
   }
@@ -318,6 +329,7 @@ export function getInstallationIntegrityModalActions(
         : diagnosticsKind === 'startup_directory_permission_denied' ||
             diagnosticsKind === 'startup_directory_unavailable' ||
             diagnosticsKind === 'transient_concurrent_startup' ||
+            diagnosticsKind === 'backend_exited' ||
             diagnosticsKind === 'generic_startup_failure'
           ? t('common.backendStartup.actions.restartApp')
           : undefined,
@@ -488,10 +500,10 @@ export function showInstallationIntegrityModal(
   description: string,
   diagnosticsKind: InstallationIntegrityDialogKind = 'incomplete_installation',
   failure?: BackendStartupFailureInfo
-): void {
+): ReturnType<InstallationIntegrityModalController['error']> {
   const secondaryText = getInstallationIntegritySecondaryText(t, diagnosticsKind);
 
-  modal.error({
+  return modal.error({
     title: getInstallationIntegrityTitle(t, diagnosticsKind),
     content: (
       <InstallationIntegrityContent

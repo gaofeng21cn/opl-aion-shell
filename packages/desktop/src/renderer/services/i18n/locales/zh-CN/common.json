@@ -178,6 +178,15 @@
       "description": "本机服务启动失败，One Person Lab App 已停止继续启动。",
       "action": "请重启 One Person Lab App；如果仍然失败，请先查看应用日志，再决定是否修改配置或重新安装应用。"
     },
+    "pendingSlow": {
+      "title": "本机服务正在启动",
+      "description": "One Person Lab 本机服务仍在启动，请稍候；服务就绪后应用会自动继续。"
+    },
+    "exited": {
+      "title": "本机服务启动已中止",
+      "description": "本机服务在完成启动前已退出。",
+      "action": "请重启 One Person Lab App；如果反复出现，请查看或复制下方诊断信息后报告问题。"
+    },
     "transientConcurrentStartup": {
       "title": "One Person Lab 已在启动中",
       "description": "另一个 One Person Lab 进程正在使用同一份本地数据完成启动。这是临时状态，您的数据是安全的，重新安装无法解决此问题。",

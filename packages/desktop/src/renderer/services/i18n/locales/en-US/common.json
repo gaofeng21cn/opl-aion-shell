@@ -178,6 +178,15 @@
       "description": "One Person Lab App stopped startup because its local service failed to start.",
       "action": "Restart One Person Lab App. If the failure continues, review the application logs before changing configuration or reinstalling the app."
     },
+    "pendingSlow": {
+      "title": "Starting local service",
+      "description": "The One Person Lab local service is still starting. Please wait; the app will continue automatically when it is ready."
+    },
+    "exited": {
+      "title": "Local service startup ended",
+      "description": "The local service exited before startup completed.",
+      "action": "Restart One Person Lab App. If this keeps happening, review or copy the diagnostics below and report the issue."
+    },
     "transientConcurrentStartup": {
       "title": "One Person Lab is already starting",
       "description": "Another One Person Lab process is finishing startup with the same local data. This is temporary; your data is safe and reinstalling will not help.",

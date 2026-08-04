@@ -134,3 +134,59 @@ describe('classifyBackendStartupFailure transient concurrent startup', () => {
     });
   });
 });
+
+describe('classifyBackendStartupFailure slow startup lifecycle', () => {
+  it('classifies a listening process kept alive after health timeout as pending', () => {
+    expect(
+      classifyBackendStartupFailure({
+        details: {
+          stage: 'health_timeout',
+          serverListeningObserved: true,
+          healthTimeoutKeptAlive: true,
+        },
+      })
+    ).toEqual({ reason: 'backend_startup_pending_slow' });
+  });
+
+  it('does not classify a killed health-timeout process as pending', () => {
+    expect(
+      classifyBackendStartupFailure({
+        details: {
+          stage: 'health_timeout',
+          serverListeningObserved: true,
+        },
+      }).reason
+    ).toBe('backend_startup_failed');
+  });
+
+  it('classifies a previously listening process that exits as an honest startup exit', () => {
+    const failure = classifyBackendStartupFailure({
+      details: {
+        stage: 'early_exit',
+        serverListeningObserved: true,
+      },
+    });
+
+    expect(failure).toEqual({ reason: 'backend_startup_exited' });
+    expect(getBackendStartupFailureDialogRoute(failure)).toEqual({
+      kind: 'installation_integrity',
+      diagnosticsKind: 'backend_exited',
+    });
+    expect(getInstallationIntegrityTitle(translateKey, 'backend_exited')).toBe('common.backendStartup.exited.title');
+    expect(getInstallationIntegrityDescription(translateKey, 'backend_exited')).toBe(
+      'common.backendStartup.exited.description'
+    );
+    expect(getInstallationIntegritySecondaryText(translateKey, 'backend_exited')).toBe(
+      'common.backendStartup.exited.action'
+    );
+    expect(getInstallationIntegrityModalActions(translateKey, { diagnosticsKind: 'backend_exited' })).toMatchObject({
+      downloadText: undefined,
+      recoverText: undefined,
+      restartText: 'common.backendStartup.actions.restartApp',
+    });
+  });
+
+  it('does not route pending startup into a failure dialog', () => {
+    expect(getBackendStartupFailureDialogRoute({ reason: 'backend_startup_pending_slow' })).toBeNull();
+  });
+});

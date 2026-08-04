@@ -345,13 +345,27 @@ export function validateReceiptAgainstCheckout(receiptValue, repoRoot, gitRunner
   return receipt;
 }
 
-async function fetchLatestStableRelease(receipt, fetchImpl, tagResolver) {
+function defaultGithubTokenResolver() {
+  const environmentToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (environmentToken) return environmentToken;
+
+  const result = spawnSync('gh', ['auth', 'token', '-h', 'github.com'], {
+    cwd: DEFAULT_REPO_ROOT,
+    encoding: 'utf8',
+    stdio: 'pipe',
+  });
+  if (result.error || result.status !== 0) return '';
+  return result.stdout.trim();
+}
+
+async function fetchLatestStableRelease(receipt, fetchImpl, tagResolver, authTokenResolver) {
   const headers = {
     Accept: 'application/vnd.github+json',
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'opl-aion-shell-currentness-check',
   };
-  if (process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GH_TOKEN}`;
+  const token = authTokenResolver();
+  if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetchImpl('https://api.github.com/repos/iOfficeAI/AionUi/releases?per_page=100', { headers });
   if (!response.ok) throw new Error(`GitHub releases API returned HTTP ${response.status}`);
   const latest = selectLatestStableRelease(await response.json());
@@ -375,12 +389,16 @@ async function defaultTagResolver(repository, tag) {
 
 export async function checkAionuiCurrentness(
   receiptValue,
-  { fetchImpl = globalThis.fetch, tagResolver = defaultTagResolver } = {}
+  {
+    fetchImpl = globalThis.fetch,
+    tagResolver = defaultTagResolver,
+    authTokenResolver = defaultGithubTokenResolver,
+  } = {}
 ) {
   const receipt = validateAionuiIntakeReceipt(receiptValue);
   let observed;
   try {
-    observed = await fetchLatestStableRelease(receipt, fetchImpl, tagResolver);
+    observed = await fetchLatestStableRelease(receipt, fetchImpl, tagResolver, authTokenResolver);
   } catch (error) {
     return {
       schema: 'opl_aionui_upstream_currentness.v1',

@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildAtFileInsertion } from '@/renderer/utils/chat/atFileQuery';
+import { buildAtFileInsertion, resolveAtFileMenuKey } from '@/renderer/utils/chat/atFileQuery';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 
 describe('buildAtFileInsertion', () => {
@@ -38,5 +38,24 @@ describe('buildAtFileInsertion', () => {
     } as FileOrFolderItem;
 
     expect(buildAtFileInsertion(item)).toBeNull();
+  });
+});
+
+describe('resolveAtFileMenuKey', () => {
+  it('accepts the active item on Enter and Tab', () => {
+    expect(resolveAtFileMenuKey('Enter', true)).toBe('accept');
+    expect(resolveAtFileMenuKey('Tab', true)).toBe('accept');
+  });
+
+  it('preserves navigation and dismissal behavior', () => {
+    expect(resolveAtFileMenuKey('ArrowUp', true)).toBe('up');
+    expect(resolveAtFileMenuKey('ArrowDown', true)).toBe('down');
+    expect(resolveAtFileMenuKey('Escape', false)).toBe('dismiss');
+  });
+
+  it('does not hijack accept or navigation keys when no items are visible', () => {
+    expect(resolveAtFileMenuKey('Enter', false)).toBeNull();
+    expect(resolveAtFileMenuKey('Tab', false)).toBeNull();
+    expect(resolveAtFileMenuKey('ArrowDown', false)).toBeNull();
   });
 });

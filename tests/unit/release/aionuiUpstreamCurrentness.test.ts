@@ -229,4 +229,31 @@ describe('AionUI upstream currentness', () => {
       release_mutation_performed: false,
     });
   });
+
+  it('uses the authenticated GitHub token resolver without exposing the token in output', async () => {
+    let authorization = '';
+    const result = await checkAionuiCurrentness(receipt, {
+      authTokenResolver: () => 'test-token',
+      fetchImpl: async (_url, options) => {
+        authorization = String(options?.headers?.Authorization ?? '');
+        return {
+          ok: true,
+          json: async () => [
+            {
+              tag_name: receipt.reviewed_release.tag,
+              published_at: receipt.reviewed_release.published_at,
+              draft: false,
+              prerelease: false,
+              html_url: receipt.reviewed_release.url,
+            },
+          ],
+        };
+      },
+      tagResolver: async () => receipt.reviewed_release.commit,
+    });
+
+    expect(authorization).toBe('Bearer test-token');
+    expect(result.status).toBe('current');
+    expect(JSON.stringify(result)).not.toContain('test-token');
+  });
 });
