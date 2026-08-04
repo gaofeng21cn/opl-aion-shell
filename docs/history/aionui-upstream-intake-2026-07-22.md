@@ -4,6 +4,47 @@ Machine receipt: `contracts/aionui-upstream-intake.json`. The receipt is the
 offline currentness and managed-runtime projection boundary; this document
 retains the human classification rationale.
 
+## Review update - 2026-08-04
+
+Official stable `v2.1.46`
+(`0f7635b2f8a62e0a757eff60aea210e502726f92`) was published at
+`2026-08-03T14:36:44Z` and reviewed through the stable-only intake path. The
+range from `v2.1.42` contains 35 commits. Its broad product surface remains
+`reviewed_deferred`; the absorbed release remains `v2.1.39`.
+
+Shell commit `8b8029f3fd0f94a8dcacc2f6f96bc0e4f562c82a` replays only three scoped
+behaviors against the OPL overlay:
+
+- `1a6be8e7c9`: accept `Tab` as an alternative to `Enter` for the active SendBox
+  `@` file result. The upstream Explorer reveal/highlight portion is redirected
+  because the current OPL fork has no matching `ExplorerPanel.tsx` authority.
+- `5bfff048d4`: reconcile resource-level install-integrity failures for 15 seconds
+  so a self-healed Node runtime retracts the modal and suppresses a false report.
+- `342997704c`: consume `AIONCORE_READY`, distinguish slow-but-alive startup from
+  a later exit, and switch the top-level renderer surface dynamically. The
+  ordinary router still does not restore the retired `/startup-gate` route.
+
+The final upstream bump `0f7635b2f8` is only partially accepted as release
+evidence. AionCore `v0.1.57` had already been independently bound on Shell main
+by `f6f5c1b258c7d8e92918d7ba37b3641d1080ac5b` from official release assets.
+The receipt explicitly keeps `source_fork=forbidden`; this intake creates no
+AionCore fork and imports no AionCore source changes. Its managed Codex CLI
+binding remains `@openai/codex@0.144.6`.
+
+### Stable commit disposition
+
+Every commit in `v2.1.42..v2.1.46` is accounted for once below. `Rejected`
+means it is not an OPL Shell intake input; it is not a judgment on upstream
+quality.
+
+| Disposition            | Count | Upstream commits                                                                                                                                                       | OPL reason                                                                                                                                                                    |
+| ---------------------- | ----: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Adapted                |     3 | `1a6be8e7c9`, `5bfff048d4`, `342997704c`                                                                                                                               | Replayed as the scoped SendBox, runtime self-heal, and backend startup adaptations described above.                                                                           |
+| Partial accept         |     1 | `0f7635b2f8`                                                                                                                                                           | Records the reviewed stable tag and the already-authoritative official AionCore `v0.1.57` pin; does not import upstream product version or changelog.                         |
+| Redirected             |    12 | `1df07e96c9`, `26a2e72e8f`, `6998dc42c0`, `2220d6da26`, `14e189e0f2`, `5f808f05b3`, `584fdcf4de`, `1204ffa88c`, `4edea7c5d8`, `c213c76526`, `59e1416bb2`, `083d85f8e3` | File picking, Explorer/search/preview, Pet, tray, Guid/model, and update-channel behavior require their OPL App or existing adapter owner rather than direct upstream intake. |
+| Deferred               |    12 | `bf1f9c9ab3`, `6d819d6dfd`, `922fbac2fb`, `00c37fa527`, `20403d27cb`, `4879b7bbd8`, `1a2dee33d4`, `6e01c88874`, `d768ba550f`, `303bc88996`, `72784fe4f1`, `cab369535e` | Team warmup, conversation telemetry/timers, WebUI refetch, preview, Antigravity, and related cleanup are behavior-relevant but are not authorized by this intake.             |
+| Rejected or superseded |     7 | `8544097190`, `1593db41a1`, `247f9c9f17`, `f541640bce`, `5ec74f8dfb`, `f37a6187f0`, `2bca547018`                                                                       | Merge/test-only commits and intermediate release/AionCore bumps do not define an independent OPL projection after `v2.1.46`.                                                  |
+
 ## Review update - 2026-07-29
 
 Official stable `v2.1.42`
@@ -51,10 +92,10 @@ does not authorize a broad upstream merge.
 
 - Shell candidate base: `201f338604299caaf1deaf94995fa176393c1165`.
 - AionUI source range: `v2.1.38` (`4fac22b6ee7b5b59b8d2d89ec30b998029e35ff8`) to `v2.1.39` (`1b215f2fcb9d220bc66bf3b4961835ded07d5797`).
-- AionCore source range: `v0.1.49` (`08c1b2f30b7cdc7785624df935aa31d314786999`) to official `v0.1.53` (`1644ef26c168e8002dcfa53ccd333054b40697d6`).
-- Official AionCore darwin-arm64 archive SHA-256: `57b92b3de046717c7980d2c345d335e2513af514621fcbfff8a3e7cf16f8b7f6`.
+- AionCore source range: `v0.1.49` (`08c1b2f30b7cdc7785624df935aa31d314786999`) to official `v0.1.57` (`4452a3a72ebb612f3ddd4402aeb5542187a6fbdf`).
+- Official AionCore darwin-arm64 archive SHA-256: `f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401`.
 
-The official `aioncore 0.1.53` binary was run with the same `--data-dir` and `prepare-managed-resources` contract used by the Shell. Its output is the managed-resource authority:
+The official `aioncore 0.1.57` binary is bound through the same `--data-dir` and `prepare-managed-resources` contract used by the Shell. Its output is the managed-resource authority:
 
 - managed-resource schema: `2`
 - direct Claude package: `@anthropic-ai/claude-code@2.1.215`
@@ -75,12 +116,16 @@ truth.
 | `1b215f2fcb9d220bc66bf3b4961835ded07d5797` | Partial accept           | Move only `aioncoreVersion` to `v0.1.50`. Keep the OPL package name and product version, and do not copy the upstream changelog.                                                           |
 | `4d6949780f81aa6fe2b4f3d348e1513b817e094c` | Partial accept           | Replay only the schema v2 direct-CLI bundle/verifier contract; retain OPL conversation and product overlays.                                                                               |
 | `7ee90c13e96393491586abe9b12f7d5c7da9ee59` | Partial accept           | Move only `aioncoreVersion` to `v0.1.53`; do not absorb the full upstream release body.                                                                                                    |
+| `1a6be8e7c9de472831d0c85434a03c2011fc14f2` | Adapt                    | Replay only SendBox `@` result acceptance on `Tab`; redirect Explorer reveal/highlight to the App/Explorer owner.                                                                          |
+| `5bfff048d402351f171fa424aa3796dc760bbf03` | Adapt                    | Reconcile self-healed installation-integrity failures at resource scope before reporting.                                                                                                  |
+| `342997704cd1ff7e70d34271d4049996a8276443` | Adapt                    | Add `AIONCORE_READY` and lifecycle-driven slow-start/exit handling without restoring the retired route.                                                                                    |
+| `0f7635b2f8a62e0a757eff60aea210e502726f92` | Partial accept           | Record stable `v2.1.46` and retain the separately landed official AionCore `v0.1.57` authority; do not copy upstream package version/changelog.                                            |
 
-The target projection preserves the existing OPL startup route in `InstallationIntegrityDialog.tsx`; `renderer/main.tsx` already consumes that route and therefore needs no semantic diff. Only `en-US` and `zh-CN` product locales are maintained. `i18n-keys.d.ts` is regenerated from fresh Shell main after the Storage UX lane entered authority at `201f338604299caaf1deaf94995fa176393c1165`; candidate-generated bytes from the earlier base are not reused.
+The target projection preserves the ordinary OPL router behavior and adds only a top-level backend lifecycle gate; `/startup-gate` remains retired. Only `en-US` and `zh-CN` product locales are maintained. `i18n-keys.d.ts` is regenerated from the implementation checkout and must be regenerated again after fresh-main replay if the locale authority changes.
 
 ## Core and package projection
 
-- `package.json`: `aioncoreVersion` is `v0.1.53`; the OPL package version is unchanged by this intake.
+- `package.json`: `aioncoreVersion` is `v0.1.57`; the OPL package version is unchanged by this intake.
 - `bun.lock`: byte-identical. Managed Node/CLI packages are prepared by AionCore and do not belong in the Shell workspace lock.
 - Claude and Codex versions come only from AionCore's schema v2 contract and direct-CLI source pins.
 - Legacy `codex-acp` bytes are rejected instead of being accepted as an alternate runtime.

@@ -3,12 +3,12 @@
   "upstream_repository": "https://github.com/iOfficeAI/AionUi.git",
   "channel": "stable_tags_only",
   "reviewed_release": {
-    "tag": "v2.1.42",
-    "commit": "7ee90c13e96393491586abe9b12f7d5c7da9ee59",
-    "published_at": "2026-07-28T12:52:28Z",
+    "tag": "v2.1.46",
+    "commit": "0f7635b2f8a62e0a757eff60aea210e502726f92",
+    "published_at": "2026-08-03T14:36:44Z",
     "draft": false,
     "prerelease": false,
-    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.42",
+    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.46",
     "disposition": "reviewed_deferred"
   },
   "absorbed_release": {
@@ -16,7 +16,11 @@
     "commit": "1b215f2fcb9d220bc66bf3b4961835ded07d5797"
   },
   "shell_projection": {
-    "implementation_refs": ["a226de8a709698d40d19b038ef736475e135e1b2", "bfde9e63179c03b2cdca18f4134f5c28ef78c8e4"],
+    "implementation_refs": [
+      "a226de8a709698d40d19b038ef736475e135e1b2",
+      "bfde9e63179c03b2cdca18f4134f5c28ef78c8e4",
+      "8b8029f3fd0f94a8dcacc2f6f96bc0e4f562c82a"
+    ],
     "human_record": "docs/history/aionui-upstream-intake-2026-07-22.md",
     "aioncore_version_source": "package.json#aioncoreVersion"
   },
