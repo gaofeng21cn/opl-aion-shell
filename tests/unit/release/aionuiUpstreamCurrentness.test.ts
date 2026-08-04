@@ -42,17 +42,20 @@ describe('AionUI upstream currentness', () => {
     expect(receipt.managed_runtime).not.toHaveProperty('codex_acp');
     expect(receipt.managed_runtime).toMatchObject({
       aioncore: {
-        version: 'v0.1.56',
-        commit: '1ba448fd023fcc44bce212c60c97e0009d2e0a25',
-        archive_sha256: '55dcb5f2841d5b55ddd0ef03406a50b0fe75e2227571c63974e41c5e2e697629',
+        repository: 'https://github.com/iOfficeAI/AionCore',
+        authority: 'official_release_assets_only',
+        source_fork: 'forbidden',
+        version: 'v0.1.57',
+        commit: '4452a3a72ebb612f3ddd4402aeb5542187a6fbdf',
+        archive_sha256: 'f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401',
         release_assets: {
           'darwin-arm64': {
-            name: 'aioncore-v0.1.56-aarch64-apple-darwin.tar.gz',
-            sha256: '55dcb5f2841d5b55ddd0ef03406a50b0fe75e2227571c63974e41c5e2e697629',
+            name: 'aioncore-v0.1.57-aarch64-apple-darwin.tar.gz',
+            sha256: 'f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401',
           },
           'linux-x64': {
-            name: 'aioncore-v0.1.56-x86_64-unknown-linux-gnu.tar.gz',
-            sha256: '1d2fa6b96fc02222429d351755b43e495ba7e402c9ae8dcf321a137a88bb944e',
+            name: 'aioncore-v0.1.57-x86_64-unknown-linux-gnu.tar.gz',
+            sha256: '04a8dfa250f385fd72cb6e74779cbee462579911dd844ded1f6b4054ea90e330',
           },
         },
       },
@@ -88,6 +91,16 @@ describe('AionUI upstream currentness', () => {
     duplicateDigest.managed_runtime.aioncore.release_assets['linux-x64'].sha256 =
       duplicateDigest.managed_runtime.aioncore.release_assets['darwin-arm64'].sha256;
     expect(() => validateAionuiIntakeReceipt(duplicateDigest)).toThrow(/one distinct digest per platform asset/);
+  });
+
+  it('rejects personal AionCore forks as runtime authority', () => {
+    const forkedRuntime = structuredClone(receipt);
+    forkedRuntime.managed_runtime.aioncore.repository = 'https://github.com/example-user/AionCore';
+    expect(() => validateAionuiIntakeReceipt(forkedRuntime)).toThrow(/official upstream/);
+
+    const sourceForkAllowed = structuredClone(receipt);
+    sourceForkAllowed.managed_runtime.aioncore.source_fork = 'allowed';
+    expect(() => validateAionuiIntakeReceipt(sourceForkAllowed)).toThrow(/source_fork must be forbidden/);
   });
 
   it('rejects an intake receipt that does not bind the Codex-only projection policy', () => {

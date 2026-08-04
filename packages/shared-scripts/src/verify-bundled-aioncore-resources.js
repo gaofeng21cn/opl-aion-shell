@@ -1,8 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_AIONCORE_VERSION = 'v0.1.56';
-const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.56';
+const REQUIRED_AIONCORE_VERSION = 'v0.1.57';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.57';
 const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
 const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
 const REQUIRED_CODEX_VERSION = '0.144.6';

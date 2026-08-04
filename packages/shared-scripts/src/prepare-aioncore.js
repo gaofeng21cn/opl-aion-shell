@@ -370,6 +370,10 @@ function resolveLocalAioncoreSource(options = {}) {
   if (!sourceUrl.startsWith('https://')) throw new Error('Local AionCore source URL must use HTTPS.');
   if (!/^[0-9a-f]{40}$/.test(sourceRef)) throw new Error('Local AionCore source commit must be an exact SHA.');
   if (!/^[0-9a-f]{40}$/.test(sourceTree)) throw new Error('Local AionCore source tree must be an exact SHA.');
+  const expectedSourceUrl = `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/commit/${sourceRef}`;
+  if (sourceUrl !== expectedSourceUrl) {
+    throw new Error(`Local AionCore source URL must identify the exact official commit: ${expectedSourceUrl}`);
+  }
 
   return {
     binaryPath: resolvedBinary,

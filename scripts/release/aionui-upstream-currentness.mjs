@@ -178,6 +178,15 @@ export function validateAionuiIntakeReceipt(value) {
 
   const runtime = requireObject(receipt.managed_runtime, 'managed_runtime');
   const aioncore = requireObject(runtime.aioncore, 'managed_runtime.aioncore');
+  if (aioncore.repository !== 'https://github.com/iOfficeAI/AionCore') {
+    throw new Error('managed_runtime.aioncore.repository must identify the official upstream');
+  }
+  if (aioncore.authority !== 'official_release_assets_only') {
+    throw new Error('managed_runtime.aioncore.authority must be official_release_assets_only');
+  }
+  if (aioncore.source_fork !== 'forbidden') {
+    throw new Error('managed_runtime.aioncore.source_fork must be forbidden');
+  }
   const aioncoreVersion = parseStableTag(aioncore.version);
   if (!aioncoreVersion || aioncoreVersion.tag !== aioncore.version) {
     throw new Error('managed_runtime.aioncore.version must be a canonical semantic tag');
