@@ -315,8 +315,10 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(readGateway(result.current.appState).usage).toEqual(refreshed.usage);
     expect(result.current.provenance).toBe('live');
     expect(result.current.error).toBeNull();
-    expect((actionResult as { parsed: { app_action_execution: { result: { gateway_account: unknown } } } }).parsed
-      .app_action_execution.result.gateway_account).toEqual(refreshed);
+    expect(
+      (actionResult as { parsed: { app_action_execution: { result: { gateway_account: unknown } } } }).parsed
+        .app_action_execution.result.gateway_account
+    ).toEqual(refreshed);
     const persisted = JSON.parse(localStorage.getItem(GATEWAY_CACHE_KEY) ?? '{}') as {
       projection?: Record<string, unknown>;
     };

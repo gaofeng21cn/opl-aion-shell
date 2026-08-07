@@ -60,7 +60,9 @@ function gatewayErrorTranslationKey(errorCode: string | null): string {
   return keys[errorCode ?? ''] ?? 'settings.accessPage.gatewayAccount.errors.generic';
 }
 
-function gatewayAccountFromActionResult(result: OplCommandResult | null | undefined): OplGatewayAccountReadModel | null {
+function gatewayAccountFromActionResult(
+  result: OplCommandResult | null | undefined
+): OplGatewayAccountReadModel | null {
   const execution = oplRecord(oplRecord(result?.parsed).app_action_execution);
   const gateway = oplRecord(oplRecord(execution.result).gateway_account);
   return gateway.surface_kind === 'opl_gateway_account_read_model.v1' ? (gateway as OplGatewayAccountReadModel) : null;
