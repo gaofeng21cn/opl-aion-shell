@@ -577,6 +577,12 @@ describe('OPL runtime bridge command whitelist', () => {
         new Error('The Framework-managed OPL base carrier is missing.')
       )
     ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildUpdateCheckCommand(),
+        new Error('The Framework-managed OPL base carrier is missing.')
+      )
+    ).toBe(true);
     const missingManagedDependency = new Error(
       "OPL runtime command failed (1): Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@temporalio/common'"
     );
@@ -1611,6 +1617,45 @@ describe('OPL runtime bridge command whitelist', () => {
       __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
         __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
         new Error('The Framework-managed OPL base carrier is missing.')
+      )
+    ).toBe(true);
+  });
+
+  it('bootstraps runtimes that still emit the retired Full Release Set source-carrier error', () => {
+    const retiredReleaseSetError = new Error(
+      'OPL runtime command failed (3): {"version":"g2","error":{"code":"contract_shape_invalid",'
+        + '"message":"Bundled Full runtime source does not match the verified Release Set carrier commit.",'
+        + '"details":{"failure_code":"agent_package_runtime_source_carrier_invalid"}}}'
+    );
+
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildAppStateCommand('fast'),
+        retiredReleaseSetError
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildUpdateCheckCommand(),
+        retiredReleaseSetError
+      )
+    ).toBe(true);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildUpdateApplyPlanCommand(),
+        retiredReleaseSetError
+      )
+    ).toBe(false);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildActionCommand({ actionId: 'connection_create' }),
+        retiredReleaseSetError
+      )
+    ).toBe(false);
+    expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapAfterOplCommandError(
+        __oplRuntimeBridgeTest.buildActionCommand({ actionId: 'agent_package_repair' }),
+        retiredReleaseSetError
       )
     ).toBe(true);
   });
