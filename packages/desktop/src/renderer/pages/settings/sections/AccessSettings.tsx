@@ -30,7 +30,7 @@ import { formatOplCodexModelDisplay } from '@/renderer/utils/model/oplCodexModel
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
-function assertOplCommandOk(result: OplCommandResult): void {
+function assertOplCommandOk(result: OplCommandResult | null | undefined): void {
   if (result?.ok === false) {
     throw new Error(result.error?.message || result.error?.stderr || 'OPL command failed');
   }
@@ -60,14 +60,14 @@ function gatewayErrorTranslationKey(errorCode: string | null): string {
   return keys[errorCode ?? ''] ?? 'settings.accessPage.gatewayAccount.errors.generic';
 }
 
-function gatewayAccountFromActionResult(result: OplCommandResult): OplGatewayAccountReadModel | null {
-  const execution = oplRecord(oplRecord(result.parsed).app_action_execution);
+function gatewayAccountFromActionResult(result: OplCommandResult | null | undefined): OplGatewayAccountReadModel | null {
+  const execution = oplRecord(oplRecord(result?.parsed).app_action_execution);
   const gateway = oplRecord(oplRecord(execution.result).gateway_account);
   return gateway.surface_kind === 'opl_gateway_account_read_model.v1' ? (gateway as OplGatewayAccountReadModel) : null;
 }
 
 function gatewayRefreshFailureCode(
-  result: OplCommandResult,
+  result: OplCommandResult | null | undefined,
   readback: OplGatewayAccountReadModel | null
 ): string | null {
   if (result?.ok === false) {
@@ -112,7 +112,8 @@ type AccessSettingsContentProps = {
 export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ surface = 'models' }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const appStateQuery = useOplAppState('fast', { requireLive: surface === 'gateway' });
+  const appStateQuery = useOplAppState('fast', { autoLoad: surface !== 'gateway' });
+  const { applyGatewayAccountActionResult, refreshGatewayAccount } = appStateQuery;
   const modelOptions = getOplCodexModelDisplayOptions();
   const codexPreference = configService.get('acp.config')?.codex;
   const [preferredModel, setPreferredModel] = useState(
@@ -262,10 +263,10 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
     }
   };
 
-  const refreshFastState = React.useCallback(
-    () => appStateQuery.load('fast', { showRefreshing: true }),
-    [appStateQuery.load]
-  );
+  useEffect(() => {
+    if (surface !== 'gateway') return;
+    void refreshGatewayAccount();
+  }, [refreshGatewayAccount, surface]);
 
   const handleGatewayLogin = async () => {
     if (!gatewayMutationAuthority) return;
@@ -289,7 +290,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
       }
       setGatewayFormVisible(false);
       Message.success(t('settings.accessPage.gatewayAccount.loginSuccess'));
-      await refreshFastState();
+      await refreshGatewayAccount();
     } catch {
       setGatewayLoginError('gateway_account_failed');
     } finally {
@@ -307,14 +308,16 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
       if (!gatewayMutationAuthority) return;
       setGatewayActionLoading(actionId);
       try {
-        const result = await ipcBridge.oplRuntime.executeAction.invoke({
-          actionId,
-          dryRun: false,
-          ...(payloadJson ? { payloadJson } : {}),
-        });
+        const result =
+          actionId === 'gateway_account_refresh'
+            ? await refreshGatewayAccount()
+            : await ipcBridge.oplRuntime.executeAction.invoke({
+                actionId,
+                dryRun: false,
+                ...(payloadJson ? { payloadJson } : {}),
+              });
         if (actionId === 'gateway_account_refresh') {
-          const refreshedPayload = await refreshFastState();
-          const refreshedGateway = readGatewayAccountProjection(refreshedPayload?.app_state);
+          const refreshedGateway = gatewayAccountFromActionResult(result);
           const failureCode = gatewayRefreshFailureCode(result, refreshedGateway);
           if (failureCode) {
             Message.error(t(gatewayErrorTranslationKey(failureCode)));
@@ -326,18 +329,20 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
           return;
         }
         assertOplCommandOk(result);
+        if (!applyGatewayAccountActionResult(result)) {
+          await refreshGatewayAccount();
+        }
         setDisconnectConfirmVisible(false);
         if (options.announceSuccess !== false) {
           Message.success(t('settings.accessPage.gatewayAccount.actionSuccess'));
         }
-        await refreshFastState();
       } catch {
         Message.error(t('settings.accessPage.gatewayAccount.actionFailed'));
       } finally {
         setGatewayActionLoading(null);
       }
     },
-    [gatewayMutationAuthority, refreshFastState, t]
+    [applyGatewayAccountActionResult, gatewayMutationAuthority, refreshGatewayAccount, t]
   );
 
   const gatewayNumber = (value: number | null): string =>
@@ -533,7 +538,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   size='mini'
                   label={t('settings.accessPage.actions.recheck')}
                   loading={appStateQuery.refreshing}
-                  onClick={() => void refreshFastState()}
+                  onClick={() => void refreshGatewayAccount()}
                 />
               </div>
             )}

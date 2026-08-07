@@ -13,6 +13,8 @@ type AccessSettingsTestMocks = {
   configureCodexInvoke: ReturnType<typeof vi.fn>;
   loginGatewayAccountInvoke: ReturnType<typeof vi.fn>;
   executeActionInvoke: ReturnType<typeof vi.fn>;
+  refreshGatewayAccount: ReturnType<typeof vi.fn>;
+  applyGatewayAccountActionResult: ReturnType<typeof vi.fn>;
   configGet: ReturnType<typeof vi.fn>;
   configSet: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
@@ -32,6 +34,8 @@ const accessSettingsMocks = vi.hoisted<AccessSettingsTestMocks>(() => ({
   configureCodexInvoke: vi.fn(),
   loginGatewayAccountInvoke: vi.fn(),
   executeActionInvoke: vi.fn(),
+  refreshGatewayAccount: vi.fn(),
+  applyGatewayAccountActionResult: vi.fn(),
   configGet: vi.fn(),
   configSet: vi.fn(),
   load: vi.fn(),
@@ -491,6 +495,8 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
           }
         : {},
       load: accessSettingsMocks.load,
+      refreshGatewayAccount: accessSettingsMocks.refreshGatewayAccount,
+      applyGatewayAccountActionResult: accessSettingsMocks.applyGatewayAccountActionResult,
       loading: accessSettingsMocks.appStateLoading,
       refreshing: false,
       error: accessSettingsMocks.appStateError,
@@ -709,6 +715,10 @@ describe('AccessSettingsContent', () => {
       stdout: '{}',
       parsed: {},
     });
+    mocks.refreshGatewayAccount.mockResolvedValue(makeGatewayActionResult(makeGatewayAccount()));
+    mocks.applyGatewayAccountActionResult.mockImplementation((result: ReturnType<typeof makeGatewayActionResult>) => {
+      return result?.parsed?.app_action_execution?.result?.gateway_account ?? null;
+    });
     mocks.configGet.mockReturnValue({ codex: {} });
     mocks.configSet.mockResolvedValue(undefined);
     mocks.load.mockResolvedValue(undefined);
@@ -841,7 +851,7 @@ describe('AccessSettingsContent', () => {
     expect(view.queryByTestId('settings-gateway-account')).toBeNull();
   });
 
-  it('keeps a cached Gateway projection display-only and refreshes it through a live read', async () => {
+  it('keeps a cached Gateway projection display-only and refreshes it through the owner action', async () => {
     const mocks = getMocks();
     mocks.appStateProvenance = 'derived_bootstrap';
     mocks.gatewayAccount = makeGatewayAccount({
@@ -872,9 +882,11 @@ describe('AccessSettingsContent', () => {
     expect(view.queryByTestId('settings-gateway-disconnect')).toBeNull();
     expect(view.queryByRole('button', { name: 'Refresh' })).toBeNull();
     expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.refreshGatewayAccount).toHaveBeenCalledTimes(1));
 
     fireEvent.click(view.getByRole('button', { name: 'Recheck' }));
-    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    await waitFor(() => expect(mocks.refreshGatewayAccount).toHaveBeenCalledTimes(2));
+    expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.executeActionInvoke).not.toHaveBeenCalled();
   });
 
@@ -1052,8 +1064,7 @@ describe('AccessSettingsContent', () => {
       },
     };
     mocks.gatewayAccount = gatewayAccount;
-    mocks.executeActionInvoke.mockResolvedValue(makeGatewayActionResult(refreshedGatewayAccount));
-    mocks.load.mockResolvedValue(makeGatewayPayload(refreshedGatewayAccount));
+    mocks.refreshGatewayAccount.mockResolvedValue(makeGatewayActionResult(refreshedGatewayAccount));
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     const account = view.getByTestId('settings-gateway-account');
@@ -1100,13 +1111,12 @@ describe('AccessSettingsContent', () => {
     expect(refreshButton).toHaveTextContent('');
     expect(refreshButton.querySelector('svg')).not.toBeNull();
     fireEvent.click(refreshButton);
-    await waitFor(() =>
-      expect(mocks.executeActionInvoke).toHaveBeenCalledWith({
-        actionId: 'gateway_account_refresh',
-        dryRun: false,
-      })
-    );
-    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    await waitFor(() => expect(mocks.refreshGatewayAccount).toHaveBeenCalledTimes(2));
+    expect(mocks.executeActionInvoke).not.toHaveBeenCalledWith({
+      actionId: 'gateway_account_refresh',
+      dryRun: false,
+    });
+    expect(mocks.load).not.toHaveBeenCalled();
     await waitFor(() => expect(document.body.textContent).toContain('OPL Gateway account updated.'));
   });
 
@@ -1145,13 +1155,13 @@ describe('AccessSettingsContent', () => {
       },
     });
     mocks.gatewayAccount = gatewayAccount;
-    mocks.executeActionInvoke.mockResolvedValue(makeGatewayActionResult(gatewayAccount));
-    mocks.load.mockResolvedValue(makeGatewayPayload(gatewayAccount));
+    mocks.refreshGatewayAccount.mockResolvedValue(makeGatewayActionResult(gatewayAccount));
     const view = render(<AccessSettingsContent surface='gateway' />);
 
     fireEvent.click(view.getByRole('button', { name: 'Refresh' }));
 
-    await waitFor(() => expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true }));
+    await waitFor(() => expect(mocks.refreshGatewayAccount).toHaveBeenCalledTimes(2));
+    expect(mocks.load).not.toHaveBeenCalled();
     await waitFor(() =>
       expect(document.body.textContent).toContain('The Gateway is currently unreachable. Existing data has been kept.')
     );

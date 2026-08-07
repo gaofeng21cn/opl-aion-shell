@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAppStateInvoke = vi.hoisted(() => vi.fn());
+const executeActionInvoke = vi.hoisted(() => vi.fn());
 const startupMaintenanceEmitter = vi.hoisted(() => ({
   callback: null as null | (() => void),
 }));
@@ -10,6 +11,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       getAppState: { invoke: getAppStateInvoke },
+      executeAction: { invoke: executeActionInvoke },
       startupMaintenanceCompleted: {
         on: (callback: () => void) => {
           startupMaintenanceEmitter.callback = callback;
@@ -126,6 +128,7 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
   beforeEach(() => {
     localStorage.clear();
     getAppStateInvoke.mockReset();
+    executeActionInvoke.mockReset();
     resetOplAppStateLoadsForTest();
   });
 
@@ -271,6 +274,70 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     expect(gateway.capabilities).toEqual({ account_login_supported: false, manual_key_supported: false });
     expect(result.current.loading).toBe(false);
     expect(result.current.provenance).toBe('derived_bootstrap');
+  });
+
+  it('refreshes Gateway directly through the owner action and publishes its projection without a fast-state read', async () => {
+    seedCachedGateway();
+    const refreshed = gatewayProjection({
+      usage: {
+        today_tokens: 56,
+        total_tokens: 78,
+        today_actual_cost: 0.3,
+        total_actual_cost: 0.4,
+        currency: 'USD',
+        day_timezone: 'Asia/Shanghai',
+      },
+      freshness: {
+        observed_at: '2026-08-07T04:00:00.000Z',
+        stale_after: '2026-08-07T04:15:00.000Z',
+        stale: false,
+        last_error_code: null,
+      },
+    });
+    executeActionInvoke.mockResolvedValue({
+      ok: true,
+      parsed: {
+        app_action_execution: {
+          result: { gateway_account: refreshed },
+        },
+      },
+    });
+    getAppStateInvoke.mockReturnValue(new Promise(() => {}));
+
+    const { result } = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    let actionResult!: unknown;
+    await act(async () => {
+      actionResult = await result.current.refreshGatewayAccount();
+    });
+
+    expect(executeActionInvoke).toHaveBeenCalledWith({ actionId: 'gateway_account_refresh', dryRun: false });
+    expect(getAppStateInvoke).not.toHaveBeenCalled();
+    expect(readGateway(result.current.appState).usage).toEqual(refreshed.usage);
+    expect(result.current.provenance).toBe('live');
+    expect(result.current.error).toBeNull();
+    expect((actionResult as { parsed: { app_action_execution: { result: { gateway_account: unknown } } } }).parsed
+      .app_action_execution.result.gateway_account).toEqual(refreshed);
+    const persisted = JSON.parse(localStorage.getItem(GATEWAY_CACHE_KEY) ?? '{}') as {
+      projection?: Record<string, unknown>;
+    };
+    expect(persisted.projection?.usage).toEqual(refreshed.usage);
+  });
+
+  it('keeps cached Gateway data when the owner refresh action fails', async () => {
+    seedCachedGateway();
+    executeActionInvoke.mockResolvedValue({
+      ok: false,
+      error: { message: 'Gateway offline' },
+    });
+
+    const { result } = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+    await act(async () => {
+      await result.current.refreshGatewayAccount();
+    });
+
+    expect(readGateway(result.current.appState).account).toMatchObject({ email: 'feng@example.com' });
+    expect(result.current.provenance).toBe('derived_bootstrap');
+    expect(result.current.error).toBe('Gateway offline');
   });
 
   it('recomputes cached Gateway staleness when stale_after passes while mounted', () => {

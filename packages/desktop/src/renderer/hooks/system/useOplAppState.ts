@@ -86,6 +86,8 @@ export type UseOplAppStateResult = {
   error: string | null;
   provenance: OplAppStateProvenance;
   load: (profile?: OplAppStateProfile, options?: OplAppStateLoadOptions) => Promise<OplAppStatePayload | null>;
+  applyGatewayAccountActionResult: (result: IOplRuntimeCommandResult | null | undefined) => OplAppStateRecord | null;
+  refreshGatewayAccount: () => Promise<IOplRuntimeCommandResult | null>;
 };
 
 export type OplAppStateLoadOptions = {
@@ -502,6 +504,15 @@ function gatewayAccountProjectionFromPayload(
   return sanitizeGatewayAccountForCache(appSettingsReadModel.opl_gateway_account, now);
 }
 
+function gatewayAccountProjectionFromActionResult(
+  result: IOplRuntimeCommandResult | null | undefined
+): OplAppStateRecord | null {
+  if (result?.ok === false) return null;
+  const execution = oplRecord(oplRecord(result?.parsed).app_action_execution);
+  const projection = oplRecord(oplRecord(execution.result).gateway_account);
+  return projection.surface_kind === 'opl_gateway_account_read_model.v1' ? projection : null;
+}
+
 function withGatewayAccountProjection(payload: OplAppStatePayload, projection: OplAppStateRecord): OplAppStatePayload {
   const appState = getAppState(payload);
   const settingsControlCenter = oplRecord(appState.settings_control_center);
@@ -578,6 +589,12 @@ function advanceAppStateRequestGeneration(profile: OplAppStateProfile): number {
   const generation = (appStateRequestGenerations.get(profile) ?? 0) + 1;
   appStateRequestGenerations.set(profile, generation);
   return generation;
+}
+
+function invalidateOplAppStateLoads(profile: OplAppStateProfile): void {
+  advanceAppStateRequestGeneration(profile);
+  inflightAppStateLoads.delete(profile);
+  freshAppStateLoads.delete(profile);
 }
 
 export function loadOplAppStateFromBridge(
@@ -721,6 +738,7 @@ export function useOplAppState(
   const [loading, setLoading] = useState(!cached || !hasGatewayAccountProjection(cached.payload));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const payloadRef = useRef(payload);
   const requestSeq = useRef(0);
   const latestRequestId = useRef(0);
   const requestIds = useRef(new WeakMap<Promise<OplAppStatePayload | null>, number>());
@@ -728,6 +746,59 @@ export function useOplAppState(
   useEffect(() => {
     ensureStartupMaintenanceRefreshSubscription();
   }, []);
+
+  payloadRef.current = payload;
+
+  const applyGatewayAccountActionResult = useCallback(
+    (result: IOplRuntimeCommandResult | null | undefined): OplAppStateRecord | null => {
+      const projection = gatewayAccountProjectionFromActionResult(result);
+      if (!projection) return null;
+
+      invalidateOplAppStateLoads('fast');
+      const nextLoadedAt = new Date().toLocaleTimeString();
+      const basePayload =
+        payloadRef.current ??
+        memoryAppStateCaches.get('fast')?.payload ??
+        readCachedFastState()?.payload ??
+        ({ app_state: {} } as OplAppStatePayload);
+      const nextPayload = withGatewayAccountProjection(basePayload, projection);
+      cacheFastOplAppState(nextPayload, nextLoadedAt);
+      payloadRef.current = nextPayload;
+      setPayload(nextPayload);
+      setLoadedAt(nextLoadedAt);
+      setProvenance('live');
+      setLoading(false);
+      setError(null);
+      return projection;
+    },
+    []
+  );
+
+  const refreshGatewayAccount = useCallback(async (): Promise<IOplRuntimeCommandResult | null> => {
+    invalidateOplAppStateLoads('fast');
+    setRefreshing(true);
+    setError(null);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId: 'gateway_account_refresh',
+        dryRun: false,
+      });
+      if (result?.ok === false) {
+        setError(result.error?.message || result.error?.stderr || 'OPL Gateway account refresh failed');
+        return result;
+      }
+      if (!applyGatewayAccountActionResult(result)) {
+        setError('OPL Gateway account refresh returned no projection');
+      }
+      return result;
+    } catch (caughtError) {
+      setError(errorMessage(caughtError));
+      return null;
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [applyGatewayAccountActionResult]);
 
   const load = useCallback(
     async (
@@ -874,5 +945,7 @@ export function useOplAppState(
     error,
     provenance,
     load,
+    applyGatewayAccountActionResult,
+    refreshGatewayAccount,
   };
 }
