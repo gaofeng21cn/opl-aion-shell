@@ -1623,9 +1623,9 @@ describe('OPL runtime bridge command whitelist', () => {
 
   it('bootstraps runtimes that still emit the retired Full Release Set source-carrier error', () => {
     const retiredReleaseSetError = new Error(
-      'OPL runtime command failed (3): {"version":"g2","error":{"code":"contract_shape_invalid",'
-        + '"message":"Bundled Full runtime source does not match the verified Release Set carrier commit.",'
-        + '"details":{"failure_code":"agent_package_runtime_source_carrier_invalid"}}}'
+      'OPL runtime command failed (3): {"version":"g2","error":{"code":"contract_shape_invalid",' +
+        '"message":"Bundled Full runtime source does not match the verified Release Set carrier commit.",' +
+        '"details":{"failure_code":"agent_package_runtime_source_carrier_invalid"}}}'
     );
 
     expect(

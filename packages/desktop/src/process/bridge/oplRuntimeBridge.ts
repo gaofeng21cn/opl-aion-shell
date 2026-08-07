@@ -779,9 +779,7 @@ function isManagedCarrierDependencyError(error: unknown): boolean {
 function isRetiredFullRuntimeReleaseSetError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    /Bundled Full runtime source does not match the verified Release Set carrier commit\./i.test(
-      error.message
-    ) &&
+    /Bundled Full runtime source does not match the verified Release Set carrier commit\./i.test(error.message) &&
     /agent_package_runtime_source_carrier_invalid/i.test(error.message)
   );
 }
@@ -790,12 +788,9 @@ function isPackageLifecycleAction(spec: RuntimeCommandSpec): boolean {
   return (
     spec.surface === 'app_action' &&
     spec.args.some((arg) =>
-      [
-        'install_from_manifest_url',
-        'agent_package_update',
-        'agent_package_repair',
-        'agent_package_activate',
-      ].includes(arg)
+      ['install_from_manifest_url', 'agent_package_update', 'agent_package_repair', 'agent_package_activate'].includes(
+        arg
+      )
     )
   );
 }
@@ -817,7 +812,9 @@ function shouldAutoBootstrapAfterOplCommandError(spec: RuntimeCommandSpec, error
     (isNoSuchOplCommandError(error) && shouldAutoBootstrapOplCommand(spec)) ||
     (error instanceof Error &&
       error.message === 'The Framework-managed OPL base carrier is missing.' &&
-      (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_') || isManagedUpdateReadSurface(spec))) ||
+      (shouldAutoBootstrapOplCommand(spec) ||
+        spec.surface.startsWith('app_state_') ||
+        isManagedUpdateReadSurface(spec))) ||
     (isManagedCarrierDependencyError(error) &&
       (shouldAutoBootstrapOplCommand(spec) || spec.surface.startsWith('app_state_'))) ||
     (isRetiredFullRuntimeReleaseSetError(error) &&
