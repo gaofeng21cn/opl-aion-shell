@@ -17,6 +17,7 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
+  rmSync: vi.fn(),
 }));
 
 vi.mock('node:net', () => ({
@@ -29,7 +30,7 @@ vi.mock('./agent-process-registry.js', () => ({
 }));
 
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { connect, createServer } from 'node:net';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
 import { assertAioncoreRecoveryCompatibility } from './aioncoreCompatibility.js';
@@ -376,6 +377,7 @@ describe('BackendLifecycleManager.start (success path)', () => {
     expect(mkdirSync).toHaveBeenCalledWith('/w', { recursive: true });
     expect(mkdirSync).toHaveBeenCalledWith('/l', { recursive: true });
     expect(mkdirSync).toHaveBeenCalledWith('/w/aioncore-empty-builtin-skills', { recursive: true });
+    expect(rmSync).toHaveBeenCalledWith('/db/path/builtin-skills', { recursive: true, force: true });
     expect(vi.mocked(spawn).mock.calls[0][1]).toEqual([
       '--port',
       '0',
@@ -399,6 +401,28 @@ describe('BackendLifecycleManager.start (success path)', () => {
     fetchSpy.mockRestore();
   });
 
+  it('fails before spawn when the retired AionCore builtin corpus cannot be removed', async () => {
+    vi.mocked(rmSync).mockImplementationOnce(() => {
+      throw new Error('legacy builtin corpus is read-only');
+    });
+    const mgr = new BackendLifecycleManager(APP_META_PACKAGED, () => '/abs/path/aioncore');
+
+    await expect(
+      mgr.start('/db/path', '/log/dir', {
+        cacheDir: '/c',
+        workDir: '/w',
+        logDir: '/l',
+      })
+    ).rejects.toMatchObject({
+      details: {
+        stage: 'spawn',
+        causeMessage: 'legacy builtin corpus is read-only',
+      },
+    });
+
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
   it('accepts AIONCORE_READY as the authoritative foreground readiness signal', async () => {
     const child = makeFakeChild();
     vi.mocked(spawn).mockReturnValue(child as unknown as ChildProcess);
@@ -413,6 +437,7 @@ describe('BackendLifecycleManager.start (success path)', () => {
 
     await expect(startPromise).resolves.toBe(55556);
     expect(mgr.status).toBe('running');
+    expect(rmSync).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
 

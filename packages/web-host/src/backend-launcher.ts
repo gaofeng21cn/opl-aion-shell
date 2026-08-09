@@ -9,7 +9,7 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, rmSync } from 'node:fs';
 import { connect, createServer, type Socket } from 'node:net';
 import path from 'node:path';
 import { cleanupRegisteredAgentProcesses } from './agent-process-registry.js';
@@ -87,9 +87,19 @@ export type BackendDirConfig = {
 };
 
 const OPL_EMPTY_AIONCORE_BUILTIN_SKILLS_DIR = 'aioncore-empty-builtin-skills';
+const LEGACY_AIONCORE_BUILTIN_SKILLS_DIR = 'builtin-skills';
 
 export function getOplAioncoreBuiltinSkillsPath(dirs: BackendDirConfig): string {
   return path.join(dirs.workDir, OPL_EMPTY_AIONCORE_BUILTIN_SKILLS_DIR);
+}
+
+function retireLegacyAioncoreBuiltinSkills(dataDir: string): void {
+  // Resumed conversations keep absolute builtin paths in SQLite. Removing the
+  // retired corpus makes those rows inert before official AionCore can read them.
+  rmSync(path.join(dataDir, LEGACY_AIONCORE_BUILTIN_SKILLS_DIR), {
+    recursive: true,
+    force: true,
+  });
 }
 
 export type BackendProcessController = {
@@ -677,6 +687,7 @@ export class BackendLifecycleManager {
       ensureBackendStartupDirectory(dirs?.workDir);
       ensureBackendStartupDirectory(dirs?.logDir);
       ensureBackendStartupDirectory(dirs ? getOplAioncoreBuiltinSkillsPath(dirs) : undefined);
+      if (dirs) retireLegacyAioncoreBuiltinSkills(dbPath);
     } catch (error) {
       this._status = 'error';
       throw makeStartupError('spawn', 'aioncore startup directory preparation failed', error);
