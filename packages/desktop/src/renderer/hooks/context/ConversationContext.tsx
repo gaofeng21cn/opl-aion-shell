@@ -18,6 +18,9 @@ export interface ConversationContextValue {
    */
   conversation_id: string;
 
+  /** Canonical Codex app-server thread that owns history and turn execution. */
+  canonicalThreadId?: string;
+
   /**
    * Workspace directory path
    * 工作空间目录路径

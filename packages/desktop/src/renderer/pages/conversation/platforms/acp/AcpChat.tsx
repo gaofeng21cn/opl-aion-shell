@@ -72,6 +72,7 @@ const AcpChat: React.FC<{
     <ConversationProvider
       value={{
         conversation_id: conversation_id,
+        canonicalThreadId,
         workspace,
         type: 'acp',
         cron_job_id,

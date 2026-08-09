@@ -1,11 +1,15 @@
 import React, { useState } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SendBox from '@/renderer/components/chat/SendBox';
 
 const openExportFlow = vi.fn().mockResolvedValue(undefined);
+const warmupConversationMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
 let isMobileLayout = false;
+let conversationContextValue: { conversation_id: string; canonicalThreadId?: string } = {
+  conversation_id: 'conversation-1',
+};
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -23,7 +27,7 @@ vi.mock('react-i18next', () => ({
 }));
 
 vi.mock('@/renderer/hooks/context/ConversationContext', () => ({
-  useConversationContextSafe: () => ({ conversation_id: 'conversation-1' }),
+  useConversationContextSafe: () => conversationContextValue,
 }));
 vi.mock('@/renderer/hooks/context/LayoutContext', () => ({
   useLayoutContext: () => ({ isMobile: isMobileLayout }),
@@ -81,6 +85,9 @@ vi.mock('@/renderer/hooks/chat/useInputFocusRing', () => ({
 }));
 vi.mock('@/renderer/hooks/system/useSpeechInput', () => ({ appendSpeechTranscript: vi.fn() }));
 vi.mock('@/renderer/components/chat/composer/SpeechInputButton', () => ({ default: () => null }));
+vi.mock('@/renderer/pages/conversation/utils/warmupConversation', () => ({
+  warmupConversation: warmupConversationMock,
+}));
 
 function SendBoxHarness({
   initialValue = '',
@@ -107,8 +114,14 @@ function SendBoxHarness({
 }
 
 describe('SendBox transcript export command', () => {
+  beforeEach(() => {
+    conversationContextValue = { conversation_id: 'conversation-1' };
+    warmupConversationMock.mockClear();
+  });
+
   afterEach(() => {
     isMobileLayout = false;
+    vi.useRealTimers();
   });
 
   it('opens the real command menu from the input and executes the /export builtin flow with Enter', async () => {
@@ -145,5 +158,34 @@ describe('SendBox transcript export command', () => {
     await user.click(moreButton);
 
     expect(onMobilePlusClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips AionCore focus warmup for a canonical Codex conversation', async () => {
+    vi.useFakeTimers();
+    conversationContextValue = {
+      conversation_id: 'conversation-1',
+      canonicalThreadId: 'thread-1',
+    };
+    render(<SendBoxHarness />);
+
+    fireEvent.focus(screen.getByTestId('sendbox-input'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(warmupConversationMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps focus warmup for non-canonical ACP conversations', async () => {
+    vi.useFakeTimers();
+    render(<SendBoxHarness />);
+
+    fireEvent.focus(screen.getByTestId('sendbox-input'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+
+    expect(warmupConversationMock).toHaveBeenCalledOnce();
+    expect(warmupConversationMock).toHaveBeenCalledWith('conversation-1');
   });
 });

@@ -1058,14 +1058,20 @@ const SendBox: React.FC<{
     // Avoids triggering warmup for every conversation during rapid switching.
     // In team mode, warmup is deferred to first user input via TeamPermissionContext.
     const cid = conversationContext?.conversation_id;
-    if (cid && !teamPermission && warmedConversationRef.current !== cid) {
+    if (cid && !teamPermission && !conversationContext?.canonicalThreadId && warmedConversationRef.current !== cid) {
       if (warmupTimerRef.current) clearTimeout(warmupTimerRef.current);
       warmupTimerRef.current = setTimeout(() => {
         warmedConversationRef.current = cid;
         warmupConversation(cid).catch(() => {});
       }, 1000);
     }
-  }, [handlePasteFocus, isMobile, conversationContext?.conversation_id]);
+  }, [
+    handlePasteFocus,
+    isMobile,
+    conversationContext?.canonicalThreadId,
+    conversationContext?.conversation_id,
+    teamPermission,
+  ]);
   const handleInputBlur = useCallback(() => {
     if (warmupTimerRef.current) {
       clearTimeout(warmupTimerRef.current);
