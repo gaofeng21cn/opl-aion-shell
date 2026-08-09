@@ -3,6 +3,7 @@ import type { Assistant } from '@/common/types/agent/assistantTypes';
 import {
   buildChannelAgentOptions,
   buildChannelAssistantSelection,
+  resolveFixedBackendAssistantSelection,
   resolveChannelAssistantSelection,
 } from '@/renderer/components/settings/SettingsModal/contents/channels/assistantOptions';
 
@@ -78,5 +79,39 @@ describe('Channel assistant options', () => {
       assistantId: undefined,
       hasBrokenSavedAssistant: true,
     });
+  });
+
+  it('repairs WeChat to the only available Codex assistant', () => {
+    expect(resolveFixedBackendAssistantSelection({ assistant_id: 'assistant-aionrs' }, assistants, 'codex')).toEqual({
+      agent: {
+        assistant_id: 'assistant-codex',
+        runtime_agent_id: 'runtime-codex',
+        agent_type: 'acp',
+        backend: 'codex',
+        name: 'Codex',
+      },
+      shouldPersist: true,
+    });
+    expect(resolveFixedBackendAssistantSelection({ assistant_id: 'assistant-codex' }, assistants, 'codex')).toEqual({
+      agent: expect.objectContaining({ assistant_id: 'assistant-codex' }),
+      shouldPersist: false,
+    });
+  });
+
+  it('does not guess when more than one Codex assistant is available', () => {
+    expect(
+      resolveFixedBackendAssistantSelection(
+        null,
+        [
+          ...assistants,
+          {
+            ...assistants[1],
+            id: 'assistant-codex-second',
+            agent_id: 'runtime-codex-second',
+          },
+        ],
+        'codex'
+      )
+    ).toEqual({ agent: null, shouldPersist: false });
   });
 });

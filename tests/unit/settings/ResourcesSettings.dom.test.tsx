@@ -114,7 +114,7 @@ vi.mock('@arco-design/web-react', () => {
     visible,
     title,
     footer,
-    onCancel: _onCancel,
+    onCancel,
     unmountOnExit: _unmountOnExit,
     ...props
   }: React.HTMLAttributes<HTMLDivElement> & {
@@ -127,6 +127,11 @@ vi.mock('@arco-design/web-react', () => {
     visible ? (
       <div {...props}>
         <div>{title}</div>
+        {onCancel && (
+          <button type='button' aria-label='Close' onClick={onCancel}>
+            Close
+          </button>
+        )}
         {children}
         {footer}
       </div>
@@ -670,6 +675,17 @@ describe('ResourcesSettingsContent', () => {
     expect(document.body.textContent).toContain('opl://console/billing/project');
     expect(document.body.textContent).toContain('opl://console/permission/workspace');
     expect(document.body.textContent).toContain('opl://environment-template/python-r-quarto');
+  });
+
+  it('closes native remote settings back to the Resources page', () => {
+    const view = renderResources();
+
+    fireEvent.click(view.getByTestId('opl-settings-open-native-remote-settings'));
+    expect(view.getByText('Native remote settings')).toBeTruthy();
+
+    fireEvent.click(view.getByRole('button', { name: 'Close' }));
+    expect(view.queryByText('Native remote settings')).toBeNull();
+    expect(view.getByTestId('settings-page-resources')).toBeTruthy();
   });
 
   it('uses the check action when WebUI actions exist without resource-ready evidence', async () => {
