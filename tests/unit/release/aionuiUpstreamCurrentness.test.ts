@@ -27,7 +27,7 @@ describe('AionUI upstream currentness', () => {
     );
 
     expect(codeQualityJob).toMatch(
-      /uses: actions\/checkout@v6[\s\S]*?ref: \$\{\{ inputs\.ref \}\}[\s\S]*?fetch-depth: 0/
+      /uses: actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7\.0\.1[\s\S]*?ref: \$\{\{ inputs\.ref \}\}[\s\S]*?fetch-depth: 0/
     );
   });
 

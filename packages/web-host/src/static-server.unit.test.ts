@@ -38,6 +38,20 @@ async function startMockBackend(
   };
 }
 
+function withWebuiSession(
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => void
+): (req: http.IncomingMessage, res: http.ServerResponse) => void {
+  return (req, res) => {
+    if (req.url === '/api/auth/user' && req.method === 'GET') {
+      const authenticated = req.headers.cookie === 'aionui-session=valid';
+      res.writeHead(authenticated ? 200 : 401, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(authenticated ? { success: true, user: { id: 'admin' } } : { success: false }));
+      return;
+    }
+    handler(req, res);
+  };
+}
+
 describe('static-server', () => {
   let handle: StaticServerHandle | null = null;
   let stopBackend: (() => Promise<void>) | null = null;
@@ -383,11 +397,43 @@ describe('static-server', () => {
     expect(r.status).toBe(502);
   });
 
-  it('/api/opl-runtime/* is handled before the backend proxy', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
+  it('/api/opl-runtime/* requires an authenticated WebUI session before executing local commands', async () => {
+    const backend = await startMockBackend(withWebuiSession((_req, res) => res.writeHead(500).end()));
+    stopBackend = backend.close;
+    const spawnCallCount = vi.mocked(spawn).mock.calls.length;
+
+    handle = await startStaticServer({
+      staticDir,
+      backendPort: backend.port,
+      port: 0,
+      oplRuntimeProxy: {
+        dataDir: path.join(staticDir, 'data'),
+        projectsDir: path.join(staticDir, 'projects'),
+        resourcesPath: path.join(staticDir, 'resources'),
+      },
     });
+
+    const response = await fetch(`${handle.localUrl}/api/opl-runtime/app-state`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ profile: 'fast' }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      success: false,
+      error: { code: 'AUTHENTICATION_REQUIRED' },
+    });
+    expect(vi.mocked(spawn).mock.calls.length).toBe(spawnCallCount);
+  });
+
+  it('/api/opl-runtime/* is handled before the backend proxy', async () => {
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -428,7 +474,7 @@ describe('static-server', () => {
 
     const r = await fetch(`${handle.localUrl}/api/opl-runtime/app-state`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
       body: JSON.stringify({ profile: 'fast' }),
     });
     expect(r.status).toBe(200);
@@ -481,10 +527,12 @@ describe('static-server', () => {
   });
 
   it('/api/opl-runtime/configure-codex sends the API key through stdin only', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
-    });
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -533,7 +581,7 @@ describe('static-server', () => {
 
       const r = await fetch(`${handle.localUrl}/api/opl-runtime/configure-codex`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
         body: JSON.stringify({ apiKey }),
       });
       expect(r.status).toBe(200);
@@ -554,10 +602,12 @@ describe('static-server', () => {
   });
 
   it('/api/opl-runtime closes Gateway setup, explicit model access, and readback through real action IDs', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
-    });
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -605,7 +655,7 @@ describe('static-server', () => {
     const post = async (route: string, body: Record<string, unknown>) => {
       const response = await fetch(`${handle.localUrl}/api/opl-runtime/${route}`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
         body: JSON.stringify(body),
       });
       expect(response.status).toBe(200);
@@ -649,10 +699,12 @@ describe('static-server', () => {
   });
 
   it('/api/opl-runtime/gateway-account-login reuses the runtime proxy and returns only sanitized fields', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
-    });
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -701,7 +753,7 @@ describe('static-server', () => {
 
       const r = await fetch(`${handle.localUrl}/api/opl-runtime/gateway-account-login`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
         body: JSON.stringify({ email: ' user@example.com ', password }),
       });
       expect(r.status).toBe(200);
@@ -720,10 +772,12 @@ describe('static-server', () => {
   });
 
   it('/api/opl-runtime/* passes packaged image manifest and seed env to OPL commands', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
-    });
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -764,7 +818,7 @@ describe('static-server', () => {
 
     const r = await fetch(`${handle.localUrl}/api/opl-runtime/startup-maintenance`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
       body: JSON.stringify({}),
     });
     expect(r.status).toBe(200);
@@ -816,10 +870,12 @@ describe('static-server', () => {
   });
 
   it('/api/opl-runtime/* reruns bootstrap when an existing OPL checkout has missing dependencies', async () => {
-    const backend = await startMockBackend((_req, res) => {
-      res.writeHead(500, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ backend: true }));
-    });
+    const backend = await startMockBackend(
+      withWebuiSession((_req, res) => {
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ backend: true }));
+      })
+    );
     stopBackend = backend.close;
     const dataDir = path.join(staticDir, 'data');
     const projectsDir = path.join(staticDir, 'projects');
@@ -893,7 +949,7 @@ describe('static-server', () => {
 
     const r = await fetch(`${handle.localUrl}/api/opl-runtime/app-state`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', cookie: 'aionui-session=valid' },
       body: JSON.stringify({ profile: 'fast' }),
     });
     expect(r.status).toBe(200);

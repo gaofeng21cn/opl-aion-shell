@@ -217,7 +217,7 @@ async function forwardAuthUserWithAutoLogin(
   writeBufferedResponse(res, retry, loginCookies);
 }
 
-async function authenticateWebuiDataLifecycleRequest(
+async function authenticateWebuiRequest(
   req: IncomingMessage,
   backendPort: number
 ): Promise<WebuiDataLifecycleAuthentication> {
@@ -236,6 +236,19 @@ async function authenticateWebuiDataLifecycleRequest(
   } catch {
     return 'unavailable';
   }
+}
+
+function writeWebuiAuthenticationError(res: ServerResponse, authentication: WebuiDataLifecycleAuthentication): void {
+  res.writeHead(authentication === 'unavailable' ? 503 : 401, {
+    'cache-control': 'no-store',
+    'content-type': 'application/json',
+  });
+  res.end(
+    JSON.stringify({
+      success: false,
+      error: { code: authentication === 'unavailable' ? 'AUTHENTICATION_UNAVAILABLE' : 'AUTHENTICATION_REQUIRED' },
+    })
+  );
 }
 
 // Max bytes we peek before forcing a routing decision. An HTTP request-line
@@ -330,13 +343,18 @@ export async function startStaticServer(opts: StaticServerOptions): Promise<Stat
         webuiDataLifecycleManager &&
         (await handleWebuiDataLifecycleRequest(req, res, {
           manager: webuiDataLifecycleManager,
-          authenticate: (request) => authenticateWebuiDataLifecycleRequest(request, opts.backendPort),
+          authenticate: (request) => authenticateWebuiRequest(request, opts.backendPort),
         }))
       ) {
         return;
       }
-      if (opts.oplRuntimeProxy && (await handleOplRuntimeProxyRequest(req, res, opts.oplRuntimeProxy))) {
-        return;
+      if (opts.oplRuntimeProxy && req.url.startsWith('/api/opl-runtime/')) {
+        const authentication = await authenticateWebuiRequest(req, opts.backendPort);
+        if (authentication !== 'authenticated') {
+          writeWebuiAuthenticationError(res, authentication);
+          return;
+        }
+        if (await handleOplRuntimeProxyRequest(req, res, opts.oplRuntimeProxy)) return;
       }
       if (req.url.startsWith('/api/') || req.url.startsWith('/api?') || req.url === '/login' || req.url === '/logout') {
         forwardToBackend(req, res, opts.backendPort);
