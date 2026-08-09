@@ -39,6 +39,21 @@ export function buildChannelAssistantSelection(agent: ChannelAgentOption): { ass
   return { assistant_id: agent.assistant_id };
 }
 
+export function resolveFixedBackendAssistantSelection(
+  saved: IChannelAssistantBindingRead | null | undefined,
+  assistants: Assistant[],
+  backend: string
+): { agent: ChannelAgentOption | null; shouldPersist: boolean } {
+  const matches = buildChannelAgentOptions(assistants).filter((assistant) => assistant.backend === backend);
+  if (matches.length !== 1) return { agent: null, shouldPersist: false };
+
+  const agent = matches[0];
+  return {
+    agent,
+    shouldPersist: saved?.assistant_id !== agent.assistant_id,
+  };
+}
+
 export function resolveChannelAssistantSelection(
   saved: IChannelAssistantBindingRead | null | undefined,
   assistants: Assistant[]
@@ -101,4 +116,25 @@ export function useChannelAssistantSelection(platform: string): {
   );
 
   return { availableAgents, selectedAgent, hasBrokenSavedAssistant, persistSelectedAgent };
+}
+
+export function useFixedChannelAssistantSelection(platform: string, backend: string): void {
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([assistantApi.list.invoke(), channel.getPlatformSettings.invoke({ platform })])
+      .then(async ([assistantList, saved]) => {
+        const selection = resolveFixedBackendAssistantSelection(saved.assistant, assistantList, backend);
+        if (cancelled || !selection.agent || !selection.shouldPersist) return;
+        await channel.setAssistantSetting.invoke({
+          platform,
+          assistant: buildChannelAssistantSelection(selection.agent),
+        });
+      })
+      .catch((error) => {
+        console.error(`[FixedChannelAssistantSelection] Failed to bind ${platform} to ${backend}:`, error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [backend, platform]);
 }

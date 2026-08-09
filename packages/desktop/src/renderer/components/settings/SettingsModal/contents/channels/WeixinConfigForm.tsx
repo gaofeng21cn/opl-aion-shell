@@ -7,12 +7,9 @@
 import type { IChannelPairingRequest, IChannelPluginStatus, IChannelUser } from '@/common/types/channel/channel';
 import { channel } from '@/common/adapter/ipcBridge';
 import { getBaseUrl } from '@/common/adapter/httpBridge';
-import { configService } from '@/common/config/configService';
-import GoogleModelSelector from '@/renderer/pages/conversation/platforms/gemini/GoogleModelSelector';
-import type { GoogleModelSelection } from '@/renderer/pages/conversation/platforms/gemini/useGoogleModelSelection';
-import { useChannelAssistantSelection, type ChannelAgentOption } from './assistantOptions';
-import { Button, Dropdown, Menu, Message, Spin, Tooltip } from '@arco-design/web-react';
-import { CheckOne, CloseOne, Copy, Delete, Down, Refresh } from '@icon-park/react';
+import { useFixedChannelAssistantSelection } from './assistantOptions';
+import { Button, Message, Spin, Tooltip } from '@arco-design/web-react';
+import { CheckOne, CloseOne, Copy, Delete, Refresh } from '@icon-park/react';
 import { ChannelEmptyState, ChannelPreferenceRow, ChannelSectionHeader } from './ChannelItem';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +19,6 @@ type LoginState = 'idle' | 'loading_qr' | 'showing_qr' | 'scanned' | 'connected'
 
 interface WeixinConfigFormProps {
   pluginStatus: IChannelPluginStatus | null;
-  modelSelection: GoogleModelSelection;
   onStatusChange: (status: IChannelPluginStatus | null) => void;
 }
 
@@ -33,8 +29,9 @@ const getRemainingTime = (expiresAt: number) => {
 
 const formatTime = (timestamp: number) => new Date(timestamp).toLocaleString();
 
-const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, modelSelection, onStatusChange }) => {
+const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, onStatusChange }) => {
   const { t } = useTranslation();
+  useFixedChannelAssistantSelection('weixin', 'codex');
 
   const [loginState, setLoginState] = useState<LoginState>(
     pluginStatus?.hasToken && pluginStatus?.enabled ? 'connected' : 'idle'
@@ -48,12 +45,6 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
   const [usersLoading, setUsersLoading] = useState(false);
   const [pendingPairings, setPendingPairings] = useState<IChannelPairingRequest[]>([]);
   const [authorizedUsers, setAuthorizedUsers] = useState<IChannelUser[]>([]);
-
-  const {
-    availableAgents,
-    selectedAgent,
-    persistSelectedAgent: saveSelectedAgent,
-  } = useChannelAssistantSelection('weixin');
 
   // Close EventSource on unmount to prevent connection leaks.
   useEffect(() => {
@@ -168,16 +159,6 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
     Message.success(t('common.copySuccess', 'Copied'));
   };
 
-  const persistSelectedAgent = async (agent: ChannelAgentOption) => {
-    try {
-      await saveSelectedAgent(agent);
-      Message.success(t('settings.assistant.agentSwitched', 'Agent switched successfully'));
-    } catch (error) {
-      console.error('[WeixinConfig] Failed to save agent:', error);
-      Message.error(t('common.saveFailed', 'Failed to save'));
-    }
-  };
-
   const enableWeixinPlugin = async (accountId: string, botToken: string) => {
     // enablePlugin returns void; success if no throw
     await channel.enablePlugin.invoke({
@@ -243,9 +224,6 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
   const handleLogin = () => {
     handleLoginWebUI();
   };
-
-  const showModelSelector = selectedAgent?.agent_type === 'aionrs';
-  const agentOptions = availableAgents;
 
   const handleDisconnect = async () => {
     try {
@@ -324,73 +302,6 @@ const WeixinConfigForm: React.FC<WeixinConfigFormProps> = ({ pluginStatus, model
         }
       >
         {renderLoginArea()}
-      </ChannelPreferenceRow>
-
-      {/* Agent Selection */}
-      <ChannelPreferenceRow
-        label={t('settings.weixin.agent', 'Agent')}
-        description={t('settings.weixin.agentDesc', 'Used for WeChat conversations')}
-      >
-        <Dropdown
-          trigger='click'
-          position='br'
-          droplist={
-            <Menu selectedKeys={selectedAgent ? [selectedAgent.assistant_id] : []}>
-              {agentOptions.map((a) => {
-                const key = a.assistant_id;
-                return (
-                  <Menu.Item
-                    key={key}
-                    onClick={() => {
-                      const currentKey = selectedAgent?.assistant_id;
-                      if (key === currentKey) return;
-                      void persistSelectedAgent(a);
-
-                      if (a.agent_type === 'aionrs') {
-                        const savedModel = configService.get('assistant.weixin.defaultModel');
-                        const providers = modelSelection.providers;
-                        const savedProviderExists = savedModel?.id && providers.some((p) => p.id === savedModel.id);
-                        if (!savedProviderExists && providers.length > 0) {
-                          const firstProvider = providers[0];
-                          if (firstProvider.id && firstProvider.models?.[0]) {
-                            void modelSelection.handleSelectModel(firstProvider, firstProvider.models[0]);
-                          }
-                        }
-                      }
-                    }}
-                  >
-                    {a.name}
-                  </Menu.Item>
-                );
-              })}
-            </Menu>
-          }
-        >
-          <Button
-            type='secondary'
-            className='flex w-full min-w-0 max-w-full items-center justify-between gap-8px sm:w-auto sm:min-w-160px'
-          >
-            <span className='truncate'>{selectedAgent?.name || t('settings.weixin.agent', 'Agent')}</span>
-            <Down theme='outline' size={14} />
-          </Button>
-        </Dropdown>
-      </ChannelPreferenceRow>
-
-      {/* Default Model Selection */}
-      <ChannelPreferenceRow
-        label={t('settings.assistant.defaultModel', 'Default Model')}
-        description={t('settings.weixin.defaultModelDesc', 'Model used for WeChat conversations')}
-      >
-        <GoogleModelSelector
-          selection={showModelSelector ? modelSelection : undefined}
-          disabled={!showModelSelector}
-          label={
-            !showModelSelector
-              ? t('settings.assistant.autoFollowCliModel', 'Automatically follow the model when CLI is running')
-              : undefined
-          }
-          variant='settings'
-        />
       </ChannelPreferenceRow>
 
       {/* Next Steps Guide - shown when connected but no authorized users yet */}

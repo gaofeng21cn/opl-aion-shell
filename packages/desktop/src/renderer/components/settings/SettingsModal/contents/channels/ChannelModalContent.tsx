@@ -29,7 +29,6 @@ type ChannelModelConfigKey =
   | 'assistant.telegram.defaultModel'
   | 'assistant.lark.defaultModel'
   | 'assistant.dingtalk.defaultModel'
-  | 'assistant.weixin.defaultModel'
   | 'assistant.wecom.defaultModel';
 
 type ExtensionFieldType = 'text' | 'password' | 'select' | 'number' | 'boolean';
@@ -126,7 +125,6 @@ const useChannelModelSelection = (configKey: ChannelModelConfigKey): GoogleModel
           | 'telegram'
           | 'lark'
           | 'dingtalk'
-          | 'weixin'
           | 'wecom';
         await channel.syncChannelSettings
           .invoke({ platform })
@@ -191,7 +189,6 @@ const ChannelModalContent: React.FC = () => {
   const telegramModelSelection = useChannelModelSelection('assistant.telegram.defaultModel');
   const larkModelSelection = useChannelModelSelection('assistant.lark.defaultModel');
   const dingtalkModelSelection = useChannelModelSelection('assistant.dingtalk.defaultModel');
-  const weixinModelSelection = useChannelModelSelection('assistant.weixin.defaultModel');
   const wecomModelSelection = useChannelModelSelection('assistant.wecom.defaultModel');
 
   // Load plugin status
@@ -715,14 +712,7 @@ const ChannelModalContent: React.FC = () => {
       enabled: weixinPluginStatus?.enabled || false,
       disabled: weixinEnableLoading,
       is_connected: weixinPluginStatus?.connected || false,
-      defaultModel: weixinModelSelection.current_model?.use_model,
-      content: (
-        <WeixinConfigForm
-          pluginStatus={weixinPluginStatus}
-          modelSelection={weixinModelSelection}
-          onStatusChange={setWeixinPluginStatus}
-        />
-      ),
+      content: <WeixinConfigForm pluginStatus={weixinPluginStatus} onStatusChange={setWeixinPluginStatus} />,
     };
 
     const wecomChannel: ChannelConfig = {
@@ -817,7 +807,6 @@ const ChannelModalContent: React.FC = () => {
     dingtalkEnableLoading,
     weixinPluginStatus,
     weixinEnableLoading,
-    weixinModelSelection,
     wecomPluginStatus,
     wecomEnableLoading,
     wecomModelSelection,
