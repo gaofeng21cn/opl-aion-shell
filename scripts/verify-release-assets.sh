@@ -5,8 +5,15 @@ set -euo pipefail
 OUTPUT_DIR="${1:-release-assets}"
 ERRORS=0
 
-if [ ! -f "$OUTPUT_DIR/latest-arm64-mac.yml" ]; then
-  echo "FAIL: missing canonical metadata: latest-arm64-mac.yml"
+for required in latest-mac.yml latest-arm64-mac.yml; do
+  if [ ! -f "$OUTPUT_DIR/$required" ]; then
+    echo "FAIL: missing required updater metadata: $required"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
+if [ "$ERRORS" -eq 0 ] && ! cmp -s "$OUTPUT_DIR/latest-mac.yml" "$OUTPUT_DIR/latest-arm64-mac.yml"; then
+  echo "FAIL: latest-mac.yml and latest-arm64-mac.yml must be byte-identical"
   ERRORS=$((ERRORS + 1))
 fi
 
@@ -49,9 +56,11 @@ assert_metadata_points_to_existing_file() {
   echo "PASS: $metadata_name -> $ref_file"
 }
 
-assert_metadata_points_to_existing_file "latest-arm64-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
 if [ -f "$OUTPUT_DIR/latest-mac.yml" ]; then
   assert_metadata_points_to_existing_file "latest-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
+fi
+if [ -f "$OUTPUT_DIR/latest-arm64-mac.yml" ]; then
+  assert_metadata_points_to_existing_file "latest-arm64-mac.yml" "(mac-arm64|darwin-arm64|arm64)"
 fi
 
 MAC_DMG_COUNT=$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name "*-mac-arm64.dmg" | wc -l | tr -d ' ')

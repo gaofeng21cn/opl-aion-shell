@@ -1027,6 +1027,15 @@ describe('updateBridge auto-update config handling', () => {
     expect(autoUpdater.autoInstallOnAppQuit).toBe(true);
   });
 
+  it('uses native latest-mac.yml metadata on macOS while retaining Windows arm64 isolation', async () => {
+    const { getUpdateChannel } = await import('@process/services/autoUpdaterService');
+
+    expect(getUpdateChannel('darwin', 'arm64')).toBeUndefined();
+    expect(getUpdateChannel('darwin', 'x64')).toBeUndefined();
+    expect(getUpdateChannel('win32', 'x64')).toBeUndefined();
+    expect(getUpdateChannel('win32', 'arm64')).toBe('latest-win-arm64');
+  });
+
   it('returns a defensive copy of the latest updater status', async () => {
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
 

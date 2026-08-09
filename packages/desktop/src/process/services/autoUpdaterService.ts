@@ -25,28 +25,22 @@ import { cleanupAutoUpdateCaches, getDefaultAutoUpdateCacheRoot } from './autoUp
 
 /**
  * Returns the appropriate update channel name based on the current platform and architecture.
- * Returns undefined for the default channel (Windows x64 / Linux x64).
+ * Returns undefined for the native platform channel.
  */
-export function getUpdateChannel(): string | undefined {
-  const { platform, arch } = process;
-
+export function getUpdateChannel(platform = process.platform, arch = process.arch): string | undefined {
   // electron-updater appends a platform suffix to the channel name:
   //   macOS  → "-mac"       (e.g. "latest" → "latest-mac.yml")
   //   Linux  → "-linux"     (+ arch suffix for non-x64, e.g. "latest-linux-arm64.yml")
   //   Windows → ""          (no suffix, e.g. "latest.yml")
   //
-  // Linux arm64 is handled natively by electron-updater (appends "-linux-arm64"),
-  // so only Windows arm64 and macOS arm64 need a custom channel.
+  // Linux arm64 and macOS arm64 are handled natively by electron-updater,
+  // so only Windows arm64 needs a custom channel.
 
   if (platform === 'win32' && arch === 'arm64') {
     // "latest-win-arm64" + "" → "latest-win-arm64.yml"
     return 'latest-win-arm64';
   }
-  if (platform === 'darwin' && arch === 'arm64') {
-    // "latest-arm64" + "-mac" → "latest-arm64-mac.yml"
-    return 'latest-arm64';
-  }
-  // macOS x64  → default "latest" + "-mac"         → "latest-mac.yml"
+  // macOS      → default "latest" + "-mac"         → "latest-mac.yml"
   // Linux x64  → default "latest" + "-linux"       → "latest-linux.yml"
   // Linux arm64→ default "latest" + "-linux-arm64"  → "latest-linux-arm64.yml"
   // Win x64    → default "latest" + ""             → "latest.yml"
@@ -239,7 +233,7 @@ class AutoUpdaterService extends EventEmitter {
     this._allowPrerelease = allow;
     // Do NOT set autoUpdater.allowPrerelease here.
     // electron-updater's prerelease mode conflicts with custom channel names
-    // (e.g. 'latest-arm64'): it treats the channel as a prerelease identifier
+    // (e.g. 'latest-win-arm64'): it treats the channel as a prerelease identifier
     // and tries to match it against tag prerelease components, which always fails
     // with "No published versions on GitHub".
     // Prerelease filtering is handled by the manual update check (GitHub API) instead.

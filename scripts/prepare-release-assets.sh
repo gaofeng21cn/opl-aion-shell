@@ -96,4 +96,9 @@ if [ "$MISSING" -ne 0 ]; then
   exit 1
 fi
 
+if ! cmp -s "$OUTPUT_DIR/latest-mac.yml" "$OUTPUT_DIR/latest-arm64-mac.yml"; then
+  echo "::error::latest-mac.yml and latest-arm64-mac.yml must be byte-identical"
+  exit 1
+fi
+
 ls -lh "$OUTPUT_DIR"

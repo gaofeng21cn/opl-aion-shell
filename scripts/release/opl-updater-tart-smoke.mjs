@@ -402,7 +402,7 @@ export function updaterTartHostQualificationInput(options) {
   return updaterQualificationInput(
     options,
     {
-      metadata: fileEvidence(path.join(options.feedDir, 'latest-arm64-mac.yml')),
+      metadata: fileEvidence(path.join(options.feedDir, 'latest-mac.yml')),
       zip: fileEvidence(zipPath),
       blockmap: fileEvidence(`${zipPath}.blockmap`),
     },
@@ -540,7 +540,7 @@ export function updaterTartGuestReceiptMatches(receipt, options, hostInput) {
       options.expectedUpdaterVersion
     ) &&
     Array.isArray(receipt?.feed_requests) &&
-    receipt.feed_requests.some((request) => request?.method === 'GET' && request?.path === 'latest-arm64-mac.yml') &&
+    receipt.feed_requests.some((request) => request?.method === 'GET' && request?.path === 'latest-mac.yml') &&
     receipt.feed_requests.some((request) => request?.method === 'GET' && request?.path === candidateZipName)
   );
 }

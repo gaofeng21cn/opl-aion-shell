@@ -473,7 +473,7 @@ describe('updater Tart smoke contract', () => {
       },
       harness: hostInput.harness,
       feed_requests: [
-        { method: 'GET', path: 'latest-arm64-mac.yml', range: null },
+        { method: 'GET', path: 'latest-mac.yml', range: null },
         { method: 'GET', path: `One-Person-Lab-${options.expectedDisplayVersion}-mac-arm64.zip`, range: null },
       ],
     };

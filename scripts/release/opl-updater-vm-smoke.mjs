@@ -442,7 +442,7 @@ export function parseHttpRange(value, size) {
 }
 
 function assertFeed(feedDir, displayVersion, updaterVersion) {
-  const metadataPath = path.join(feedDir, 'latest-arm64-mac.yml');
+  const metadataPath = path.join(feedDir, 'latest-mac.yml');
   const zipName = `One-Person-Lab-${displayVersion}-mac-arm64.zip`;
   const zipPath = path.join(feedDir, zipName);
   const blockmapPath = `${zipPath}.blockmap`;
