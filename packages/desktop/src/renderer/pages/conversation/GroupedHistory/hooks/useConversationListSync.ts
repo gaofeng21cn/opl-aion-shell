@@ -107,6 +107,74 @@ type ConversationListSyncSnapshot = {
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
 
+export type WeixinCanonicalThreadBinding = {
+  conversationId: string;
+  threadId: string;
+};
+
+const workspaceLeaf = (workspace: string): string => {
+  const normalized = workspace
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/\/{2,}/g, '/')
+    .replace(/\/$/, '');
+  return normalized.split('/').at(-1) ?? '';
+};
+
+const isWeixinCodexTransportConversation = (conversation: TChatConversation): boolean => {
+  return conversation.source === 'weixin' && conversation.type === 'acp' && conversation.extra.backend === 'codex';
+};
+
+export const inferWeixinCanonicalThreadBindings = (
+  localConversations: TChatConversation[],
+  directory: CodexThreadDirectory | null
+): WeixinCanonicalThreadBinding[] => {
+  if (!directory) return [];
+
+  const threadByTemporaryWorkspace = new Map<string, (typeof directory.threads)[number] | null>();
+  directory.threads.forEach((thread) => {
+    const leaf = workspaceLeaf(thread.workspace);
+    if (!leaf.startsWith('codex-temp-')) return;
+    threadByTemporaryWorkspace.set(leaf, threadByTemporaryWorkspace.has(leaf) ? null : thread);
+  });
+
+  return localConversations.flatMap((conversation) => {
+    if (
+      conversation.type !== 'acp' ||
+      !isWeixinCodexTransportConversation(conversation) ||
+      canonicalCodexThreadId(conversation)
+    ) {
+      return [];
+    }
+    const isTemporaryWorkspace = (conversation.extra as { is_temporary_workspace?: boolean }).is_temporary_workspace;
+    const expectedWorkspaceLeaf = `codex-temp-${conversation.id}`;
+    if (isTemporaryWorkspace !== true || workspaceLeaf(conversation.extra.workspace ?? '') !== expectedWorkspaceLeaf) {
+      return [];
+    }
+    const thread = threadByTemporaryWorkspace.get(expectedWorkspaceLeaf);
+    return thread ? [{ conversationId: conversation.id, threadId: thread.id }] : [];
+  });
+};
+
+const applyWeixinCanonicalThreadBindings = (
+  localConversations: TChatConversation[],
+  bindings: WeixinCanonicalThreadBinding[]
+): TChatConversation[] => {
+  if (bindings.length === 0) return localConversations;
+  const threadIdByConversationId = new Map(bindings.map((binding) => [binding.conversationId, binding.threadId]));
+  return localConversations.map((conversation) => {
+    const threadId = threadIdByConversationId.get(conversation.id);
+    if (!threadId || conversation.type !== 'acp') return conversation;
+    return {
+      ...conversation,
+      extra: {
+        ...conversation.extra,
+        canonical_thread_id: threadId,
+      },
+    };
+  });
+};
+
 export const createSingleFlightDirtyReplay = (operation: () => Promise<void>): (() => Promise<void>) => {
   let running = false;
   let dirty = false;
@@ -189,12 +257,23 @@ export const mergeCanonicalThreadDirectory = (
 ): TChatConversation[] => {
   if (!directory) return localConversations;
 
+  const inferredBindings = inferWeixinCanonicalThreadBindings(localConversations, directory);
+  const boundLocalConversations = applyWeixinCanonicalThreadBindings(localConversations, inferredBindings);
+
   const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
+  const weixinTransportThreadIds = new Set(
+    boundLocalConversations
+      .filter(isWeixinCodexTransportConversation)
+      .map(canonicalCodexThreadId)
+      .filter((threadId): threadId is string => Boolean(threadId))
+  );
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
-  const unmatchedLocal = localConversations.filter((conversation) => {
+  const unmatchedLocal = boundLocalConversations.filter((conversation) => {
     const threadId = canonicalCodexThreadId(conversation);
     if (threadId && returnedThreadIds.has(threadId)) {
-      cachedByThreadId.set(threadId, conversation as Extract<TChatConversation, { type: 'acp' }>);
+      if (!isWeixinCodexTransportConversation(conversation) && conversation.type === 'acp') {
+        cachedByThreadId.set(threadId, conversation);
+      }
       return false;
     }
 
@@ -222,7 +301,17 @@ export const mergeCanonicalThreadDirectory = (
 
   return [
     ...unmatchedLocal,
-    ...directory.threads.map((thread) => projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id))),
+    ...directory.threads.map((thread) => {
+      const projected = projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id));
+      if (!weixinTransportThreadIds.has(thread.id)) return projected;
+      return {
+        ...projected,
+        extra: {
+          ...projected.extra,
+          is_temporary_workspace: true,
+        },
+      };
+    }),
   ];
 };
 
@@ -273,6 +362,25 @@ const refreshConversationDirectory = async () => {
 
   const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
   if (canonicalDirectory) {
+    const inferredBindings = inferWeixinCanonicalThreadBindings(localConversationsState, canonicalDirectory);
+    if (inferredBindings.length > 0) {
+      localConversationsState = applyWeixinCanonicalThreadBindings(localConversationsState, inferredBindings);
+      const persistenceResults = await Promise.allSettled(
+        inferredBindings.map(async (binding) => {
+          const updated = await ipcBridge.conversation.update.invoke({
+            id: binding.conversationId,
+            updates: { extra: { canonical_thread_id: binding.threadId } } as Partial<TChatConversation>,
+            merge_extra: true,
+          });
+          if (!updated) throw new Error(`Conversation ${binding.conversationId} rejected canonical thread binding.`);
+        })
+      );
+      persistenceResults.forEach((result) => {
+        if (result.status === 'rejected') {
+          console.warn('[WorkspaceGroupedHistory] Failed to persist WeChat canonical thread binding:', result.reason);
+        }
+      });
+    }
     canonicalDirectoryState = canonicalDirectory;
     if (canonicalDirectory.host !== 'webui-local-cache') {
       const nextArchiveStateByThreadId = canonicalDirectory.complete

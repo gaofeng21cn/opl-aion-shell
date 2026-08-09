@@ -55,6 +55,7 @@ export const getConversationDirectoryGroup = (conversation: TChatConversation): 
   if (isCanonicalCodex) {
     const explicitProjectId = conversation.extra.canonical_project_id?.trim() ?? '';
     if (explicitProjectId) return explicitProjectId;
+    if ((conversation.extra as { is_temporary_workspace?: boolean }).is_temporary_workspace === true) return null;
     if (!workspace || isManagedCodexScratchWorkspace(workspace)) return null;
 
     // Recorded cwd supplies presentation and a new-task shortcut only. It never

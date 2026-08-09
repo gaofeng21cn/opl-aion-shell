@@ -10,6 +10,7 @@ import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types
 import {
   createSingleFlightDirtyReplay,
   getSidebarStreamGuardDecision,
+  inferWeixinCanonicalThreadBindings,
   mergeCanonicalThreadDirectory,
   visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
@@ -148,6 +149,28 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(projected.extra).toMatchObject({ workspace, custom_workspace: false });
     expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
       expect.objectContaining({ type: 'conversation', conversation: projected }),
+    ]);
+  });
+
+  it('keeps an OPL channel temporary task projectless and ungrouped', () => {
+    const workspace = '/Users/example/Library/Application Support/One Person Lab/opl-data/codex-temp-05ee8303';
+    const temporary = {
+      id: 'canonical-cache',
+      name: 'WeChat task',
+      created_at: 1,
+      type: 'acp',
+      source: 'aionui',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace,
+        custom_workspace: false,
+        is_temporary_workspace: true,
+      },
+    } as TChatConversation;
+
+    expect(groupConversationsByWorkspace([temporary], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: temporary }),
     ]);
   });
 
@@ -476,6 +499,77 @@ describe('mergeCanonicalThreadDirectory', () => {
 
     expect(merged).toHaveLength(1);
     expect(merged[0]?.name).toBe('Canonical task');
+  });
+
+  it('binds a WeChat transport conversation to one canonical task row', () => {
+    const transportWorkspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
+    const canonicalWorkspace =
+      '/Users/example/Library/Application Support/One Person Lab/opl-data/conversations/codex-temp-05ee8303';
+    const transport = {
+      id: '05ee8303',
+      name: 'wx-acp-codex-user',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: {
+        backend: 'codex',
+        workspace: transportWorkspace,
+        is_temporary_workspace: true,
+      },
+    } as TChatConversation;
+    const cachedCanonical = {
+      id: 'canonical-cache',
+      name: 'Stale canonical title',
+      created_at: 2,
+      type: 'acp',
+      source: 'aionui',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: canonicalWorkspace,
+      },
+    } as TChatConversation;
+    const canonicalDirectory = directory([thread({ workspace: canonicalWorkspace, projectId: '' })]);
+
+    expect(inferWeixinCanonicalThreadBindings([transport, cachedCanonical], canonicalDirectory)).toEqual([
+      { conversationId: '05ee8303', threadId: 'thread-1' },
+    ]);
+    const merged = mergeCanonicalThreadDirectory([transport, cachedCanonical], canonicalDirectory);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      id: 'canonical-cache',
+      name: 'Canonical task',
+      source: 'aionui',
+      extra: {
+        canonical_thread_id: 'thread-1',
+        workspace: canonicalWorkspace,
+        custom_workspace: false,
+        is_temporary_workspace: true,
+      },
+    });
+    expect(groupConversationsByWorkspace(merged, (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({ type: 'conversation', conversation: merged[0] }),
+    ]);
+  });
+
+  it('does not bind a WeChat transport row when the temporary workspace match is ambiguous', () => {
+    const workspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
+    const transport = {
+      id: '05ee8303',
+      name: 'wx-acp-codex-user',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: { backend: 'codex', workspace, is_temporary_workspace: true },
+    } as TChatConversation;
+
+    expect(
+      inferWeixinCanonicalThreadBindings(
+        [transport],
+        directory([thread({ id: 'thread-1', workspace }), thread({ id: 'thread-2', workspace })])
+      )
+    ).toEqual([]);
   });
 
   it('falls back to shell cache when the canonical directory is unavailable', () => {
