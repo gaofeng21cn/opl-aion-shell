@@ -23,6 +23,112 @@
     "gui_product": "contracts/app-gui-product-contract.json",
     "settings_control_plane": "contracts/app-settings-control-plane.json"
   },
+  "delivery_topology": {
+    "schema": "opl_app_delivery_topology.v1",
+    "decision_status": "approved_target_current_release_admission_separate",
+    "product_behavior_authority": "one-person-lab-app",
+    "current_release_support_source_ref": "product.supported_release_platforms",
+    "current_release_shell_source_ref": "contract_refs.active_shell",
+    "shared_renderer": {
+      "product_owner": "one-person-lab-app",
+      "technology": "react",
+      "role": "opl_owned_product_renderer",
+      "implementation_status": "approved_direction_candidate_evidence_only",
+      "technical_evaluation_candidate": "opl-native-workbench",
+      "required_surfaces": ["native_macos", "opl_workspace", "future_cross_platform_desktop"],
+      "single_active_product_renderer_required": true,
+      "carrier_specific_product_forks_allowed": false,
+      "aionui_source_or_runtime_dependency_required": false
+    },
+    "runtime": {
+      "supported_backend_scope": "codex_cli_only",
+      "codex_interface": "codex_app_server",
+      "codex_transport_by_host": {
+        "native_macos": "stdio",
+        "opl_workspace": "host_managed_stdio"
+      },
+      "opl_integration": "framework_app_state_action_contracts_only",
+      "aioncore_allowed": false,
+      "aionui_required": false,
+      "multi_backend_abstraction_required": false,
+      "second_provider_or_session_store_allowed": false,
+      "thread_store_owner": "codex_core_app_server"
+    },
+    "bridge": {
+      "product_runtime_interface": "opl_app_state_action_and_codex_app_server_thread_event_contracts",
+      "shared_typed_bridge_shape_required": true,
+      "native_transport": "wk_script_message_handler_to_local_process",
+      "web_transport": "http_sse_same_origin_to_host_process",
+      "second_control_plane_or_session_store_allowed": false
+    },
+    "macos_desktop": {
+      "carrier_id": "native_macos",
+      "role": "approved_target_architecture",
+      "technical_evaluation_candidate": "opl-native-workbench",
+      "host_technology": "swift_appkit_wkwebview",
+      "target_platforms": ["macos-arm64"],
+      "current_release_support_source_ref": "product.supported_release_platforms",
+      "mainline_implementation_assigned": false,
+      "active_release_carrier": false,
+      "electron_required": false,
+      "aioncore_required": false,
+      "container_runtime_role": "none"
+    },
+    "workspace": {
+      "carrier_id": "container_webui",
+      "product_name": "OPL Workspace",
+      "role": "hosted_one_person_lab_app_web_access",
+      "technical_evaluation_candidate": "opl-native-workbench",
+      "implementation_status": "candidate_evidence_only",
+      "mainline_implementation_assigned": false,
+      "host_technology": "node_web_host",
+      "transport": "http_sse",
+      "runtime_process": "codex_cli_app_server_child_process",
+      "electron_in_container_allowed": false,
+      "aioncore_in_container_allowed": false,
+      "independent_runtime_persistence_and_release_required": true,
+      "same_renderer_and_bridge_shape_required": true,
+      "desktop_database_reuse_required": false,
+      "codex_state_volume_required": true,
+      "multi_tenant_claim_allowed": false,
+      "security_admission_ref": "contracts/app-install-exposure-policy.json#installer_surfaces.docker_webui.installer_model.cloud_deployment_model",
+      "release_contract_ref": "contracts/app-release-channel.json#distribution_semantics.cohort_policy"
+    },
+    "mobile": {
+      "initial_surface": "responsive_web_pwa",
+      "optional_native_wrapper": "capacitor_after_separate_adoption_decision",
+      "separate_product_renderer_allowed": false
+    },
+    "cross_platform_desktop": {
+      "decision_status": "wrapper_selection_deferred",
+      "implementation_owner_status": "unassigned",
+      "mainline_implementation_assigned": false,
+      "target_platforms": ["windows", "linux"],
+      "candidate_wrappers": ["electron", "tauri"],
+      "renderer_reuse_required": true,
+      "aioncore_allowed": false,
+      "support_claim_allowed": false,
+      "separate_adoption_and_platform_acceptance_required": true
+    },
+    "native_candidate": {
+      "candidate_id": "opl-native-workbench",
+      "role": "manual_on_demand_non_periodic_technical_evaluation",
+      "mainline_development_required": false,
+      "completion_or_feature_parity_obligation": false,
+      "release_blocking": false,
+      "active_release_carrier": false,
+      "adoption_requires_explicit_contract_change": true,
+      "candidate_policy_ref": "contracts/app-shell-candidates.json"
+    },
+    "aionui_reference": {
+      "role": "current_release_shell_and_bounded_reference_only",
+      "target_renderer_owner": false,
+      "target_runtime_dependency": false,
+      "aioncore_target_runtime_dependency": false,
+      "source_reuse_requires_separate_decision": true,
+      "active_release_shell_source_ref": "contract_refs.active_shell"
+    }
+  },
   "official_profile": {
     "profile_id": "opl-official",
     "authority": "one-person-lab-app",
@@ -2932,7 +3038,7 @@
             "route_id": "gateway",
             "adapter_entry": "packages/desktop/src/renderer/pages/settings/accessProjection.ts",
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/sections/AccessSettings.tsx",
-            "state_source": "opl app state --profile fast --json#app_state.settings_control_center.app_settings_read_model.opl_gateway_account",
+            "state_source": "dedicated cached Gateway projection followed by app_action_execution.result.gateway_account",
             "forbidden_sources": [
               "secret bodies in App state or generic action payloads",
               "Gateway account duplication on Models or Resources"

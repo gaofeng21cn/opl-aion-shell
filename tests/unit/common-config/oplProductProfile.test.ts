@@ -82,6 +82,85 @@ describe('OPL generated product profile', () => {
     ).toContain('user_authored_additional_instructions_optional_and_never_generated');
   });
 
+  it('projects the lightweight Codex-only direction without making AionUI its runtime owner', () => {
+    expect(generatedProfile.product.supported_release_platforms).toEqual(['macos-arm64']);
+    expect(generatedProfile.delivery_topology).toMatchObject({
+      schema: 'opl_app_delivery_topology.v1',
+      decision_status: 'approved_target_current_release_admission_separate',
+      shared_renderer: {
+        product_owner: 'one-person-lab-app',
+        technology: 'react',
+        implementation_status: 'approved_direction_candidate_evidence_only',
+        technical_evaluation_candidate: 'opl-native-workbench',
+        required_surfaces: ['native_macos', 'opl_workspace', 'future_cross_platform_desktop'],
+        single_active_product_renderer_required: true,
+        carrier_specific_product_forks_allowed: false,
+        aionui_source_or_runtime_dependency_required: false,
+      },
+      runtime: {
+        supported_backend_scope: 'codex_cli_only',
+        codex_interface: 'codex_app_server',
+        aioncore_allowed: false,
+        aionui_required: false,
+        multi_backend_abstraction_required: false,
+        second_provider_or_session_store_allowed: false,
+      },
+      bridge: {
+        product_runtime_interface: 'opl_app_state_action_and_codex_app_server_thread_event_contracts',
+        native_transport: 'wk_script_message_handler_to_local_process',
+        web_transport: 'http_sse_same_origin_to_host_process',
+        second_control_plane_or_session_store_allowed: false,
+      },
+      macos_desktop: {
+        host_technology: 'swift_appkit_wkwebview',
+        target_platforms: ['macos-arm64'],
+        current_release_support_source_ref: 'product.supported_release_platforms',
+        mainline_implementation_assigned: false,
+        active_release_carrier: false,
+        electron_required: false,
+        aioncore_required: false,
+        container_runtime_role: 'none',
+      },
+      workspace: {
+        carrier_id: 'container_webui',
+        product_name: 'OPL Workspace',
+        host_technology: 'node_web_host',
+        implementation_status: 'candidate_evidence_only',
+        mainline_implementation_assigned: false,
+        electron_in_container_allowed: false,
+        aioncore_in_container_allowed: false,
+        independent_runtime_persistence_and_release_required: true,
+        same_renderer_and_bridge_shape_required: true,
+        desktop_database_reuse_required: false,
+      },
+      mobile: {
+        initial_surface: 'responsive_web_pwa',
+        separate_product_renderer_allowed: false,
+      },
+      cross_platform_desktop: {
+        decision_status: 'wrapper_selection_deferred',
+        implementation_owner_status: 'unassigned',
+        mainline_implementation_assigned: false,
+        target_platforms: ['windows', 'linux'],
+        candidate_wrappers: ['electron', 'tauri'],
+        support_claim_allowed: false,
+      },
+      native_candidate: {
+        candidate_id: 'opl-native-workbench',
+        role: 'manual_on_demand_non_periodic_technical_evaluation',
+        active_release_carrier: false,
+        mainline_development_required: false,
+        completion_or_feature_parity_obligation: false,
+      },
+      aionui_reference: {
+        role: 'current_release_shell_and_bounded_reference_only',
+        target_renderer_owner: false,
+        target_runtime_dependency: false,
+        aioncore_target_runtime_dependency: false,
+      },
+    });
+  });
+
   it('exposes the App-owned post-login setup check timeout', () => {
     expect(getOplPostLoginSetupCheckTimeoutMs()).toBe(20_000);
   });
