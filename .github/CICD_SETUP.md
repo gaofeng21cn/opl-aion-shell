@@ -22,6 +22,19 @@ GPT PR 审查和 Project Automation 未形成实际使用，且前者与本地 C
 审查重复，因此不再保留对应 workflow 和专用 composite actions。上游
 currentness 也不再定时轮询，避免已知需人工判断的版本差异持续产生失败噪声。
 
+## Dependabot 边界
+
+GitHub 将本仓库识别为独立仓库，无法区分上游 AionUI 依赖与 OPL 自有覆盖层。
+因此仓库级 Vulnerability Alerts 与 Automated Security Fixes 保持关闭，避免把
+上游 Electron 主版本迁移自动转换为本仓的修复 PR。
+
+- `.github/dependabot.yml` 只维护 `github-actions`，不新增 `bun` 或 `npm` 更新项。
+- Electron、AionUI 和其他上游依赖风险通过 `aionui-upstream-currentness.yml`
+  检查最新稳定版，再由 App owner 做行为影响评估与选择性吸收。
+- 关闭 Dependabot 告警不代表继承的 CVE 无风险；最终分发风险仍由 App release
+  qualification 负责。只有告警明确落在 OPL 自有 adapter、overlay、Web host、
+  bridge 或 release hook 时，才在本仓建立聚焦修复 PR 与对应测试。
+
 ## Release owner
 
 不要在本仓恢复 App release/distribute workflow。发布相关入口应在
