@@ -154,6 +154,58 @@ function createPassedAssistantRouteSmokeSummary(assistantIds = ['mas', 'mag', 'r
   };
 }
 
+function createPassedComputerUseQualification(runtimeProfile: string) {
+  const tools = Array.from({ length: 10 }, (_, index) => `tool-${index}`);
+  return {
+    schema: 'opl_computer_use_qualification.v1',
+    status: 'passed',
+    runtime_profile: runtimeProfile,
+    provider_id: 'kimi-cu',
+    product_name: 'KimiCU',
+    version: '0.5.4',
+    source_ref: 'one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu',
+    source_sha256: 'a'.repeat(64),
+    state: {
+      installed: true,
+      registered: true,
+      enabled: true,
+      permission: 'required',
+      ready: false,
+      status: 'permission_required',
+    },
+    bundle: {
+      path: '/Applications/KimiCU.app',
+      executable: '/Applications/KimiCU.app/Contents/MacOS/kimi-cu',
+      bundle_id: 'ai.kimi.cu',
+      version: '0.5.4',
+      team_id: '2J9472RW75',
+      architecture: 'arm64',
+      identity_verified: true,
+    },
+    mcp: {
+      server_id: 'kimi-cu',
+      registered: true,
+      enabled: true,
+      tools_exact: true,
+      required_tools: tools,
+      observed_tools: tools.toReversed(),
+    },
+    service: { registered: true, xpc_ping: 'passed' },
+    permissions: { accessibility: 'required', screen_recording: 'required' },
+    acceptance: {
+      lifecycle_ready: true,
+      projection_identity_bound: true,
+      bundle_identity_verified: true,
+      service_ready: true,
+      mcp_10_tools_exact: true,
+      permission_details_valid: true,
+      permission_projection_consistent: true,
+      ready_consistent: true,
+      standard_full_same_logic: true,
+    },
+  };
+}
+
 function createPassedTemporalServiceSupervisorProof() {
   const readySupervisor = { ready: true };
   return {
@@ -213,6 +265,7 @@ function assertGuestSmokeSummary(options: Record<string, unknown>, summary: Reco
       mutation_performed: false,
       blocking_release_gate: false,
     },
+    computer_use_qualification: createPassedComputerUseQualification(String(options.runtimeProfile)),
     ...summary,
   });
 }
@@ -1095,6 +1148,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 mutation_performed: false,
                 blocking_release_gate: false,
               },
+              computer_use_qualification: createPassedComputerUseQualification('standard'),
               installed_framework_source_identity: result.installed_framework_source_identity,
             },
             hostArtifacts
@@ -1119,6 +1173,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 mutation_performed: false,
                 blocking_release_gate: false,
               },
+              computer_use_qualification: createPassedComputerUseQualification('standard'),
               installed_framework_source_identity: result.installed_framework_source_identity,
             },
             hostArtifacts
@@ -1182,6 +1237,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 mutation_performed: false,
                 blocking_release_gate: false,
               },
+              computer_use_qualification: createPassedComputerUseQualification('full'),
               full_runtime_source_identity: result.full_runtime_source_identity,
               temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
             },
@@ -1195,6 +1251,33 @@ describe('OPL first-run VM smoke scripts', () => {
       fs.rmSync(fixture.root, { recursive: true, force: true });
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('rejects missing or drifted Computer Use qualification at the Tart boundary', () => {
+    const options = {
+      runtimeProfile: 'standard',
+      providerCredentialPresent: false,
+      codexApiKeyFile: '',
+      bootstrapLaunchDiagnostics: false,
+    };
+
+    expect(() =>
+      assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'standard',
+        computer_use_qualification: null,
+      })
+    ).toThrow(/KimiCU Computer Use qualification/);
+
+    const drifted = createPassedComputerUseQualification('standard');
+    drifted.mcp.observed_tools = drifted.mcp.observed_tools.slice(1);
+    expect(() =>
+      assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'standard',
+        computer_use_qualification: drifted,
+      })
+    ).toThrow(/KimiCU Computer Use qualification/);
   });
 
   it('forwards focused launch diagnostics into the guest without secondary release smokes', () => {
@@ -2927,6 +3010,7 @@ describe('OPL first-run VM smoke scripts', () => {
           status: 'failed',
           runtime_profile: 'standard',
           labels: ['launch-app'],
+          computer_use_qualification: createPassedComputerUseQualification('standard'),
         })}\n`
       );
 
@@ -2948,6 +3032,7 @@ describe('OPL first-run VM smoke scripts', () => {
         guest_ip: '192.168.64.10',
         guest_artifacts: '/tmp/guest/artifacts',
         copied_guest_artifacts: true,
+        computer_use_qualification: createPassedComputerUseQualification('standard'),
       });
       expect(summary.guest_summary).toMatchObject({
         status: 'failed',

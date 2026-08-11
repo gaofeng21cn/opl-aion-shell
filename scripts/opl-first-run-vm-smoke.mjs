@@ -230,6 +230,19 @@ const PACKAGED_APP_LAUNCH_ENV_BLOCKLIST = new Set([
 ]);
 const RUNTIME_ACTION_EVIDENCE_TIMEOUT_MS = 45_000;
 const RELEASE_EVIDENCE_ACTION_ID = 'developer_supervisor_refresh';
+const MANAGED_COMPUTER_USE_PROVIDER_ID = 'kimi-cu';
+const MANAGED_COMPUTER_USE_TOOL_COUNT = 10;
+const MANAGED_COMPUTER_USE_POLL_INTERVAL_MS = 1_000;
+const MANAGED_COMPUTER_USE_EXPECTED_IDENTITY = Object.freeze({
+  productName: 'KimiCU',
+  version: '0.5.4',
+  sourceRef: 'one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu',
+  path: '/Applications/KimiCU.app',
+  executable: '/Applications/KimiCU.app/Contents/MacOS/kimi-cu',
+  bundleId: 'ai.kimi.cu',
+  teamId: '2J9472RW75',
+  architecture: 'arm64',
+});
 const TEMPORAL_SERVICE_START_ACTION_ID = 'provider_service_start';
 const TEMPORAL_SERVICE_RESTART_ACTION_ID = 'provider_service_restart';
 const TEMPORAL_SERVICE_SUPERVISOR_LABEL = 'ai.opl.family-runtime.temporal-service';
@@ -2627,6 +2640,155 @@ function collectAppReleaseRuntimeEvidence(options, secret) {
     action_id: summary.action_id,
     artifacts: written,
   };
+}
+
+function buildManagedComputerUseQualification(appStatePayload, runtimeProfile) {
+  if (!RUNTIME_PROFILES.has(runtimeProfile)) {
+    throw new Error(`Computer Use qualification requires a known runtime profile: ${runtimeProfile}`);
+  }
+  const appState = isRecord(appStatePayload?.app_state) ? appStatePayload.app_state : appStatePayload;
+  const companions = Array.isArray(appState?.managed_companions) ? appState.managed_companions : [];
+  const companion = companions.find(
+    (item) =>
+      isRecord(item) &&
+      item.surface_kind === 'opl_managed_computer_use_projection' &&
+      item.provider_id === MANAGED_COMPUTER_USE_PROVIDER_ID
+  );
+  if (!isRecord(companion)) {
+    throw new Error('Packaged guest App state is missing the Framework-managed KimiCU projection.');
+  }
+
+  const bundle = isRecord(companion.bundle) ? companion.bundle : {};
+  const mcp = isRecord(companion.mcp) ? companion.mcp : {};
+  const service = isRecord(companion.service) ? companion.service : {};
+  const permissions = isRecord(companion.permissions) ? companion.permissions : {};
+  const requiredTools = [...new Set(listStringValues(mcp.required_tools).filter(Boolean))].sort();
+  const observedTools = [...new Set(listStringValues(mcp.observed_tools).filter(Boolean))].sort();
+  const lifecycleReady = companion.installed === true && companion.registered === true && companion.enabled === true;
+  const projectionIdentityBound =
+    companion.product_name === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.productName &&
+    companion.version === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.version &&
+    companion.source_ref === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.sourceRef &&
+    typeof companion.source_sha256 === 'string' &&
+    /^[0-9a-f]{64}$/.test(companion.source_sha256);
+  const bundleIdentityVerified =
+    bundle.identity_verified === true &&
+    bundle.path === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.path &&
+    bundle.executable === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.executable &&
+    bundle.bundle_id === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.bundleId &&
+    bundle.version === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.version &&
+    bundle.team_id === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.teamId &&
+    bundle.architecture === MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.architecture;
+  const serviceReady = service.registered === true && service.xpc_ping === 'passed';
+  const mcpTenToolsExact =
+    mcp.registered === true &&
+    mcp.enabled === true &&
+    mcp.tools_exact === true &&
+    requiredTools.length === MANAGED_COMPUTER_USE_TOOL_COUNT &&
+    observedTools.length === MANAGED_COMPUTER_USE_TOOL_COUNT &&
+    JSON.stringify(requiredTools) === JSON.stringify(observedTools);
+  const permissionAxes = [permissions.accessibility, permissions.screen_recording];
+  const permissionDetailsValid = permissionAxes.every((value) => value === 'granted' || value === 'required');
+  const permissionProjectionConsistent =
+    (companion.permission === 'granted' && permissionAxes.every((value) => value === 'granted')) ||
+    (companion.permission === 'required' && permissionAxes.some((value) => value === 'required'));
+  const readyConsistent =
+    companion.permission === 'granted'
+      ? companion.ready === true && companion.status === 'ready'
+      : companion.permission === 'required' && companion.ready === false && companion.status === 'permission_required';
+  const acceptance = {
+    lifecycle_ready: lifecycleReady,
+    projection_identity_bound: projectionIdentityBound,
+    bundle_identity_verified: bundleIdentityVerified,
+    service_ready: serviceReady,
+    mcp_10_tools_exact: mcpTenToolsExact,
+    permission_details_valid: permissionDetailsValid,
+    permission_projection_consistent: permissionProjectionConsistent,
+    ready_consistent: readyConsistent,
+    standard_full_same_logic: true,
+  };
+  const failedChecks = Object.entries(acceptance)
+    .filter(([, passed]) => passed !== true)
+    .map(([check]) => check);
+  if (failedChecks.length > 0) {
+    throw new Error(`Packaged guest KimiCU qualification failed: ${failedChecks.join(', ')}`);
+  }
+
+  return {
+    schema: 'opl_computer_use_qualification.v1',
+    status: 'passed',
+    runtime_profile: runtimeProfile,
+    provider_id: companion.provider_id,
+    product_name: companion.product_name,
+    version: companion.version,
+    source_ref: companion.source_ref ?? null,
+    source_sha256: companion.source_sha256 ?? null,
+    state: {
+      installed: companion.installed,
+      registered: companion.registered,
+      enabled: companion.enabled,
+      permission: companion.permission,
+      ready: companion.ready,
+      status: companion.status,
+    },
+    bundle: {
+      path: bundle.path,
+      executable: bundle.executable,
+      bundle_id: bundle.bundle_id,
+      version: bundle.version,
+      team_id: bundle.team_id,
+      architecture: bundle.architecture,
+      identity_verified: bundle.identity_verified,
+    },
+    mcp: {
+      server_id: mcp.server_id,
+      registered: mcp.registered,
+      enabled: mcp.enabled,
+      required_tools: requiredTools,
+      observed_tools: observedTools,
+      tools_exact: mcp.tools_exact,
+    },
+    service: {
+      registered: service.registered,
+      xpc_ping: service.xpc_ping,
+    },
+    permissions: {
+      accessibility: permissions.accessibility,
+      screen_recording: permissions.screen_recording,
+    },
+    acceptance,
+  };
+}
+
+async function collectManagedComputerUseQualification(options, secret) {
+  const args = ['app', 'state', '--profile', 'full', '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const sleepImpl = options.__testHooks?.sleep ?? sleep;
+  const timeoutMs = options.codexReadinessPhaseTimeoutMs ?? options.timeoutMs;
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  do {
+    try {
+      const appState = parseOplJsonResult(
+        runOplJsonImpl(args, { ...options, timeoutMs: Math.max(1, deadline - Date.now()) }),
+        args
+      );
+      const receipt = buildManagedComputerUseQualification(appState, options.runtimeProfile);
+      writeJsonArtifact(path.join(options.artifacts, 'computer-use-qualification.json'), receipt, secret);
+      return receipt;
+    } catch (error) {
+      lastError = error;
+    }
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) break;
+    await sleepImpl(Math.min(MANAGED_COMPUTER_USE_POLL_INTERVAL_MS, remainingMs));
+  } while (Date.now() < deadline);
+
+  throw new Error(
+    `Timed out waiting for packaged guest KimiCU qualification: ${
+      lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown error')
+    }`
+  );
 }
 
 function collectReleaseSourceIdentity(options, secret) {
@@ -7709,6 +7871,7 @@ async function main() {
           codex_functional_check: null,
           codex_ai_self_check: null,
           app_release_runtime_evidence: null,
+          computer_use_qualification: null,
         };
         writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), failedSummary, codexApiKey);
         writeSmokeEventSafely(writeSmokeEvent, 'summary', 'failed', {
@@ -7753,6 +7916,7 @@ async function main() {
         codex_functional_check: null,
         codex_ai_self_check: null,
         app_release_runtime_evidence: null,
+        computer_use_qualification: null,
         installed_framework_source_identity: releaseSourceIdentity.installed_framework_source_identity,
         full_runtime_source_identity: releaseSourceIdentity.full_runtime_source_identity,
       };
@@ -7875,6 +8039,18 @@ async function main() {
     if (guidEntry.cdpState) {
       writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, codexApiKey);
     }
+
+    const computerUseQualification = await runSmokePhase(
+      writeSmokeEvent,
+      'computer_use_qualification',
+      () => collectManagedComputerUseQualification(installedAppOptions, codexApiKey),
+      {
+        runtime_profile: options.runtimeProfile,
+        provider_id: MANAGED_COMPUTER_USE_PROVIDER_ID,
+        required_mcp_tool_count: MANAGED_COMPUTER_USE_TOOL_COUNT,
+        timeout_ms: options.codexReadinessPhaseTimeoutMs,
+      }
+    );
 
     const settingsSmoke = options.settingsSmoke
       ? await runSmokePhase(writeSmokeEvent, 'settings_smoke', () => runSettingsSmoke(options, codexApiKey), {
@@ -8139,6 +8315,7 @@ async function main() {
         : null,
       codex_functional_check: codexFunctionalCheck,
       codex_ai_self_check: codexAiSelfCheck,
+      computer_use_qualification: computerUseQualification,
       app_release_runtime_evidence: appReleaseRuntimeEvidence,
       installed_framework_source_identity: releaseSourceIdentity.installed_framework_source_identity,
       full_runtime_source_identity: releaseSourceIdentity.full_runtime_source_identity,
@@ -8158,6 +8335,7 @@ async function main() {
       assistant_route_smoke: summary.assistant_route_smoke?.status ?? null,
       codex_functional_check: summary.codex_functional_check?.status ?? null,
       codex_ai_self_check: summary.codex_ai_self_check?.status ?? null,
+      computer_use_qualification: summary.computer_use_qualification?.status ?? null,
       provider_configuration: summary.provider_configuration.status,
       app_release_runtime_evidence: summary.app_release_runtime_evidence?.status ?? null,
       temporal_service_supervisor_proof: summary.temporal_service_supervisor_proof?.status ?? null,
@@ -8305,6 +8483,8 @@ export const __test =
         buildCodexAiSelfCheckReceipt,
         runCodexAiSelfCheck,
         collectAppReleaseRuntimeEvidence,
+        buildManagedComputerUseQualification,
+        collectManagedComputerUseQualification,
         collectHomebrewFullCaskProof,
         collectHomebrewStandardCaskProof,
         collectTemporalServiceSupervisorProof,

@@ -57,6 +57,66 @@ function temporalServiceActionLifecycle(pid: number) {
   };
 }
 
+const KIMI_CU_TOOLS = [
+  'list_apps',
+  'get_app_state',
+  'click',
+  'type_text',
+  'press_key',
+  'scroll',
+  'set_value',
+  'perform_secondary_action',
+  'select_text',
+  'drag',
+];
+
+function managedComputerUseAppState(permission: 'granted' | 'required' = 'required') {
+  const granted = permission === 'granted';
+  return {
+    app_state: {
+      managed_companions: [
+        {
+          surface_kind: 'opl_managed_computer_use_projection',
+          provider_id: 'kimi-cu',
+          product_name: 'KimiCU',
+          version: '0.5.4',
+          source_ref:
+            'one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu',
+          source_sha256: 'a'.repeat(64),
+          installed: true,
+          registered: true,
+          enabled: true,
+          permission,
+          ready: granted,
+          status: granted ? 'ready' : 'permission_required',
+          bundle: {
+            path: '/Applications/KimiCU.app',
+            executable: '/Applications/KimiCU.app/Contents/MacOS/kimi-cu',
+            bundle_id: 'ai.kimi.cu',
+            version: '0.5.4',
+            team_id: '2J9472RW75',
+            architecture: 'arm64',
+            identity_verified: true,
+          },
+          mcp: {
+            server_id: 'kimi-cu',
+            registered: true,
+            enabled: true,
+            required_tools: KIMI_CU_TOOLS,
+            observed_tools: KIMI_CU_TOOLS.toReversed(),
+            tools_exact: true,
+          },
+          service: { registered: true, xpc_ping: 'passed' },
+          permissions: {
+            accessibility: permission,
+            screen_recording: permission,
+          },
+        },
+      ],
+    },
+  };
+}
+
 function writeMasQualificationProvisioningReceipt(
   root: string,
   workspace: string,
@@ -2429,6 +2489,111 @@ describe('packaged first-run VM smoke helpers', () => {
     } finally {
       fs.rmSync(artifacts, { recursive: true, force: true });
     }
+  });
+
+  it('uses one packaged Computer Use qualification for Standard and Full', () => {
+    const standard = __test.buildManagedComputerUseQualification(managedComputerUseAppState(), 'standard');
+    const full = __test.buildManagedComputerUseQualification(managedComputerUseAppState(), 'full');
+
+    expect(standard).toMatchObject({
+      schema: 'opl_computer_use_qualification.v1',
+      status: 'passed',
+      runtime_profile: 'standard',
+      provider_id: 'kimi-cu',
+      state: {
+        installed: true,
+        registered: true,
+        enabled: true,
+        permission: 'required',
+        ready: false,
+        status: 'permission_required',
+      },
+      bundle: {
+        bundle_id: 'ai.kimi.cu',
+        version: '0.5.4',
+        team_id: '2J9472RW75',
+        architecture: 'arm64',
+        identity_verified: true,
+      },
+      mcp: {
+        registered: true,
+        enabled: true,
+        tools_exact: true,
+      },
+      acceptance: {
+        lifecycle_ready: true,
+        projection_identity_bound: true,
+        bundle_identity_verified: true,
+        service_ready: true,
+        mcp_10_tools_exact: true,
+        permission_details_valid: true,
+        permission_projection_consistent: true,
+        ready_consistent: true,
+        standard_full_same_logic: true,
+      },
+    });
+    expect(standard.mcp.required_tools).toHaveLength(10);
+    expect(standard.mcp.observed_tools).toEqual(standard.mcp.required_tools);
+    expect({ ...full, runtime_profile: 'standard' }).toEqual(standard);
+  });
+
+  it('waits for startup maintenance and writes the packaged Computer Use receipt from a full App-state probe', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-computer-use-qualification-'));
+    const calls: string[][] = [];
+    try {
+      const receipt = await __test.collectManagedComputerUseQualification(
+        {
+          artifacts,
+          runtimeProfile: 'standard',
+          timeoutMs: 1_000,
+          codexReadinessPhaseTimeoutMs: 2_000,
+          __testHooks: {
+            runOplJson: (args: string[]) => {
+              calls.push(args);
+              return JSON.stringify(
+                calls.length === 1 ? { app_state: { managed_companions: [] } } : managedComputerUseAppState('granted')
+              );
+            },
+            sleep: async () => {},
+          },
+        },
+        null
+      );
+
+      expect(calls).toEqual([
+        ['app', 'state', '--profile', 'full', '--json'],
+        ['app', 'state', '--profile', 'full', '--json'],
+      ]);
+      expect(receipt).toMatchObject({
+        status: 'passed',
+        runtime_profile: 'standard',
+        state: { permission: 'granted', ready: true, status: 'ready' },
+      });
+      expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'computer-use-qualification.json'), 'utf8'))).toEqual(
+        receipt
+      );
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects Computer Use projection drift before writing a passed receipt', () => {
+    const missingTool = managedComputerUseAppState();
+    const companion = missingTool.app_state.managed_companions[0];
+    companion.mcp.observed_tools = companion.mcp.observed_tools.slice(1);
+    expect(() => __test.buildManagedComputerUseQualification(missingTool, 'standard')).toThrow(/mcp_10_tools_exact/);
+
+    const invalidIdentity = managedComputerUseAppState();
+    invalidIdentity.app_state.managed_companions[0].bundle.bundle_id = 'invalid.bundle.id';
+    expect(() => __test.buildManagedComputerUseQualification(invalidIdentity, 'full')).toThrow(
+      /bundle_identity_verified/
+    );
+
+    const unboundProjection = managedComputerUseAppState();
+    unboundProjection.app_state.managed_companions[0].source_sha256 = 'not-a-digest';
+    expect(() => __test.buildManagedComputerUseQualification(unboundProjection, 'standard')).toThrow(
+      /projection_identity_bound/
+    );
   });
 
   it('proves the Full Temporal supervisor survives kill, restart, and launchd session reload', async () => {

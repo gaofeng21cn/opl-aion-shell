@@ -121,6 +121,16 @@ const SIGNAL_GUEST_ARTIFACT_COPY_TIMEOUT_MS = 30_000;
 const TART_CLEANUP_COMMAND_TIMEOUT_MS = 30_000;
 const LOWERCASE_GIT_SHA = /^[0-9a-f]{40}$/;
 const PUBLISHED_ARTIFACT_IDENTITY_FILE = 'published-artifact-identity.json';
+const MANAGED_COMPUTER_USE_EXPECTED_IDENTITY = Object.freeze({
+  productName: 'KimiCU',
+  version: '0.5.4',
+  sourceRef: 'one-person-lab-app/contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu',
+  path: '/Applications/KimiCU.app',
+  executable: '/Applications/KimiCU.app/Contents/MacOS/kimi-cu',
+  bundleId: 'ai.kimi.cu',
+  teamId: '2J9472RW75',
+  architecture: 'arm64',
+});
 
 const runtimeState = {
   options: null,
@@ -1883,6 +1893,7 @@ function writeInterruptedSummary(signal) {
       guest_node_staging: runtimeState.guestNodeStaging,
       vm_cleanup: runtimeState.vmCleanupReceipt,
       stage_timing: buildStageTimingSummary(runtimeState.stageEvents),
+      computer_use_qualification: guestSummary?.computer_use_qualification ?? null,
       temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
       guest_summary: guestSummary,
     };
@@ -2341,6 +2352,73 @@ function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null)
       }`
     );
   }
+  if (!options.bootstrapLaunchDiagnostics) {
+    const computerUse = guestSummary.computer_use_qualification;
+    const acceptance = computerUse?.acceptance;
+    const requiredTools = Array.isArray(computerUse?.mcp?.required_tools)
+      ? [...computerUse.mcp.required_tools].sort()
+      : [];
+    const observedTools = Array.isArray(computerUse?.mcp?.observed_tools)
+      ? [...computerUse.mcp.observed_tools].sort()
+      : [];
+    const permissionAxes = [computerUse?.permissions?.accessibility, computerUse?.permissions?.screen_recording];
+    const permissionProjectionConsistent =
+      (computerUse?.state?.permission === 'granted' && permissionAxes.every((value) => value === 'granted')) ||
+      (computerUse?.state?.permission === 'required' && permissionAxes.some((value) => value === 'required'));
+    const readyConsistent =
+      computerUse?.state?.permission === 'granted'
+        ? computerUse?.state?.ready === true && computerUse?.state?.status === 'ready'
+        : computerUse?.state?.permission === 'required' &&
+          computerUse?.state?.ready === false &&
+          computerUse?.state?.status === 'permission_required';
+    const acceptancePassed = [
+      acceptance?.lifecycle_ready,
+      acceptance?.projection_identity_bound,
+      acceptance?.bundle_identity_verified,
+      acceptance?.service_ready,
+      acceptance?.mcp_10_tools_exact,
+      acceptance?.permission_details_valid,
+      acceptance?.permission_projection_consistent,
+      acceptance?.ready_consistent,
+      acceptance?.standard_full_same_logic,
+    ].every((passed) => passed === true);
+    if (
+      computerUse?.schema !== 'opl_computer_use_qualification.v1' ||
+      computerUse?.status !== 'passed' ||
+      computerUse?.runtime_profile !== options.runtimeProfile ||
+      computerUse?.provider_id !== 'kimi-cu' ||
+      computerUse?.product_name !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.productName ||
+      computerUse?.version !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.version ||
+      computerUse?.source_ref !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.sourceRef ||
+      typeof computerUse?.source_sha256 !== 'string' ||
+      !/^[0-9a-f]{64}$/.test(computerUse.source_sha256) ||
+      computerUse?.state?.installed !== true ||
+      computerUse?.state?.registered !== true ||
+      computerUse?.state?.enabled !== true ||
+      computerUse?.bundle?.identity_verified !== true ||
+      computerUse?.bundle?.path !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.path ||
+      computerUse?.bundle?.executable !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.executable ||
+      computerUse?.bundle?.bundle_id !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.bundleId ||
+      computerUse?.bundle?.version !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.version ||
+      computerUse?.bundle?.team_id !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.teamId ||
+      computerUse?.bundle?.architecture !== MANAGED_COMPUTER_USE_EXPECTED_IDENTITY.architecture ||
+      computerUse?.service?.registered !== true ||
+      computerUse?.service?.xpc_ping !== 'passed' ||
+      computerUse?.mcp?.registered !== true ||
+      computerUse?.mcp?.enabled !== true ||
+      computerUse?.mcp?.server_id !== 'kimi-cu' ||
+      computerUse?.mcp?.tools_exact !== true ||
+      requiredTools.length !== 10 ||
+      observedTools.length !== 10 ||
+      JSON.stringify(requiredTools) !== JSON.stringify(observedTools) ||
+      !permissionAxes.every((value) => value === 'granted' || value === 'required') ||
+      !permissionProjectionConsistent ||
+      !readyConsistent ||
+      !acceptancePassed
+    ) {
+      throw new Error('Guest smoke did not prove the packaged KimiCU Computer Use qualification.');
+    }
+  }
   assertGuestReleaseSourceIdentity(options, guestSummary, hostArtifactsDir);
   const providerConfiguration = guestSummary.provider_configuration;
   const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
@@ -2546,6 +2624,7 @@ function writeSummary(options, ip, guestArtifactDir) {
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    computer_use_qualification: guestSummary?.computer_use_qualification ?? null,
     temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
@@ -2602,6 +2681,7 @@ function writeFailedSummary(
     assistant_route_smoke: guestSummary?.assistant_route_smoke ?? null,
     codex_functional_check: guestSummary?.codex_functional_check ?? null,
     codex_ai_self_check: guestSummary?.codex_ai_self_check ?? null,
+    computer_use_qualification: guestSummary?.computer_use_qualification ?? null,
     temporal_service_supervisor_proof: guestSummary?.temporal_service_supervisor_proof ?? null,
     guest_node_staging: runtimeState.guestNodeStaging,
     homebrew_install_attempts: runtimeState.homebrewInstallAttempts,
