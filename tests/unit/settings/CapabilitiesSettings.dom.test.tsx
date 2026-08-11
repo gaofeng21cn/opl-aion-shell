@@ -107,43 +107,43 @@ const projectedPackageMetadataById: Record<
   }
 > = {
   mas: {
-    displayNameI18n: { 'zh-CN': '医学科研智能体', 'en-US': 'Med Auto Science' },
+    displayNameI18n: { 'zh-CN': 'Med Auto Science', 'en-US': 'Med Auto Science' },
     descriptionI18n: {
-      'zh-CN': '用于科研选题、文献分析、数据分析、论文写作、审稿、返修和投稿。',
+      'zh-CN': '医学研究选题、文献分析、数据分析、论文写作、审稿、返修与投稿。',
       'en-US':
-        'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
+        'Medical research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.',
     },
     shortcut: { shortcutId: 'research', label: 'Research', codexVisibleEntry: 'mas' },
   },
   mag: {
-    displayNameI18n: { 'zh-CN': '医学基金智能体', 'en-US': 'Med Auto Grant' },
+    displayNameI18n: { 'zh-CN': 'Med Auto Grant', 'en-US': 'Med Auto Grant' },
     descriptionI18n: {
-      'zh-CN': '用于基金选题、标书与申请书撰写、预算说明和评审回复。',
-      'en-US': 'For grant topics, proposals and applications, budget narratives, and reviewer responses.',
+      'zh-CN': '医学基金申请规划、撰写、评审与修订。',
+      'en-US': 'Medical grant application planning, writing, review, and revision.',
     },
     shortcut: { shortcutId: 'grant', label: 'Grant Writing', codexVisibleEntry: 'mag' },
   },
   rca: {
-    displayNameI18n: { 'zh-CN': '演示与视觉智能体', 'en-US': 'RedCube AI' },
+    displayNameI18n: { 'zh-CN': 'RedCube AI', 'en-US': 'RedCube AI' },
     descriptionI18n: {
-      'zh-CN': '用于制作演示文稿、汇报材料、图表和其他专业视觉交付物。',
-      'en-US': 'For presentations, reports, charts, and other professional visual deliverables.',
+      'zh-CN': '以图像为核心的视觉内容设计、生成、评审与交付。',
+      'en-US': 'Image-first visual content design, generation, review, and delivery.',
     },
     shortcut: { shortcutId: 'ppt', label: 'Presentations', codexVisibleEntry: 'rca' },
   },
   obf: {
-    displayNameI18n: { 'zh-CN': '写书智能体', 'en-US': 'OPL Book Forge' },
+    displayNameI18n: { 'zh-CN': 'OPL Book Forge', 'en-US': 'OPL Book Forge' },
     descriptionI18n: {
-      'zh-CN': '用于书稿规划、章节写作、插图表格、排版、审校和导出。',
-      'en-US': 'For book planning, chapter writing, figures and tables, layout, editing, and export.',
+      'zh-CN': '长篇书稿规划、写作、修订与出版交付。',
+      'en-US': 'Long-form book planning, writing, revision, and publication delivery.',
     },
     shortcut: { shortcutId: 'book', label: 'Writing books', codexVisibleEntry: 'opl-bookforge' },
   },
   oma: {
-    displayNameI18n: { 'zh-CN': '元智能体', 'en-US': 'OPL Meta Agent' },
+    displayNameI18n: { 'zh-CN': 'OPL Meta Agent', 'en-US': 'OPL Meta Agent' },
     descriptionI18n: {
-      'zh-CN': '用于创建、接管、检查和改进 OPL 专业智能体。',
-      'en-US': 'For creating, taking over, inspecting, and improving OPL professional agents.',
+      'zh-CN': 'OPL 智能体的设计、评审、接管与演进。',
+      'en-US': 'OPL agent design, review, takeover, and evolution.',
     },
     shortcut: { shortcutId: 'oma', label: 'Meta agent', codexVisibleEntry: 'opl-meta-agent' },
   },
@@ -974,6 +974,12 @@ vi.mock('react-i18next', () => ({
         'settings.uiOptimization.capabilities.groups.disabled': 'Disabled',
         'settings.uiOptimization.capabilities.groups.needsAttention': 'Needs attention',
         'settings.uiOptimization.capabilities.groups.other': 'Other',
+        'settings.uiOptimization.capabilities.groups.oplManaged':
+          translationMocks.language === 'zh-CN' ? 'OPL 托管' : 'OPL Managed',
+        'settings.uiOptimization.capabilities.groups.otherAgents':
+          translationMocks.language === 'zh-CN' ? '其他智能体' : 'Other Agents',
+        'settings.uiOptimization.capabilities.groups.otherCapabilities':
+          translationMocks.language === 'zh-CN' ? '其他能力' : 'Other Capabilities',
         'settings.uiOptimization.capabilities.actions.viewDetails': 'View details',
         'settings.uiOptimization.capabilities.details.title': 'Capability details',
         'settings.uiOptimization.capabilities.details.purpose': 'Purpose',
@@ -1315,7 +1321,7 @@ describe('Agents and capabilities settings', () => {
 
     const research = screen.getByTestId('capability-purpose-mas');
     expect(within(research).getByTestId('capability-description-mas')).toHaveTextContent(
-      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+      'Medical research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
     );
     expect(within(research).getByText('Available').closest('.arco-tag')).toHaveClass(
       '!text-[color:rgb(var(--gray-8))]'
@@ -1326,16 +1332,16 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('agent-package-update-obf')).not.toBeInTheDocument();
     const oma = screen.getByTestId('capability-purpose-oma');
     expect(within(oma).getByTestId('capability-description-oma')).toHaveTextContent(
-      'For creating, taking over, inspecting, and improving OPL professional agents.'
+      'OPL agent design, review, takeover, and evolution.'
     );
     expect(within(oma).getByText('Available')).toBeInTheDocument();
-    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(bookforge);
-    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(oma);
-    expect(screen.getByTestId('settings-agents-group-frequent')).toContainElement(research);
-    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+    expect(screen.getByTestId('settings-agents-group-oplManaged')).toContainElement(bookforge);
+    expect(screen.getByTestId('settings-agents-group-oplManaged')).toContainElement(research);
+    expect(screen.getByTestId('settings-agents-group-otherAgents')).toContainElement(oma);
+    expect(screen.getByTestId('settings-agents-group-otherAgents')).toContainElement(
       screen.getByTestId('capability-purpose-mag')
     );
-    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+    expect(screen.getByTestId('settings-agents-group-otherCapabilities')).toContainElement(
       screen.getByTestId('capability-purpose-example-agent')
     );
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
@@ -1359,7 +1365,7 @@ describe('Agents and capabilities settings', () => {
     const productDetails = screen.getByTestId('capability-product-details-mas');
     expect(productDetails).not.toHaveAttribute('open');
     expect(productDetails).toHaveTextContent(
-      'For research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
+      'Medical research planning, literature review, data analysis, manuscript writing, peer review, revision, and submission.'
     );
     expect(productDetails).toHaveTextContent('Local developer source');
     expect(productDetails).toHaveTextContent('1.2.3');
@@ -1521,9 +1527,9 @@ describe('Agents and capabilities settings', () => {
     );
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const disabledGroup = screen.getByTestId('settings-agents-group-disabled');
+    const otherAgents = screen.getByTestId('settings-agents-group-otherAgents');
     const github = screen.getByTestId('capability-purpose-github');
-    expect(disabledGroup).toContainElement(github);
+    expect(otherAgents).toContainElement(github);
     expect(within(github).getByText('Disabled')).toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent(
       'Professional agents ready for conversation: 1 / 2'
@@ -1573,7 +1579,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
     expect(screen.getByTestId('capability-purpose-mas')).toBeInTheDocument();
 
-    fireEvent.change(search, { target: { value: 'budget narratives' } });
+    fireEvent.change(search, { target: { value: 'application planning' } });
     expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
     expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
 
@@ -1627,6 +1633,37 @@ describe('Agents and capabilities settings', () => {
     expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
+  it('keeps OPL Agent brand names invariant while localizing descriptions in Chinese', () => {
+    translationMocks.language = 'zh-CN';
+    appStateOverrides.appState = appStateWithDirectory(
+      ['mag', 'mas', 'obf', 'oma', 'rca'].map((packageId) => ({
+        package_id: packageId,
+        package_role: 'standard_agent',
+        publisher: 'one-person-lab',
+        installed: true,
+        status: 'ready',
+      }))
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const expected = {
+      mag: ['Med Auto Grant', '医学基金申请规划、撰写、评审与修订。'],
+      mas: ['Med Auto Science', '医学研究选题、文献分析、数据分析、论文写作、审稿、返修与投稿。'],
+      obf: ['OPL Book Forge', '长篇书稿规划、写作、修订与出版交付。'],
+      oma: ['OPL Meta Agent', 'OPL 智能体的设计、评审、接管与演进。'],
+      rca: ['RedCube AI', '以图像为核心的视觉内容设计、生成、评审与交付。'],
+    } as const;
+    const oplGroup = screen.getByTestId('settings-agents-group-oplManaged');
+    expect(oplGroup).toHaveTextContent('OPL 托管5');
+    for (const [packageId, [brandName, description]] of Object.entries(expected)) {
+      const row = screen.getByTestId(`capability-purpose-${packageId}`);
+      expect(oplGroup).toContainElement(row);
+      expect(within(row).getByText(brandName)).toBeInTheDocument();
+      expect(within(row).getByTestId(`capability-description-${packageId}`)).toHaveTextContent(description);
+      expect(within(row).getByTestId(`capability-brand-${packageId}`)).toHaveTextContent('OPL');
+    }
+  });
+
   it('orders dynamic agents by projected title, separates workflows, and nests Framework-reported dependencies', async () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
@@ -1634,6 +1671,7 @@ describe('Agents and capabilities settings', () => {
           package_id: 'oma',
           display_name: 'OPL Meta Agent',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
@@ -1649,30 +1687,35 @@ describe('Agents and capabilities settings', () => {
           package_id: 'opl-flow',
           display_name: 'OPL Flow',
           package_role: 'workflow_profile',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
         {
           package_id: 'mag',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
         {
           package_id: 'mas',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
         {
           package_id: 'obf',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
         {
           package_id: 'rca',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
@@ -1697,9 +1740,9 @@ describe('Agents and capabilities settings', () => {
       (row) => row.dataset.testid?.replace('capability-purpose-', '')
     );
     expect(rowOrder).toEqual(['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'rca', 'opl-flow']);
-    expect(screen.getByTestId('settings-agents-group-frequent')).toHaveTextContent('Frequent5');
-    expect(screen.getByTestId('settings-agents-group-other')).toHaveTextContent('Other1');
-    expect(screen.queryByTestId('settings-agents-group-needsAttention')).not.toBeInTheDocument();
+    expect(screen.getByTestId('settings-agents-group-oplManaged')).toHaveTextContent('OPL Managed6');
+    expect(screen.queryByTestId('settings-agents-group-otherAgents')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('settings-agents-group-otherCapabilities')).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
       'Runnable agents 5 · Workflows 1 · Supporting capabilities 1'
     );
@@ -1717,17 +1760,18 @@ describe('Agents and capabilities settings', () => {
     const filteredScholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
     expect(filteredScholarSkills).not.toHaveClass('opl-settings-capability-row--dependent');
     expect(filteredScholarSkills).not.toHaveAttribute('data-parent-capability');
-    expect(screen.getByTestId('settings-agents-group-other')).toBeInTheDocument();
+    expect(screen.getByTestId('settings-agents-group-otherCapabilities')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
   });
 
-  it('moves a healthy parent entry to needs attention when a nested dependency requires repair', () => {
+  it('keeps ownership grouping while a nested dependency requires repair', () => {
     appStateOverrides.appState = appStateWithDirectory(
       [
         {
           package_id: 'mas',
           display_name: 'Med Auto Science',
           package_role: 'standard_agent',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'ready',
         },
@@ -1735,6 +1779,7 @@ describe('Agents and capabilities settings', () => {
           package_id: 'mas-scholar-skills',
           display_name: 'MAS Scholar Skills',
           package_role: 'framework_capability_package',
+          publisher: 'one-person-lab',
           installed: true,
           status: 'failed',
         },
@@ -1755,17 +1800,17 @@ describe('Agents and capabilities settings', () => {
 
     renderCapabilities(<AgentPackagesSettingsContent />);
 
-    const needsAttention = screen.getByTestId('settings-agents-group-needsAttention');
+    const oplManaged = screen.getByTestId('settings-agents-group-oplManaged');
     const parent = screen.getByTestId('capability-purpose-mas');
     const dependent = screen.getByTestId('capability-purpose-mas-scholar-skills');
-    expect(needsAttention).toContainElement(parent);
-    expect(needsAttention).toContainElement(dependent);
-    expect(screen.queryByTestId('settings-agents-group-frequent')).not.toBeInTheDocument();
+    expect(oplManaged).toContainElement(parent);
+    expect(oplManaged).toContainElement(dependent);
+    expect(within(dependent).getByText('Temporarily unavailable')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('settings-agents-catalog-search'), {
       target: { value: 'research planning' },
     });
-    expect(screen.getByTestId('settings-agents-group-needsAttention')).toContainElement(
+    expect(screen.getByTestId('settings-agents-group-oplManaged')).toContainElement(
       screen.getByTestId('capability-purpose-mas')
     );
     expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
@@ -1823,6 +1868,9 @@ describe('Agents and capabilities settings', () => {
     expect(within(managedRow).queryByTestId('capability-source-mas')).not.toBeInTheDocument();
     expect(within(managedRow).getByTestId('capability-conversation-mas')).not.toHaveTextContent('Complete setup');
     expect(within(managedRow).getByTestId('capability-controls-mas')).toBeInTheDocument();
+    expect(within(managedRow).getByTestId('capability-brand-mas')).toHaveTextContent('OPL');
+    expect(within(managedRow).getByTestId('capability-brand-mas')).toHaveAttribute('aria-label', 'One Person Lab');
+    expect(screen.queryByTestId('capability-brand-mag')).not.toBeInTheDocument();
     expect(managedRow).not.toHaveTextContent('first_party');
     fireEvent.click(screen.getByTestId('capability-open-details-mas'));
     expect(screen.getByTestId('capability-product-details-mas')).toHaveTextContent('OPL managed package');

@@ -624,6 +624,30 @@
   min-width: 0;
 }
 
+.opl-settings-capability-title {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.opl-settings-capability-brand {
+  display: inline-flex;
+  height: 17px;
+  flex: none;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--brand, #7583b2) 34%, transparent);
+  border-radius: 4px;
+  background: var(--brand-light, #eff0f6);
+  padding: 0 5px;
+  color: var(--brand, #7583b2);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  letter-spacing: 0;
+}
+
 .opl-settings-capability-description {
   margin-top: 2px;
   overflow: visible;

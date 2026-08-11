@@ -323,6 +323,19 @@ function capabilitySourceCategory(item: CapabilityPurposeViewModel): string {
   return 'other';
 }
 
+function isOplOwnedCapability(item: CapabilityPurposeViewModel): boolean {
+  const publisher = item.publisher?.trim().toLowerCase();
+  const sourceKinds = [item.sourceKind, item.sourceExplanation.kind]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLowerCase());
+  const source = item.sourceExplanation.source?.trim().toLowerCase();
+  return (
+    publisher === 'one-person-lab' ||
+    sourceKinds.includes('first_party_framework_projection') ||
+    source === 'first_party'
+  );
+}
+
 function capabilityCatalogStatus(item: CapabilityPurposeViewModel): CapabilityAvailabilityStatus {
   return item.availabilityStatus;
 }
@@ -350,7 +363,7 @@ function capabilityDefersReadinessToDomainStage(item: CapabilityPurposeViewModel
   );
 }
 
-type CapabilityCatalogGroupKey = 'frequent' | 'disabled' | 'needsAttention' | 'other';
+type CapabilityCatalogGroupKey = 'oplManaged' | 'otherAgents' | 'otherCapabilities';
 
 type CapabilityCatalogEntry = {
   item: CapabilityPurposeViewModel;
@@ -377,28 +390,16 @@ function capabilityPackageRoleLabel(
   return t(`settings.capabilitiesPage.packageManager.roleLabels.${labelKey}`);
 }
 
-function capabilityCatalogGroupKey(
-  entry: CapabilityCatalogEntry,
-  allCapabilities: CapabilityPurposeViewModel[]
-): CapabilityCatalogGroupKey {
-  const parentIds = new Set(entry.item.packageId ? [entry.item.packageId] : []);
-  const allDependents = parentIds.size
-    ? allCapabilities.filter((candidate) =>
-        candidate.dependentGuard?.requiredByPackageIds.some((requiredPackageId) => parentIds.has(requiredPackageId))
-      )
-    : [];
-  if (entry.item.availabilityStatus === 'inactive') return 'disabled';
-  if (
-    [entry.item, ...entry.dependents, ...allDependents].some((item) =>
-      ['update', 'sync', 'attention', 'unavailable', 'repair', 'missing'].includes(item.availabilityStatus)
-    )
-  ) {
-    return 'needsAttention';
-  }
-  if (entry.item.packageRole === 'standard_agent') {
-    return 'frequent';
-  }
-  return 'other';
+function capabilityCatalogGroupKey(entry: CapabilityCatalogEntry): CapabilityCatalogGroupKey {
+  if (isOplOwnedCapability(entry.item)) return 'oplManaged';
+  return entry.item.packageRole === 'standard_agent' ? 'otherAgents' : 'otherCapabilities';
+}
+
+function capabilityCatalogGroupLabel(
+  key: CapabilityCatalogGroupKey,
+  t: (key: string, options?: Record<string, string>) => string
+): string {
+  return t(`settings.uiOptimization.capabilities.groups.${key}`);
 }
 
 function capabilityRoleGroupKey(item: CapabilityPurposeViewModel): 'agents' | 'workflows' | 'supporting' {
@@ -1039,10 +1040,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       ...workflows.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
       ...ungroupedSupporting.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
     ];
-    return (['frequent', 'disabled', 'needsAttention', 'other'] as const)
+    return (['oplManaged', 'otherAgents', 'otherCapabilities'] as const)
       .map((key) => ({
         key,
-        entries: entries.filter((entry) => capabilityCatalogGroupKey(entry, purposeCapabilities) === key),
+        entries: entries.filter((entry) => capabilityCatalogGroupKey(entry) === key),
       }))
       .filter((group) => group.entries.length > 0);
   }, [i18n.language, purposeCapabilities, visibleCapabilities]);
@@ -1555,9 +1556,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       ['update', 'sync', 'attention', 'unavailable', 'repair', 'missing'].includes(item.availabilityStatus)
     );
   const conversationReadyAgentCount = purposeCapabilities.filter(
-    (item) =>
-      item.packageRole === 'standard_agent' &&
-      ['visible', 'verificationPending'].includes(item.codexVisibility)
+    (item) => item.packageRole === 'standard_agent' && ['visible', 'verificationPending'].includes(item.codexVisibility)
   ).length;
   const catalogAgentCount = purposeCapabilities.filter((item) => capabilityRoleGroupKey(item) === 'agents').length;
   const catalogWorkflowCount = purposeCapabilities.filter(
@@ -1633,7 +1632,19 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 {t('settings.capabilitiesPage.packageManager.supportingFor', { parent: parent.title })}
               </Typography.Text>
             )}
-            <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
+            <div className='opl-settings-capability-title'>
+              <Typography.Text className='font-600 text-t-primary'>{item.title}</Typography.Text>
+              {isOplOwnedCapability(item) && (
+                <span
+                  className='opl-settings-capability-brand'
+                  data-testid={`capability-brand-${item.key}`}
+                  aria-label='One Person Lab'
+                  title='One Person Lab'
+                >
+                  OPL
+                </span>
+              )}
+            </div>
             <Typography.Text
               className='opl-settings-capability-description block text-13px text-t-secondary'
               data-testid={`capability-description-${item.key}`}
@@ -1955,7 +1966,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 >
                   <div className='opl-settings-agent-group__header'>
                     <Typography.Text id={titleId} className='font-600 text-t-primary'>
-                      {t(`settings.uiOptimization.capabilities.groups.${group.key}`)}
+                      {capabilityCatalogGroupLabel(group.key, t)}
                     </Typography.Text>
                     <Typography.Text className='text-12px text-t-tertiary'>{group.entries.length}</Typography.Text>
                   </div>

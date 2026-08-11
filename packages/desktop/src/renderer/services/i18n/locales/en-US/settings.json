@@ -3463,7 +3463,10 @@
         "frequent": "Frequent",
         "disabled": "Disabled",
         "needsAttention": "Needs attention",
-        "other": "Other"
+        "other": "Other",
+        "oplManaged": "OPL Managed",
+        "otherAgents": "Other Agents",
+        "otherCapabilities": "Other Capabilities"
       },
       "details": {
         "title": "Capability details",

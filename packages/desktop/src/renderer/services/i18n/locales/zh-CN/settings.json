@@ -3464,7 +3464,10 @@
         "frequent": "常用",
         "disabled": "已停用",
         "needsAttention": "需要处理",
-        "other": "其他"
+        "other": "其他",
+        "oplManaged": "OPL 托管",
+        "otherAgents": "其他智能体",
+        "otherCapabilities": "其他能力"
       },
       "details": {
         "title": "能力详情",
