@@ -1678,9 +1678,9 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
-  it('checks Standard Home assistants as selectable send-time launch gates without creating route receipts', () => {
+  it('checks Standard Home assistants through state-aware launch admission without creating route receipts', () => {
     const masTarget = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
-    const expression = __test.homeAssistantStandardLaunchGateExpression(masTarget);
+    const expression = __test.homeAssistantStandardLaunchAdmissionExpression(masTarget);
 
     expect(expression).toContain('home-starter-mas');
     expect(expression).toContain('home-starter-research');
@@ -1688,7 +1688,9 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).not.toContain('[data-testid="guid-input"] textarea');
     expect(expression).toContain("getAttribute('disabled')");
     expect(expression).toContain("reason: 'starter_disabled_before_selection'");
-    expect(expression).toContain("getAttribute('data-opl-launch-ready') !== 'false'");
+    expect(expression).toContain("launchReady !== 'true' && launchReady !== 'false'");
+    expect(expression).toContain("projection_state: 'available'");
+    expect(expression).toContain('send_attempted: false');
     expect(expression).toContain("getAttribute('aria-pressed') !== 'true'");
     expect(expression).toContain('attempt.selection_click_count');
     expect(expression).toContain('selectionClickCount < 2');
@@ -1966,7 +1968,58 @@ describe('packaged first-run VM smoke helpers', () => {
     });
   });
 
-  it('executes the complete Standard launch-gate polling lifecycle against the renderer textarea DOM', () => {
+  it('admits an available Standard target after selection without sending', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+      <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
+        <button data-testid="home-starter-research" data-opl-launch-ready="true" aria-pressed="false">MAS</button>
+        <textarea data-testid="guid-input"></textarea>
+        <button data-testid="guid-send-btn">Send</button>
+      </main>
+    </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    for (const node of window.document.querySelectorAll('*')) {
+      Object.defineProperty(node, 'getBoundingClientRect', {
+        value: () => ({ width: 120, height: 32, top: 0, left: 0, right: 120, bottom: 32 }),
+      });
+    }
+    const starter = window.document.querySelector<HTMLButtonElement>('[data-testid="home-starter-research"]')!;
+    const composer = window.document.querySelector<HTMLElement>('[data-testid="opl-guid-entry"]')!;
+    const input = window.document.querySelector<HTMLTextAreaElement>('textarea[data-testid="guid-input"]')!;
+    const sendButton = window.document.querySelector<HTMLButtonElement>('[data-testid="guid-send-btn"]')!;
+    const sendClick = vi.fn();
+    starter.addEventListener('click', () => {
+      starter.setAttribute('aria-pressed', 'true');
+      composer.setAttribute('data-opl-active-shortcut', 'research');
+    });
+    sendButton.addEventListener('click', sendClick);
+
+    const expression = __test.homeAssistantStandardLaunchAdmissionExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]
+    );
+    expect(window.eval(expression)).toBe(false);
+    expect(window.eval(expression)).toMatchObject({
+      status: 'passed',
+      assistant_id: 'mas',
+      verification_path: 'available_projection',
+      projection_state: 'available',
+      visible: true,
+      selectable_before_selection: true,
+      selected: true,
+      launch_allowed: true,
+      send_attempted: false,
+      send_blocked: false,
+      repair_hint_visible: false,
+      route_receipt_claimed: false,
+    });
+    expect(input.value).toBe('');
+    expect(sendClick).not.toHaveBeenCalled();
+    dom.window.close();
+  });
+
+  it('executes the unavailable Standard launch-admission polling lifecycle against the renderer textarea DOM', () => {
     const dom = new JSDOM(
       `<!doctype html><body>
       <main data-testid="opl-guid-entry" data-opl-active-shortcut="">
@@ -2001,7 +2054,9 @@ describe('packaged first-run VM smoke helpers', () => {
     starterControl.addEventListener('click', starterClick);
     sendButton.addEventListener('click', sendClick);
 
-    const expression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]);
+    const expression = __test.homeAssistantStandardLaunchAdmissionExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]
+    );
     expect(window.eval(expression)).toBe(false);
     expect(collidingStarterClick).not.toHaveBeenCalled();
     expect(starterClick).toHaveBeenCalledOnce();
@@ -2013,7 +2068,7 @@ describe('packaged first-run VM smoke helpers', () => {
     starter.setAttribute('aria-pressed', 'true');
     composer.setAttribute('data-opl-active-shortcut', 'grant');
     expect(window.eval(expression)).toBe(false);
-    expect(input.value).toBe('Verify MAG launch gate.');
+    expect(input.value).toBe('Verify MAG unavailable launch admission.');
     expect(starterClick).toHaveBeenCalledTimes(2);
 
     expect(window.eval(expression)).toBe(false);
@@ -2034,7 +2089,9 @@ describe('packaged first-run VM smoke helpers', () => {
       assistant_id: 'mag',
       selectable_before_selection: true,
       selected: true,
+      projection_state: 'unavailable',
       launch_allowed: false,
+      send_attempted: true,
       send_blocked: true,
       repair_hint_visible: true,
       message_visible: true,
@@ -2134,17 +2191,20 @@ describe('packaged first-run VM smoke helpers', () => {
     magStarter.addEventListener('click', magStarterClick);
     sendButton.addEventListener('click', sendClick);
 
-    const masExpression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]);
+    const masExpression = __test.homeAssistantStandardLaunchAdmissionExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0]
+    );
     expect(window.eval(masExpression)).toBe(false);
     expect(masStarterClick).toHaveBeenCalledOnce();
     expect(window.eval(masExpression)).toBe(false);
-    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(input.value).toBe('Verify MAS unavailable launch admission.');
     expect(window.eval(masExpression)).toBe(false);
     expect(sendClick).toHaveBeenCalledOnce();
     expect(window.eval(masExpression)).toMatchObject({
       status: 'passed',
       assistant_id: 'mas',
       verification_path: 'model_access_precondition',
+      projection_state: 'unavailable',
       selectable_before_selection: true,
       selected: true,
       launch_allowed: false,
@@ -2157,21 +2217,23 @@ describe('packaged first-run VM smoke helpers', () => {
       route_hash: '#/guid',
     });
 
-    const magExpression = __test.homeAssistantStandardLaunchGateExpression(__test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]);
+    const magExpression = __test.homeAssistantStandardLaunchAdmissionExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1]
+    );
     expect(window.eval(magExpression)).toBe(false);
     expect(magStarterClick).toHaveBeenCalledOnce();
     expect(window.eval(magExpression)).toBe(false);
     expect(magStarterClick).toHaveBeenCalledTimes(2);
     expect(magStarter.getAttribute('aria-pressed')).toBe('true');
     expect(composer.getAttribute('data-opl-active-shortcut')).toBe('research');
-    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(input.value).toBe('Verify MAS unavailable launch admission.');
     expect(window.eval(magExpression)).toBe(false);
     expect(magStarterClick).toHaveBeenCalledTimes(2);
-    expect(input.value).toBe('Verify MAS launch gate.');
+    expect(input.value).toBe('Verify MAS unavailable launch admission.');
 
     composer.setAttribute('data-opl-active-shortcut', 'grant');
     expect(window.eval(magExpression)).toBe(false);
-    expect(input.value).toBe('Verify MAG launch gate.');
+    expect(input.value).toBe('Verify MAG unavailable launch admission.');
     expect(magStarterClick).toHaveBeenCalledTimes(2);
     expect(window.eval(magExpression)).toMatchObject({
       status: 'passed',
@@ -2248,16 +2310,35 @@ describe('packaged first-run VM smoke helpers', () => {
     });
   });
 
-  it('records Standard launch gates without claiming Full assistant route receipts', () => {
-    const assistantRouteSmoke = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => ({
+  it('records available and unavailable Standard launch admission without claiming Full route receipts', () => {
+    const assistantRouteSmoke = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target, index) => ({
       id: target.id,
-      verification_mode: 'launch_gate',
-      launch_gate: {
-        selectable_before_selection: true,
-        launch_allowed: false,
-        send_blocked: true,
-        repair_hint_visible: true,
-      },
+      verification_mode: 'state_aware_launch_admission',
+      launch_admission:
+        index === 1
+          ? {
+              visible: true,
+              selectable_before_selection: true,
+              selected: true,
+              projection_state: 'unavailable',
+              launch_allowed: false,
+              send_attempted: true,
+              send_blocked: true,
+              repair_hint_visible: true,
+              draft_preserved: true,
+              route_receipt_claimed: false,
+            }
+          : {
+              visible: true,
+              selectable_before_selection: true,
+              selected: true,
+              projection_state: 'available',
+              launch_allowed: true,
+              send_attempted: false,
+              send_blocked: false,
+              repair_hint_visible: false,
+              route_receipt_claimed: false,
+            },
     }));
     const receipt = __test.buildCodexFunctionalCheckReceipt({
       runtimeProfile: 'standard',
@@ -2273,7 +2354,7 @@ describe('packaged first-run VM smoke helpers', () => {
         status: 'not_applicable_standard',
         checked: [],
       },
-      assistant_launch_gates_checked: {
+      assistant_launch_admissions_checked: {
         status: 'passed',
         checked: ['mas', 'mag', 'rca'],
       },
@@ -3173,7 +3254,7 @@ describe('packaged first-run VM smoke helpers', () => {
       status: 'failed',
       cdp_port: 9230,
       runtime_profile: 'standard',
-      verification_mode: 'launch_gate',
+      verification_mode: 'state_aware_launch_admission',
       failed_assistant: 'mas',
       assistants: [],
       compiled_expectations: null,
@@ -3201,12 +3282,20 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       required_contract: {
         purpose_entries: ['home-starter-mas', 'home-starter-mag', 'home-starter-rca'],
-        standard_launch_gate: {
+        standard_launch_admission: {
           visible: true,
           selectable_before_selection: true,
-          launch_allowed: false,
-          send_blocked: true,
-          readiness_hint: 'repair',
+          projection_states: ['available', 'unavailable'],
+          available: {
+            launch_allowed: true,
+            send_attempted: false,
+          },
+          unavailable: {
+            launch_allowed: false,
+            send_blocked: true,
+            readiness_hint: 'repair',
+          },
+          route_receipt_claimed: false,
         },
         decision_controls_visible: null,
         executor_selectors_hidden: ['agent-pill-*'],

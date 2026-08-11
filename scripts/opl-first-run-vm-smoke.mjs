@@ -300,7 +300,7 @@ Options:
                          secondary release smokes.
   --settings-smoke       After first launch, navigate all built-in Settings pages through the packaged app.
   --assistant-route-smoke
-                         Verify MAS/MAG/RCA Home launch gates for Standard. For Full,
+                         Verify MAS/MAG/RCA state-aware Home launch admission for Standard. For Full,
                          click each entry and verify its receipt-only Codex route.
   --mas-study-provisioning-receipt <path>
                          Domain-owned qualification provisioning receipt used to
@@ -1957,19 +1957,39 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
   const requiredAssistantRoutes = OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((target) => target.id);
   const checkedAssistantRoutes = assistantRouteIds(input.assistantRouteSmoke);
   const assistantTargetsPresent = requiredAssistantRoutes.every((id) => checkedAssistantRoutes.includes(id));
-  const standardLaunchGatesPassed =
+  const standardLaunchAdmissionsPassed =
     runtimeProfile === 'standard' &&
     assistantTargetsPresent &&
-    input.assistantRouteSmoke.every(
-      (assistant) =>
-        assistant?.verification_mode === 'launch_gate' &&
-        assistant?.launch_gate?.selectable_before_selection === true &&
-        assistant?.launch_gate?.launch_allowed === false &&
-        assistant?.launch_gate?.send_blocked === true &&
-        assistant?.launch_gate?.repair_hint_visible === true
-    );
+    input.assistantRouteSmoke.every((assistant) => {
+      const admission = assistant?.launch_admission;
+      if (
+        assistant?.verification_mode !== 'state_aware_launch_admission' ||
+        admission?.visible !== true ||
+        admission?.selectable_before_selection !== true ||
+        admission?.selected !== true ||
+        admission?.route_receipt_claimed !== false
+      ) {
+        return false;
+      }
+      if (admission.projection_state === 'available') {
+        return (
+          admission.launch_allowed === true &&
+          admission.send_attempted === false &&
+          admission.send_blocked === false &&
+          admission.repair_hint_visible === false
+        );
+      }
+      return (
+        admission.projection_state === 'unavailable' &&
+        admission.launch_allowed === false &&
+        admission.send_blocked === true &&
+        admission.repair_hint_visible === true &&
+        admission.draft_preserved === true
+      );
+    });
   const assistantRoutesPassed = runtimeProfile === 'full' && assistantTargetsPresent;
-  const deterministicFieldsPassed = runtimeProfile === 'standard' ? standardLaunchGatesPassed : assistantRoutesPassed;
+  const deterministicFieldsPassed =
+    runtimeProfile === 'standard' ? standardLaunchAdmissionsPassed : assistantRoutesPassed;
   const hasCredentials = Boolean(input.codexApiKey);
   const status = hasCredentials
     ? deterministicFieldsPassed
@@ -2008,8 +2028,9 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
       checked: runtimeProfile === 'full' ? checkedAssistantRoutes : [],
       deterministic: true,
     },
-    assistant_launch_gates_checked: {
-      status: runtimeProfile === 'standard' ? (standardLaunchGatesPassed ? 'passed' : 'failed') : 'not_applicable_full',
+    assistant_launch_admissions_checked: {
+      status:
+        runtimeProfile === 'standard' ? (standardLaunchAdmissionsPassed ? 'passed' : 'failed') : 'not_applicable_full',
       required: requiredAssistantRoutes,
       checked: runtimeProfile === 'standard' ? checkedAssistantRoutes : [],
       deterministic: true,
@@ -4414,7 +4435,7 @@ function visibleHomeAssistantControlSelector(target) {
     .join(', ');
 }
 
-function homeAssistantStandardLaunchGateExpression(target) {
+function homeAssistantStandardLaunchAdmissionExpression(target) {
   return `(() => {
     const visible = (node) => {
       if (!node) return false;
@@ -4441,6 +4462,7 @@ function homeAssistantStandardLaunchGateExpression(target) {
       || control.getAttribute('aria-disabled') === 'true'
       || String(control.className || '').includes('disabled');
     const readinessHint = control.getAttribute('title') || control.getAttribute('aria-description') || '';
+    const launchReady = card.getAttribute('data-opl-launch-ready');
     if (disabled) {
       return {
         status: 'failed',
@@ -4448,8 +4470,8 @@ function homeAssistantStandardLaunchGateExpression(target) {
         assistant_id: ${cdpString(target.id)},
       };
     }
-    if (!readinessHint.trim() || card.getAttribute('data-opl-launch-ready') !== 'false') return false;
-    const attemptStore = window.__oplStandardLaunchGateAttempts || (window.__oplStandardLaunchGateAttempts = {});
+    if (launchReady !== 'true' && launchReady !== 'false') return false;
+    const attemptStore = window.__oplStandardLaunchAdmissionAttempts || (window.__oplStandardLaunchAdmissionAttempts = {});
     const attempt = attemptStore[${cdpString(target.id)}] || (attemptStore[${cdpString(target.id)}] = {});
     if (card.getAttribute('aria-pressed') !== 'true') {
       const selectionClickCount = Number.isInteger(attempt.selection_click_count)
@@ -4462,7 +4484,28 @@ function homeAssistantStandardLaunchGateExpression(target) {
       return false;
     }
     if (composer.getAttribute('data-opl-active-shortcut') !== ${cdpString(target.shortcutId)}) return false;
-    const expectedDraft = ${cdpString(`Verify ${target.shortName} launch gate.`)};
+    if (launchReady === 'true') {
+      return {
+        status: 'passed',
+        assistant_id: ${cdpString(target.id)},
+        control_testid: card.getAttribute('data-testid'),
+        verification_path: 'available_projection',
+        projection_state: 'available',
+        visible: true,
+        selectable_before_selection: true,
+        selected: true,
+        launch_allowed: true,
+        send_attempted: false,
+        send_blocked: false,
+        package_id: ${cdpString(target.packageId)},
+        repair_hint_visible: false,
+        message_visible: false,
+        route_receipt_claimed: false,
+        route_hash: window.location.hash,
+      };
+    }
+    if (!readinessHint.trim()) return false;
+    const expectedDraft = ${cdpString(`Verify ${target.shortName} unavailable launch admission.`)};
     if (!attempt.input_filled) {
       const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
         || Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
@@ -4497,10 +4540,12 @@ function homeAssistantStandardLaunchGateExpression(target) {
         assistant_id: ${cdpString(target.id)},
         control_testid: card.getAttribute('data-testid'),
         verification_path: 'model_access_precondition',
+        projection_state: 'unavailable',
         visible: true,
         selectable_before_selection: true,
         selected: true,
         launch_allowed: false,
+        send_attempted: Boolean(attempt.send_clicked),
         send_blocked: true,
         package_id: ${cdpString(target.packageId)},
         draft_preserved: true,
@@ -4536,9 +4581,11 @@ function homeAssistantStandardLaunchGateExpression(target) {
       assistant_id: ${cdpString(target.id)},
       control_testid: card.getAttribute('data-testid'),
       visible: true,
+      projection_state: 'unavailable',
       selectable_before_selection: true,
       selected: true,
       launch_allowed: false,
+      send_attempted: true,
       send_blocked: true,
       package_id: ${cdpString(target.packageId)},
       typed_reason: typedReason,
@@ -4547,6 +4594,7 @@ function homeAssistantStandardLaunchGateExpression(target) {
       readiness_hint: readinessHint,
       repair_hint_visible: true,
       message_visible: true,
+      route_receipt_claimed: false,
       route_hash: window.location.hash,
     };
   })()`;
@@ -6578,7 +6626,7 @@ function maintenanceDiagnosticsStatusExpression() {
 }
 
 function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, results, error) {
-  const verificationMode = options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate';
+  const verificationMode = options.runtimeProfile === 'full' ? 'route_receipt' : 'state_aware_launch_admission';
   const lastState = error instanceof Error ? (error.lastState ?? null) : null;
   return {
     surface_id: 'opl_packaged_gui_assistant_route_smoke',
@@ -6596,14 +6644,22 @@ function buildAssistantRouteSmokeFailureSummary(options, assistantTarget, result
     composer_state: lastState?.composer_state ?? null,
     required_contract: {
       purpose_entries: OPL_ASSISTANT_ROUTE_SMOKE_TARGETS.map((item) => `home-starter-${item.id}`),
-      standard_launch_gate:
-        verificationMode === 'launch_gate'
+      standard_launch_admission:
+        verificationMode === 'state_aware_launch_admission'
           ? {
               visible: true,
               selectable_before_selection: true,
-              launch_allowed: false,
-              send_blocked: true,
-              readiness_hint: 'repair',
+              projection_states: ['available', 'unavailable'],
+              available: {
+                launch_allowed: true,
+                send_attempted: false,
+              },
+              unavailable: {
+                launch_allowed: false,
+                send_blocked: true,
+                readiness_hint: 'repair',
+              },
+              route_receipt_claimed: false,
             }
           : null,
       decision_controls_visible:
@@ -6749,12 +6805,12 @@ async function runAssistantRouteSmoke(options, secret) {
         if (options.runtimeProfile !== 'full') {
           const launchGate = await waitForCdpPredicate(
             client,
-            homeAssistantStandardLaunchGateExpression(assistantTarget),
+            homeAssistantStandardLaunchAdmissionExpression(assistantTarget),
             30_000,
-            `Standard Home assistant did not expose a selectable send-time launch gate: ${assistantTarget.id}`
+            `Standard Home assistant did not expose state-aware launch admission: ${assistantTarget.id}`
           );
           if (launchGate?.status === 'failed') {
-            const error = new Error(`Standard Home assistant launch gate failed: ${JSON.stringify(launchGate)}`);
+            const error = new Error(`Standard Home assistant launch admission failed: ${JSON.stringify(launchGate)}`);
             error.lastState = launchGate;
             throw error;
           }
@@ -6770,8 +6826,8 @@ async function runAssistantRouteSmoke(options, secret) {
             codex_visible_entry: assistantTarget.codexVisibleEntry,
             required_skill_ids: assistantTarget.requiredSkillIds,
             badge: assistantTarget.badge,
-            verification_mode: 'launch_gate',
-            launch_gate: launchGate,
+            verification_mode: 'state_aware_launch_admission',
+            launch_admission: launchGate,
           });
           continue;
         }
@@ -6918,11 +6974,11 @@ async function runAssistantRouteSmoke(options, secret) {
     status: 'passed',
     cdp_port: options.cdpPort,
     runtime_profile: options.runtimeProfile,
-    verification_mode: options.runtimeProfile === 'full' ? 'route_receipt' : 'launch_gate',
+    verification_mode: options.runtimeProfile === 'full' ? 'route_receipt' : 'state_aware_launch_admission',
     interaction_path:
       options.runtimeProfile === 'full'
         ? 'workspace_guid_ui_send_without_shell_activation_then_conversation_get'
-        : 'launch_gate_only',
+        : 'state_aware_launch_admission',
     assistants: results,
     compiled_expectations: COMPILED_EXPECTATION_CONSUMPTION,
   };
@@ -8505,7 +8561,7 @@ export const __test =
         isGuideScreenshotEntryReady,
         guideScreenshotSources,
         visibleHomeAssistantControlSelector,
-        homeAssistantStandardLaunchGateExpression,
+        homeAssistantStandardLaunchAdmissionExpression,
         homeAssistantWorkspaceContextExpression,
         homeAssistantRouteSelectionExpression,
         homeAssistantRouteReadyExpression,
