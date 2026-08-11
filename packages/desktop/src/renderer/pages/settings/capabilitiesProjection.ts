@@ -838,9 +838,7 @@ function mapCapabilityStatus(
   if (['needssync', 'stale', 'syncrequired'].includes(exactReadinessStatus ?? '')) return 'sync';
   if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(exactReadinessStatus ?? '')) return 'ready';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
-  if (
-    ['failed', 'failedwithrepair', 'blocking'].includes(status ?? '')
-  ) {
+  if (['failed', 'failedwithrepair', 'blocking'].includes(status ?? '')) {
     return 'unavailable';
   }
   if (['manualrequired', 'skippedmanualrequired', 'degraded'].includes(status ?? '')) {
@@ -883,7 +881,13 @@ function capabilityAvailabilityStatus(status: CapabilityStatus): CapabilityAvail
 
 function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAction {
   if (status === 'missing') return 'configure';
-  if (status === 'update' || status === 'sync' || status === 'source' || status === 'unavailable' || status === 'repair') {
+  if (
+    status === 'update' ||
+    status === 'sync' ||
+    status === 'source' ||
+    status === 'unavailable' ||
+    status === 'repair'
+  ) {
     return 'maintenance';
   }
   return 'view';
