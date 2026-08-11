@@ -23,6 +23,82 @@
     "gui_product": "contracts/app-gui-product-contract.json",
     "settings_control_plane": "contracts/app-settings-control-plane.json"
   },
+  "computer_use": {
+    "schema": "opl_app_computer_use_profile.v1",
+    "policy_ref": "contracts/app-gui-product-contract.json#computer_use_policy",
+    "desktop_default_provider": "kimi-cu",
+    "provider_identity_ref": "contracts/app-release-qualification-input-manifest.json#runtime_payloads.kimi_cu",
+    "lifecycle_class": "opl_managed_bundled_companion",
+    "lifecycle_owner": "one-person-lab",
+    "default_install": true,
+    "default_register": true,
+    "default_enabled": true,
+    "distribution_forms": {
+      "standard": {
+        "materialization_source": "pinned_network_archive",
+        "offline_seed": false
+      },
+      "full": {
+        "materialization_source": "bundled_exact_archive_seed",
+        "offline_seed": true
+      },
+      "same_installed_identity_and_behavior_required": true,
+      "full_difference": "offline_seed_only",
+      "full_additional_provider_or_behavior_allowed": false
+    },
+    "permission_readiness": {
+      "required_permissions": ["accessibility", "screen_recording"],
+      "missing_permission_blocks_app_or_plain_codex_use": false,
+      "missing_permission_blocks_computer_use_ready": true,
+      "missing_permission_status": "permission_required"
+    },
+    "browser": {
+      "policy_ref": "contracts/app-gui-product-contract.json#computer_use_policy.browser_provider",
+      "default_provider": "playwright-mcp",
+      "mcp_server_id": "playwright",
+      "upstream_package": "@playwright/mcp",
+      "upstream_package_version": "0.0.79",
+      "upstream_implementation_owner": "microsoft/playwright-mcp",
+      "lifecycle_owner": "one-person-lab",
+      "delivery_status": "source_implementation_complete_installed_qualification_pending",
+      "registry_authority": "existing_codex_mcp_registry",
+      "registry_writer_ref": "one-person-lab/src/modules/connect/system-installation/codex-plugin-registry.ts#registerOplManagedMcpServer",
+      "default_register": true,
+      "default_enabled": true,
+      "structured_default": true,
+      "browser_mode": "isolated_headless_system_chrome",
+      "runtime_carrier": "framework_pinned_dependency_in_standard_and_full",
+      "host_browser_requirement": {
+        "browser": "Google Chrome",
+        "required_for_structured_provider_ready": true,
+        "missing_blocks_plain_codex_or_kimi_cu": false
+      },
+      "kimi_cu_visual_fallback": {
+        "provider_id": "kimi-cu",
+        "enabled": true,
+        "may_replace_structured_default": false
+      },
+      "distribution_forms": {
+        "standard_registry_source": "existing_codex_mcp_registry",
+        "full_registry_source": "existing_codex_mcp_registry",
+        "same_provider_registration_and_behavior_required": true,
+        "same_framework_dependency_and_system_chrome_requirement": true,
+        "full_additional_provider_or_browser_runtime_allowed": false
+      },
+      "authority_boundary": {
+        "app_browser_engine_implementation_allowed": false,
+        "app_provider_catalog_allowed": false,
+        "second_registry_writer_allowed": false,
+        "browser_session_store_allowed": false,
+        "shell_registry_mutation_allowed": false
+      }
+    },
+    "authority_boundary": {
+      "app_second_provider_inventory_allowed": false,
+      "app_provider_engine_implementation_allowed": false,
+      "codex_or_chatgpt_app_runtime_dependency_required": false
+    }
+  },
   "delivery_topology": {
     "schema": "opl_app_delivery_topology.v1",
     "decision_status": "approved_target_current_release_admission_separate",
@@ -1851,6 +1927,17 @@
               "flow_role": "dependency_and_profile_intent_only_not_a_second_updater",
               "cli_currentness_owner": "opl_base"
             },
+            "opl_managed_companion": {
+              "label_zh": "OPL 托管",
+              "label_en": "Managed by OPL",
+              "source": "framework_managed_companion_projection",
+              "source_ref": "opl app state --profile fast --json#app_state.managed_companions[]",
+              "membership_policy": "derive_from_framework_managed_companion_projection_never_from_manual_registry_or_app_hardcoded_provider_list",
+              "lifecycle_owner": "one-person-lab",
+              "mutation_policy": "owner_projected_action_route_with_explicit_permission_action_when_system_tcc_is_required",
+              "default_capability_policy": "installed_registered_enabled_by_default_ready_after_permission_and_health",
+              "manual_and_third_party_policy_applies": false
+            },
             "manual_and_third_party": {
               "label_zh": "手工添加",
               "label_en": "Manually added",
@@ -3289,7 +3376,7 @@
             "renderer_entry": "packages/desktop/src/renderer/pages/settings/CapabilitiesSettings.tsx",
             "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.capabilities",
-            "groups": ["opl_flow_managed", "manual_and_third_party"],
+            "groups": ["opl_flow_managed", "opl_managed_companion", "manual_and_third_party"],
             "entity_kinds": ["skill", "plugin", "mcp_server", "image_generation", "voice_input"],
             "local_configuration_source": "AionUI local configuration#MCP servers + image generation + voice input",
             "flow_projection_policy": {
@@ -4862,11 +4949,12 @@
             "label_en": "Capabilities",
             "primary_information": [
               "OPL Flow managed and recommended Skills and Plugins derived from installed package dependency closure",
+              "OPL-managed Computer Use installed, registration, enablement, permission, readiness, and repair state",
               "manual and third-party Skills and Plugins from Codex and shell registries",
               "local MCP servers, image generation, and voice input configuration owned by Capabilities",
               "source, owner, currentness, and explicit lifecycle actions"
             ],
-            "first_viewport_groups": ["opl_flow_managed", "manual_and_third_party"],
+            "first_viewport_groups": ["opl_flow_managed", "opl_managed_companion", "manual_and_third_party"],
             "surface_inventory": {
               "configuration": [
                 {
@@ -4907,7 +4995,7 @@
             "tab_contract": {
               "surface_label_zh": "能力",
               "surface_label_en": "Capabilities",
-              "tab_order": ["opl_flow_managed", "manual_and_third_party"],
+              "tab_order": ["opl_flow_managed", "opl_managed_companion", "manual_and_third_party"],
               "default_tab": "opl_flow_managed",
               "on_demand_tab_ids": []
             },
@@ -4924,6 +5012,7 @@
                 "settings-page-capabilities",
                 "settings-capabilities-primary",
                 "settings-capabilities-opl-flow-managed",
+                "settings-capabilities-opl-managed-companion",
                 "settings-capabilities-third-party",
                 "settings-capabilities-voice-input"
               ],
@@ -4934,8 +5023,8 @@
                 }
               ]
             },
-            "required_anchors": ["opl-flow-managed", "third-party"],
-            "search_entry_ids": ["capabilities.opl_flow_managed", "capabilities.third_party"]
+            "required_anchors": ["opl-flow-managed", "opl-managed-companion", "third-party"],
+            "search_entry_ids": ["capabilities.opl_flow_managed", "capabilities.opl_managed_companion", "capabilities.third_party"]
           },
           "agents": {
             "product_page_id": "agents",
@@ -5963,6 +6052,15 @@
               "label_en": "Recommended by OPL Flow",
               "keywords_zh": ["OPL Flow", "推荐", "Skill", "插件"],
               "keywords_en": ["opl flow", "recommended", "skill", "plugin"]
+            },
+            {
+              "id": "capabilities.opl_managed_companion",
+              "page_id": "capabilities",
+              "anchor": "opl-managed-companion",
+              "label_zh": "OPL 托管",
+              "label_en": "Managed by OPL",
+              "keywords_zh": ["OPL 托管", "Computer Use", "桌面操作", "KimiCU", "权限"],
+              "keywords_en": ["managed by OPL", "computer use", "desktop automation", "KimiCU", "permission"]
             },
             {
               "id": "capabilities.third_party",
