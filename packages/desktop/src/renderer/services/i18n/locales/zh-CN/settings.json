@@ -2537,8 +2537,9 @@
       "sync": "需要同步",
       "source": "可用",
       "verification": "正在确认",
-      "inactive": "需要启用",
-      "attention": "暂时无法使用",
+      "inactive": "已停用",
+      "attention": "需要处理",
+      "unavailable": "暂时无法使用",
       "repair": "需要修复",
       "missing": "需要安装"
     },
@@ -2589,6 +2590,7 @@
       "conversationAvailable": "可发起对话",
       "conversationNeedsSync": "需要同步",
       "conversationUnavailable": "暂时无法使用，请打开详情查看原因",
+      "supportingWithoutDirectEntry": "作为配套能力使用，无独立对话入口",
       "conversationVerificationPending": "可发起对话",
       "conversationUnverified": "正在确认当前状态"
     },
@@ -2771,6 +2773,7 @@
       "rowMeta": "{{sourceLabel}}：{{sourceValue}} · {{versionLabel}}：{{versionValue}} · {{homeLabel}}",
       "packageCount": "显示 {{count}} / {{total}}",
       "composition": "{{agents}} 个可运行智能体 · {{workflows}} 个工作流 · {{supporting}} 个配套能力",
+      "directConversationSummary": "专业智能体可直接对话：{{available}} / {{total}}",
       "empty": "没有匹配的智能体包。",
       "pendingFrameworkAction": "等待 Framework 动作回执支持",
       "actionQueued": "动作已路由到 OPL",
@@ -3459,6 +3462,7 @@
     "capabilities": {
       "groups": {
         "frequent": "常用",
+        "disabled": "已停用",
         "needsAttention": "需要处理",
         "other": "其他"
       },

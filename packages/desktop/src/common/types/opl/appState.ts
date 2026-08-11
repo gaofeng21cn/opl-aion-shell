@@ -109,7 +109,17 @@ export type OplProjectedPackageAction = {
   payloadRefsOnlyJson: Record<string, unknown>;
   requiredPayloadFields: string[];
   confirmationRequired: boolean;
-  semantic: 'refresh' | 'install' | 'activate' | 'update' | 'repair' | 'preferences' | 'uninstall' | 'custom' | null;
+  semantic:
+    | 'refresh'
+    | 'install'
+    | 'activate'
+    | 'update'
+    | 'repair'
+    | 'enable'
+    | 'preferences'
+    | 'uninstall'
+    | 'custom'
+    | null;
   surface: 'settings' | 'workspace' | null;
 };
 
@@ -124,6 +134,7 @@ const OPL_PACKAGE_ACTION_SEMANTICS = new Set([
   'activate',
   'update',
   'repair',
+  'enable',
   'preferences',
   'uninstall',
   'custom',

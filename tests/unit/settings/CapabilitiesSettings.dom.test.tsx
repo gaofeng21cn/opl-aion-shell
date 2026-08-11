@@ -939,8 +939,9 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.status.sync': 'Sync required',
         'settings.capabilitiesPage.status.source': 'Available',
         'settings.capabilitiesPage.status.verification': 'Checking',
-        'settings.capabilitiesPage.status.inactive': 'Enable required',
-        'settings.capabilitiesPage.status.attention': 'Temporarily unavailable',
+        'settings.capabilitiesPage.status.inactive': 'Disabled',
+        'settings.capabilitiesPage.status.attention': 'Needs attention',
+        'settings.capabilitiesPage.status.unavailable': 'Temporarily unavailable',
         'settings.capabilitiesPage.status.repair': 'Repair required',
         'settings.capabilitiesPage.status.missing': 'Install required',
         'settings.advancedSettings': 'Advanced Settings',
@@ -960,6 +961,8 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.visibility.conversationNeedsSync': 'Sync required',
         'settings.capabilitiesPage.visibility.conversationUnavailable':
           'Temporarily unavailable; open details for the reason',
+        'settings.capabilitiesPage.visibility.supportingWithoutDirectEntry':
+          'Available as a supporting capability without a standalone conversation entry',
         'settings.capabilitiesPage.visibility.conversationUnverified': 'Checking the current status',
         'settings.capabilitiesPage.visibility.conversationVerificationPending': 'Available for conversations',
         'settings.capabilitiesPage.actions.reviewLocalCheck': 'Review local check',
@@ -968,6 +971,7 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.packageManager.roleLabels.supportingCapability': 'Supporting capability',
         'settings.capabilitiesPage.packageManager.roleLabels.other': 'Other package',
         'settings.uiOptimization.capabilities.groups.frequent': 'Frequent',
+        'settings.uiOptimization.capabilities.groups.disabled': 'Disabled',
         'settings.uiOptimization.capabilities.groups.needsAttention': 'Needs attention',
         'settings.uiOptimization.capabilities.groups.other': 'Other',
         'settings.uiOptimization.capabilities.actions.viewDetails': 'View details',
@@ -978,6 +982,7 @@ vi.mock('react-i18next', () => ({
         'settings.uiOptimization.capabilities.details.version': 'Version',
         'settings.capabilitiesPage.packageManager.supportingFor': `Supports ${options?.parent ?? ''}`,
         'settings.capabilitiesPage.packageManager.composition': `Runnable agents ${options?.agents ?? ''} · Workflows ${options?.workflows ?? ''} · Supporting capabilities ${options?.supporting ?? ''}`,
+        'settings.capabilitiesPage.packageManager.directConversationSummary': `Professional agents ready for conversation: ${options?.available ?? ''} / ${options?.total ?? ''}`,
         'settings.capabilitiesPage.detailLabels.purpose': 'Purpose',
         'settings.capabilitiesPage.detailLabels.codexVisibility': 'Codex visibility',
         'settings.capabilitiesPage.detailLabels.packageId': 'Package ID',
@@ -1277,8 +1282,8 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
       'Runnable agents 5 · Workflows 0 · Supporting capabilities 1'
     );
-    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 6');
-    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 6');
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 5');
+    expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 5');
     const catalog = screen.getByTestId('agent-package-catalog');
     const developerProfile = screen.getByTestId('opl-developer-profile-control');
     expect(catalog.compareDocumentPosition(developerProfile) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
@@ -1452,6 +1457,86 @@ describe('Agents and capabilities settings', () => {
 
     expect(screen.queryByTestId('skills-detail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('tools-detail')).not.toBeInTheDocument();
+  });
+
+  it('separates disabled agents, supporting capabilities, and direct-conversation totals', async () => {
+    const enableAction = {
+      action_id: 'agent_package_preferences_set',
+      action_ref: 'app_state.actions#agent_package_preferences_set',
+      payload: { package_id: 'github', exposure_action: 'enable' },
+      required_payload_fields: ['package_id', 'exposure_action'],
+      confirmation_required: false,
+      semantic: 'enable',
+      surface: 'settings',
+    };
+    appStateOverrides.appState = appStateWithDirectory(
+      [
+        {
+          package_id: 'github',
+          display_name: 'GitHub',
+          package_role: 'standard_agent',
+          installed: true,
+          configured_carrier: { enabled: false },
+          readiness: {
+            status: 'attention_needed',
+            operational_ready: false,
+            launch_allowed: false,
+            reason: 'configured_native_carrier_disabled',
+          },
+          recommended_action: 'agent_package_preferences_set',
+          recommended_action_ref: enableAction,
+          available_actions: [enableAction],
+        },
+        {
+          package_id: 'documents',
+          display_name: 'Documents',
+          package_role: 'standard_agent',
+          installed: true,
+          readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
+        },
+        {
+          package_id: 'mas-scholar-skills',
+          display_name: 'MAS Scholar Skills',
+          package_role: 'capability_package',
+          installed: true,
+          readiness: { status: 'ready', operational_ready: true, launch_allowed: false },
+        },
+      ],
+      {
+        statusEntries: [
+          {
+            package_id: 'documents',
+            operational_ready: true,
+            launch_allowed: true,
+            capability_exposure: { status: 'visible', codex_visible: true },
+          },
+        ],
+      }
+    );
+    renderCapabilities(<AgentPackagesSettingsContent />);
+
+    const disabledGroup = screen.getByTestId('settings-agents-group-disabled');
+    const github = screen.getByTestId('capability-purpose-github');
+    expect(disabledGroup).toContainElement(github);
+    expect(within(github).getByText('Disabled')).toBeInTheDocument();
+    expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent(
+      'Professional agents ready for conversation: 1 / 2'
+    );
+    expect(screen.getByTestId('capability-conversation-mas-scholar-skills')).toHaveTextContent(
+      'Available as a supporting capability without a standalone conversation entry'
+    );
+    expect(screen.getByTestId('capability-conversation-mas-scholar-skills')).not.toHaveTextContent(
+      'Temporarily unavailable'
+    );
+
+    fireEvent.click(screen.getByTestId('agent-package-enable-github'));
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'agent_package_preferences_set',
+        dryRun: false,
+        payloadRefsOnlyJson: { package_id: 'github', exposure_action: 'enable' },
+      })
+    );
   });
 
   it('restores the Official Profile only after explicit Settings confirmation', async () => {
@@ -1933,14 +2018,18 @@ describe('Agents and capabilities settings', () => {
 
     expect(screen.queryByTestId('settings-agents-error')).not.toBeInTheDocument();
     expect(
-      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Repair required')
+      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Temporarily unavailable')
     ).toBeInTheDocument();
     expect(
-      within(screen.getByTestId('capability-purpose-example-agent')).getByText('Repair required').closest('.arco-tag')
+      within(screen.getByTestId('capability-purpose-example-agent'))
+        .getByText('Temporarily unavailable')
+        .closest('.arco-tag')
     ).toHaveClass('!text-danger-8');
     fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
     expect(
-      within(screen.getByTestId('capability-details-example-agent')).getByText('Repair required').closest('.arco-tag')
+      within(screen.getByTestId('capability-details-example-agent'))
+        .getByText('Temporarily unavailable')
+        .closest('.arco-tag')
     ).toHaveClass('!text-danger-8');
     fireEvent.click(screen.getByTestId('capability-advanced-toggle-example-agent'));
     expect(screen.getByTestId('capability-details-example-agent')).toHaveTextContent('package status unavailable');

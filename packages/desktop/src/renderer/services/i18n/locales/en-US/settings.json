@@ -2536,8 +2536,9 @@
       "sync": "Sync required",
       "source": "Available",
       "verification": "Checking",
-      "inactive": "Enable required",
-      "attention": "Temporarily unavailable",
+      "inactive": "Disabled",
+      "attention": "Needs attention",
+      "unavailable": "Temporarily unavailable",
       "repair": "Repair required",
       "missing": "Install required"
     },
@@ -2588,6 +2589,7 @@
       "conversationAvailable": "Available for conversations",
       "conversationNeedsSync": "Sync required",
       "conversationUnavailable": "Temporarily unavailable; open details for the reason",
+      "supportingWithoutDirectEntry": "Available as a supporting capability without a standalone conversation entry",
       "conversationVerificationPending": "Available for conversations",
       "conversationUnverified": "Checking the current status"
     },
@@ -2770,6 +2772,7 @@
       "rowMeta": "{{sourceLabel}}: {{sourceValue}} · {{versionLabel}}: {{versionValue}} · {{homeLabel}}",
       "packageCount": "Showing {{count}} / {{total}}",
       "composition": "Runnable agents {{agents}} · Workflows {{workflows}} · Supporting capabilities {{supporting}}",
+      "directConversationSummary": "Professional agents ready for conversation: {{available}} / {{total}}",
       "empty": "No matching agent packages.",
       "pendingFrameworkAction": "Waiting for Framework action receipt support",
       "actionQueued": "Action routed to OPL",
@@ -3458,6 +3461,7 @@
     "capabilities": {
       "groups": {
         "frequent": "Frequent",
+        "disabled": "Disabled",
         "needsAttention": "Needs attention",
         "other": "Other"
       },

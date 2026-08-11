@@ -19,6 +19,7 @@ export type CapabilityStatus =
   | 'verification'
   | 'inactive'
   | 'attention'
+  | 'unavailable'
   | 'repair'
   | 'missing';
 
@@ -749,6 +750,20 @@ function isDomainStageDeferredReadiness(
   );
 }
 
+function isConfiguredCarrierDisabled(directoryState: RuntimePackageStateItem | undefined): boolean {
+  if (!directoryState || directoryState.installed !== true) return false;
+  const readiness = oplRecord(directoryState.readiness);
+  const configuredCarrier = oplRecord(directoryState.configured_carrier);
+  const reason = normalizeStatusToken(firstString(readiness.reason));
+  const action = parseOplProjectedPackageAction(directoryState.recommended_action_ref);
+  return (
+    (configuredCarrier.enabled === false || reason === 'configurednativecarrierdisabled') &&
+    action?.semantic === 'enable' &&
+    action.surface === 'settings' &&
+    action.payloadRefsOnlyJson.exposure_action === 'enable'
+  );
+}
+
 function mapCapabilityStatus(
   directoryState: RuntimePackageStateItem | undefined,
   packageStatus: RuntimePackageStateItem | undefined,
@@ -791,14 +806,17 @@ function mapCapabilityStatus(
   ) {
     return 'missing';
   }
-  if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error))
-    return 'repair';
+  if (statusReadError(readiness.status_read_error) || statusReadError(packageStatus?.status_read_error)) {
+    return 'unavailable';
+  }
   if (
-    ['blocked', 'failed', 'repairrequired'].includes(exactReadinessStatus ?? '') ||
+    ['blocked', 'failed'].includes(exactReadinessStatus ?? '') ||
     ['unavailable', 'failed', 'failedwithrepair', 'blocking', 'packageunavailable'].includes(statusIndexStatus ?? '')
   ) {
-    return 'repair';
+    return 'unavailable';
   }
+  if (exactReadinessStatus === 'repairrequired') return 'repair';
+  if (isConfiguredCarrierDisabled(directoryState)) return 'inactive';
   if (isDomainStageDeferredReadiness(directoryState, packageStatus)) {
     return 'ready';
   }
@@ -813,19 +831,19 @@ function mapCapabilityStatus(
   const dependencyReadiness = normalizeStatusToken(
     firstString(capabilityDependencyReadinessRecord(packageStatus).status)
   );
-  if (['repairrequired', 'blocked'].includes(dependencyReadiness ?? '')) {
-    return 'repair';
-  }
+  if (dependencyReadiness === 'blocked') return 'unavailable';
+  if (dependencyReadiness === 'repairrequired') return 'repair';
   if (operationalReady === false) return 'attention';
   if (['updateavailable', 'staged'].includes(exactReadinessStatus ?? '')) return 'update';
   if (['needssync', 'stale', 'syncrequired'].includes(exactReadinessStatus ?? '')) return 'sync';
   if (['ready', 'compatible', 'ok', 'installed', 'current'].includes(exactReadinessStatus ?? '')) return 'ready';
   if (['missing', 'notinstalled', 'notconfigured'].includes(status ?? '')) return 'missing';
   if (
-    ['manualrequired', 'skippedmanualrequired', 'failed', 'failedwithrepair', 'degraded', 'blocking'].includes(
-      status ?? ''
-    )
+    ['failed', 'failedwithrepair', 'blocking'].includes(status ?? '')
   ) {
+    return 'unavailable';
+  }
+  if (['manualrequired', 'skippedmanualrequired', 'degraded'].includes(status ?? '')) {
     return 'repair';
   }
   if (
@@ -865,7 +883,9 @@ function capabilityAvailabilityStatus(status: CapabilityStatus): CapabilityAvail
 
 function capabilityPrimaryAction(status: CapabilityStatus): CapabilityPrimaryAction {
   if (status === 'missing') return 'configure';
-  if (status === 'update' || status === 'sync' || status === 'source' || status === 'repair') return 'maintenance';
+  if (status === 'update' || status === 'sync' || status === 'source' || status === 'unavailable' || status === 'repair') {
+    return 'maintenance';
+  }
   return 'view';
 }
 
@@ -876,7 +896,7 @@ function capabilityCodexVisibility(
 ): CapabilityCodexVisibility {
   if (!directoryState) return 'notVisible';
   const readiness = oplRecord(directoryState.readiness);
-  if (status === 'repair' || status === 'missing') return 'notVisible';
+  if (status === 'repair' || status === 'unavailable' || status === 'missing') return 'notVisible';
   if (isDomainStageDeferredReadiness(directoryState, packageStatus)) return 'visible';
   const operationalReady = nullableBool(readiness.operational_ready) ?? nullableBool(packageStatus?.operational_ready);
   const launchAllowed = nullableBool(readiness.launch_allowed) ?? nullableBool(packageStatus?.launch_allowed);

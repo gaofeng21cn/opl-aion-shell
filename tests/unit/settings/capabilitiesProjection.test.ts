@@ -476,7 +476,7 @@ describe('buildCapabilitiesViewModel', () => {
         ]
       ).find((item) => item.packageId === 'example-agent')!;
 
-      expect(capability.status).toBe('repair');
+      expect(capability.status).toBe(dependencyStatus === 'blocked' ? 'unavailable' : 'repair');
       expect(capability.operationalReady).toBe(false);
       expect(capability.failureReason).toMatch(/required_export_missing|version_incompatible/);
       expect(capability.codexVisibility).toBe('notVisible');
@@ -985,8 +985,49 @@ describe('buildCapabilitiesViewModel', () => {
       'en-US'
     );
 
-    expect(capability.status).toBe('repair');
+    expect(capability.status).toBe('unavailable');
     expect(capability.failureReason).toBe('package status unavailable');
+  });
+
+  it('projects an installed disabled carrier with an exact enable action as inactive', () => {
+    const enableAction = {
+      action_id: 'agent_package_preferences_set',
+      action_ref: 'app_state.actions#agent_package_preferences_set',
+      payload: { package_id: 'github', exposure_action: 'enable' },
+      required_payload_fields: ['package_id', 'exposure_action'],
+      confirmation_required: false,
+      semantic: 'enable',
+      surface: 'settings',
+    };
+    const [capability] = buildCapabilitiesViewModel(
+      appStateWithPackageDirectory([
+        {
+          package_id: 'github',
+          package_role: 'standard_agent',
+          installed: true,
+          configured_carrier: { enabled: false },
+          readiness: {
+            status: 'attention_needed',
+            operational_ready: false,
+            launch_allowed: false,
+            reason: 'configured_native_carrier_disabled',
+          },
+          recommended_action: 'agent_package_preferences_set',
+          recommended_action_ref: enableAction,
+          available_actions: [enableAction],
+        },
+      ]),
+      'en-US'
+    );
+
+    expect(capability.status).toBe('inactive');
+    expect(capability.availabilityStatus).toBe('inactive');
+    expect(capability.recommendedAction).toMatchObject({
+      actionId: 'agent_package_preferences_set',
+      semantic: 'enable',
+      surface: 'settings',
+      payloadRefsOnlyJson: { package_id: 'github', exposure_action: 'enable' },
+    });
   });
 
   it('projects canonical producer dependency readiness and exposure state without changing directory actions', () => {

@@ -82,7 +82,7 @@ const normalizeCapabilitiesTab = (value: string | null): CapabilitiesTab | null 
 
 function capabilityStatusColor(status: CapabilityAvailabilityStatus): 'orange' | 'red' | 'gray' {
   if (status === 'sync' || status === 'update' || status === 'attention' || status === 'missing') return 'orange';
-  if (status === 'repair') return 'red';
+  if (status === 'repair' || status === 'unavailable') return 'red';
   return 'gray';
 }
 
@@ -112,6 +112,15 @@ function capabilityConversationAvailabilityLabel(
   item: CapabilityPurposeViewModel,
   t: (key: string, options?: Record<string, string>) => string
 ): string {
+  if (
+    ['capability_package', 'framework_capability_package'].includes(item.packageRole ?? '') &&
+    item.operationalReady === true &&
+    item.launchAllowed === false
+  ) {
+    return t('settings.capabilitiesPage.visibility.supportingWithoutDirectEntry', {
+      defaultValue: 'Available as a supporting capability without a standalone conversation entry',
+    });
+  }
   if (item.codexVisibility === 'visible' || item.codexVisibility === 'verificationPending') {
     return t('settings.capabilitiesPage.visibility.conversationAvailable', { defaultValue: 'Available' });
   }
@@ -206,7 +215,8 @@ function capabilityReadbackStatus(status: string): CapabilityAvailabilityStatus 
   if (['updateavailable', 'staged'].includes(normalized)) return 'update';
   if (['needssync', 'stale', 'syncrequired'].includes(normalized)) return 'sync';
   if (['missing', 'notinstalled', 'notconfigured'].includes(normalized)) return 'missing';
-  if (['failed', 'failedwithrepair', 'blocked', 'blocking', 'repairrequired', 'degraded'].includes(normalized)) {
+  if (['failed', 'failedwithrepair', 'blocked', 'blocking'].includes(normalized)) return 'unavailable';
+  if (['repairrequired', 'degraded'].includes(normalized)) {
     return 'repair';
   }
   return 'attention';
@@ -340,7 +350,7 @@ function capabilityDefersReadinessToDomainStage(item: CapabilityPurposeViewModel
   );
 }
 
-type CapabilityCatalogGroupKey = 'frequent' | 'needsAttention' | 'other';
+type CapabilityCatalogGroupKey = 'frequent' | 'disabled' | 'needsAttention' | 'other';
 
 type CapabilityCatalogEntry = {
   item: CapabilityPurposeViewModel;
@@ -361,7 +371,7 @@ function capabilityPackageRoleLabel(
       ? 'standardAgent'
       : role === 'workflow_profile'
         ? 'workflowProfile'
-        : role === 'framework_capability_package'
+        : role === 'capability_package' || role === 'framework_capability_package'
           ? 'supportingCapability'
           : 'other';
   return t(`settings.capabilitiesPage.packageManager.roleLabels.${labelKey}`);
@@ -377,9 +387,10 @@ function capabilityCatalogGroupKey(
         candidate.dependentGuard?.requiredByPackageIds.some((requiredPackageId) => parentIds.has(requiredPackageId))
       )
     : [];
+  if (entry.item.availabilityStatus === 'inactive') return 'disabled';
   if (
     [entry.item, ...entry.dependents, ...allDependents].some((item) =>
-      ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
+      ['update', 'sync', 'attention', 'unavailable', 'repair', 'missing'].includes(item.availabilityStatus)
     )
   ) {
     return 'needsAttention';
@@ -404,7 +415,7 @@ function capabilityPackageIdentityValues(packageId: string | null): string[] {
 function capabilityRowAction(item: CapabilityPurposeViewModel): CapabilityPackageActionViewModel | null {
   const action = item.recommendedAction;
   if (!action) return null;
-  return action.surface === 'settings' && ['install', 'update', 'repair'].includes(action.semantic ?? '')
+  return action.surface === 'settings' && ['install', 'update', 'repair', 'enable'].includes(action.semantic ?? '')
     ? action
     : null;
 }
@@ -942,7 +953,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
         purposeCapabilities.map((item) => item.packageRole).filter((value): value is string => Boolean(value))
       ),
     ];
-    const preferredOrder = ['standard_agent', 'workflow_profile', 'framework_capability_package'];
+    const preferredOrder = ['standard_agent', 'workflow_profile', 'capability_package', 'framework_capability_package'];
     return roles.toSorted((left, right) => {
       const leftIndex = preferredOrder.indexOf(left);
       const rightIndex = preferredOrder.indexOf(right);
@@ -1028,7 +1039,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       ...workflows.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
       ...ungroupedSupporting.map<CapabilityCatalogEntry>((item) => ({ item, dependents: [] })),
     ];
-    return (['frequent', 'needsAttention', 'other'] as const)
+    return (['frequent', 'disabled', 'needsAttention', 'other'] as const)
       .map((key) => ({
         key,
         entries: entries.filter((entry) => capabilityCatalogGroupKey(entry, purposeCapabilities) === key),
@@ -1147,7 +1158,8 @@ export const AgentPackagesSettingsContent: React.FC = () => {
       selectedCapability.exportBundleAction)
   );
   const selectedHasPrimaryAction = Boolean(
-    selectedCapability && ['update', 'sync', 'repair', 'missing'].includes(selectedCapability.availabilityStatus)
+    selectedCapability &&
+    ['update', 'sync', 'unavailable', 'repair', 'missing'].includes(selectedCapability.availabilityStatus)
   );
   const packageActionBusy = busyAction !== null;
   const shortcutPreferenceBusy = pendingShortcutIds.size > 0;
@@ -1540,10 +1552,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   const hasCapabilityIssue =
     Boolean(catalogError || catalogStaleReason) ||
     purposeCapabilities.some((item) =>
-      ['update', 'sync', 'attention', 'repair', 'missing'].includes(item.availabilityStatus)
+      ['update', 'sync', 'attention', 'unavailable', 'repair', 'missing'].includes(item.availabilityStatus)
     );
-  const conversationReadyCount = purposeCapabilities.filter((item) =>
-    ['visible', 'verificationPending'].includes(item.codexVisibility)
+  const conversationReadyAgentCount = purposeCapabilities.filter(
+    (item) =>
+      item.packageRole === 'standard_agent' &&
+      ['visible', 'verificationPending'].includes(item.codexVisibility)
   ).length;
   const catalogAgentCount = purposeCapabilities.filter((item) => capabilityRoleGroupKey(item) === 'agents').length;
   const catalogWorkflowCount = purposeCapabilities.filter(
@@ -1553,6 +1567,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     (item) => capabilityRoleGroupKey(item) === 'supporting'
   ).length;
   const homeShortcutCount = purposeCapabilities.filter((item) => {
+    if (item.packageRole !== 'standard_agent') return false;
     const shortcuts = item.packageId ? (shortcutsByPackageId.get(item.packageId) ?? []) : [];
     return shortcuts.some((shortcut) => isOplHomeShortcutVisible(shortcut, shortcutPreferences));
   }).length;
@@ -1909,11 +1924,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 })}
               </span>
               <span data-testid='capability-summary-conversation'>
-                {t('settings.capabilitiesPage.visibility.conversation')}: {conversationReadyCount} /{' '}
-                {purposeCapabilities.length}
+                {t('settings.capabilitiesPage.packageManager.directConversationSummary', {
+                  available: String(conversationReadyAgentCount),
+                  total: String(catalogAgentCount),
+                })}
               </span>
               <span data-testid='capability-summary-home'>
-                {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {purposeCapabilities.length}
+                {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {catalogAgentCount}
               </span>
               <span
                 className={`opl-settings-status ${
