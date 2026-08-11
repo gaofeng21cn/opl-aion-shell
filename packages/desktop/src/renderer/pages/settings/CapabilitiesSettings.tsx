@@ -18,7 +18,7 @@ import {
   Tabs,
   Typography,
 } from '@arco-design/web-react';
-import { Close, Down, Robot } from '@icon-park/react';
+import { Close, Down, Key, Refresh, Robot, Toolkit } from '@icon-park/react';
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -53,6 +53,7 @@ import {
 } from '@/renderer/pages/guid/utils/oplHomeShortcutPreferences';
 import {
   buildCapabilitiesViewModel,
+  readManagedComputerUse,
   readPackageCapabilityDependencySummaries,
   type CapabilityActionRefViewModel,
   type CapabilityAvailabilityStatus,
@@ -90,6 +91,14 @@ function capabilityStatusTextClass(status: CapabilityAvailabilityStatus): string
   if (tone === 'orange') return '!text-warning-8';
   if (tone === 'red') return '!text-danger-8';
   return '!text-[color:rgb(var(--gray-8))]';
+}
+
+function managedComputerUseStatusColor(status: string): 'green' | 'orange' | 'red' | 'gray' | 'arcoblue' {
+  if (status === 'ready') return 'green';
+  if (status === 'not_installed' || status === 'not_registered' || status === 'attention_required') return 'red';
+  if (status === 'permission_required') return 'orange';
+  if (status === 'health_not_checked') return 'arcoblue';
+  return 'gray';
 }
 
 function capabilityStatusLabel(
@@ -2666,6 +2675,11 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const { t } = useTranslation();
   const appStateQuery = useOplAppState('fast');
   const [flowSyncing, setFlowSyncing] = useState(false);
+  const [managedCompanionBusy, setManagedCompanionBusy] = useState<string | null>(null);
+  const managedComputerUse = React.useMemo(
+    () => readManagedComputerUse(appStateQuery.appState),
+    [appStateQuery.appState]
+  );
   const flowManagedCatalog = React.useMemo(() => {
     const summaries = readPackageCapabilityDependencySummaries(appStateQuery.appState, 'workflow_profile');
     const dependencies = summaries.map((dependency) => ({
@@ -2708,6 +2722,41 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
     }
   };
 
+  const executeManagedCompanionAction = async (actionId: string) => {
+    if (managedCompanionBusy) return;
+    setManagedCompanionBusy(actionId);
+    try {
+      const result = await ipcBridge.oplRuntime.executeAction.invoke({
+        actionId,
+        dryRun: false,
+      });
+      if (result.ok === false) throw new Error(result.error?.message || result.command);
+      const refreshedState = await appStateQuery.load('full', { showRefreshing: true, forceFresh: true });
+      if (!refreshedState) {
+        throw new Error(t('settings.capabilitiesPage.groups.managedComputerUse.refreshFailed'));
+      }
+      Message.success(t('settings.capabilitiesPage.groups.managedComputerUse.actionComplete'));
+    } catch (error) {
+      Message.error(error instanceof Error ? error.message : String(error));
+    } finally {
+      setManagedCompanionBusy(null);
+    }
+  };
+
+  const requestManagedCompanionAction = (actionId: string, confirmationRequired: boolean) => {
+    if (!confirmationRequired) {
+      void executeManagedCompanionAction(actionId);
+      return;
+    }
+    Modal.confirm({
+      title: t('settings.capabilitiesPage.groups.managedComputerUse.confirmTitle'),
+      content: t('settings.capabilitiesPage.groups.managedComputerUse.confirmContent'),
+      okText: t('settings.capabilitiesPage.groups.managedComputerUse.reinstall'),
+      cancelText: t('common.cancel'),
+      onOk: () => executeManagedCompanionAction(actionId),
+    });
+  };
+
   return (
     <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-capabilities'>
       <header className='opl-settings-page-header'>
@@ -2735,6 +2784,96 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
             }
           >
             <div id='opl-flow-managed' data-testid='settings-capabilities-opl-flow-managed'>
+              {managedComputerUse && (
+                <section
+                  className='opl-settings-flat-section opl-settings-flat-section--first'
+                  data-testid='settings-capabilities-opl-managed-companion'
+                >
+                  <div className='opl-settings-section__header'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block font-600 text-t-primary'>
+                        {t('settings.capabilitiesPage.groups.managedComputerUse.title')}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t('settings.capabilitiesPage.groups.managedComputerUse.description')}
+                      </Typography.Text>
+                    </div>
+                    <Tag
+                      color={managedComputerUseStatusColor(managedComputerUse.status)}
+                      data-testid='settings-managed-computer-use-status'
+                    >
+                      {t(`settings.capabilitiesPage.groups.managedComputerUse.status.${managedComputerUse.status}`, {
+                        defaultValue: managedComputerUse.status,
+                      })}
+                    </Tag>
+                  </div>
+                  <div className='opl-settings-row'>
+                    <div className='opl-settings-row__main min-w-0'>
+                      <Typography.Text className='block font-500 text-t-primary'>
+                        {managedComputerUse.productName} {managedComputerUse.version ?? ''}
+                      </Typography.Text>
+                      <Typography.Text className='block break-words text-12px text-t-secondary'>
+                        {t('settings.capabilitiesPage.groups.managedComputerUse.stateSummary', {
+                          installed: managedComputerUse.installed
+                            ? t('settings.capabilitiesPage.groups.managedComputerUse.yes')
+                            : t('settings.capabilitiesPage.groups.managedComputerUse.no'),
+                          registered: managedComputerUse.registered
+                            ? t('settings.capabilitiesPage.groups.managedComputerUse.yes')
+                            : t('settings.capabilitiesPage.groups.managedComputerUse.no'),
+                          enabled: managedComputerUse.enabled
+                            ? t('settings.capabilitiesPage.groups.managedComputerUse.yes')
+                            : t('settings.capabilitiesPage.groups.managedComputerUse.no'),
+                        })}
+                      </Typography.Text>
+                      <Typography.Text className='block break-words text-12px text-t-secondary'>
+                        {managedComputerUse.permission === 'required'
+                          ? t('settings.capabilitiesPage.groups.managedComputerUse.permissionRequired')
+                          : t('settings.capabilitiesPage.groups.managedComputerUse.permissionSummary', {
+                              permission: t(
+                                `settings.capabilitiesPage.groups.managedComputerUse.permission.${managedComputerUse.permission}`,
+                                { defaultValue: managedComputerUse.permission }
+                              ),
+                            })}
+                      </Typography.Text>
+                    </div>
+                    <Space size='small' wrap>
+                      {managedComputerUse.actions.map((action) => {
+                        const isReinstall = action.actionId === 'settings_reinstall_computer_use';
+                        const isPermission = action.actionId === 'settings_request_computer_use_permissions';
+                        const isDanger = action.dangerLevel === 'medium' || action.dangerLevel === 'high';
+                        const label = isReinstall
+                          ? t('settings.capabilitiesPage.groups.managedComputerUse.reinstall')
+                          : isPermission
+                            ? t('settings.capabilitiesPage.groups.managedComputerUse.allowPermissions')
+                            : action.actionId === 'settings_recheck_computer_use'
+                              ? t('settings.capabilitiesPage.groups.managedComputerUse.recheck')
+                              : t('settings.capabilitiesPage.groups.managedComputerUse.repair');
+                        const icon = isPermission ? (
+                          <Key />
+                        ) : action.actionId === 'settings_recheck_computer_use' ? (
+                          <Refresh />
+                        ) : (
+                          <Toolkit />
+                        );
+                        return (
+                          <Button
+                            key={action.actionId}
+                            size='small'
+                            status={isDanger ? 'danger' : 'default'}
+                            loading={managedCompanionBusy === action.actionId}
+                            disabled={managedCompanionBusy !== null}
+                            icon={icon}
+                            onClick={() => requestManagedCompanionAction(action.actionId, action.confirmationRequired)}
+                            data-testid={`settings-managed-computer-use-action-${action.actionId}`}
+                          >
+                            {label}
+                          </Button>
+                        );
+                      })}
+                    </Space>
+                  </div>
+                </section>
+              )}
               <div data-testid='settings-capabilities-technical-details'>
                 <SkillsHubSettings
                   withWrapper={false}

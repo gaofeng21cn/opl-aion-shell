@@ -260,6 +260,33 @@ export type CapabilityActionRefViewModel = {
   receiptSummary: string | null;
 };
 
+export type ManagedCompanionActionViewModel = {
+  actionId: string;
+  confirmationRequired: boolean;
+  dangerLevel: string | null;
+};
+
+export type ManagedComputerUseViewModel = {
+  providerId: string;
+  productName: string;
+  version: string | null;
+  status: string;
+  ready: boolean;
+  installed: boolean;
+  registered: boolean;
+  enabled: boolean;
+  permission: string;
+  actions: ManagedCompanionActionViewModel[];
+};
+
+const MANAGED_COMPUTER_USE_SURFACE_KIND = 'opl_managed_computer_use_projection';
+const MANAGED_COMPUTER_USE_ACTION_IDS = new Set([
+  'settings_request_computer_use_permissions',
+  'settings_recheck_computer_use',
+  'settings_repair_computer_use',
+  'settings_reinstall_computer_use',
+]);
+
 function capabilityModuleId(module: RuntimeModuleItem): string {
   return (
     oplString(module.module_id) ??
@@ -1566,4 +1593,60 @@ export function readPackageCapabilityDependencySummaries(
       },
     ];
   });
+}
+
+/** Read the Framework-owned Computer Use companion without maintaining a Shell-side provider catalog. */
+export function readManagedComputerUse(appState: OplAppStateRecord): ManagedComputerUseViewModel | null {
+  const computerUse =
+    oplRecordList(appState.managed_companions).find(
+      (companion) => firstString(companion.surface_kind) === MANAGED_COMPUTER_USE_SURFACE_KIND
+    ) ?? null;
+  if (!computerUse) return null;
+  const providerId = firstString(computerUse.provider_id);
+  const productName = firstString(computerUse.product_name);
+  if (!providerId || !productName) return null;
+
+  const availableActionIds = listValues(computerUse.available_actions)
+    .map(oplString)
+    .filter((value): value is string => Boolean(value));
+  const actionCatalog = new Map(
+    oplRecordList(appState.actions).flatMap((entry) => {
+      const actionId = firstString(entry.action_id);
+      return actionId ? [[actionId, entry] as const] : [];
+    })
+  );
+  const actions = availableActionIds.flatMap((actionId) => {
+    if (!MANAGED_COMPUTER_USE_ACTION_IDS.has(actionId)) return [];
+    const action = actionCatalog.get(actionId);
+    if (
+      !action ||
+      firstString(action.surface) !== 'opl app action execute' ||
+      firstString(action.submit_via) !== 'opl app action execute' ||
+      action.can_submit_to_safe_action_shell !== true ||
+      action.route_requires_domain_or_app_payload !== false ||
+      !Array.isArray(action.payload_fields) ||
+      action.payload_fields.length !== 0
+    ) {
+      return [];
+    }
+    return [
+      {
+        actionId,
+        confirmationRequired: action.confirmation_required === true,
+        dangerLevel: firstString(action.danger_level),
+      },
+    ];
+  });
+  return {
+    providerId,
+    productName,
+    version: firstString(computerUse.version),
+    status: firstString(computerUse.status) ?? 'unknown',
+    ready: computerUse.ready === true,
+    installed: computerUse.installed === true,
+    registered: computerUse.registered === true,
+    enabled: computerUse.enabled === true,
+    permission: firstString(computerUse.permission) ?? 'unknown',
+    actions,
+  };
 }

@@ -2407,6 +2407,39 @@
     "title": "Capabilities",
     "description": "Manage OPL Flow recommendations and local skills, plugins, MCP servers, image tools, and voice input.",
     "groups": {
+      "managedComputerUse": {
+        "title": "OPL managed desktop Computer Use",
+        "description": "OPL manages KimiCU installation, registration, and activation. macOS may still require your Accessibility and Screen Recording permission.",
+        "actionComplete": "Computer Use state was refreshed.",
+        "refreshFailed": "The action completed, but the latest Computer Use state could not be read.",
+        "confirmTitle": "Reinstall Computer Use?",
+        "confirmContent": "OPL will replace only the pinned managed KimiCU bundle and keep ordinary Codex settings unchanged.",
+        "allowPermissions": "Allow permissions",
+        "recheck": "Recheck",
+        "repair": "Repair",
+        "reinstall": "Reinstall",
+        "permissionRequired": "Grant Accessibility and Screen Recording permission to make Computer Use ready.",
+        "stateSummary": "Installed: {{installed}} · Registered: {{registered}} · Enabled: {{enabled}}",
+        "yes": "Yes",
+        "no": "No",
+        "permissionSummary": "Permissions: {{permission}}",
+        "permission": {
+          "granted": "Granted",
+          "required": "Required",
+          "unknown": "Not checked",
+          "unsupported": "Unsupported"
+        },
+        "status": {
+          "ready": "Ready",
+          "permission_required": "Permission required",
+          "not_installed": "Not installed",
+          "not_registered": "Registration required",
+          "health_not_checked": "Installed · status not checked",
+          "unsupported_platform": "Unsupported platform",
+          "attention_required": "Needs attention",
+          "unknown": "Unknown"
+        }
+      },
       "oplFlowManaged": {
         "title": "Recommended by OPL Flow",
         "description": "OPL Packages reconciles and updates recommended skills and command-line capabilities from the OPL Flow dependency closure.",

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildCapabilitiesViewModel,
+  readManagedComputerUse,
   readPackageCapabilityDependencySummaries,
 } from '@/renderer/pages/settings/capabilitiesProjection';
 
@@ -12,6 +13,131 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 }));
 
 type PackageFixture = Record<string, unknown>;
+
+describe('readManagedComputerUse', () => {
+  it('consumes the Framework companion and action catalog without a Shell provider list', () => {
+    const projection = readManagedComputerUse({
+      managed_companions: {
+        computer_use: {
+          provider_id: 'kimi-cu',
+          product_name: 'KimiCU',
+          version: '0.5.4',
+          status: 'permission_required',
+          ready: false,
+          installed: true,
+          registered: true,
+          enabled: true,
+          permission: 'required',
+          bundle: { path: '/Applications/KimiCU.app' },
+          available_actions: [
+            'settings_request_computer_use_permissions',
+            'settings_recheck_computer_use',
+            'settings_reinstall_computer_use',
+          ],
+        },
+      },
+      actions: [
+        { action_id: 'settings_request_computer_use_permissions', confirmation_required: false },
+        { action_id: 'settings_recheck_computer_use', confirmation_required: false },
+        { action_id: 'settings_reinstall_computer_use', confirmation_required: true, danger_level: 'medium' },
+      ],
+    });
+
+    expect(projection).toBeNull();
+
+    const arrayProjection = readManagedComputerUse({
+      managed_companions: [
+        {
+          surface_kind: 'opl_managed_computer_use_projection',
+          provider_id: 'kimi-cu',
+          product_name: 'KimiCU',
+          version: '0.5.4',
+          status: 'permission_required',
+          ready: false,
+          installed: true,
+          registered: true,
+          enabled: true,
+          permission: 'required',
+          bundle: { path: '/Applications/KimiCU.app' },
+          available_actions: [
+            'settings_request_computer_use_permissions',
+            'settings_recheck_computer_use',
+            'settings_repair_computer_use',
+            'settings_reinstall_computer_use',
+            'settings_unknown_computer_use',
+          ],
+        },
+      ],
+      actions: [
+        {
+          action_id: 'settings_request_computer_use_permissions',
+          surface: 'opl app action execute',
+          submit_via: 'opl app action execute',
+          payload_fields: [],
+          route_requires_domain_or_app_payload: false,
+          can_submit_to_safe_action_shell: true,
+          confirmation_required: false,
+        },
+        {
+          action_id: 'settings_recheck_computer_use',
+          surface: 'opl app action execute',
+          submit_via: 'opl app action execute',
+          payload_fields: [],
+          route_requires_domain_or_app_payload: false,
+          can_submit_to_safe_action_shell: true,
+          confirmation_required: false,
+        },
+        {
+          action_id: 'settings_repair_computer_use',
+          surface: 'opl app action execute',
+          submit_via: 'opl app action execute',
+          payload_fields: [],
+          route_requires_domain_or_app_payload: false,
+          can_submit_to_safe_action_shell: true,
+          confirmation_required: false,
+          danger_level: 'low',
+        },
+        {
+          action_id: 'settings_reinstall_computer_use',
+          surface: 'opl app action execute',
+          submit_via: 'opl app action execute',
+          payload_fields: [],
+          route_requires_domain_or_app_payload: false,
+          can_submit_to_safe_action_shell: true,
+          confirmation_required: true,
+          danger_level: 'medium',
+        },
+        {
+          action_id: 'settings_unknown_computer_use',
+          surface: 'opl app action execute',
+          submit_via: 'opl app action execute',
+          payload_fields: [],
+          route_requires_domain_or_app_payload: false,
+          can_submit_to_safe_action_shell: true,
+          confirmation_required: false,
+        },
+      ],
+    });
+
+    expect(arrayProjection).toMatchObject({
+      providerId: 'kimi-cu',
+      productName: 'KimiCU',
+      version: '0.5.4',
+      status: 'permission_required',
+      permission: 'required',
+    });
+    expect(arrayProjection?.actions).toEqual([
+      { actionId: 'settings_request_computer_use_permissions', confirmationRequired: false, dangerLevel: null },
+      { actionId: 'settings_recheck_computer_use', confirmationRequired: false, dangerLevel: null },
+      { actionId: 'settings_repair_computer_use', confirmationRequired: false, dangerLevel: 'low' },
+      { actionId: 'settings_reinstall_computer_use', confirmationRequired: true, dangerLevel: 'medium' },
+    ]);
+  });
+
+  it('does not invent a managed provider when Framework has not projected one', () => {
+    expect(readManagedComputerUse({ actions: [] })).toBeNull();
+  });
+});
 
 function appStateWithPackageDirectory(
   entries: PackageFixture[],

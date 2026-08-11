@@ -862,6 +862,24 @@ vi.mock('react-i18next', () => ({
         'settings.capabilitiesPage.description': 'Manage skills and plugins.',
         'settings.capabilitiesPage.groups.manualAndThirdParty.title': 'Manual and third-party capabilities',
         'settings.capabilitiesPage.groups.manualAndThirdParty.description': 'Manage other capabilities.',
+        'settings.capabilitiesPage.groups.managedComputerUse.title': 'Desktop Computer Use',
+        'settings.capabilitiesPage.groups.managedComputerUse.description': 'Managed by OPL.',
+        'settings.capabilitiesPage.groups.managedComputerUse.actionComplete': 'Computer Use state refreshed.',
+        'settings.capabilitiesPage.groups.managedComputerUse.refreshFailed': 'Computer Use state refresh failed.',
+        'settings.capabilitiesPage.groups.managedComputerUse.allowPermissions': 'Allow permissions',
+        'settings.capabilitiesPage.groups.managedComputerUse.recheck': 'Recheck',
+        'settings.capabilitiesPage.groups.managedComputerUse.repair': 'Repair',
+        'settings.capabilitiesPage.groups.managedComputerUse.reinstall': 'Reinstall',
+        'settings.capabilitiesPage.groups.managedComputerUse.permissionRequired': 'Permissions required',
+        'settings.capabilitiesPage.groups.managedComputerUse.permissionSummary': `Permissions: ${options?.permission ?? ''}`,
+        'settings.capabilitiesPage.groups.managedComputerUse.permission.granted': 'Granted',
+        'settings.capabilitiesPage.groups.managedComputerUse.permission.unknown': 'Not checked',
+        'settings.capabilitiesPage.groups.managedComputerUse.stateSummary': `Installed: ${options?.installed ?? ''} · Registered: ${options?.registered ?? ''} · Enabled: ${options?.enabled ?? ''}`,
+        'settings.capabilitiesPage.groups.managedComputerUse.yes': 'Yes',
+        'settings.capabilitiesPage.groups.managedComputerUse.no': 'No',
+        'settings.capabilitiesPage.groups.managedComputerUse.status.permission_required': 'Permission required',
+        'settings.capabilitiesPage.groups.managedComputerUse.confirmTitle': 'Reinstall Computer Use?',
+        'settings.capabilitiesPage.groups.managedComputerUse.confirmContent': 'Replace managed KimiCU.',
         'settings.capabilitiesPage.developerSource.title': 'Runtime source',
         'settings.capabilitiesPage.developerSource.advancedTitle': 'Advanced runtime and maintenance',
         'settings.capabilitiesPage.developerSource.advancedSummary': `${options?.mode ?? ''} · ${options?.state ?? ''}`,
@@ -2355,6 +2373,114 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-voice-input')).toBeInTheDocument();
     expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
+  });
+
+  it('renders and executes the Framework-managed Computer Use permission action', async () => {
+    const appState = appStateWithDirectory([], {
+      directoryStatus: 'available',
+    }) as Record<string, unknown>;
+    appState.managed_companions = [
+      {
+        surface_kind: 'opl_managed_computer_use_projection',
+        provider_id: 'kimi-cu',
+        product_name: 'KimiCU',
+        version: '0.5.4',
+        status: 'permission_required',
+        ready: false,
+        installed: true,
+        registered: true,
+        enabled: true,
+        permission: 'required',
+        bundle: { path: '/Applications/KimiCU.app' },
+        available_actions: [
+          'settings_request_computer_use_permissions',
+          'settings_recheck_computer_use',
+          'settings_repair_computer_use',
+          'settings_reinstall_computer_use',
+        ],
+      },
+    ];
+    appState.actions = [
+      {
+        action_id: 'settings_request_computer_use_permissions',
+        surface: 'opl app action execute',
+        submit_via: 'opl app action execute',
+        payload_fields: [],
+        route_requires_domain_or_app_payload: false,
+        can_submit_to_safe_action_shell: true,
+        confirmation_required: false,
+      },
+      {
+        action_id: 'settings_recheck_computer_use',
+        surface: 'opl app action execute',
+        submit_via: 'opl app action execute',
+        payload_fields: [],
+        route_requires_domain_or_app_payload: false,
+        can_submit_to_safe_action_shell: true,
+        confirmation_required: false,
+      },
+      {
+        action_id: 'settings_repair_computer_use',
+        surface: 'opl app action execute',
+        submit_via: 'opl app action execute',
+        payload_fields: [],
+        route_requires_domain_or_app_payload: false,
+        can_submit_to_safe_action_shell: true,
+        confirmation_required: false,
+        danger_level: 'low',
+      },
+      {
+        action_id: 'settings_reinstall_computer_use',
+        surface: 'opl app action execute',
+        submit_via: 'opl app action execute',
+        payload_fields: [],
+        route_requires_domain_or_app_payload: false,
+        can_submit_to_safe_action_shell: true,
+        confirmation_required: true,
+        danger_level: 'medium',
+      },
+    ];
+    appStateOverrides.appState = appState;
+    bridgeMocks.currentAppState = appState;
+
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='opl_flow_managed' onTabChange={vi.fn()} />);
+
+    expect(screen.getByTestId('settings-capabilities-opl-managed-companion')).toHaveTextContent('KimiCU 0.5.4');
+    expect(screen.getByTestId('settings-managed-computer-use-status')).toHaveTextContent('Permission required');
+    expect(screen.getByTestId('settings-capabilities-opl-managed-companion')).toHaveTextContent(
+      'Installed: Yes · Registered: Yes · Enabled: Yes'
+    );
+    expect(screen.getByTestId('settings-managed-computer-use-action-settings_recheck_computer_use')).toBeVisible();
+    expect(screen.getByTestId('settings-managed-computer-use-action-settings_repair_computer_use')).toBeVisible();
+    expect(screen.getByTestId('settings-managed-computer-use-action-settings_reinstall_computer_use')).toBeVisible();
+    fireEvent.click(
+      screen.getByTestId('settings-managed-computer-use-action-settings_request_computer_use_permissions')
+    );
+
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_request_computer_use_permissions',
+        dryRun: false,
+      })
+    );
+    expect(bridgeMocks.loadAppState).toHaveBeenCalledWith('full', {
+      showRefreshing: true,
+      forceFresh: true,
+    });
+
+    fireEvent.click(screen.getByTestId('settings-managed-computer-use-action-settings_reinstall_computer_use'));
+    expect(bridgeMocks.modalConfirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Reinstall Computer Use?',
+        okText: 'Reinstall',
+      })
+    );
+    await waitFor(() =>
+      expect(bridgeMocks.executeActionInvoke).toHaveBeenCalledWith({
+        actionId: 'settings_reinstall_computer_use',
+        dryRun: false,
+      })
+    );
   });
 
   it('opens the local capabilities tab from the full third-party section route', async () => {

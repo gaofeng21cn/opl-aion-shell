@@ -2408,6 +2408,39 @@
     "title": "能力",
     "description": "管理 OPL Flow 推荐，以及本机 Skill、插件、MCP、图像工具和语音输入。",
     "groups": {
+      "managedComputerUse": {
+        "title": "OPL 托管桌面 Computer Use",
+        "description": "KimiCU 由 OPL 默认安装、注册并启用；macOS 仍可能要求你授予辅助功能和屏幕录制权限。",
+        "actionComplete": "Computer Use 状态已刷新。",
+        "refreshFailed": "操作已完成，但无法读取最新的 Computer Use 状态。",
+        "confirmTitle": "重新安装 Computer Use？",
+        "confirmContent": "OPL 只会替换固定版本的 KimiCU 托管组件，不会改动普通 Codex 设置。",
+        "allowPermissions": "授予权限",
+        "recheck": "重新检查",
+        "repair": "修复",
+        "reinstall": "重新安装",
+        "permissionRequired": "请授予辅助功能和屏幕录制权限，使 Computer Use 进入就绪状态。",
+        "stateSummary": "已安装：{{installed}} · 已注册：{{registered}} · 已启用：{{enabled}}",
+        "yes": "是",
+        "no": "否",
+        "permissionSummary": "系统权限：{{permission}}",
+        "permission": {
+          "granted": "已授予",
+          "required": "需要授予",
+          "unknown": "尚未检查",
+          "unsupported": "不支持"
+        },
+        "status": {
+          "ready": "就绪",
+          "permission_required": "需要权限",
+          "not_installed": "未安装",
+          "not_registered": "需要注册",
+          "health_not_checked": "已安装，状态尚未检查",
+          "unsupported_platform": "平台不支持",
+          "attention_required": "需要处理",
+          "unknown": "未知"
+        }
+      },
       "oplFlowManaged": {
         "title": "OPL Flow 推荐",
         "description": "推荐 Skill 与命令行能力由 OPL Packages 按 OPL Flow 依赖闭包统一同步和更新。",
