@@ -115,7 +115,7 @@ function capabilityConversationAvailabilityLabel(
   if (
     ['capability_package', 'framework_capability_package'].includes(item.packageRole ?? '') &&
     item.operationalReady === true &&
-    item.launchAllowed === false
+    item.codexVisibility === 'notVisible'
   ) {
     return t('settings.capabilitiesPage.visibility.supportingWithoutDirectEntry', {
       defaultValue: 'Available as a supporting capability without a standalone conversation entry',

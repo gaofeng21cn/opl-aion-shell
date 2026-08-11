@@ -1499,7 +1499,7 @@ describe('Agents and capabilities settings', () => {
           display_name: 'MAS Scholar Skills',
           package_role: 'capability_package',
           installed: true,
-          readiness: { status: 'ready', operational_ready: true, launch_allowed: false },
+          readiness: { status: 'ready', operational_ready: true, launch_allowed: true },
         },
       ],
       {
@@ -1509,6 +1509,12 @@ describe('Agents and capabilities settings', () => {
             operational_ready: true,
             launch_allowed: true,
             capability_exposure: { status: 'visible', codex_visible: true },
+          },
+          {
+            package_id: 'mas-scholar-skills',
+            operational_ready: true,
+            launch_allowed: true,
+            capability_exposure: { status: 'hidden', codex_visible: false },
           },
         ],
       }
