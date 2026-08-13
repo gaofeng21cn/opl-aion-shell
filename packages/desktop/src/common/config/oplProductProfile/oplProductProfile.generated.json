@@ -814,6 +814,15 @@
         "project_affinity_role": "explicit_project_id_wins_for_sidebar_grouping_non_managed_scratch_recorded_cwd_only_supplies_derived_directory_group",
         "managed_scratch_presentation": "user_documents_codex_subtree_preserves_recorded_cwd_and_renders_unbound_without_leaf_directory_project_groups",
         "workspace_binding_role": "new_session_initial_cwd_and_explicit_project_affinity_assignment_are_distinct",
+        "workspace_path_projection": {
+          "picker_result": "host_path_and_canonical_runtime_path",
+          "host_path_role": "native_picker_display_only_not_conversation_payload",
+          "runtime_path_role": "canonical_new_session_cwd_recent_workspace_value_and_backend_payload",
+          "windows_projection": "opl_linux_distribution_bound_wslpath",
+          "non_windows_projection": "host_path_equals_runtime_path",
+          "native_windows_backend_fallback_allowed": false,
+          "generic_local_picker_projection_allowed": false
+        },
         "runtime_pwd_role": "turn_cwd_or_command_pwd_execution_context_not_persisted_as_project_affinity",
         "turn_cwd_override_allowed": true,
         "writable_roots_role": "sandbox_permission_surface_independent_of_project_affinity",
@@ -1108,10 +1117,22 @@
       "manifest_lock_receipt_parser_allowed": false,
       "action_id_allowlist_allowed": false,
       "catalog_presentation_policy": {
-        "section_order": ["professional_agents", "capability_packages", "workflow_profiles", "other_packages"],
-        "professional_agent_order_source": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
-        "professional_agent_order_policy": "sort_standard_agent_directory_entries_by_user_sort_order_then_localized_display_name",
-        "workflow_profile_policy": "render_in_a_separate_workflow_section_not_mixed_with_runnable_agents",
+        "section_order": ["opl_managed", "other_agents", "other_capabilities"],
+        "ownership_classifier": {
+          "source_fields": ["publisher", "source_explanation.kind", "source_explanation.source"],
+          "opl_publisher": "one-person-lab",
+          "opl_source_kind": "first_party_framework_projection",
+          "opl_source": "first_party",
+          "hardcoded_package_ids_allowed": false
+        },
+        "section_policy": {
+          "opl_managed": "all dynamically identified OPL-owned Package roles, with standard Agents before workflow and capability Packages",
+          "other_agents": "non-OPL standard Agents",
+          "other_capabilities": "non-OPL workflow, capability, and unknown Package roles",
+          "availability_status_is_row_state_not_grouping": true
+        },
+        "standard_agent_name_policy": "owner-projected invariant English brand name in every locale",
+        "description_locale_policy": "active UI locale then owner-default fallback",
         "package_role_labels_i18n": {
           "standard_agent": {
             "zh-CN": "专业智能体",
@@ -1131,8 +1152,8 @@
           "source": "app_state.agent_packages.status_index.packages[].dependent_guard.required_by_package_ids",
           "direction": "a_package_with_one_visible_required_by_package_id_is_nested_under_that_parent_package",
           "single_parent_policy": "render_once_as_a_compact_child_row_under_the_visible_parent",
-          "multiple_parent_policy": "render_once_in_capability_packages_with_localized_parent_labels",
-          "missing_or_invisible_parent_policy": "render_once_in_capability_packages",
+          "multiple_parent_policy": "render_once_in_the_ownership-matched_capability_group_with_localized_parent_labels",
+          "missing_or_invisible_parent_policy": "render_once_in_the_ownership-matched_capability_group",
           "hardcoded_package_relationships_allowed": false,
           "duplicate_rows_allowed": false,
           "status_and_actions_source": "unchanged_Framework_directory_and_status_index_projection"

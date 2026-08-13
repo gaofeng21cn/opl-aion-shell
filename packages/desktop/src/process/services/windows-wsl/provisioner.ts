@@ -700,7 +700,7 @@ export class WindowsWslProvisioner {
     await this.assertOwnedDistributionLocation();
   }
 
-  private async translateWindowsPath(windowsPath: string): Promise<string> {
+  private async translateWindowsPath(windowsPath: string, requireMountedPath = true): Promise<string> {
     const result = await this.wsl([
       '--distribution',
       OPL_WSL_DISTRIBUTION,
@@ -713,13 +713,27 @@ export class WindowsWslProvisioner {
     ]);
     await this.requireSuccess(result, 'initializing_guest', 'wsl_path_projection_failed');
     const translated = bounded(result.stdout).trim();
-    if (!translated.startsWith('/mnt/')) {
+    if (!translated.startsWith('/')) {
+      throw new WindowsWslProvisioningError('Projected path is not absolute inside OPL Linux.', {
+        stage: 'initializing_guest',
+        code: 'wsl_path_projection_invalid',
+      });
+    }
+    if (requireMountedPath && !translated.startsWith('/mnt/')) {
       throw new WindowsWslProvisioningError('Packaged runtime path is not visible inside OPL Linux.', {
         stage: 'initializing_guest',
         code: 'packaged_runtime_path_unavailable',
       });
     }
     return translated;
+  }
+
+  /** Project a native Windows path into the owned OPL Linux runtime namespace. */
+  async projectHostPath(hostPath: string): Promise<string> {
+    if (this.platform !== 'win32') return hostPath;
+    const normalized = hostPath.trim();
+    if (!normalized) throw new Error('Workspace path must not be empty.');
+    return await this.translateWindowsPath(normalized, false);
   }
 
   private async bootstrapGuest(): Promise<void> {

@@ -452,6 +452,8 @@ const GuidPage: React.FC = () => {
     appState,
   });
 
+  const [workspaceDisplayDir, setWorkspaceDisplayDir] = useState(() => navState?.workspace ?? '');
+
   const openFirstRunSetup = useCallback(() => {
     void navigate('/first-run');
   }, [navigate]);
@@ -479,15 +481,21 @@ const GuidPage: React.FC = () => {
   }, [coreReadiness, setupNoticeKind]);
 
   const handleWorkspaceSelect = useCallback(
-    (dir: string) => {
-      guidInput.setDir(dir);
+    ({ runtimePath, hostPath }: { runtimePath: string; hostPath: string }) => {
+      guidInput.setDir(runtimePath);
+      setWorkspaceDisplayDir(hostPath);
     },
     [guidInput.setDir]
   );
 
   const handleWorkspaceClear = useCallback(() => {
     guidInput.setDir('');
+    setWorkspaceDisplayDir('');
   }, [guidInput.setDir]);
+
+  useEffect(() => {
+    if (!guidInput.dir) setWorkspaceDisplayDir('');
+  }, [guidInput.dir]);
 
   // --- Coordinated handlers (depend on multiple hooks) ---
   const handleInputChange = useCallback(
@@ -666,6 +674,7 @@ const GuidPage: React.FC = () => {
     guidInput.setLoading(false);
     if (!navState?.workspace) {
       guidInput.setDir('');
+      setWorkspaceDisplayDir('');
     }
   }, [
     guidInput.setDir,
@@ -924,6 +933,7 @@ const GuidPage: React.FC = () => {
           <div className={styles.guidComposerDock}>
             <GuidWorkspaceContextBar
               workspaceDir={guidInput.dir}
+              workspaceDisplayDir={workspaceDisplayDir}
               onSelectWorkspace={handleWorkspaceSelect}
               onClearWorkspace={handleWorkspaceClear}
               workspaceAccessDisabled={workspaceAccessBlocked}

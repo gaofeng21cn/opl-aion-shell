@@ -65,4 +65,22 @@ describe('Windows WSL runtime execution', () => {
     await runtime.terminateAll();
     expect(spawnProcess).toHaveBeenCalledTimes(2);
   });
+
+  it('projects workspace paths through the owned provisioner after readiness', async () => {
+    const provisioner = {
+      ensureReady: vi.fn().mockResolvedValue({}),
+      projectHostPath: vi.fn().mockResolvedValue('/mnt/d/研究/RCT'),
+    };
+    const runtime = new WindowsWslRuntimeExecution({
+      platform: 'win32',
+      resourcesPath: 'C:\\OPL\\resources',
+      userDataPath: 'C:\\OPL\\user-data',
+      provisioner: provisioner as never,
+      spawnProcess: vi.fn() as never,
+    });
+
+    await expect(runtime.projectWorkspacePath('D:\\研究\\RCT')).resolves.toBe('/mnt/d/研究/RCT');
+    expect(provisioner.ensureReady).toHaveBeenCalledOnce();
+    expect(provisioner.projectHostPath).toHaveBeenCalledWith('D:\\研究\\RCT');
+  });
 });

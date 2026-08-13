@@ -82,6 +82,12 @@ export class WindowsWslRuntimeExecution {
     return await this.provisioner.inspect();
   }
 
+  async projectWorkspacePath(hostPath: string): Promise<string> {
+    if (this.platform !== 'win32') return hostPath;
+    await this.ensureReady();
+    return await this.provisioner.projectHostPath(hostPath);
+  }
+
   buildSpawnCommand(request: WindowsWslSpawnRequest): {
     command: 'wsl.exe';
     args: string[];

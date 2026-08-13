@@ -144,6 +144,19 @@ describe('WindowsWslProvisioner parsing and identity', () => {
     ).toThrow(WindowsWslProvisioningError);
   });
 
+  it('rejects a non-absolute workspace path projected by OPL Linux', async () => {
+    const provisioner = new WindowsWslProvisioner({
+      platform: 'win32',
+      resourcesPath,
+      userDataPath,
+      runCommand: vi.fn().mockResolvedValue(result(0, 'relative/workspace\n')),
+    });
+
+    await expect(provisioner.projectHostPath('D:\\研究\\RCT')).rejects.toMatchObject({
+      code: 'wsl_path_projection_invalid',
+    });
+  });
+
   it('binds the Framework URLs to the exact product ref', () => {
     const frameworkRef = 'b'.repeat(40);
     expect(

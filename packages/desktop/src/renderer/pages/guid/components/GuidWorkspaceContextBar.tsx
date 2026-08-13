@@ -9,7 +9,8 @@ import GuidWorkspaceManagementModal from './GuidWorkspaceManagementModal';
 
 type GuidWorkspaceContextBarProps = {
   workspaceDir: string;
-  onSelectWorkspace: (dir: string) => void;
+  workspaceDisplayDir?: string;
+  onSelectWorkspace: (workspace: { runtimePath: string; hostPath: string }) => void;
   onClearWorkspace: () => void;
   workspaceAccessDisabled?: boolean;
   workspaceAccessDisabledReason?: string;
@@ -17,6 +18,7 @@ type GuidWorkspaceContextBarProps = {
 
 const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
   workspaceDir,
+  workspaceDisplayDir,
   onSelectWorkspace,
   onClearWorkspace,
   workspaceAccessDisabled = false,
@@ -24,18 +26,18 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
 }) => {
   const { t } = useTranslation();
   const [managementOpen, setManagementOpen] = useState(false);
-  const workspaceName = workspaceDir ? workspaceDir.split(/[\\/]/).pop() || workspaceDir : '';
+  const displayDir = workspaceDisplayDir || workspaceDir;
+  const workspaceName = displayDir ? displayDir.split(/[\\/]/).pop() || displayDir : '';
   const hasRegisteredWorkspaces = getRecentWorkspaces().length > 0;
 
   const openWorkspacePicker = useCallback(() => {
     if (workspaceAccessDisabled) return;
-    void ipcBridge.dialog.showOpen
+    void ipcBridge.dialog.showWorkspace
       .invoke({ properties: ['openDirectory', 'createDirectory'] })
-      .then((directories) => {
-        const selectedDirectory = directories?.[0];
-        if (!selectedDirectory) return;
-        addRecentWorkspace(selectedDirectory);
-        onSelectWorkspace(selectedDirectory);
+      .then((selection) => {
+        if (!selection) return;
+        addRecentWorkspace(selection.runtime_path);
+        onSelectWorkspace({ runtimePath: selection.runtime_path, hostPath: selection.host_path });
       })
       .catch((error) => {
         console.error('Failed to open workspace directory dialog:', error);
@@ -55,7 +57,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
           <span>{t('guid.context.workingDirectory')}</span>
         </span>
         {workspaceDir ? (
-          <Tooltip content={workspaceDir} position='top'>
+          <Tooltip content={displayDir} position='top'>
             <Button
               type='text'
               size='mini'

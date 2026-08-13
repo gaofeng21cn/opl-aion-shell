@@ -1168,6 +1168,10 @@ export const dialog = {
     | { defaultPath?: string; properties?: OpenDialogOptions['properties']; filters?: OpenDialogOptions['filters'] }
     | undefined
   >('show-open'),
+  showWorkspace: bridge.buildProvider<
+    { host_path: string; runtime_path: string } | undefined,
+    { defaultPath?: string; properties?: OpenDialogOptions['properties'] } | undefined
+  >('show-workspace'),
 };
 
 // ---------------------------------------------------------------------------

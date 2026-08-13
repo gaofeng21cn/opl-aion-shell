@@ -204,6 +204,7 @@ vi.mock('@/common', () => ({
     },
     dialog: {
       showOpen: { invoke: vi.fn().mockResolvedValue([]) },
+      showWorkspace: { invoke: vi.fn().mockResolvedValue(undefined) },
     },
     assistants: {
       update: { invoke: vi.fn().mockResolvedValue(undefined) },
@@ -461,6 +462,9 @@ describe('GuidPage selected purpose assistant surface', () => {
     mocks.setInput.mockClear();
     mocks.setFiles.mockClear();
     mocks.setDir.mockClear();
+    mocks.setDir.mockImplementation((value: React.SetStateAction<string>) => {
+      mocks.guidInput.dir = typeof value === 'function' ? value(mocks.guidInput.dir) : value;
+    });
     mocks.setLoading.mockClear();
     mocks.onPaste.mockClear();
     mocks.onDrop.mockClear();
@@ -840,6 +844,23 @@ describe('GuidPage selected purpose assistant surface', () => {
     );
   });
 
+  it('projects a selected workspace into the runtime path while preserving host display', async () => {
+    const { ipcBridge } = await import('@/common');
+    vi.mocked(ipcBridge.dialog.showWorkspace.invoke).mockResolvedValueOnce({
+      host_path: 'D:\\研究\\RCT',
+      runtime_path: '/mnt/d/研究/RCT',
+    });
+    render(<GuidPage />);
+
+    await userEvent.click(screen.getByTestId('guid-workspace-select'));
+
+    await waitFor(() => expect(mocks.setDir).toHaveBeenCalledWith('/mnt/d/研究/RCT'));
+    await waitFor(() =>
+      expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ dir: '/mnt/d/研究/RCT' }))
+    );
+    expect(screen.getByTestId('guid-workspace-select')).toHaveTextContent('RCT');
+  });
+
   it('disables builtin-auto Skills that are absent from the owner projection', async () => {
     render(<GuidPage />);
 
@@ -1078,6 +1099,7 @@ describe('GuidPage selected purpose assistant surface', () => {
 
   it('keeps send-scoped attachments when the selected workspace is cleared', async () => {
     mocks.guidInput.dir = '/workspace/research';
+    mocks.locationState.value = { workspace: '/workspace/research' };
     mocks.guidInput.files = ['/outside/project/evidence.pdf'];
     render(<GuidPage />);
     const setFilesCallCount = mocks.setFiles.mock.calls.length;
