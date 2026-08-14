@@ -41,6 +41,16 @@
   "download": "Download",
   "close": "Close",
   "retry": "Retry",
+  "oplUiContributions": {
+    "actionUnavailable": "This action is unavailable in the current App state",
+    "confirmationRequired": "Confirmation is required before this action runs",
+    "confirmTitle": "Run {{command}}?",
+    "confirmDescription": "This action will be delegated to the installed {{package}} Package through OPL App.",
+    "executeSuccess": "Package action completed",
+    "executeFailed": "Package action failed",
+    "readbackFailed": "The action completed, but fresh App state could not be read",
+    "unsupportedKind": "{{kind}} is not supported here. Other modules remain available."
+  },
   "feedback": {
     "includeLogs": "Attach redacted diagnostic logs",
     "includeLogsDescription": "Off by default. Recent logs are collected and redacted only when you select this option.",

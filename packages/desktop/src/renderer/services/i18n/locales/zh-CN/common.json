@@ -41,6 +41,16 @@
   "download": "下载",
   "close": "关闭",
   "retry": "重试",
+  "oplUiContributions": {
+    "actionUnavailable": "当前 App 状态未提供此操作",
+    "confirmationRequired": "执行此操作前需要确认",
+    "confirmTitle": "执行“{{command}}”？",
+    "confirmDescription": "此操作将通过 OPL App 委托给已安装的 {{package}} Package。",
+    "executeSuccess": "Package 操作已完成",
+    "executeFailed": "Package 操作失败",
+    "readbackFailed": "操作已完成，但无法读取最新 App 状态",
+    "unsupportedKind": "此处暂不支持 {{kind}}，其他模块仍可使用。"
+  },
   "feedback": {
     "includeLogs": "附加已脱敏的诊断日志",
     "includeLogsDescription": "默认关闭。仅在你勾选后收集最近日志，并在上传前脱敏。",

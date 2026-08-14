@@ -5,6 +5,7 @@
  */
 
 import FilePreview from '@/renderer/components/media/FilePreview';
+import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
 import UploadProgressBar from '@/renderer/components/media/UploadProgressBar';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
@@ -152,6 +153,7 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
           </div>
         )}
         <UploadProgressBar source='sendbox' />
+        <OplUiContributionSlot slot='composer.palette' />
         {actionRow}
         {slashCommandMenu && (
           <div className='absolute left-0 right-0 top-[calc(100%+4px)] z-70'>{slashCommandMenu}</div>

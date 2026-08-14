@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ipcBridge } from '@/common';
+import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { RuntimeArchiveHeader } from './components/RuntimeArchiveHeader';
@@ -459,6 +460,8 @@ const RuntimePage: React.FC = () => {
           />
         )}
       </header>
+
+      <OplUiContributionSlot slot='runtime.detail' />
 
       {pageState === 'loading' && (
         <div className={styles.loadingState} data-testid='runtime-loading-state'>

@@ -5,6 +5,7 @@
  */
 
 import AionScrollArea from '@/renderer/components/base/AionScrollArea';
+import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
 import { iconColors } from '@/renderer/styles/colors';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
@@ -529,6 +530,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
                   onCapabilitiesTabChange={setCapabilitiesTab}
                 />
               ))}
+            {activeTab === 'capabilities' && <OplUiContributionSlot slot='settings.section' />}
             {renderExtensionTabs()}
           </AionScrollArea>
         </div>
