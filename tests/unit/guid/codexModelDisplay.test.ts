@@ -21,7 +21,7 @@ describe('oplCodexModelDisplay', () => {
     });
 
     expect(display.label).toBe('5.4');
-    expect(display.reasoningLabel).toBe('推理超高');
+    expect(display.reasoningLabel).toBe('超高');
     expect(display.description).toBe('固定此模型');
     expect(display.label).not.toContain('gpt-5.4');
   });
@@ -35,7 +35,7 @@ describe('oplCodexModelDisplay', () => {
     });
 
     expect(display.label).toBe('GPT-5.3 Codex');
-    expect(display.reasoningLabel).toBe('推理超高');
+    expect(display.reasoningLabel).toBe('超高');
     expect(display.label).not.toContain('gpt-5.3-codex');
   });
 
@@ -79,16 +79,16 @@ describe('oplCodexModelDisplay', () => {
     });
 
     expect(option.label).toBe('Auto (recommended)');
-    expect(option.description).toBe('Current GPT-6 · Ultra reasoning · follows latest strongest');
+    expect(option.description).toBe('Current GPT-6 · Ultra · follows latest strongest');
   });
 
   it('uses localized reasoning labels', () => {
-    expect(formatOplCodexReasoningLabel('high', 'zh-CN')).toBe('推理高');
-    expect(formatOplCodexReasoningLabel('high', 'en-US')).toBe('High reasoning');
-    expect(formatOplCodexReasoningLabel('xhigh', 'zh-CN')).toBe('推理超高');
-    expect(formatOplCodexReasoningLabel('xhigh', 'en-US')).toBe('Extra high reasoning');
-    expect(formatOplCodexReasoningLabel('ultra', 'zh-CN')).toBe('推理极高');
-    expect(formatOplCodexReasoningLabel('ultra', 'en-US')).toBe('Ultra reasoning');
+    expect(formatOplCodexReasoningLabel('high', 'zh-CN')).toBe('高');
+    expect(formatOplCodexReasoningLabel('high', 'en-US')).toBe('High');
+    expect(formatOplCodexReasoningLabel('xhigh', 'zh-CN')).toBe('超高');
+    expect(formatOplCodexReasoningLabel('xhigh', 'en-US')).toBe('Extra high');
+    expect(formatOplCodexReasoningLabel('ultra', 'zh-CN')).toBe('极高');
+    expect(formatOplCodexReasoningLabel('ultra', 'en-US')).toBe('Ultra');
   });
 
   it('formats compact labels for the selector button and menu rows', () => {

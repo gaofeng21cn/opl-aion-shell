@@ -7,17 +7,17 @@
 import { ipcBridge } from '@/common';
 import {
   hasPackageContributionExecuteAction,
-  readOplUiContributionsProjection,
   resolveOplUiContributionLabel,
   type OplUiContribution,
   type OplUiContributionCommand,
   type OplUiContributionSlot,
 } from '@/common/types/opl/uiContributions';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
+import { getOplClientCordisComposition } from '@/renderer/services/oplClientCordis';
 import { Button, Message, Modal, Tag, Tooltip } from '@arco-design/web-react';
 import { Play, Puzzle } from '@icon-park/react';
 import classNames from 'classnames';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './OplUiContributionSlot.module.css';
 
@@ -34,10 +34,33 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
   const [message, messageContextHolder] = Message.useMessage();
   const appStateQuery = useOplAppState('fast');
   const [runningCommandKey, setRunningCommandKey] = useState<string | null>(null);
-  const projection = useMemo(() => readOplUiContributionsProjection(appStateQuery.appState), [appStateQuery.appState]);
-  const entries = useMemo(() => projection.entries.filter((entry) => entry.slot === slot), [projection.entries, slot]);
+  const [entries, setEntries] = useState<readonly OplUiContribution[]>([]);
   const actionAvailable = hasPackageContributionExecuteAction(appStateQuery.appState);
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US';
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+    void getOplClientCordisComposition()
+      .then((composition) => {
+        if (!active) return;
+        const refresh = () => {
+          if (active) setEntries(composition.contributions.readSlot(slot));
+        };
+        unsubscribe = composition.contributions.subscribe(refresh);
+        composition.contributions.updateHostProjection(appStateQuery.appState);
+        refresh();
+      })
+      .catch((error) => {
+        if (!active) return;
+        console.error('Failed to initialize OPL Client Cordis', error);
+        setEntries([]);
+      });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [appStateQuery.appState, slot]);
 
   const executeCommand = useCallback(
     async (entry: OplUiContribution, command: OplUiContributionCommand, confirmed: boolean) => {

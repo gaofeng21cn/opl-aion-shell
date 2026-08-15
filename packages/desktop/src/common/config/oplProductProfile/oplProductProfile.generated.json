@@ -10,8 +10,9 @@
     "display_name": "One Person Lab App",
     "ordinary_chrome_name": "One Person Lab",
     "primary_surface": "desktop_workbench",
-    "supported_release_platforms": ["macos-arm64"],
-    "positioning": "purpose_first_codex_app_wrapper",
+    "target_desktop_platforms": ["macos", "windows", "linux"],
+    "target_runtime_forms": ["electron_desktop", "standalone_headless_webui", "docker_webui"],
+    "positioning": "purpose_first_codex_app",
     "primary_user_path": "chat_first_codex_cli_with_dynamic_agent_package_shortcuts"
   },
   "contract_refs": {
@@ -22,6 +23,21 @@
     "release_channel": "contracts/app-release-channel.json",
     "gui_product": "contracts/app-gui-product-contract.json",
     "settings_control_plane": "contracts/app-settings-control-plane.json"
+  },
+  "release_roles": {
+    "current": {
+      "shell": "aionui",
+      "adapter_ref": "contracts/app-shell-adapter.json",
+      "release_channel_ref": "contracts/app-release-channel.json",
+      "admitted_product_platforms": ["macos-arm64"]
+    },
+    "successor": {
+      "candidate_id": "opl-studio",
+      "topology_ref": "delivery_topology",
+      "active_release_carrier": false,
+      "release_admission_separate": true,
+      "target_platforms_are_not_current_release_evidence": true
+    }
   },
   "computer_use": {
     "schema": "opl_app_computer_use_profile.v1",
@@ -100,28 +116,45 @@
     }
   },
   "delivery_topology": {
-    "schema": "opl_app_delivery_topology.v1",
+    "schema": "opl_app_delivery_topology.v2",
+    "role": "successor_target_only",
     "decision_status": "approved_target_current_release_admission_separate",
     "product_behavior_authority": "one-person-lab-app",
-    "current_release_support_source_ref": "product.supported_release_platforms",
-    "current_release_shell_source_ref": "contract_refs.active_shell",
+    "release_roles_source_ref": "release_roles",
     "shared_renderer": {
       "product_owner": "one-person-lab-app",
-      "technology": "react",
-      "role": "opl_owned_product_renderer",
-      "implementation_status": "approved_direction_candidate_evidence_only",
-      "technical_evaluation_candidate": "opl-native-workbench",
-      "required_surfaces": ["native_macos", "opl_workspace", "future_cross_platform_desktop"],
+      "technology": "deepseek_harness_derived_react",
+      "role": "single_opl_owned_product_renderer",
+      "implementation_status": "approved_active_product_development_release_admission_separate",
+      "technical_evaluation_candidate": "opl-studio",
+      "required_surfaces": ["electron_desktop", "standalone_headless_webui", "docker_webui"],
+      "source_reuse_policy_ref": "docs/product/gui/deepseek-harness-composition-plan.md",
       "single_active_product_renderer_required": true,
       "carrier_specific_product_forks_allowed": false,
       "aionui_source_or_runtime_dependency_required": false
     },
+    "shared_host_core": {
+      "technology": "node",
+      "role": "single_codex_and_opl_transport_host",
+      "owns": [
+        "codex_app_server_process_lifecycle",
+        "canonical_thread_and_turn_transport",
+        "opl_app_state_action_bridge",
+        "typed_host_events"
+      ],
+      "desktop_adapter": "electron_main_and_preload_ipc",
+      "web_adapter": "http_sse",
+      "same_core_required_across_carriers": true,
+      "carrier_specific_business_logic_allowed": false,
+      "second_session_store_or_action_bus_allowed": false
+    },
     "runtime": {
       "supported_backend_scope": "codex_cli_only",
       "codex_interface": "codex_app_server",
-      "codex_transport_by_host": {
-        "native_macos": "stdio",
-        "opl_workspace": "host_managed_stdio"
+      "codex_transport_by_carrier": {
+        "electron_desktop": "shared_node_host_core_managed_stdio",
+        "standalone_headless_webui": "shared_node_host_core_managed_stdio",
+        "docker_webui": "shared_node_host_core_managed_stdio"
       },
       "opl_integration": "framework_app_state_action_contracts_only",
       "aioncore_allowed": false,
@@ -131,40 +164,94 @@
       "thread_store_owner": "codex_core_app_server"
     },
     "bridge": {
+      "abi": "opl_app_host_bridge.v1",
       "product_runtime_interface": "opl_app_state_action_and_codex_app_server_thread_event_contracts",
       "shared_typed_bridge_shape_required": true,
-      "native_transport": "wk_script_message_handler_to_local_process",
-      "web_transport": "http_sse_same_origin_to_host_process",
+      "desktop_transport_adapter": "electron_preload_ipc_to_shared_node_host_core",
+      "web_transport_adapter": "http_sse_to_shared_node_host_core",
+      "renderer_api_semantics_identical_across_adapters": true,
       "second_control_plane_or_session_store_allowed": false
     },
-    "macos_desktop": {
-      "carrier_id": "native_macos",
+    "desktop": {
+      "carrier_id": "electron_desktop",
       "role": "approved_target_architecture",
-      "technical_evaluation_candidate": "opl-native-workbench",
-      "host_technology": "swift_appkit_wkwebview",
-      "target_platforms": ["macos-arm64"],
-      "current_release_support_source_ref": "product.supported_release_platforms",
+      "technical_evaluation_candidate": "opl-studio",
+      "implementation_status": "electron_package_and_updater_adapter_source_implemented_distribution_update_release_wiring_open",
+      "host_technology": "electron_thin_shell",
+      "target_platforms": ["macos", "windows", "linux"],
       "mainline_implementation_assigned": false,
       "active_release_carrier": false,
-      "electron_required": false,
+      "package_source_implemented": true,
+      "update_adapter_source_implemented": true,
+      "distribution_wiring_complete": false,
+      "update_command_wiring_complete": false,
+      "release_admission_complete": false,
+      "platform_support_claim_allowed_before_platform_admission": false,
+      "electron_role": "window_preload_os_integration_packaging_signing_and_updater_only",
+      "platform_runtime_placement": "adapter_owned_and_unresolved_until_platform_evidence",
+      "windows_native_or_wsl_placement_predecided": false,
+      "swift_appkit_wkwebview_product_host_allowed": false,
+      "platform_specific_renderer_fork_allowed": false,
       "aioncore_required": false,
       "container_runtime_role": "none"
     },
-    "workspace": {
-      "carrier_id": "container_webui",
-      "product_name": "OPL Workspace",
-      "role": "hosted_one_person_lab_app_web_access",
-      "technical_evaluation_candidate": "opl-native-workbench",
-      "implementation_status": "candidate_evidence_only",
+    "headless_webui": {
+      "carrier_id": "standalone_headless_webui",
+      "product_name": "One Person Lab",
+      "role": "standalone_service_and_browser_access",
+      "technical_evaluation_candidate": "opl-studio",
+      "implementation_status": "foreground_cli_user_service_installer_and_update_adapter_source_implemented_distribution_update_release_wiring_open",
       "mainline_implementation_assigned": false,
-      "host_technology": "node_web_host",
+      "host_technology": "shared_node_host_core",
       "transport": "http_sse",
       "runtime_process": "codex_cli_app_server_child_process",
-      "electron_in_container_allowed": false,
-      "aioncore_in_container_allowed": false,
-      "independent_runtime_persistence_and_release_required": true,
-      "same_renderer_and_bridge_shape_required": true,
+      "install_and_launch_modes": ["foreground_cli", "background_service"],
+      "foreground_cli_source_implemented": true,
+      "user_service_manager_source_implemented": true,
+      "installer_source_implemented": true,
+      "distribution_installer_wiring_complete": false,
+      "carrier_update_adapter_source_implemented": true,
+      "carrier_update_command_wiring_complete": false,
+      "release_admission_complete": false,
+      "explicit_cli_mode_required": true,
+      "legacy_headless_flag_semantics": "base_only_unchanged_until_separate_migration",
+      "existing_packaged_desktop_webui_counts_as_standalone_host": false,
+      "implementation_gap": "wire_the_existing_installer_service_manager_and_update_adapter_into_app_distribution_then_qualify_each_platform",
+      "electron_required": false,
+      "aioncore_required": false,
+      "same_renderer_host_core_and_bridge_abi_required": true,
       "desktop_database_reuse_required": false,
+      "codex_state_volume_required": true,
+      "multi_tenant_claim_allowed": false
+    },
+    "docker_webui": {
+      "carrier_id": "docker_webui",
+      "product_name": "One Person Lab",
+      "role": "containerized_shared_host_core_and_webui",
+      "technical_evaluation_candidate": "opl-studio",
+      "implementation_status": "successor_oci_source_implemented_install_update_release_admission_open",
+      "mainline_implementation_assigned": false,
+      "host_technology": "shared_node_host_core",
+      "transport": "http_sse",
+      "runtime_process": "codex_cli_app_server_child_process",
+      "container_source_implemented": true,
+      "shared_renderer_reuse_implemented": true,
+      "shared_host_core_reuse_implemented": true,
+      "distribution_manager_source_implemented": true,
+      "distribution_wiring_complete": false,
+      "image_update_adapter_source_implemented": true,
+      "image_update_command_wiring_complete": false,
+      "multi_arch_build_plan_source_implemented": true,
+      "multi_arch_qualification_complete": false,
+      "signature_verification_implemented": false,
+      "security_admission_complete": false,
+      "release_admission_complete": false,
+      "existing_aionui_container_counts_as_successor_implementation": false,
+      "electron_in_container_allowed": false,
+      "aionui_in_container_allowed": false,
+      "aioncore_in_container_allowed": false,
+      "same_renderer_host_core_and_bridge_abi_required": true,
+      "independent_runtime_persistence_and_release_required": true,
       "codex_state_volume_required": true,
       "multi_tenant_claim_allowed": false,
       "security_admission_ref": "contracts/app-install-exposure-policy.json#installer_surfaces.docker_webui.installer_model.cloud_deployment_model",
@@ -175,34 +262,111 @@
       "optional_native_wrapper": "capacitor_after_separate_adoption_decision",
       "separate_product_renderer_allowed": false
     },
-    "cross_platform_desktop": {
-      "decision_status": "wrapper_selection_deferred",
-      "implementation_owner_status": "unassigned",
-      "mainline_implementation_assigned": false,
-      "target_platforms": ["windows", "linux"],
-      "candidate_wrappers": ["electron", "tauri"],
-      "renderer_reuse_required": true,
-      "aioncore_allowed": false,
-      "support_claim_allowed": false,
-      "separate_adoption_and_platform_acceptance_required": true
-    },
-    "native_candidate": {
-      "candidate_id": "opl-native-workbench",
-      "role": "manual_on_demand_non_periodic_technical_evaluation",
-      "mainline_development_required": false,
-      "completion_or_feature_parity_obligation": false,
+    "successor_product": {
+      "candidate_id": "opl-studio",
+      "user_visible_product_name": "One Person Lab",
+      "development_codename_user_visible": false,
+      "role": "first_party_cross_platform_app_successor_implementation",
+      "product_development_required": true,
+      "current_mainline": false,
+      "minimum_complete_product_obligation": true,
+      "aionui_feature_parity_obligation": false,
       "release_blocking": false,
       "active_release_carrier": false,
-      "adoption_requires_explicit_contract_change": true,
+      "release_adoption_requires_separate_qualification": true,
       "candidate_policy_ref": "contracts/app-shell-candidates.json"
     },
     "aionui_reference": {
-      "role": "current_release_shell_and_bounded_reference_only",
+      "role": "current_release_shell_and_bounded_requirements_evidence_only",
       "target_renderer_owner": false,
+      "target_feature_inventory_owner": false,
       "target_runtime_dependency": false,
       "aioncore_target_runtime_dependency": false,
       "source_reuse_requires_separate_decision": true,
       "active_release_shell_source_ref": "contract_refs.active_shell"
+    },
+    "minimum_complete_product": {
+      "schema": "opl_app_successor_minimum_complete_product.v2",
+      "implementation_id": "opl-studio",
+      "completion_rule": "all_required_user_outcomes_have_owner_backed_state_action_and_post_action_readback_without_a_second_runtime_or_truth_store",
+      "required_user_outcomes": [
+        "codex_project_thread_turn_streaming_and_lifecycle",
+        "current_agent_run_status_and_package_contributed_hypothesis_roadmap",
+        "files_results_and_artifact_refs_in_an_on_demand_detail_surface",
+        "gateway_model_working_directory_preferences_and_diagnostics",
+        "dynamic_agent_catalog_search_filter_source_policy_home_visibility_order_and_lifecycle",
+        "dynamic_capability_directory_and_package_settings_contributions",
+        "separate_app_base_and_packages_update_status_actions_and_fresh_readback",
+        "service_health_safe_recovery_and_owner_routed_diagnostics"
+      ],
+      "update_ownership": {
+        "opl_app": "one_app_update_contract_with_carrier_specific_desktop_headless_and_container_adapters_owned_by_one-person-lab-app",
+        "opl_base": "framework_managed_update_component_projection_and_owner_actions",
+        "opl_packages": "framework_package_projection_owner_actions_and_managed_automatic_update_policy",
+        "agent_packages": "part_of_opl_packages_never_a_fourth_updater"
+      },
+      "composition_model": {
+        "kernel_owns": [
+          "navigation",
+          "codex_thread_and_turn_client",
+          "settings_host",
+          "permission_and_action_broker"
+        ],
+        "package_contribution_slots": [
+          "settings.section",
+          "runtime.detail",
+          "composer.palette"
+        ],
+        "registration_lifecycle": "reuse_pinned_deepseek_harness_slot_registration_ordering_error_isolation_and_disposal",
+        "spatial_scope": "contributions_mount_only_in_declared_slots",
+        "temporal_scope": "contributions_register_and_dispose_with_package_session_or_page_scope",
+        "app_client_contribution_abi": "opl_app_client_contributions.v1",
+        "framework_host_graph_source": "app_state.ui_contributions",
+        "framework_host_projection_schema": "opl_app_ui_contributions_projection.v1",
+        "host_projection_graph_policy": "allowlisted_closed_graph_from_framework_projection_only",
+        "host_projection_allowlist_contract": "contracts/opl-app-contributions.schema.json",
+        "typed_slot_policy": "mount_only_app_product_profile_declared_slots",
+        "typed_action_policy": "action_refs_only_via_canonical_app_action_bridge",
+        "framework_host_composition_authority": "one-person-lab-framework",
+        "app_authority_policy": "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release",
+        "framework_projection_runtime_status": "framework_host_projection_active",
+        "shared_transport_policy": "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions",
+        "shared_product_state_semantics": true,
+        "package_gui_contribution_policy": "app_schema_admitted_declarative_only_then_framework_host_projected",
+        "client_authority_policy": "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth",
+        "client_cordis_graph": "derived_from_framework_host_graph_and_app_product_profile_slot_policy",
+        "shared_shell_consumers": [
+          "opl-aion-shell",
+          "opl-studio"
+        ],
+        "renderer_and_package_carrier_may_differ": true,
+        "independent_host_truth_allowed": false,
+        "second_client_composition_graph_allowed": false,
+        "second_package_registry_allowed": false,
+        "second_currentness_authority_allowed": false,
+        "second_state_or_action_truth_allowed": false
+      },
+      "explicit_non_goals": [
+        "AionCore",
+        "AionUI_multi_backend_or_provider_abstraction",
+        "AionUI_custom_assistant_catalog",
+        "AionUI_Team_or_shell_owned_agent_orchestration",
+        "generic_arbitrary_code_GUI_plugins",
+        "full_AionUI_feature_or_page_parity"
+      ],
+      "cutover_policy": {
+        "strategy": "establish_then_replace",
+        "ordered_gates": [
+          "complete_minimum_product_outcomes",
+          "qualify_electron_desktop_headless_webui_docker_packaging_install_update_and_release",
+          "explicitly_switch_active_shell_and_release_carrier",
+          "verify_installed_and_runtime_readback",
+          "retire_aionui_mainline"
+        ],
+        "aionui_remains_only_mainline_until_cutover": true,
+        "aionui_retirement_before_studio_qualification_allowed": false,
+        "source_or_local_candidate_evidence_may_trigger_cutover": false
+      }
     }
   },
   "official_profile": {
@@ -309,10 +473,25 @@
       "home_composer_state_contract": {
         "contract_id": "opl_home_composer_state.v1",
         "executor": "codex",
-        "shortcut_package_membership_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]",
+        "shortcut_package_membership_source_ref": "app_state.agent_packages.directory.entries",
+        "opl_standard_agent_membership_policy": {
+          "ownership_source_fields": ["official", "publisher"],
+          "ownership_match_policy": "official_equals_true_or_publisher_equals_one-person-lab",
+          "required_package_role": "standard_agent",
+          "required_readiness": "selectable",
+          "required_codex_route": {
+            "source": "home_shortcuts[].route",
+            "route_kind": "agent_package_shortcut",
+            "executor": "codex_cli",
+            "codex_visible_entry": "non_empty"
+          },
+          "generic_skills_plugins_connections_group_policy": "separate_never_in_opl_standard_agent_group",
+          "package_id_allowlist_allowed": false
+        },
         "shortcut_preference_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
         "shortcut_availability_source_ref": "app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence",
-        "unknown_standard_agent_allowed": true,
+        "unknown_standard_agent_allowed": false,
+        "unknown_first_party_opl_standard_agent_allowed": true,
         "viewports": ["desktop", "mobile"],
         "availability_states": ["available", "unavailable"],
         "invariants": {
@@ -371,16 +550,30 @@
         "workspace_selector_entry": "home.new_session_context_bar",
         "unselected_workspace_control_visible": true,
         "unselected_workspace_control_policy": "localized_choose_project_directory_action_not_projectless_status_placeholder",
-        "home_presentation_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true] + app_state.agent_packages.status_index.home_shortcut_preferences[]",
-        "home_shortcut_visibility_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true] + app_state.agent_packages.status_index.home_shortcut_preferences[visible=true]",
+        "home_presentation_source_ref": "app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.home_shortcut_preferences[]",
+        "home_shortcut_visibility_source_ref": "app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.home_shortcut_preferences[visible=true]",
+        "opl_standard_agent_membership_policy": {
+          "ownership_source_fields": ["official", "publisher"],
+          "ownership_match_policy": "official_equals_true_or_publisher_equals_one-person-lab",
+          "required_package_role": "standard_agent",
+          "required_readiness": "selectable",
+          "required_codex_route": {
+            "source": "home_shortcuts[].route",
+            "route_kind": "agent_package_shortcut",
+            "executor": "codex_cli",
+            "codex_visible_entry": "non_empty"
+          },
+          "generic_skills_plugins_connections_group_policy": "separate_never_in_opl_standard_agent_group",
+          "package_id_allowlist_allowed": false
+        },
         "home_shortcut_placement": "compact_shortcuts_immediately_above_composer_with_management_in_settings_agents_not_persistent_composer_selector",
         "dynamic_question_title": true,
         "starter_limit": null,
-        "starter_visibility_policy": "installed_standard_agent_directory_membership_with_default_or_user_visible_shortcuts",
+        "starter_visibility_policy": "opl_standard_agent_membership_with_selectable_readiness_real_codex_route_and_default_or_user_visible_shortcuts",
         "starter_order_policy": "home_shortcut_preferences_sort_order_then_localized_display_name",
-        "shortcut_membership_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]",
+        "shortcut_membership_source_ref": "app_state.agent_packages.directory.entries",
         "shortcut_preference_source_ref": "app_state.agent_packages.status_index.home_shortcut_preferences[]",
-        "unknown_standard_agent_policy": "render_when_installed_and_default_or_user_preference_visible_without_app_package_id_branch",
+        "unknown_standard_agent_policy": "render_unknown_package_ids_only_when_they_match_opl_standard_agent_membership_without_app_allowlist",
         "starter_layout_policy": "compact_inline_wrap",
         "starter_item_width_policy": "content_sized",
         "starter_count_layout_policy": "center_actual_visible_count_and_wrap_without_navigation_chevrons",
@@ -549,28 +742,28 @@
         "fixed_model_description_en": "Use this model",
         "reasoning_labels": {
           "low": {
-            "zh": "推理低",
-            "en": "Low reasoning"
+            "zh": "低",
+            "en": "Low"
           },
           "medium": {
-            "zh": "推理中",
-            "en": "Medium reasoning"
+            "zh": "中",
+            "en": "Medium"
           },
           "high": {
-            "zh": "推理高",
-            "en": "High reasoning"
+            "zh": "高",
+            "en": "High"
           },
           "xhigh": {
-            "zh": "推理超高",
-            "en": "Extra high reasoning"
+            "zh": "超高",
+            "en": "Extra high"
           },
           "max": {
-            "zh": "推理最高",
-            "en": "Maximum reasoning"
+            "zh": "最高",
+            "en": "Maximum"
           },
           "ultra": {
-            "zh": "推理极高",
-            "en": "Ultra reasoning"
+            "zh": "极高",
+            "en": "Ultra"
           }
         },
         "user_reasoning_effort_options": ["low", "medium", "high", "xhigh", "max", "ultra"],
@@ -726,17 +919,31 @@
             "id": "agent_packages",
             "scope": "new_session_configuration_only",
             "label_i18n": {
-              "zh-CN": "专业智能体",
-              "en-US": "Professional agents"
+              "zh-CN": "OPL 标准智能体",
+              "en-US": "OPL standard agents"
             },
-            "source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent]",
-            "catalog_membership_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent]",
+            "source_ref": "app_state.agent_packages.directory.entries",
+            "catalog_membership_source_ref": "app_state.agent_packages.directory.entries",
+            "opl_standard_agent_membership_policy": {
+              "ownership_source_fields": ["official", "publisher"],
+              "ownership_match_policy": "official_equals_true_or_publisher_equals_one-person-lab",
+              "required_package_role": "standard_agent",
+              "required_readiness": "selectable",
+              "required_codex_route": {
+                "source": "home_shortcuts[].route",
+                "route_kind": "agent_package_shortcut",
+                "executor": "codex_cli",
+                "codex_visible_entry": "non_empty"
+              },
+              "generic_skills_plugins_connections_group_policy": "separate_never_in_opl_standard_agent_group",
+              "package_id_allowlist_allowed": false
+            },
             "status_source_ref": "app_state.agent_packages.status_index.packages[]",
             "catalog_order_policy": "home_shortcut_preferences_sort_order_then_localized_display_name",
-            "home_shortcut_independence_policy": "render_the_complete_professional_agent_catalog_regardless_of_home_shortcut_visibility_or_order",
-            "availability_policy": "join_by_package_id_and_render_fresh_installed_present_callable_state_without_app_allowlist",
+            "home_shortcut_independence_policy": "render_the_complete_opl_standard_agent_catalog_regardless_of_home_shortcut_visibility_or_order",
+            "availability_policy": "render_only_membership_matches_and_join_by_package_id_for_fresh_readiness_without_app_allowlist",
             "action_policy": "render_only_directory_available_actions_and_recommended_action_ref",
-            "unknown_standard_agent_policy": "include_without_app_package_id_branch",
+            "unknown_standard_agent_policy": "include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership",
             "existing_session_rebinding_allowed": false,
             "surface_actions": {
               "home_new_session": ["select_new_session_agent_package"],
@@ -990,15 +1197,29 @@
     "ordinary_capability_selector_policy": {
       "scope": "home_composer_and_ordinary_conversation",
       "authority": "owner_or_carrier_skill_projection_and_mcp_negative_filter",
-      "palette_agent_catalog_source_ref": "app_state.agent_packages.directory.entries[package_role=standard_agent]",
+      "palette_agent_catalog_source_ref": "app_state.agent_packages.directory.entries",
+      "opl_standard_agent_membership_policy": {
+        "ownership_source_fields": ["official", "publisher"],
+        "ownership_match_policy": "official_equals_true_or_publisher_equals_one-person-lab",
+        "required_package_role": "standard_agent",
+        "required_readiness": "selectable",
+        "required_codex_route": {
+          "source": "home_shortcuts[].route",
+          "route_kind": "agent_package_shortcut",
+          "executor": "codex_cli",
+          "codex_visible_entry": "non_empty"
+        },
+        "generic_skills_plugins_connections_group_policy": "separate_never_in_opl_standard_agent_group",
+        "package_id_allowlist_allowed": false
+      },
       "palette_agent_status_source_ref": "app_state.agent_packages.status_index.packages[]",
       "palette_agent_availability_policy": "join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable",
       "palette_agent_action_policy": "directory_available_actions_and_recommended_action_ref_only",
-      "palette_unknown_standard_agent_policy": "include_without_app_package_id_branch",
-      "palette_home_shortcut_independence_policy": "complete_professional_agent_catalog_independent_of_home_shortcut_visibility_and_order",
+      "palette_unknown_standard_agent_policy": "include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership",
+      "palette_home_shortcut_independence_policy": "complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order",
       "palette_agent_group_label_i18n": {
-        "zh-CN": "专业智能体",
-        "en-US": "Professional agents"
+        "zh-CN": "OPL 标准智能体",
+        "en-US": "OPL standard agents"
       },
       "agent_owned_skill_deduplication_policy": "exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills",
       "agent_reference_admission_policy": {
@@ -1119,10 +1340,9 @@
       "catalog_presentation_policy": {
         "section_order": ["opl_managed", "other_agents", "other_capabilities"],
         "ownership_classifier": {
-          "source_fields": ["publisher", "source_explanation.kind", "source_explanation.source"],
+          "source_fields": ["official", "publisher"],
+          "opl_official": true,
           "opl_publisher": "one-person-lab",
-          "opl_source_kind": "first_party_framework_projection",
-          "opl_source": "first_party",
           "hardcoded_package_ids_allowed": false
         },
         "section_policy": {

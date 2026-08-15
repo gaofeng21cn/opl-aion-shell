@@ -84,7 +84,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(modelItem).not.toHaveFocus();
     fireEvent.click(modelItem);
     const autoChoice = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 推理最高 · 跟随最新最强');
+    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 最高 · 跟随最新最强');
     expect(autoChoice).toHaveAttribute('role', 'menuitemradio');
     expect(autoChoice).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByTestId('opl-codex-session-menu-model-choice-gpt-5.5')).toHaveAttribute('aria-checked', 'false');

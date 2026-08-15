@@ -142,13 +142,30 @@ export type OplHomeAgentShortcut = {
   user_configurable: boolean;
 };
 
+export type OplStandardAgentMembershipPolicy = {
+  ownership_source_fields: ['official', 'publisher'];
+  ownership_match_policy: 'official_equals_true_or_publisher_equals_one-person-lab';
+  required_package_role: 'standard_agent';
+  required_readiness: 'selectable';
+  required_codex_route: {
+    source: 'home_shortcuts[].route';
+    route_kind: 'agent_package_shortcut';
+    executor: 'codex_cli';
+    codex_visible_entry: 'non_empty';
+  };
+  generic_skills_plugins_connections_group_policy: 'separate_never_in_opl_standard_agent_group';
+  package_id_allowlist_allowed: false;
+};
+
 export type OplHomeComposerStateContract = {
   contract_id: 'opl_home_composer_state.v1';
   executor: 'codex';
-  shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]';
+  shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries';
+  opl_standard_agent_membership_policy: OplStandardAgentMembershipPolicy;
   shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]';
   shortcut_availability_source_ref: 'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence';
-  unknown_standard_agent_allowed: true;
+  unknown_standard_agent_allowed: false;
+  unknown_first_party_opl_standard_agent_allowed: true;
   viewports: ['desktop', 'mobile'];
   availability_states: ['available', 'unavailable'];
   invariants: {
@@ -157,15 +174,35 @@ export type OplHomeComposerStateContract = {
     executor_selector_visible: false;
     active_shortcut_changes_executor: false;
     default_visibility_governs_execution: false;
+    single_home_root: true;
+    single_composer_shell: true;
+    single_footer_account_settings_entry: true;
   };
   semantic_probe: {
     root_test_id: 'opl-guid-entry';
+    instance_counts: Record<string, number>;
+    instance_count_groups: Record<string, { test_ids: string[]; total: number }>;
     state_attributes: Record<string, string>;
     desktop_required_controls: string[];
     mobile_required_controls: string[];
     forbidden_controls: string[];
     failure_field: 'missing_controls';
   };
+};
+
+const OPL_STANDARD_AGENT_MEMBERSHIP_POLICY: OplStandardAgentMembershipPolicy = {
+  ownership_source_fields: ['official', 'publisher'],
+  ownership_match_policy: 'official_equals_true_or_publisher_equals_one-person-lab',
+  required_package_role: 'standard_agent',
+  required_readiness: 'selectable',
+  required_codex_route: {
+    source: 'home_shortcuts[].route',
+    route_kind: 'agent_package_shortcut',
+    executor: 'codex_cli',
+    codex_visible_entry: 'non_empty',
+  },
+  generic_skills_plugins_connections_group_policy: 'separate_never_in_opl_standard_agent_group',
+  package_id_allowlist_allowed: false,
 };
 
 export type OplFirstPartyPackagePresentation = {
@@ -194,11 +231,15 @@ export type OplAgentReferenceAdmissionPolicy = {
 export type OplOrdinaryCapabilitySelectorPolicy = {
   scope: 'home_composer_and_ordinary_conversation';
   authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter';
-  palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]';
+  palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries';
+  opl_standard_agent_membership_policy: OplStandardAgentMembershipPolicy;
   palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]';
   palette_agent_availability_policy: 'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable';
   palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only';
-  palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch';
+  palette_unknown_standard_agent_policy: 'include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership';
+  palette_home_shortcut_independence_policy: 'complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order';
+  palette_agent_group_label_i18n: Record<'zh-CN' | 'en-US', string>;
+  agent_owned_skill_deduplication_policy: 'exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills';
   agent_reference_admission_policy: OplAgentReferenceAdmissionPolicy;
   skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package';
   skill_menu_policy: 'assistant_scoped_required_checked_optional_visible';
@@ -617,7 +658,8 @@ type AppProductProfile = {
     display_name: 'One Person Lab App';
     ordinary_chrome_name: 'One Person Lab';
     primary_surface: string;
-    supported_release_platforms: string[];
+    target_desktop_platforms: string[];
+    target_runtime_forms: string[];
     positioning: string;
     primary_user_path: string;
   };
@@ -1300,7 +1342,8 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
   if (!isRecord(product)) {
     throw new Error('Invalid OPL product profile: product must be declared');
   }
-  const supportedReleasePlatforms = readStringArray(product, 'supported_release_platforms', 'product');
+  const targetDesktopPlatforms = readStringArray(product, 'target_desktop_platforms', 'product');
+  const targetRuntimeForms = readStringArray(product, 'target_runtime_forms', 'product');
   if (
     product.id !== 'one_person_lab_app' ||
     product.display_name !== 'One Person Lab App' ||
@@ -1316,7 +1359,8 @@ function readProductProfile(value: Record<string, unknown>): AppProductProfile['
     display_name: 'One Person Lab App',
     ordinary_chrome_name: 'One Person Lab',
     primary_surface: product.primary_surface,
-    supported_release_platforms: supportedReleasePlatforms,
+    target_desktop_platforms: targetDesktopPlatforms,
+    target_runtime_forms: targetRuntimeForms,
     positioning: product.positioning,
     primary_user_path: product.primary_user_path,
   };
@@ -1329,16 +1373,28 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
   }
   const semanticProbe = value.semantic_probe;
   const stateAttributes = semanticProbe.state_attributes;
+  const expectedInstanceCounts = {
+    'opl-guid-entry': 1,
+    'guid-input-card-shell': 1,
+  };
+  const expectedInstanceCountGroups = {
+    footer_account_or_settings: {
+      test_ids: ['sider-footer-account', 'sider-footer-settings'],
+      total: 1,
+    },
+  };
   if (
     value.contract_id !== 'opl_home_composer_state.v1' ||
     value.executor !== 'codex' ||
     value.shortcut_package_ids !== undefined ||
-    value.shortcut_package_membership_source_ref !==
-      'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]' ||
+    value.shortcut_package_membership_source_ref !== 'app_state.agent_packages.directory.entries' ||
+    JSON.stringify(value.opl_standard_agent_membership_policy) !==
+      JSON.stringify(OPL_STANDARD_AGENT_MEMBERSHIP_POLICY) ||
     value.shortcut_preference_source_ref !== 'app_state.agent_packages.status_index.home_shortcut_preferences[]' ||
     value.shortcut_availability_source_ref !==
       'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence' ||
-    value.unknown_standard_agent_allowed !== true ||
+    value.unknown_standard_agent_allowed !== false ||
+    value.unknown_first_party_opl_standard_agent_allowed !== true ||
     JSON.stringify(value.viewports) !== JSON.stringify(['desktop', 'mobile']) ||
     JSON.stringify(value.availability_states) !== JSON.stringify(['available', 'unavailable']) ||
     value.invariants.model_reasoning_visible !== true ||
@@ -1346,7 +1402,12 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
     value.invariants.executor_selector_visible !== false ||
     value.invariants.active_shortcut_changes_executor !== false ||
     value.invariants.default_visibility_governs_execution !== false ||
+    value.invariants.single_home_root !== true ||
+    value.invariants.single_composer_shell !== true ||
+    value.invariants.single_footer_account_settings_entry !== true ||
     semanticProbe.root_test_id !== 'opl-guid-entry' ||
+    JSON.stringify(semanticProbe.instance_counts) !== JSON.stringify(expectedInstanceCounts) ||
+    JSON.stringify(semanticProbe.instance_count_groups) !== JSON.stringify(expectedInstanceCountGroups) ||
     !isRecord(stateAttributes) ||
     stateAttributes.executor !== 'data-opl-composer-executor' ||
     stateAttributes.active_shortcut_id !== 'data-opl-active-shortcut' ||
@@ -1369,12 +1430,17 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
   return {
     contract_id: 'opl_home_composer_state.v1',
     executor: 'codex',
-    shortcut_package_membership_source_ref:
-      'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
+    shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries',
+    opl_standard_agent_membership_policy: {
+      ...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY,
+      ownership_source_fields: [...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY.ownership_source_fields],
+      required_codex_route: { ...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY.required_codex_route },
+    },
     shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
     shortcut_availability_source_ref:
       'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
-    unknown_standard_agent_allowed: true,
+    unknown_standard_agent_allowed: false,
+    unknown_first_party_opl_standard_agent_allowed: true,
     viewports: ['desktop', 'mobile'],
     availability_states: ['available', 'unavailable'],
     invariants: {
@@ -1383,9 +1449,14 @@ function readHomeComposerStateContract(guiHome: Record<string, unknown>): OplHom
       executor_selector_visible: false,
       active_shortcut_changes_executor: false,
       default_visibility_governs_execution: false,
+      single_home_root: true,
+      single_composer_shell: true,
+      single_footer_account_settings_entry: true,
     },
     semantic_probe: {
       root_test_id: 'opl-guid-entry',
+      instance_counts: expectedInstanceCounts,
+      instance_count_groups: expectedInstanceCountGroups,
       state_attributes: { ...(stateAttributes as Record<string, string>) },
       desktop_required_controls: [...(semanticProbe.desktop_required_controls as string[])],
       mobile_required_controls: [...(semanticProbe.mobile_required_controls as string[])],
@@ -1485,14 +1556,22 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   if (
     value.scope !== 'home_composer_and_ordinary_conversation' ||
     value.authority !== 'owner_or_carrier_skill_projection_and_mcp_negative_filter' ||
-    value.palette_agent_catalog_source_ref !==
-      'app_state.agent_packages.directory.entries[package_role=standard_agent]' ||
+    value.palette_agent_catalog_source_ref !== 'app_state.agent_packages.directory.entries' ||
+    JSON.stringify(value.opl_standard_agent_membership_policy) !==
+      JSON.stringify(OPL_STANDARD_AGENT_MEMBERSHIP_POLICY) ||
     value.palette_agent_status_source_ref !== 'app_state.agent_packages.status_index.packages[]' ||
     value.palette_agent_availability_policy !==
       'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable' ||
     value.palette_agent_action_policy !== 'directory_available_actions_and_recommended_action_ref_only' ||
-    value.palette_unknown_standard_agent_policy !== 'include_without_app_package_id_branch' ||
+    value.palette_unknown_standard_agent_policy !==
+      'include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership' ||
     value.palette_required_agent_package_ids !== undefined ||
+    value.palette_home_shortcut_independence_policy !==
+      'complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order' ||
+    JSON.stringify(value.palette_agent_group_label_i18n) !==
+      JSON.stringify({ 'zh-CN': 'OPL 标准智能体', 'en-US': 'OPL standard agents' }) ||
+    value.agent_owned_skill_deduplication_policy !==
+      'exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills' ||
     value.skill_source_ref !== 'owner_or_carrier_projected_capability_metadata_for_the_selected_package' ||
     value.skill_menu_policy !== 'assistant_scoped_required_checked_optional_visible' ||
     value.conversation_loaded_skill_display_policy !== 'preserve_owner_or_carrier_projected_loaded_skills' ||
@@ -1524,12 +1603,23 @@ function readOrdinaryCapabilitySelectorPolicy(gui: Record<string, unknown>): Opl
   return {
     scope: 'home_composer_and_ordinary_conversation',
     authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter',
-    palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+    palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries',
+    opl_standard_agent_membership_policy: {
+      ...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY,
+      ownership_source_fields: [...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY.ownership_source_fields],
+      required_codex_route: { ...OPL_STANDARD_AGENT_MEMBERSHIP_POLICY.required_codex_route },
+    },
     palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
     palette_agent_availability_policy:
       'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable',
     palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
-    palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
+    palette_unknown_standard_agent_policy:
+      'include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership',
+    palette_home_shortcut_independence_policy:
+      'complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order',
+    palette_agent_group_label_i18n: { 'zh-CN': 'OPL 标准智能体', 'en-US': 'OPL standard agents' },
+    agent_owned_skill_deduplication_policy:
+      'exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills',
     agent_reference_admission_policy: {
       active_agent_package_cardinality: 'zero_or_one',
       selection_authority:

@@ -82,20 +82,40 @@ describe('OPL generated product profile', () => {
     ).toContain('user_authored_additional_instructions_optional_and_never_generated');
   });
 
-  it('projects the lightweight Codex-only direction without making AionUI its runtime owner', () => {
-    expect(generatedProfile.product.supported_release_platforms).toEqual(['macos-arm64']);
+  it('projects the shared Host/Client topology without promoting target platforms', () => {
+    expect(generatedProfile.product.target_desktop_platforms).toEqual(['macos', 'windows', 'linux']);
+    expect(generatedProfile.product.target_runtime_forms).toEqual([
+      'electron_desktop',
+      'standalone_headless_webui',
+      'docker_webui',
+    ]);
+    expect('supported_release_platforms' in generatedProfile.product).toBe(false);
+    expect(generatedProfile.release_roles.current).toMatchObject({
+      shell: 'aionui',
+      admitted_product_platforms: ['macos-arm64'],
+    });
+    expect(generatedProfile.release_roles.successor).toMatchObject({
+      candidate_id: 'opl-studio',
+      active_release_carrier: false,
+      release_admission_separate: true,
+    });
     expect(generatedProfile.delivery_topology).toMatchObject({
-      schema: 'opl_app_delivery_topology.v1',
+      schema: 'opl_app_delivery_topology.v2',
+      role: 'successor_target_only',
       decision_status: 'approved_target_current_release_admission_separate',
       shared_renderer: {
         product_owner: 'one-person-lab-app',
-        technology: 'react',
-        implementation_status: 'approved_direction_candidate_evidence_only',
-        technical_evaluation_candidate: 'opl-native-workbench',
-        required_surfaces: ['native_macos', 'opl_workspace', 'future_cross_platform_desktop'],
+        technology: 'deepseek_harness_derived_react',
+        technical_evaluation_candidate: 'opl-studio',
         single_active_product_renderer_required: true,
         carrier_specific_product_forks_allowed: false,
         aionui_source_or_runtime_dependency_required: false,
+      },
+      shared_host_core: {
+        technology: 'node',
+        same_core_required_across_carriers: true,
+        carrier_specific_business_logic_allowed: false,
+        second_session_store_or_action_bus_allowed: false,
       },
       runtime: {
         supported_backend_scope: 'codex_cli_only',
@@ -106,57 +126,25 @@ describe('OPL generated product profile', () => {
         second_provider_or_session_store_allowed: false,
       },
       bridge: {
+        abi: 'opl_app_host_bridge.v1',
         product_runtime_interface: 'opl_app_state_action_and_codex_app_server_thread_event_contracts',
-        native_transport: 'wk_script_message_handler_to_local_process',
-        web_transport: 'http_sse_same_origin_to_host_process',
+        renderer_api_semantics_identical_across_adapters: true,
         second_control_plane_or_session_store_allowed: false,
       },
-      macos_desktop: {
-        host_technology: 'swift_appkit_wkwebview',
-        target_platforms: ['macos-arm64'],
-        current_release_support_source_ref: 'product.supported_release_platforms',
-        mainline_implementation_assigned: false,
-        active_release_carrier: false,
-        electron_required: false,
-        aioncore_required: false,
-        container_runtime_role: 'none',
-      },
-      workspace: {
-        carrier_id: 'container_webui',
-        product_name: 'OPL Workspace',
-        host_technology: 'node_web_host',
-        implementation_status: 'candidate_evidence_only',
-        mainline_implementation_assigned: false,
-        electron_in_container_allowed: false,
-        aioncore_in_container_allowed: false,
-        independent_runtime_persistence_and_release_required: true,
-        same_renderer_and_bridge_shape_required: true,
-        desktop_database_reuse_required: false,
-      },
-      mobile: {
-        initial_surface: 'responsive_web_pwa',
-        separate_product_renderer_allowed: false,
-      },
-      cross_platform_desktop: {
-        decision_status: 'wrapper_selection_deferred',
-        implementation_owner_status: 'unassigned',
-        mainline_implementation_assigned: false,
-        target_platforms: ['windows', 'linux'],
-        candidate_wrappers: ['electron', 'tauri'],
-        support_claim_allowed: false,
-      },
-      native_candidate: {
-        candidate_id: 'opl-native-workbench',
-        role: 'manual_on_demand_non_periodic_technical_evaluation',
-        active_release_carrier: false,
-        mainline_development_required: false,
-        completion_or_feature_parity_obligation: false,
-      },
-      aionui_reference: {
-        role: 'current_release_shell_and_bounded_reference_only',
-        target_renderer_owner: false,
-        target_runtime_dependency: false,
-        aioncore_target_runtime_dependency: false,
+      minimum_complete_product: {
+        implementation_id: 'opl-studio',
+        composition_model: {
+          app_client_contribution_abi: 'opl_app_client_contributions.v1',
+          framework_host_projection_schema: 'opl_app_ui_contributions_projection.v1',
+          framework_host_composition_authority: 'one-person-lab-framework',
+          framework_projection_runtime_status: 'framework_host_projection_active',
+          shared_shell_consumers: ['opl-aion-shell', 'opl-studio'],
+          independent_host_truth_allowed: false,
+          second_client_composition_graph_allowed: false,
+          second_package_registry_allowed: false,
+          second_currentness_authority_allowed: false,
+          second_state_or_action_truth_allowed: false,
+        },
       },
     });
   });
@@ -297,20 +285,38 @@ describe('OPL generated product profile', () => {
     expect(getOplHomeComposerStateContract()).toMatchObject({
       contract_id: 'opl_home_composer_state.v1',
       executor: 'codex',
-      shortcut_package_membership_source_ref:
-        'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
+      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries',
+      opl_standard_agent_membership_policy: {
+        ownership_source_fields: ['official', 'publisher'],
+        required_package_role: 'standard_agent',
+        required_readiness: 'selectable',
+        package_id_allowlist_allowed: false,
+      },
       shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
       shortcut_availability_source_ref:
         'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
-      unknown_standard_agent_allowed: true,
+      unknown_standard_agent_allowed: false,
+      unknown_first_party_opl_standard_agent_allowed: true,
       invariants: {
         model_reasoning_visible: true,
         permission_access_visible: true,
         executor_selector_visible: false,
         active_shortcut_changes_executor: false,
         default_visibility_governs_execution: false,
+        single_home_root: true,
+        single_composer_shell: true,
+        single_footer_account_settings_entry: true,
       },
-      semantic_probe: { failure_field: 'missing_controls' },
+      semantic_probe: {
+        instance_counts: { 'opl-guid-entry': 1, 'guid-input-card-shell': 1 },
+        instance_count_groups: {
+          footer_account_or_settings: {
+            test_ids: ['sider-footer-account', 'sider-footer-settings'],
+            total: 1,
+          },
+        },
+        failure_field: 'missing_controls',
+      },
     });
     expect(shouldShowOplConversationBackendSelector()).toBe(false);
     expect(shouldShowOplConversationModelSelector()).toBe(true);
@@ -407,24 +413,42 @@ describe('OPL generated product profile', () => {
 
   it('uses App state directory, status, and capability metadata as dynamic Agent authority', () => {
     expect(getOplHomeComposerStateContract()).toMatchObject({
-      shortcut_package_membership_source_ref:
-        'app_state.agent_packages.directory.entries[package_role=standard_agent,installed=true]',
+      shortcut_package_membership_source_ref: 'app_state.agent_packages.directory.entries',
+      opl_standard_agent_membership_policy: {
+        ownership_source_fields: ['official', 'publisher'],
+        required_package_role: 'standard_agent',
+        required_readiness: 'selectable',
+        package_id_allowlist_allowed: false,
+      },
       shortcut_preference_source_ref: 'app_state.agent_packages.status_index.home_shortcut_preferences[]',
       shortcut_availability_source_ref:
         'app_state.agent_packages.directory.entries + app_state.agent_packages.status_index.packages[].presence',
-      unknown_standard_agent_allowed: true,
+      unknown_standard_agent_allowed: false,
+      unknown_first_party_opl_standard_agent_allowed: true,
     });
     expect(getOplHomeComposerStateContract()).not.toHaveProperty('shortcut_package_ids');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('agent_package_invocation_receipt_policy');
     expect(OPL_PRODUCT_PROFILE.gui).not.toHaveProperty('builtin_assistant_route_receipt_policy');
     expect(OPL_PRODUCT_PROFILE.gui.agent_package_registry).not.toHaveProperty('starter_package_metadata');
     expect(getOplOrdinaryCapabilitySelectorPolicy()).toMatchObject({
-      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries',
+      opl_standard_agent_membership_policy: {
+        ownership_source_fields: ['official', 'publisher'],
+        required_package_role: 'standard_agent',
+        required_readiness: 'selectable',
+        package_id_allowlist_allowed: false,
+      },
       palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
       palette_agent_availability_policy:
         'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable',
       palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
-      palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
+      palette_unknown_standard_agent_policy:
+        'include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership',
+      palette_home_shortcut_independence_policy:
+        'complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order',
+      palette_agent_group_label_i18n: { 'zh-CN': 'OPL 标准智能体', 'en-US': 'OPL standard agents' },
+      agent_owned_skill_deduplication_policy:
+        'exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills',
       skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
     });
     expect(getOplOrdinaryCapabilitySelectorPolicy()).not.toHaveProperty('palette_required_agent_package_ids');
@@ -701,12 +725,18 @@ describe('OPL generated product profile', () => {
     const selectorPolicy = getOplOrdinaryCapabilitySelectorPolicy();
     expect(selectorPolicy).toMatchObject({
       authority: 'owner_or_carrier_skill_projection_and_mcp_negative_filter',
-      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries[package_role=standard_agent]',
+      palette_agent_catalog_source_ref: 'app_state.agent_packages.directory.entries',
       palette_agent_status_source_ref: 'app_state.agent_packages.status_index.packages[]',
       palette_agent_availability_policy:
         'join_by_package_id_and_use_fresh_directory_installed_plus_status_index_presence.present_and_presence.callable',
       palette_agent_action_policy: 'directory_available_actions_and_recommended_action_ref_only',
-      palette_unknown_standard_agent_policy: 'include_without_app_package_id_branch',
+      palette_unknown_standard_agent_policy:
+        'include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership',
+      palette_home_shortcut_independence_policy:
+        'complete_opl_standard_agent_catalog_independent_of_home_shortcut_visibility_and_order',
+      palette_agent_group_label_i18n: { 'zh-CN': 'OPL 标准智能体', 'en-US': 'OPL standard agents' },
+      agent_owned_skill_deduplication_policy:
+        'exclude_rendered_professional_agent_required_skill_ids_from_home_new_session_standalone_skills',
       skill_source_ref: 'owner_or_carrier_projected_capability_metadata_for_the_selected_package',
       conversation_loaded_skill_display_policy: 'preserve_owner_or_carrier_projected_loaded_skills',
       mcp_server_source_ref: 'configured_user_and_third_party_mcp_servers',

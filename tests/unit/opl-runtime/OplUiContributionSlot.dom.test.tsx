@@ -1,7 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
+import { resetOplClientCordisCompositionForTest } from '@/renderer/services/oplClientCordis';
 
 const stateMocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
@@ -89,17 +90,22 @@ function appState(entries: unknown[], actionAvailable = true) {
 }
 
 describe('OplUiContributionSlot', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await resetOplClientCordisCompositionForTest();
     vi.clearAllMocks();
     stateMocks.appState = appState([contribution()]);
     stateMocks.executeAction.mockResolvedValue({ ok: true });
     stateMocks.load.mockResolvedValue({ app_state: stateMocks.appState });
   });
 
+  afterEach(async () => {
+    await resetOplClientCordisCompositionForTest();
+  });
+
   it('executes through the canonical App action with exact payload and forces authoritative readback', async () => {
     render(<OplUiContributionSlot slot='runtime.detail' />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh activity' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh activity' }));
 
     await waitFor(() => {
       expect(stateMocks.executeAction).toHaveBeenCalledWith({
@@ -121,7 +127,7 @@ describe('OplUiContributionSlot', () => {
     stateMocks.appState = appState([contribution({ confirmationRequired: true })]);
     render(<OplUiContributionSlot slot='runtime.detail' />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh activity' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh activity' }));
     expect(stateMocks.executeAction).not.toHaveBeenCalled();
     expect(stateMocks.modalConfirm).toHaveBeenCalledOnce();
 
@@ -132,16 +138,16 @@ describe('OplUiContributionSlot', () => {
     );
   });
 
-  it('keeps read-only contributions visible while the exact action is unavailable', () => {
+  it('keeps read-only contributions visible while the exact action is unavailable', async () => {
     stateMocks.appState = appState([contribution()], false);
     render(<OplUiContributionSlot slot='runtime.detail' />);
 
-    expect(screen.getByText('Package activity')).toBeInTheDocument();
+    expect(await screen.findByText('Package activity')).toBeInTheDocument();
     expect(screen.getByText('Healthy')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Refresh activity' })).toBeDisabled();
   });
 
-  it('renders an unknown kind as a local fallback without hiding valid entries', () => {
+  it('renders an unknown kind as a local fallback without hiding valid entries', async () => {
     const future = {
       ...contribution({ kind: 'future_kind' }),
       contribution_key: 'example.package:future',
@@ -150,17 +156,19 @@ describe('OplUiContributionSlot', () => {
     stateMocks.appState = appState([future, contribution()]);
     render(<OplUiContributionSlot slot='runtime.detail' />);
 
-    expect(screen.getByText('common.oplUiContributions.unsupportedKind:future_kind')).toBeInTheDocument();
+    expect(await screen.findByText('common.oplUiContributions.unsupportedKind:future_kind')).toBeInTheDocument();
     expect(screen.getByTestId('opl-ui-contribution-example.package:activity')).toHaveTextContent('Package activity');
   });
 
-  it('unmounts a contribution when it disappears from the current projection', () => {
+  it('unmounts a contribution when it disappears from the current projection', async () => {
     const view = render(<OplUiContributionSlot slot='runtime.detail' />);
-    expect(screen.getByTestId('opl-ui-contribution-example.package:activity')).toBeInTheDocument();
+    expect(await screen.findByTestId('opl-ui-contribution-example.package:activity')).toBeInTheDocument();
 
     stateMocks.appState = appState([]);
     view.rerender(<OplUiContributionSlot slot='runtime.detail' />);
 
-    expect(screen.queryByTestId('opl-ui-contribution-example.package:activity')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('opl-ui-contribution-example.package:activity')).not.toBeInTheDocument();
+    });
   });
 });
