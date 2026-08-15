@@ -2,7 +2,10 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
-import { resetOplClientCordisCompositionForTest } from '@/renderer/services/oplClientCordis';
+import {
+  getOplClientCordisComposition,
+  resetOplClientCordisCompositionForTest,
+} from '@/renderer/services/oplClientCordis';
 
 const stateMocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
@@ -103,9 +106,21 @@ describe('OplUiContributionSlot', () => {
   });
 
   it('executes through the canonical App action with exact payload and forces authoritative readback', async () => {
+    const composition = await getOplClientCordisComposition();
+    const projectionUpdates = vi.fn();
+    const unsubscribe = composition.contributions.subscribe(projectionUpdates);
     render(<OplUiContributionSlot slot='runtime.detail' />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Refresh activity' }));
+
+    await waitFor(() => {
+      expect(projectionUpdates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          surfaceKind: 'opl_app_ui_contributions_projection.v1',
+          entries: [expect.objectContaining({ contributionKey: 'example.package:activity' })],
+        })
+      );
+    });
 
     await waitFor(() => {
       expect(stateMocks.executeAction).toHaveBeenCalledWith({
@@ -121,6 +136,7 @@ describe('OplUiContributionSlot', () => {
     });
     expect(stateMocks.load).toHaveBeenCalledWith('fast', { forceFresh: true });
     expect(stateMocks.messageSuccess).toHaveBeenCalledWith('common.oplUiContributions.executeSuccess');
+    unsubscribe();
   });
 
   it('uses the existing confirmation surface for descriptor-confirmed commands', async () => {

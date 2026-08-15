@@ -21,6 +21,11 @@ type OplClientCompositionPolicy = {
   abi: 'opl_app_client_contributions.v1';
   projectionSchema: 'opl_app_ui_contributions_projection.v1';
   slots: readonly OplUiContributionSlot[];
+  stateRpc: 'opl app state --profile fast --json';
+  actionRpc: 'opl app action execute --action <action_id> [--payload json] [--dry-run] --json';
+  event: 'opl/app-client-contributions/updated';
+  stateSemanticsContract: 'contracts/app-runtime-bridge.json';
+  brandCapabilityProjectionPolicy: 'dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client';
 };
 
 type OplClientContributionsService = {
@@ -59,7 +64,9 @@ export function readOplClientCompositionPolicy(profile: unknown = generatedProdu
   const deliveryTopology = asRecord(root?.delivery_topology);
   const minimumProduct = asRecord(deliveryTopology?.minimum_complete_product);
   const composition = asRecord(minimumProduct?.composition_model);
+  const compatibility = asRecord(root?.client_renderer_compatibility);
   const slots = composition?.package_contribution_slots;
+  const compatibilitySlots = compatibility?.typed_slots;
   if (
     composition?.app_client_contribution_abi !== 'opl_app_client_contributions.v1' ||
     composition?.framework_host_graph_source !== 'app_state.ui_contributions' ||
@@ -71,12 +78,37 @@ export function readOplClientCompositionPolicy(profile: unknown = generatedProdu
     composition?.framework_projection_runtime_status !== 'framework_host_projection_active' ||
     composition?.client_authority_policy !==
       'render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth' ||
+    composition?.client_renderer_compatibility_profile !== 'client_renderer_compatibility' ||
+    composition?.client_renderer_switch_policy !==
+      'explicit_adapter_selection_after_compatibility_admission_never_unverified_hot_switch' ||
+    composition?.brand_capability_projection_policy !==
+      'dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client' ||
     composition?.independent_host_truth_allowed !== false ||
     composition?.second_client_composition_graph_allowed !== false ||
     composition?.second_package_registry_allowed !== false ||
     composition?.second_currentness_authority_allowed !== false ||
     composition?.second_state_or_action_truth_allowed !== false ||
-    !sameSlots(slots)
+    compatibility?.schema !== 'opl_app_client_renderer_compatibility.v1' ||
+    compatibility?.owner !== 'one-person-lab-app' ||
+    compatibility?.host_composition_authority !== 'one-person-lab-framework' ||
+    compatibility?.host_graph_source !== composition.framework_host_graph_source ||
+    compatibility?.host_projection_schema !== composition.framework_host_projection_schema ||
+    compatibility?.contribution_abi !== composition.app_client_contribution_abi ||
+    compatibility?.allowlist_contract !== composition.host_projection_allowlist_contract ||
+    compatibility?.typed_state_rpc !== 'opl app state --profile fast --json' ||
+    compatibility?.typed_action_rpc !==
+      'opl app action execute --action <action_id> [--payload json] [--dry-run] --json' ||
+    compatibility?.typed_client_event !== OPL_CLIENT_CONTRIBUTIONS_UPDATED_EVENT ||
+    compatibility?.state_semantics_contract !== 'contracts/app-runtime-bridge.json' ||
+    compatibility?.client_authority_policy !== composition.client_authority_policy ||
+    compatibility?.switch_policy !== composition.client_renderer_switch_policy ||
+    compatibility?.hot_switch_without_revalidation_allowed !== false ||
+    compatibility?.brand_capability_projection_policy !== composition.brand_capability_projection_policy ||
+    compatibility?.app_fixed_brand_registry_allowed !== false ||
+    compatibility?.client_fixed_brand_registry_allowed !== false ||
+    compatibility?.display_and_allowlist_owner !== 'one-person-lab-app' ||
+    !sameSlots(slots) ||
+    !sameSlots(compatibilitySlots)
   ) {
     throw new Error('Invalid OPL Client Cordis policy in the App product profile');
   }
@@ -85,6 +117,12 @@ export function readOplClientCompositionPolicy(profile: unknown = generatedProdu
     abi: 'opl_app_client_contributions.v1',
     projectionSchema: 'opl_app_ui_contributions_projection.v1',
     slots: Object.freeze([...slots]),
+    stateRpc: 'opl app state --profile fast --json',
+    actionRpc: 'opl app action execute --action <action_id> [--payload json] [--dry-run] --json',
+    event: OPL_CLIENT_CONTRIBUTIONS_UPDATED_EVENT,
+    stateSemanticsContract: 'contracts/app-runtime-bridge.json',
+    brandCapabilityProjectionPolicy:
+      'dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client',
   });
 }
 

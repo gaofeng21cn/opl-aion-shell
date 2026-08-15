@@ -335,6 +335,9 @@
         "package_gui_contribution_policy": "app_schema_admitted_declarative_only_then_framework_host_projected",
         "client_authority_policy": "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth",
         "client_cordis_graph": "derived_from_framework_host_graph_and_app_product_profile_slot_policy",
+        "client_renderer_compatibility_profile": "client_renderer_compatibility",
+        "client_renderer_switch_policy": "explicit_adapter_selection_after_compatibility_admission_never_unverified_hot_switch",
+        "brand_capability_projection_policy": "dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client",
         "shared_shell_consumers": [
           "opl-aion-shell",
           "opl-studio"
@@ -368,6 +371,27 @@
         "source_or_local_candidate_evidence_may_trigger_cutover": false
       }
     }
+  },
+  "client_renderer_compatibility": {
+    "schema": "opl_app_client_renderer_compatibility.v1",
+    "owner": "one-person-lab-app",
+    "host_composition_authority": "one-person-lab-framework",
+    "host_graph_source": "app_state.ui_contributions",
+    "host_projection_schema": "opl_app_ui_contributions_projection.v1",
+    "contribution_abi": "opl_app_client_contributions.v1",
+    "allowlist_contract": "contracts/opl-app-contributions.schema.json",
+    "typed_slots": ["settings.section", "runtime.detail", "composer.palette"],
+    "typed_state_rpc": "opl app state --profile fast --json",
+    "typed_action_rpc": "opl app action execute --action <action_id> [--payload json] [--dry-run] --json",
+    "typed_client_event": "opl/app-client-contributions/updated",
+    "state_semantics_contract": "contracts/app-runtime-bridge.json",
+    "client_authority_policy": "render_and_dispatch_only_no_plugin_discovery_install_registry_currentness_release_operation_task_package_or_product_truth",
+    "switch_policy": "explicit_adapter_selection_after_compatibility_admission_never_unverified_hot_switch",
+    "hot_switch_without_revalidation_allowed": false,
+    "brand_capability_projection_policy": "dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client",
+    "app_fixed_brand_registry_allowed": false,
+    "client_fixed_brand_registry_allowed": false,
+    "display_and_allowlist_owner": "one-person-lab-app"
   },
   "official_profile": {
     "profile_id": "opl-official",

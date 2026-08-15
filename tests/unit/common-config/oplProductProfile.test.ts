@@ -138,6 +138,11 @@ describe('OPL generated product profile', () => {
           framework_host_projection_schema: 'opl_app_ui_contributions_projection.v1',
           framework_host_composition_authority: 'one-person-lab-framework',
           framework_projection_runtime_status: 'framework_host_projection_active',
+          client_renderer_compatibility_profile: 'client_renderer_compatibility',
+          client_renderer_switch_policy:
+            'explicit_adapter_selection_after_compatibility_admission_never_unverified_hot_switch',
+          brand_capability_projection_policy:
+            'dynamic_framework_host_projection_no_fixed_brand_or_domain_registry_in_app_or_client',
           shared_shell_consumers: ['opl-aion-shell', 'opl-studio'],
           independent_host_truth_allowed: false,
           second_client_composition_graph_allowed: false,
@@ -146,6 +151,20 @@ describe('OPL generated product profile', () => {
           second_state_or_action_truth_allowed: false,
         },
       },
+    });
+    expect(generatedProfile.client_renderer_compatibility).toMatchObject({
+      schema: 'opl_app_client_renderer_compatibility.v1',
+      owner: 'one-person-lab-app',
+      host_composition_authority: 'one-person-lab-framework',
+      host_graph_source: 'app_state.ui_contributions',
+      host_projection_schema: 'opl_app_ui_contributions_projection.v1',
+      contribution_abi: 'opl_app_client_contributions.v1',
+      allowlist_contract: 'contracts/opl-app-contributions.schema.json',
+      typed_slots: ['settings.section', 'runtime.detail', 'composer.palette'],
+      typed_client_event: 'opl/app-client-contributions/updated',
+      hot_switch_without_revalidation_allowed: false,
+      app_fixed_brand_registry_allowed: false,
+      client_fixed_brand_registry_allowed: false,
     });
   });
 
