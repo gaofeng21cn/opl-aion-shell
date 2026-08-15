@@ -41,7 +41,7 @@
 
 ## One Person Lab Shell Boundary
 
-`opl-aion-shell` is the replaceable implementation carrier for the active One Person Lab App GUI mainline. App product truth, runtime bridge contracts, release gates, screenshots, and user documentation stay in `one-person-lab-app`; this repository implements those contracts. Hermes Desktop / `hermes-codex` is the only foreground alternative GUI candidate, and AGUI / `agui-codex` is archived technical proof that is replayed only when AGUI is explicitly requested. Do not use AGUI work as a default candidate, validation baseline, polish lane, or source for AionUI mainline changes. The default OPL Runtime payload is `current_owner_delta`; retired compact owner-delta aliases are not active shell compatibility surfaces. See [OPL App Shell Boundary](./docs/guides/opl-app-shell-boundary.md).
+`opl-aion-shell` is the replaceable implementation carrier for the active One Person Lab App GUI mainline. App product truth, runtime bridge contracts, release gates, screenshots, and user documentation stay in `one-person-lab-app`; this repository implements those contracts. `opl-studio` is the DSH-derived foreground candidate Shell, not a second App; Hermes Desktop is retained only as a prior-candidate reference, and AGUI / `agui-codex` is archived technical proof replayed only on explicit request. The stable OPL ecology remains Base, App, Packages, and optional Cloud: this Shell renders App/Framework projections and never becomes a Package registry, Cloud authority, or second Cordis Host. The default OPL Runtime payload is `current_owner_delta`; retired compact owner-delta aliases are not active shell compatibility surfaces. See [OPL App Shell Boundary](./docs/guides/opl-app-shell-boundary.md).
 
 ---
 

@@ -5,12 +5,29 @@
 Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
 
 Current GUI policy is fixed at the App layer: this repository is the active
-AionUI mainline implementation. `opl-native-workbench` is the
-foreground/developer backup candidate and is developed in its own candidate
-shell repo. Hermes Desktop / `hermes-codex` is retained as a prior-candidate
-reference. AGUI / `agui-codex` is archived technical proof only; do not port it
-into the AionUI mainline, use it as a validation baseline, or continue AGUI
-polish from this repository unless the user explicitly requests AGUI replay.
+AionUI Stable Shell implementation. `opl-studio` is the DSH-derived
+foreground/developer candidate and is developed in its own shell repo. Hermes
+Desktop / `hermes-codex` is retained as a prior-candidate reference. AGUI /
+`agui-codex` is archived technical proof only; do not port it into the AionUI
+mainline, use it as a validation baseline, or continue AGUI polish from this
+repository unless the user explicitly requests AGUI replay.
+
+The three-repository relationship is one App product with two replaceable
+Shells: `one-person-lab-app` owns product behavior, navigation, page state,
+Client Cordis profile, GUI contribution ABI, selected shell, version composition,
+and release gates; `opl-aion-shell` owns this AionUI renderer/carrier; `opl-studio`
+owns the DSH-derived candidate renderer/carrier. Both shells consume the same
+Framework Host projection and App state/action contracts. This repository must
+not create a second Host, Package registry, thread/history store, or release
+authority. AionUI-specific renderer, preload, AionCore/Codex adapter, upstream
+intake, cache, and build/test internals remain intentionally independent from
+Studio.
+
+This three-repository GUI relationship sits inside the wider four-layer ecology:
+Base supplies the Framework Host, Packages supply installable capabilities, App
+supplies the local product and selected Shell, and optional Cloud supplies online
+services. A Shell switch changes only the App carrier; it does not migrate any
+of those authorities.
 
 ## Ownership Boundary
 
