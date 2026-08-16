@@ -88,9 +88,7 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.remoteCompanion.pairing.refresh': 'Refresh status',
         'settings.resourcesPage.remoteCompanion.pairing.qr': 'Scan with OPL Link',
         'settings.resourcesPage.remoteCompanion.pairing.qrAlt': 'Pairing QR',
-        'settings.resourcesPage.remoteCompanion.pairing.manualCode': 'Manual code',
         'settings.resourcesPage.remoteCompanion.pairing.copyQr': 'Copy pairing link',
-        'settings.resourcesPage.remoteCompanion.pairing.copyManualCode': 'Copy manual code',
         'settings.resourcesPage.remoteCompanion.pairing.authentication': 'Authentication string',
         'settings.resourcesPage.remoteCompanion.pairing.confirm': 'Confirm pairing',
         'settings.resourcesPage.remoteCompanion.invitationCode': 'Invitation code',
@@ -210,7 +208,7 @@ describe('RemoteCompanionSettings', () => {
 
   afterEach(() => cleanup());
 
-  it('starts pairing, renders the QR/manual fallback, and confirms the SAS explicitly', async () => {
+  it('starts pairing, renders the copyable full pairing link, and confirms the SAS explicitly', async () => {
     const view = render(<RemoteCompanionSettings />);
     await waitFor(() => expect(view.getByTestId('remote-companion-start')).toBeTruthy());
 
@@ -221,7 +219,8 @@ describe('RemoteCompanionSettings', () => {
       expect(mocks.startPairing).toHaveBeenCalledWith({ invitation_code: 'invite-001', desktop_label: 'Lab desktop' })
     );
     expect(view.getByTestId('remote-companion-qr')).toBeTruthy();
-    expect(view.getByText('manual-code-001')).toBeTruthy();
+    expect(view.getByTestId('remote-companion-copy-qr')).toBeTruthy();
+    expect(view.queryByText('manual-code-001')).toBeNull();
 
     fireEvent.click(view.getByTestId('remote-companion-poll'));
     await waitFor(() => expect(mocks.pollPairing).toHaveBeenCalledWith({ pair_id: 'pair-test-001' }));

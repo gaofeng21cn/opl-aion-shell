@@ -2256,9 +2256,7 @@
         "title": "Pair a phone",
         "qr": "Scan with OPL Link",
         "qrAlt": "OPL Link pairing QR code",
-        "manualCode": "Manual code",
         "copyQr": "Copy pairing link",
-        "copyManualCode": "Copy manual code",
         "authentication": "Authentication string",
         "confirm": "Confirm pairing",
         "refresh": "Refresh status"

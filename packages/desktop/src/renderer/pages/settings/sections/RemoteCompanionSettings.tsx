@@ -271,25 +271,6 @@ const RemoteCompanionSettings: React.FC = () => {
               </div>
             )}
             <div className='flex min-w-200px flex-1 flex-col gap-8px'>
-              {pending.manual_code && (
-                <div className='flex items-center justify-between gap-8px'>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.resourcesPage.remoteCompanion.pairing.manualCode')}
-                    </Typography.Text>
-                    <code className='break-all text-16px font-600 text-t-primary'>{pending.manual_code}</code>
-                  </div>
-                  <Button
-                    size='mini'
-                    type='text'
-                    icon={<Copy theme='outline' size='14' fill='currentColor' />}
-                    aria-label={t('settings.resourcesPage.remoteCompanion.pairing.copyManualCode')}
-                    title={t('settings.resourcesPage.remoteCompanion.pairing.copyManualCode')}
-                    onClick={() => void copyValue(pending.manual_code)}
-                    data-testid='remote-companion-copy-manual-code'
-                  />
-                </div>
-              )}
               {pending.authentication_string && (
                 <div className='flex flex-col gap-6px' data-testid='remote-companion-authentication'>
                   <Typography.Text className='text-12px text-t-secondary'>

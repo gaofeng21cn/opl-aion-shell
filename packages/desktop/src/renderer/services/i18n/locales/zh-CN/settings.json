@@ -2257,9 +2257,7 @@
         "title": "配对手机",
         "qr": "使用 OPL Link 扫描",
         "qrAlt": "OPL Link 配对二维码",
-        "manualCode": "手动配对码",
         "copyQr": "复制配对链接",
-        "copyManualCode": "复制手动配对码",
         "authentication": "认证字符串",
         "confirm": "确认配对",
         "refresh": "刷新状态"
