@@ -8,7 +8,7 @@
   "build": {
     "appId": "com.onepersonlab.windowswsl2validation",
     "productName": "OPL Windows WSL2 Validation",
-    "electronVersion": "37.10.3",
+    "electronVersion": "41.10.3",
     "asar": true,
     "files": [
       "**/*"
