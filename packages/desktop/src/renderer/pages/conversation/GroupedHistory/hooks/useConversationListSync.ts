@@ -127,72 +127,8 @@ export const projectTransportBinding = (
   temporaryWorkspace: binding.projectAffinity === 'projectless',
 });
 
-export type LegacyWeixinCanonicalThreadBinding = {
-  conversationId: string;
-  threadId: string;
-};
-
-const workspaceLeaf = (workspace: string): string => {
-  const normalized = workspace
-    .trim()
-    .replaceAll('\\', '/')
-    .replace(/\/{2,}/g, '/')
-    .replace(/\/$/, '');
-  return normalized.split('/').at(-1) ?? '';
-};
-
 const isWeixinCodexTransportConversation = (conversation: TChatConversation): boolean => {
   return conversation.source === 'weixin' && conversation.type === 'acp' && conversation.extra.backend === 'codex';
-};
-
-// Temporary migration fallback until the shared provider callback produces transport bindings end to end.
-export const inferLegacyWeixinCanonicalThreadBindings = (
-  localConversations: TChatConversation[],
-  directory: CodexThreadDirectory | null,
-  projectedConversationIds: ReadonlySet<string> = new Set()
-): LegacyWeixinCanonicalThreadBinding[] => {
-  if (!directory) return [];
-  const threadByTemporaryWorkspace = new Map<string, (typeof directory.threads)[number] | null>();
-  directory.threads.forEach((thread) => {
-    const leaf = workspaceLeaf(thread.workspace);
-    if (!leaf.startsWith('codex-temp-')) return;
-    threadByTemporaryWorkspace.set(leaf, threadByTemporaryWorkspace.has(leaf) ? null : thread);
-  });
-  return localConversations.flatMap((conversation) => {
-    if (
-      projectedConversationIds.has(conversation.id) ||
-      !isWeixinCodexTransportConversation(conversation) ||
-      canonicalCodexThreadId(conversation)
-    ) {
-      return [];
-    }
-    const isTemporaryWorkspace = (conversation.extra as { is_temporary_workspace?: boolean }).is_temporary_workspace;
-    const expectedWorkspaceLeaf = `codex-temp-${conversation.id}`;
-    if (isTemporaryWorkspace !== true || workspaceLeaf(conversation.extra.workspace ?? '') !== expectedWorkspaceLeaf) {
-      return [];
-    }
-    const thread = threadByTemporaryWorkspace.get(expectedWorkspaceLeaf);
-    return thread ? [{ conversationId: conversation.id, threadId: thread.id }] : [];
-  });
-};
-
-const applyLegacyWeixinCanonicalThreadBindings = (
-  localConversations: TChatConversation[],
-  bindings: LegacyWeixinCanonicalThreadBinding[]
-): TChatConversation[] => {
-  if (bindings.length === 0) return localConversations;
-  const threadIdByConversationId = new Map(bindings.map((binding) => [binding.conversationId, binding.threadId]));
-  return localConversations.map((conversation) => {
-    const threadId = threadIdByConversationId.get(conversation.id);
-    if (!threadId || conversation.type !== 'acp') return conversation;
-    return {
-      ...conversation,
-      extra: {
-        ...conversation.extra,
-        canonical_thread_id: threadId,
-      },
-    };
-  });
 };
 
 const uniqueProjectedTransportBindings = (
@@ -430,30 +366,6 @@ const refreshConversationDirectory = async () => {
 
   const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
   if (canonicalDirectory) {
-    const projectedConversationIds = new Set(projectedTransportBindingsState.map((binding) => binding.conversationId));
-    const legacyBindings = inferLegacyWeixinCanonicalThreadBindings(
-      localConversationsState,
-      canonicalDirectory,
-      projectedConversationIds
-    );
-    if (legacyBindings.length > 0) {
-      localConversationsState = applyLegacyWeixinCanonicalThreadBindings(localConversationsState, legacyBindings);
-      const persistenceResults = await Promise.allSettled(
-        legacyBindings.map(async (binding) => {
-          const updated = await ipcBridge.conversation.update.invoke({
-            id: binding.conversationId,
-            updates: { extra: { canonical_thread_id: binding.threadId } } as Partial<TChatConversation>,
-            merge_extra: true,
-          });
-          if (!updated) throw new Error(`Conversation ${binding.conversationId} rejected canonical thread binding.`);
-        })
-      );
-      persistenceResults.forEach((result) => {
-        if (result.status === 'rejected') {
-          console.warn('[WorkspaceGroupedHistory] Failed to persist legacy WeChat thread binding:', result.reason);
-        }
-      });
-    }
     canonicalDirectoryState = canonicalDirectory;
     if (canonicalDirectory.host !== 'webui-local-cache') {
       const nextArchiveStateByThreadId = canonicalDirectory.complete

@@ -10,7 +10,6 @@ import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types
 import {
   createSingleFlightDirtyReplay,
   getSidebarStreamGuardDecision,
-  inferLegacyWeixinCanonicalThreadBindings,
   mergeCanonicalThreadDirectory,
   projectTransportBinding,
   visibleConversationIds,
@@ -607,26 +606,6 @@ describe('mergeCanonicalThreadDirectory', () => {
       expect.objectContaining({ type: 'conversation', conversation: merged[0] }),
     ]);
     expect(transport.extra).toHaveProperty('canonical_thread_id', 'legacy-thread');
-  });
-
-  it('uses workspace inference only as a migration fallback when the shared projection is unavailable', () => {
-    const workspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
-    const transport = {
-      id: '05ee8303',
-      name: 'wx-acp-codex-user',
-      created_at: 1,
-      type: 'acp',
-      source: 'weixin',
-      extra: { backend: 'codex', workspace, is_temporary_workspace: true },
-    } as TChatConversation;
-    const canonicalDirectory = directory([thread({ workspace })]);
-
-    expect(inferLegacyWeixinCanonicalThreadBindings([transport], canonicalDirectory)).toEqual([
-      { conversationId: transport.id, threadId: 'thread-1' },
-    ]);
-    expect(inferLegacyWeixinCanonicalThreadBindings([transport], canonicalDirectory, new Set([transport.id]))).toEqual(
-      []
-    );
   });
 
   it('ignores a conflicting legacy binding when a current shared binding exists', () => {
