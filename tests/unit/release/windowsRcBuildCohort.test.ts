@@ -290,9 +290,8 @@ describe('Windows RC build cohort', () => {
       expect(reusable).toContain(`${input}:`);
       expect(manual).toContain(`${input}:`);
     }
-    expect(manual).toContain(
-      "ref: ${{ (startsWith(inputs.platform, 'windows') || inputs.platform == 'all') && inputs.windows_rc_shell_sha || inputs.branch }}"
-    );
+    expect(manual).not.toContain('inputs.branch');
+    expect(reusable).not.toContain('inputs.ref');
     expect(reusable).toContain('Verify prepared Linux managed Node runtime');
     expect(reusable).toContain('"$node_bin/npm" --version');
     expect(reusable).toContain('"$node_bin/npx" --version');

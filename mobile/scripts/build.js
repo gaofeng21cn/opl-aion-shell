@@ -11,7 +11,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Parse command line arguments
 const args = process.argv.slice(2);
@@ -72,7 +72,7 @@ if (isLocal) {
 let applePassword;
 if (isLocal && platform === 'ios') {
   try {
-    applePassword = execSync('security find-generic-password -s "AC_PASSWORD" -w', {
+    applePassword = execFileSync('security', ['find-generic-password', '-s', 'AC_PASSWORD', '-w'], {
       encoding: 'utf8',
     }).trim();
   } catch {
@@ -81,8 +81,7 @@ if (isLocal && platform === 'ios') {
 }
 
 // Build the eas command
-const easCommand = `eas build ${buildArgs.join(' ')}`;
-console.log(`\nRunning: ${easCommand}\n`);
+console.log('\nRunning: eas build\n');
 
 // Apple-specific env vars (only needed for iOS builds)
 const appleEnv =
@@ -96,7 +95,7 @@ const appleEnv =
 
 // Execute eas build
 try {
-  execSync(easCommand, {
+  execFileSync('eas', ['build', ...buildArgs], {
     stdio: 'inherit',
     env: {
       ...process.env,
@@ -124,10 +123,13 @@ if (platform === 'ios' && isLocal && (autoSubmit || directSubmit)) {
   if (directSubmit) {
     // Upload directly to App Store Connect via xcrun altool (bypasses EAS)
     const appleId = process.env.APPLE_ID || 'liangzhewei@gmail.com';
-    const submitCommand = `xcrun altool --upload-app -f "${outputFile}" -t ${platform} -u "${appleId}" -p "@keychain:AC_PASSWORD"`;
     console.log(`\nUploading directly to TestFlight: xcrun altool --upload-app\n`);
     try {
-      execSync(submitCommand, { stdio: 'inherit' });
+      execFileSync(
+        'xcrun',
+        ['altool', '--upload-app', '-f', outputFile, '-t', platform, '-u', appleId, '-p', '@keychain:AC_PASSWORD'],
+        { stdio: 'inherit' }
+      );
       console.log('\nSuccessfully uploaded to TestFlight!');
     } catch (error) {
       console.error('\nDirect upload to TestFlight failed');
@@ -141,10 +143,9 @@ if (platform === 'ios' && isLocal && (autoSubmit || directSubmit)) {
     }
   } else {
     // Upload via EAS submit
-    const submitCommand = `eas submit --platform ${platform} --path ${outputFile} --non-interactive`;
-    console.log(`\nSubmitting to TestFlight: ${submitCommand}\n`);
+    console.log('\nSubmitting to TestFlight: eas submit\n');
     try {
-      execSync(submitCommand, {
+      execFileSync('eas', ['submit', '--platform', platform, '--path', outputFile, '--non-interactive'], {
         stdio: 'inherit',
         env: {
           ...process.env,
