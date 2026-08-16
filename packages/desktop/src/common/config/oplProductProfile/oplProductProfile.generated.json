@@ -296,6 +296,7 @@
         "gateway_model_working_directory_preferences_and_diagnostics",
         "dynamic_agent_catalog_search_filter_source_policy_home_visibility_order_and_lifecycle",
         "dynamic_capability_directory_and_package_settings_contributions",
+        "provider_projected_channel_access_and_canonical_transport_binding",
         "separate_app_base_and_packages_update_status_actions_and_fresh_readback",
         "service_health_safe_recovery_and_owner_routed_diagnostics"
       ],
@@ -381,6 +382,11 @@
     "contribution_abi": "opl_app_client_contributions.v1",
     "allowlist_contract": "contracts/opl-app-contributions.schema.json",
     "typed_slots": ["settings.section", "runtime.detail", "composer.palette"],
+    "standard_view_types": ["list_detail", "timeline", "approval_diff", "task_board", "artifact_view", "activity_log", "channel_access"],
+    "transport_binding_source": "app_state.transport_bindings",
+    "transport_binding_schema": "opl_app_transport_bindings_projection.v1",
+    "transport_binding_migration_state": "producer_callback_pending",
+    "transport_binding_event": "opl/app-transport-bindings/updated",
     "typed_state_rpc": "opl app state --profile fast --json",
     "typed_action_rpc": "opl app action execute --action <action_id> [--payload json] [--dry-run] --json",
     "typed_client_event": "opl/app-client-contributions/updated",
@@ -449,10 +455,10 @@
     }
   },
   "default_session_profile": {
-    "provider": "gflab",
+    "provider": "oplgateway",
     "provider_name": "OPL Gateway",
     "existing_provider_name_policy": "preserve_existing_provider_name_no_migration",
-    "base_url": "https://gflabtoken.cn/v1",
+    "base_url": "https://gateway.medopl.com/v1",
     "executor": "codex_cli",
     "model": "gpt-5.6-sol",
     "reasoning_effort": "max",
@@ -3372,7 +3378,7 @@
         "configured_default_role": "App fallback used only when no valid installed Flow projection and no usable live catalog resolution exists",
         "ordinary_surface": "home_and_conversation_shared_session_configuration_menu_with_model_reasoning_and_reset_rows",
         "settings_surface": "settings_access.model_access",
-        "adapter_policy": "Aion/Hermes/shell render App-derived model and reasoning policy only",
+        "adapter_policy": "GUI shells render App-derived model and reasoning policy only",
         "shell_must_not_own": [
           "default model",
           "frontier model preference order",

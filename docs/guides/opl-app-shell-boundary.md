@@ -6,11 +6,12 @@ Purpose-first shell work starts from the App contract and then lands in this rep
 
 Current GUI policy is fixed at the App layer: this repository is the active
 AionUI Stable Shell implementation. `opl-studio` is the DSH-derived
-foreground/developer candidate and is developed in its own shell repo. Hermes
-Desktop / `hermes-codex` is retained as a prior-candidate reference. AGUI /
-`agui-codex` is archived technical proof only; do not port it into the AionUI
-mainline, use it as a validation baseline, or continue AGUI polish from this
-repository unless the user explicitly requests AGUI replay.
+foreground/developer candidate and is developed in its own shell repo. The
+Hermes Desktop / `hermes-codex` GUI candidate is retired and has no current App
+registry, adapter, validator, command, or runbook. AGUI / `agui-codex` is
+archived technical proof only; do not port it into the AionUI mainline, use it
+as a validation baseline, or continue AGUI polish from this repository unless
+the user explicitly requests AGUI replay.
 
 The three-repository relationship is one App product with two replaceable
 Shells: `one-person-lab-app` owns product behavior, navigation, page state,

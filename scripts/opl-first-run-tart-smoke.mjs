@@ -21,7 +21,8 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGTERM', 143],
 ]);
 const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
-const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
+const OPL_GATEWAY_BASE_URL = 'https://gateway.medopl.com/v1';
+const OPL_GATEWAY_LEGACY_BASE_URLS = ['https://gflabtoken.cn/v1'];
 const HOST_CODEX_PROVIDER_SOURCE = 'developer_host_codex_selected_provider';
 const EXPLICIT_API_KEY_FILE_SOURCE = 'explicit_api_key_file';
 const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];
@@ -909,6 +910,13 @@ function normalizeProviderBaseUrl(value) {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
 }
 
+function isOplGatewayProviderBaseUrl(value) {
+  const normalized = normalizeProviderBaseUrl(value);
+  return [OPL_GATEWAY_BASE_URL, ...OPL_GATEWAY_LEGACY_BASE_URLS].some(
+    (candidate) => normalized === normalizeProviderBaseUrl(candidate)
+  );
+}
+
 function publicProviderCredentialResolution(resolution) {
   return {
     status: resolution.status,
@@ -1006,7 +1014,7 @@ function resolveHostCodexProviderCredential(options, includeSecret = false) {
   const baseUrl = typeof provider?.base_url === 'string' ? provider.base_url.trim() : '';
   const apiKey =
     typeof provider?.experimental_bearer_token === 'string' ? provider.experimental_bearer_token.trim() : '';
-  const baseUrlMatches = normalizeProviderBaseUrl(baseUrl) === normalizeProviderBaseUrl(OPL_GATEWAY_BASE_URL);
+  const baseUrlMatches = isOplGatewayProviderBaseUrl(baseUrl);
   let reason = null;
   if (!selectedProvider || !provider) reason = 'selected_host_codex_provider_absent';
   else if (!baseUrl) reason = 'selected_host_codex_provider_base_url_absent';

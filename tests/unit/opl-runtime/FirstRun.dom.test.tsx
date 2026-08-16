@@ -101,8 +101,8 @@ const initializeResult = {
         launch_ready: true,
       },
       codex_default_profile: {
-        model_provider: 'gflab',
-        base_url: 'https://gflabtoken.cn/v1',
+        model_provider: 'oplgateway',
+        base_url: 'https://gateway.medopl.com/v1',
         model: 'gpt-5.5',
         model_reasoning_effort: 'xhigh',
       },
@@ -613,7 +613,7 @@ describe('FirstRun readiness page', () => {
     expect(screen.queryByTestId('opl-first-run-step-rail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('opl-first-run-task-panel')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-beginner-primary')).not.toHaveTextContent('{');
-    expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('https://gflabtoken.cn');
+    expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('https://gateway.medopl.com');
     expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('gpt-5.5');
     expect(screen.getByTestId('opl-first-run-completion')).not.toHaveTextContent('settings.firstRun.maintenance.title');
     expect(screen.queryByTestId('opl-first-run-background-maintenance-secondary')).not.toBeInTheDocument();

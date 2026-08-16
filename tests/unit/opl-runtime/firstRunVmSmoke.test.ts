@@ -861,11 +861,11 @@ describe('packaged first-run VM smoke helpers', () => {
       {
         timeoutMs: 12_000,
         appPath: '/Applications/One Person Lab.app',
-        codexProviderBaseUrl: 'https://gflabtoken.cn/v1/',
+        codexProviderBaseUrl: 'https://gateway.medopl.com/v1/',
         __testHooks: {
           runOplJson: (args: string[], options: Record<string, unknown>) => {
             calls.push({ args, options });
-            return JSON.stringify({ status: 'configured', provider_base_url: 'https://gflabtoken.cn/v1' });
+            return JSON.stringify({ status: 'configured', provider_base_url: 'https://gateway.medopl.com/v1' });
           },
         },
       },
@@ -882,7 +882,7 @@ describe('packaged first-run VM smoke helpers', () => {
       provider_base_url_matches_host: true,
       result: {
         status: 'configured',
-        provider_base_url: 'https://gflabtoken.cn/v1',
+        provider_base_url: 'https://gateway.medopl.com/v1',
       },
     });
   });
@@ -895,7 +895,7 @@ describe('packaged first-run VM smoke helpers', () => {
           __testHooks: {
             runOplJson: () =>
               JSON.stringify({
-                codex_config: { bootstrap: { provider_base_url: 'https://gflabtoken.cn/v1' } },
+                codex_config: { bootstrap: { provider_base_url: 'https://gateway.medopl.com/v1' } },
               }),
           },
         },

@@ -3186,10 +3186,10 @@ describe('OPL first-run VM smoke scripts', () => {
     writeFile(
       configPath,
       [
-        'model_provider = "gflab"',
-        '[model_providers.gflab]',
+        'model_provider = "oplgateway"',
+        '[model_providers.oplgateway]',
         'name = "OPL Gateway"',
-        'base_url = "https://gflabtoken.cn/v1/"',
+        'base_url = "https://gateway.medopl.com/v1/"',
         'experimental_bearer_token = "host-selected-test-credential"',
         'wire_api = "responses"',
         '',
@@ -3213,7 +3213,7 @@ describe('OPL first-run VM smoke scripts', () => {
       prepared = tartSmoke.prepareHostCodexApiKeyFile(options);
       expect(prepared).toMatchObject({
         source: 'developer_host_codex_selected_provider',
-        providerBaseUrl: 'https://gflabtoken.cn/v1/',
+        providerBaseUrl: 'https://gateway.medopl.com/v1/',
       });
       expect(fs.readFileSync(prepared!.path, 'utf8')).toBe('host-selected-test-credential\n');
       expect(fs.statSync(prepared!.path).mode & 0o777).toBe(0o600);
@@ -3232,7 +3232,7 @@ describe('OPL first-run VM smoke scripts', () => {
         '/tmp/guest/artifacts',
         '/tmp/guest/codex-api-key.txt'
       );
-      expect(command).toContain("--codex-provider-base-url 'https://gflabtoken.cn/v1/'");
+      expect(command).toContain("--codex-provider-base-url 'https://gateway.medopl.com/v1/'");
       expect(command).toContain("--provider-credential-source 'developer_host_codex_selected_provider'");
       expect(command).toContain('--codex-api-key-file');
       expect(command).not.toContain('host-selected-test-credential');
@@ -3242,6 +3242,52 @@ describe('OPL first-run VM smoke scripts', () => {
         base_url_matches_opl_gateway: true,
         manual_user_input_required: false,
       });
+    } finally {
+      if (prepared) fs.rmSync(prepared.tempDir, { recursive: true, force: true });
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('stages a requested connected VM credential from a legacy OPL Gateway URL without migrating it', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-host-codex-provider-legacy-'));
+    const configPath = path.join(root, 'config.toml');
+    writeFile(
+      configPath,
+      [
+        'model_provider = "gflabtoken"',
+        '[model_providers.gflabtoken]',
+        'name = "gflabtoken"',
+        'base_url = "https://gflabtoken.cn/v1/"',
+        'experimental_bearer_token = "legacy-host-credential"',
+        '',
+      ].join('\n'),
+      0o600
+    );
+    let prepared: { path: string; tempDir: string } | null = null;
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--codex-ai-self-check',
+        '--host-codex-config',
+        configPath,
+        '--dry-run',
+      ]);
+      prepared = tartSmoke.prepareHostCodexApiKeyFile(options);
+      expect(prepared).toMatchObject({
+        source: 'developer_host_codex_selected_provider',
+        providerBaseUrl: 'https://gflabtoken.cn/v1/',
+      });
+      expect(options.providerCredentialResolution).toMatchObject({
+        status: 'available',
+        selected_provider: 'gflabtoken',
+        base_url_matches_opl_gateway: true,
+      });
+      expect(fs.readFileSync(prepared!.path, 'utf8')).toBe('legacy-host-credential\n');
     } finally {
       if (prepared) fs.rmSync(prepared.tempDir, { recursive: true, force: true });
       fs.rmSync(root, { recursive: true, force: true });

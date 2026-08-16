@@ -457,7 +457,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
                   opl_gateway: {
                     status: 'available',
                     gateway_status_ref: 'opl://gateway/status',
-                    key_status_ref: 'opl://gateway/key/gflabtoken',
+                    key_status_ref: 'opl://gateway/key/oplgateway',
                     provider_policy_ref: 'opl://gateway/policy/provider-routing',
                   },
                   opl_workspace: {

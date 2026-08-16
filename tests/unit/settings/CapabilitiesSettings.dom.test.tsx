@@ -719,7 +719,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => {
                     status: 'refs_only',
                   },
                 ],
-                gateway_status_ref: 'opl://gateway/status/gflabtoken',
+                gateway_status_ref: 'opl://gateway/status/oplgateway',
                 environment_ref: 'opl://environment/python-r-quarto',
                 environment_template_ref: 'opl://environment-template/python-r-quarto',
                 environment_version_ref: 'opl://environment-version/python-r-quarto/2026-07',
@@ -1418,7 +1418,7 @@ describe('Agents and capabilities settings', () => {
     expect(within(detailedResearch).getByText('Resource sources')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Resource receipts')).toBeInTheDocument();
     expect(within(detailedResearch).getByText('Quota / cost')).toBeInTheDocument();
-    expect(within(detailedResearch).queryByText(/opl:\/\/gateway\/status\/gflabtoken/)).not.toBeInTheDocument();
+    expect(within(detailedResearch).queryByText(/opl:\/\/gateway\/status\/oplgateway/)).not.toBeInTheDocument();
     expect(within(detailedResearch).queryByText(/opl:\/\/environment\/python-r-quarto/)).not.toBeInTheDocument();
     expect(
       within(detailedResearch).queryByText(/opl:\/\/environment-template\/python-r-quarto/)

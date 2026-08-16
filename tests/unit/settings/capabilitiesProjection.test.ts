@@ -1242,7 +1242,7 @@ describe('buildCapabilitiesViewModel', () => {
                     },
                   ],
                   connector_readiness_refs: ['opl://connect/pubmed/readiness', 'opl://fabric/storage/readiness'],
-                  gateway_status_ref: 'opl://gateway/status/gflabtoken',
+                  gateway_status_ref: 'opl://gateway/status/oplgateway',
                   environment_ref: {
                     id: 'python-r-quarto',
                     title: 'Python/R/Quarto',
@@ -1336,10 +1336,10 @@ describe('buildCapabilitiesViewModel', () => {
         nextAction: 'repair connector',
       },
       {
-        id: 'gflabtoken',
-        title: 'gflabtoken',
+        id: 'oplgateway',
+        title: 'oplgateway',
         status: 'blocked',
-        ref: 'opl://gateway/status/gflabtoken',
+        ref: 'opl://gateway/status/oplgateway',
         owner: 'opl_framework',
         nextAction: 'repair connector',
       },

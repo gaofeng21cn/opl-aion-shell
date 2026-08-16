@@ -664,8 +664,8 @@ type AppProductProfile = {
     primary_user_path: string;
   };
   default_session_profile: {
-    provider: 'gflab';
-    base_url: 'https://gflabtoken.cn/v1';
+    provider: 'oplgateway';
+    base_url: 'https://gateway.medopl.com/v1';
     executor: 'codex_cli';
     model: string;
     reasoning_effort: OplCodexReasoningEffort | null;
@@ -1918,8 +1918,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   if (defaultSession.executor !== 'codex_cli') {
     throw new Error('Invalid OPL product profile: default_session_profile.executor must be codex_cli');
   }
-  if (defaultSession.provider !== 'gflab' || defaultSession.base_url !== 'https://gflabtoken.cn/v1') {
-    throw new Error('Invalid OPL product profile: default session provider endpoint must be gflab');
+  if (defaultSession.provider !== 'oplgateway' || defaultSession.base_url !== 'https://gateway.medopl.com/v1') {
+    throw new Error('Invalid OPL product profile: default session provider endpoint must be oplgateway');
   }
 
   const model = typeof defaultSession.model === 'string' ? defaultSession.model.trim() : '';
@@ -2174,8 +2174,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     },
     product,
     default_session_profile: {
-      provider: 'gflab',
-      base_url: 'https://gflabtoken.cn/v1',
+      provider: 'oplgateway',
+      base_url: 'https://gateway.medopl.com/v1',
       executor: 'codex_cli',
       model,
       reasoning_effort: reasoningEffort,
