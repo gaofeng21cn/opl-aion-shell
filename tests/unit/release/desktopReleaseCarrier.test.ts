@@ -25,8 +25,8 @@ describe('desktop release carrier contract', () => {
       entitlements: 'entitlements.plist',
     });
     expect(carrier.commands.build_macos).toBe('bun run build-mac:arm64');
-    expect(pkg.dependencies['electron-updater']).toBe('6.8.3');
-    expect(pkg.devDependencies.electron).toBe('37.10.3');
+    expect(pkg.dependencies['electron-updater']).toBe('6.8.9');
+    expect(pkg.devDependencies.electron).toBe('41.10.3');
     expect(pkg.devDependencies['electron-builder']).toBe('26.15.3');
     expect(pkg.devDependencies['electron-builder-squirrel-windows']).toBe('26.15.3');
     expect(pkg.devDependencies['builder-util']).toBe('26.15.3');
