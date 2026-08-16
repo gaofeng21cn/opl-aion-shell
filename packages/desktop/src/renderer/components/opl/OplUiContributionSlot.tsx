@@ -285,7 +285,12 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
   const appStateQuery = useOplAppState('fast');
   const [runningCommandKey, setRunningCommandKey] = useState<string | null>(null);
   const [entries, setEntries] = useState<readonly OplUiContribution[]>([]);
-  const actionAvailable = hasPackageContributionExecuteAction(appStateQuery.appState);
+  const actionAvailable =
+    hasPackageContributionExecuteAction(appStateQuery.appState) ||
+    entries.some(
+      (entry) =>
+        entry.view?.viewType === 'channel_access' && entry.actionBoundary === 'opl.connect.channel-provider-host'
+    );
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US';
 
   useEffect(() => {

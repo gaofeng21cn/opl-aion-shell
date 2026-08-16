@@ -9,7 +9,14 @@ import {
   resolveOplUiContributionLabel,
 } from '@/common/types/opl/uiContributions';
 
-function entry(input: { packageId: string; contributionId: string; slot: string; sortOrder: number; kind?: string }) {
+function entry(input: {
+  packageId: string;
+  contributionId: string;
+  slot: string;
+  sortOrder: number;
+  kind?: string;
+  actionBoundary?: string;
+}) {
   return {
     contribution_key: `${input.packageId}:${input.contributionId}`,
     contribution_id: input.contributionId,
@@ -19,6 +26,7 @@ function entry(input: { packageId: string; contributionId: string; slot: string;
     trust_tier: 'declarative',
     scope: 'root',
     sort_order: input.sortOrder,
+    ...(input.actionBoundary ? { action_boundary: input.actionBoundary } : {}),
     view: {
       view_id: 'activity',
       view_type: 'activity_log',
@@ -51,7 +59,13 @@ describe('OPL UI contribution projection', () => {
         surface_kind: 'opl_app_ui_contributions_projection.v1',
         entries: [
           entry({ packageId: 'z-package', contributionId: 'runtime', slot: 'runtime.detail', sortOrder: 20 }),
-          entry({ packageId: 'a-package', contributionId: 'settings', slot: 'settings.section', sortOrder: 10 }),
+          entry({
+            packageId: 'a-package',
+            contributionId: 'settings',
+            slot: 'settings.section',
+            sortOrder: 10,
+            actionBoundary: 'opl.connect.channel-provider-host',
+          }),
           entry({ packageId: 'b-package', contributionId: 'composer', slot: 'composer.palette', sortOrder: 10 }),
         ],
       },
@@ -65,6 +79,7 @@ describe('OPL UI contribution projection', () => {
     ]);
     expect(projection.entries[0]?.commands[0]?.actionRef).toBe('example.activity.v1#refresh');
     expect(projection.entries[0]?.badges[0]?.badgeId).toBe('health');
+    expect(projection.entries[0]?.actionBoundary).toBe('opl.connect.channel-provider-host');
   });
 
   it('drops one malformed entry without disabling valid or unknown-kind entries', () => {

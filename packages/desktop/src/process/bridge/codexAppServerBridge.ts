@@ -11,15 +11,16 @@ import { ipcBridge } from '@/common';
 import { type CodexAppServerAdapter, createProductionCodexAppServerAdapter } from '../services/codexAppServer/adapter';
 import { FileChannelBindingStore } from '../services/codexAppServer/channelBindings';
 import {
+  setActiveChannelProviderHost,
   startChannelProviderHost,
-  type ChannelProviderHostDisposable,
+  type ChannelProviderHostHandle,
 } from '../services/codexAppServer/channelProviderHost';
 import { resolveActiveOplFrameworkPackageRoot } from './oplRuntimeBridge';
 
 let activeAdapter: CodexAppServerAdapter | null = null;
 let activeAdapterFactory: () => CodexAppServerAdapter = createDefaultAdapter;
-let activeChannelProviderHost: Promise<ChannelProviderHostDisposable | null> | null = null;
-let channelProviderHostStarter: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostDisposable> =
+let activeChannelProviderHost: Promise<ChannelProviderHostHandle | null> | null = null;
+let channelProviderHostStarter: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostHandle> =
   startDefaultChannelProviderHost;
 
 function createDefaultAdapter(): CodexAppServerAdapter {
@@ -32,7 +33,7 @@ function createDefaultAdapter(): CodexAppServerAdapter {
   });
 }
 
-async function startDefaultChannelProviderHost(adapter: CodexAppServerAdapter): Promise<ChannelProviderHostDisposable> {
+async function startDefaultChannelProviderHost(adapter: CodexAppServerAdapter): Promise<ChannelProviderHostHandle> {
   return await startChannelProviderHost({
     frameworkPackageRoot: resolveActiveOplFrameworkPackageRoot(),
     callback: adapter.createChannelTurnCallback(),
@@ -44,6 +45,7 @@ function ensureChannelProviderHost(adapter: CodexAppServerAdapter): void {
     console.warn('[OPL] Channel-provider Host is unavailable:', error);
     return null;
   });
+  setActiveChannelProviderHost(activeChannelProviderHost);
 }
 
 export async function disposeCodexAppServerBridge(): Promise<void> {
@@ -51,6 +53,7 @@ export async function disposeCodexAppServerBridge(): Promise<void> {
   const channelProviderHost = activeChannelProviderHost;
   activeAdapter = null;
   activeChannelProviderHost = null;
+  setActiveChannelProviderHost(null);
   try {
     const host = await channelProviderHost;
     await host?.dispose();
@@ -74,7 +77,7 @@ function getActiveAdapter(): CodexAppServerAdapter {
 export function initCodexAppServerBridge(
   adapter?: CodexAppServerAdapter,
   options: {
-    startChannelProviderHost?: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostDisposable>;
+    startChannelProviderHost?: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostHandle>;
   } = {}
 ): void {
   void disposeCodexAppServerBridge();

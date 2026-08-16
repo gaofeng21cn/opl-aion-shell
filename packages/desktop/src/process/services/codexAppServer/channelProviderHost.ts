@@ -7,9 +7,25 @@ export type ChannelProviderHostDisposable = Readonly<{
   dispose(): void | Promise<void>;
 }>;
 
+export type ChannelProviderHostHandle = ChannelProviderHostDisposable &
+  Readonly<{
+    appStatePatch(): Readonly<Record<string, unknown>>;
+    readChannelAccess(input: ChannelProviderAccessRequest): Promise<Readonly<Record<string, unknown>>>;
+    executeChannelAccessAction(input: ChannelProviderAccessRequest): Promise<Readonly<Record<string, unknown>>>;
+  }>;
+
+export type ChannelProviderAccessRequest = Readonly<{
+  package_id: string;
+  ref: string;
+  input?: Readonly<Record<string, unknown>>;
+  confirmed?: boolean;
+}>;
+
+let activeChannelProviderHost: Promise<ChannelProviderHostHandle | null> | null = null;
+
 type FrameworkChannelProviderBootstrap = (options: {
   callback: CodexAppServerChannelTurnCallback;
-}) => Promise<ChannelProviderHostDisposable>;
+}) => Promise<ChannelProviderHostHandle>;
 
 type ChannelProviderHostOptions = Readonly<{
   frameworkPackageRoot: string;
@@ -50,15 +66,81 @@ async function loadFrameworkBootstrap(frameworkPackageRoot: string): Promise<Fra
 
 export async function startChannelProviderHost(
   options: ChannelProviderHostOptions
-): Promise<ChannelProviderHostDisposable> {
+): Promise<ChannelProviderHostHandle> {
   const bootstrap = await (options.loadBootstrap ?? loadFrameworkBootstrap)(options.frameworkPackageRoot);
   const disposable = await bootstrap({ callback: options.callback });
-  if (!disposable || typeof disposable.dispose !== 'function') {
-    throw new Error('OPL Framework channel-provider Host bootstrap returned no disposable.');
+  if (
+    !disposable ||
+    typeof disposable.dispose !== 'function' ||
+    typeof disposable.appStatePatch !== 'function' ||
+    typeof disposable.readChannelAccess !== 'function' ||
+    typeof disposable.executeChannelAccessAction !== 'function'
+  ) {
+    throw new Error('OPL Framework channel-provider Host bootstrap returned an invalid handle.');
   }
   return disposable;
 }
 
+export function setActiveChannelProviderHost(host: Promise<ChannelProviderHostHandle | null> | null): void {
+  activeChannelProviderHost = host;
+}
+
+export async function readActiveChannelProviderAppStatePatch(): Promise<Readonly<Record<string, unknown>> | undefined> {
+  try {
+    return (await activeChannelProviderHost)?.appStatePatch();
+  } catch {
+    return undefined;
+  }
+}
+
+function contributionEntries(host: ChannelProviderHostHandle): Readonly<Record<string, unknown>>[] {
+  const patch = host.appStatePatch();
+  const projection = patch.ui_contributions;
+  if (!projection || typeof projection !== 'object') return [];
+  const entries = (projection as Record<string, unknown>).entries;
+  return Array.isArray(entries)
+    ? entries.filter(
+        (entry): entry is Readonly<Record<string, unknown>> =>
+          entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+      )
+    : [];
+}
+
+function hostOwnsRequest(
+  host: ChannelProviderHostHandle,
+  request: ChannelProviderAccessRequest,
+  operation: 'read' | 'execute'
+): boolean {
+  return contributionEntries(host).some((entry) => {
+    if (entry.package_id !== request.package_id) return false;
+    const view = entry.view;
+    if (!view || typeof view !== 'object' || Array.isArray(view)) return false;
+    if ((view as Record<string, unknown>).view_type !== 'channel_access') return false;
+    if (operation === 'read') return (view as Record<string, unknown>).data_ref === request.ref;
+    const commands = entry.commands;
+    return (
+      Array.isArray(commands) &&
+      commands.some(
+        (command) =>
+          command !== null &&
+          typeof command === 'object' &&
+          !Array.isArray(command) &&
+          (command as Record<string, unknown>).action_ref === request.ref
+      )
+    );
+  });
+}
+
+export async function runActiveChannelProviderAccess(
+  request: ChannelProviderAccessRequest,
+  operation: 'read' | 'execute'
+): Promise<Readonly<Record<string, unknown>> | undefined> {
+  const host = await activeChannelProviderHost;
+  if (!host || !hostOwnsRequest(host, request, operation)) return undefined;
+  return operation === 'read' ? host.readChannelAccess(request) : host.executeChannelAccessAction(request);
+}
+
 export const __channelProviderHostTest = {
   loadFrameworkBootstrap,
+  hostOwnsRequest,
 };

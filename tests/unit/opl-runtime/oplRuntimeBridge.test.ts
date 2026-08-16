@@ -423,6 +423,75 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toThrow(/Invalid OPL package contribution package id/);
   });
 
+  it('replaces only channel_access entries with the active Host projection', () => {
+    const result = __oplRuntimeBridgeTest.mergeChannelProviderAppStatePatch(
+      {
+        surface: 'app_state_fast',
+        command: 'opl app state --profile fast --json',
+        stdout: '{}',
+        parsed: {
+          app_state: {
+            ui_contributions: {
+              contribution_count: 2,
+              entries: [
+                { package_id: 'opl-fleet-agent', slot: 'settings.section', view: { view_type: 'list_detail' } },
+                { package_id: 'stale-channel', slot: 'settings.section', view: { view_type: 'channel_access' } },
+              ],
+              slots: {},
+            },
+          },
+        },
+        ok: true,
+      },
+      {
+        ui_contributions: {
+          contribution_count: 1,
+          entries: [
+            {
+              package_id: 'opl-channel-weixin',
+              slot: 'settings.section',
+              view: { view_type: 'channel_access' },
+            },
+          ],
+          slots: {},
+        },
+      }
+    );
+    const parsed = result.parsed as any;
+    expect(parsed.app_state.ui_contributions.entries.map((entry: any) => entry.package_id)).toEqual([
+      'opl-fleet-agent',
+      'opl-channel-weixin',
+    ]);
+    expect(parsed.app_state.ui_contributions.slots['settings.section']).toHaveLength(2);
+  });
+
+  it('recognizes only exact package contribution action payloads for Host routing', () => {
+    expect(
+      __oplRuntimeBridgeTest.channelAccessActionRequest({
+        actionId: 'package_contribution_execute',
+        dryRun: false,
+        payloadJson: {
+          package_id: 'opl-channel-weixin',
+          ref: 'weixin.channel.connect',
+          input: {},
+          confirmed: true,
+        },
+      })
+    ).toEqual({
+      packageId: 'opl-channel-weixin',
+      ref: 'weixin.channel.connect',
+      operation: 'execute',
+      input: {},
+      confirmed: true,
+    });
+    expect(
+      __oplRuntimeBridgeTest.channelAccessActionRequest({
+        actionId: 'connection_create',
+        dryRun: false,
+      })
+    ).toBeUndefined();
+  });
+
   it('sends user-authored action payloads over stdin with a redacted command', () => {
     expect(
       __oplRuntimeBridgeTest.buildActionCommand({

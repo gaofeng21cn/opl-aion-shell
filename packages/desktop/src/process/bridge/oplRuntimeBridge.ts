@@ -30,6 +30,10 @@ import type {
   IOplUpdateComponentRequest,
   IOplUpdateRepairRequest,
 } from '@/common/adapter/ipcBridge';
+import {
+  readActiveChannelProviderAppStatePatch,
+  runActiveChannelProviderAccess,
+} from '../services/codexAppServer/channelProviderHost';
 
 type RuntimeCommandSpec = {
   args: string[];
@@ -416,6 +420,116 @@ function buildPackageContributionCommand(request: IOplPackageContributionRequest
     stdin: JSON.stringify(input),
     redactedCommand: `opl app contribution ${request.operation} --package-id ${packageId} --ref ${ref} --input-stdin --json`,
   };
+}
+
+function channelProviderHostResult(
+  request: IOplPackageContributionRequest,
+  parsed: Readonly<Record<string, unknown>>
+): IOplRuntimeCommandResult {
+  return {
+    surface: request.operation === 'read' ? 'package_contribution_read' : 'package_contribution_execute',
+    command: 'opl.connect.channel-provider-host',
+    stdout: JSON.stringify(parsed),
+    parsed,
+    ok: true,
+  };
+}
+
+function mergeChannelProviderAppStatePatch(
+  result: IOplRuntimeCommandResult,
+  patch: Readonly<Record<string, unknown>> | undefined
+): IOplRuntimeCommandResult {
+  if (!patch || !isRecord(result.parsed) || !isRecord(patch.ui_contributions)) return result;
+  const parsed = result.parsed;
+  const nestedAppState = isRecord(parsed.app_state) ? parsed.app_state : null;
+  const appState = nestedAppState ?? parsed;
+  const baseProjection = isRecord(appState.ui_contributions) ? appState.ui_contributions : {};
+  const baseEntries = Array.isArray(baseProjection.entries) ? baseProjection.entries.filter(isRecord) : [];
+  const hostEntries = Array.isArray(patch.ui_contributions.entries)
+    ? patch.ui_contributions.entries.filter(isRecord)
+    : [];
+  const isChannelAccess = (entry: Record<string, unknown>) =>
+    isRecord(entry.view) && entry.view.view_type === 'channel_access';
+  const entries = [...baseEntries.filter((entry) => !isChannelAccess(entry)), ...hostEntries];
+  const slots = Object.fromEntries(
+    ['composer.palette', 'runtime.detail', 'settings.section'].map((slot) => [
+      slot,
+      entries.filter((entry) => entry.slot === slot),
+    ])
+  );
+  const uiContributions = {
+    ...baseProjection,
+    ...patch.ui_contributions,
+    contribution_count: entries.length,
+    entries,
+    slots,
+  };
+  const mergedAppState = { ...appState, ui_contributions: uiContributions };
+  const mergedParsed = nestedAppState ? { ...parsed, app_state: mergedAppState } : mergedAppState;
+  return {
+    ...result,
+    stdout: JSON.stringify(mergedParsed),
+    parsed: mergedParsed,
+  };
+}
+
+async function runAppStateRequest(profile: IOplAppStateProfile): Promise<IOplRuntimeCommandResult> {
+  const result = await runOplCommand(buildAppStateCommand(profile));
+  if (result.ok === false) return result;
+  return mergeChannelProviderAppStatePatch(result, await readActiveChannelProviderAppStatePatch());
+}
+
+async function runPackageContributionRequest(
+  request: IOplPackageContributionRequest
+): Promise<IOplRuntimeCommandResult> {
+  const packageId = assertPackageContributionId(request.packageId, 'package id');
+  const ref = assertPackageContributionId(request.ref, 'ref');
+  const input = assertPackageContributionInput(request.input ?? {});
+  const direct = await runActiveChannelProviderAccess(
+    {
+      package_id: packageId,
+      ref,
+      input,
+      ...(request.confirmed === true ? { confirmed: true } : {}),
+    },
+    request.operation
+  );
+  if (direct) return channelProviderHostResult(request, direct);
+  return runOplCommand(buildPackageContributionCommand(request));
+}
+
+function channelAccessActionRequest(request: IOplRuntimeActionRequest): IOplPackageContributionRequest | undefined {
+  if (request.actionId !== 'package_contribution_execute' || !request.payloadJson) return undefined;
+  const payload = request.payloadJson;
+  if (typeof payload.package_id !== 'string' || typeof payload.ref !== 'string') {
+    throw new Error('Package contribution action requires package_id and ref.');
+  }
+  return {
+    packageId: assertPackageContributionId(payload.package_id, 'package id'),
+    ref: assertPackageContributionId(payload.ref, 'ref'),
+    operation: 'execute',
+    input: assertPackageContributionInput(payload.input ?? {}),
+    ...(payload.confirmed === true ? { confirmed: true } : {}),
+  };
+}
+
+async function runRuntimeActionRequest(request: IOplRuntimeActionRequest): Promise<IOplRuntimeCommandResult> {
+  const channelRequest = channelAccessActionRequest(request);
+  if (channelRequest) {
+    const packageId = channelRequest.packageId;
+    const ref = channelRequest.ref;
+    const direct = await runActiveChannelProviderAccess(
+      {
+        package_id: packageId,
+        ref,
+        input: channelRequest.input ?? {},
+        ...(channelRequest.confirmed === true ? { confirmed: true } : {}),
+      },
+      'execute'
+    );
+    if (direct) return channelProviderHostResult(channelRequest, direct);
+  }
+  return runOplCommand(buildActionCommand(request));
 }
 
 function buildOfficialProfileApplyCommand(
@@ -2032,7 +2146,7 @@ function resetDesktopStartupMaintenanceForTest(): void {
 }
 
 export function initOplRuntimeBridge(): void {
-  ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runOplCommand(buildAppStateCommand(profile)));
+  ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runAppStateRequest(profile));
   ipcBridge.oplRuntime.readDomainDetailView.provider((request) => runOplCommand(buildDomainDetailViewCommand(request)));
   ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
   ipcBridge.oplRuntime.runInstallPrep.provider(() => runOplCommand(buildInstallPrepCommand()));
@@ -2042,10 +2156,8 @@ export function initOplRuntimeBridge(): void {
   );
   ipcBridge.oplRuntime.runStartupMaintenance.provider(() => runOplCommand(buildStartupMaintenanceCommand()));
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
-  ipcBridge.oplRuntime.executeAction.provider((request) => runOplCommand(buildActionCommand(request)));
-  ipcBridge.oplRuntime.runPackageContribution.provider((request) =>
-    runOplCommand(buildPackageContributionCommand(request))
-  );
+  ipcBridge.oplRuntime.executeAction.provider(runRuntimeActionRequest);
+  ipcBridge.oplRuntime.runPackageContribution.provider(runPackageContributionRequest);
   ipcBridge.oplRuntime.applyOfficialProfile.provider((request) =>
     runSpawnJsonCommand(buildOfficialProfileApplyCommand(request))
   );
@@ -2064,6 +2176,8 @@ export const __oplRuntimeBridgeTest = {
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
   assertPackageContributionId,
+  channelAccessActionRequest,
+  mergeChannelProviderAppStatePatch,
   assertDomainDetailItemId,
   assertDomainDetailViewId,
   assertDomainDetailRevision,
