@@ -464,7 +464,12 @@ function mergeChannelProviderAppStatePatch(
     entries,
     slots,
   };
-  const mergedAppState = { ...appState, ui_contributions: uiContributions };
+  const hostTransportBindings = isRecord(patch.transport_bindings) ? patch.transport_bindings : null;
+  const mergedAppState = {
+    ...appState,
+    ui_contributions: uiContributions,
+    ...(hostTransportBindings ? { transport_bindings: hostTransportBindings } : {}),
+  };
   const mergedParsed = nestedAppState ? { ...parsed, app_state: mergedAppState } : mergedAppState;
   return {
     ...result,

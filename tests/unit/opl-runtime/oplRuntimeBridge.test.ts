@@ -423,14 +423,17 @@ describe('OPL runtime bridge command whitelist', () => {
     ).toThrow(/Invalid OPL package contribution package id/);
   });
 
-  it('replaces only channel_access entries with the active Host projection', () => {
+  it('merges Host transport bindings while replacing only channel_access entries', () => {
     const result = __oplRuntimeBridgeTest.mergeChannelProviderAppStatePatch(
       {
         surface: 'app_state_fast',
         command: 'opl app state --profile fast --json',
         stdout: '{}',
         parsed: {
+          request_id: 'request-1',
           app_state: {
+            release: { channel: 'stable' },
+            transport_bindings: { surface_kind: 'stale_transport_projection.v1' },
             ui_contributions: {
               contribution_count: 2,
               entries: [
@@ -455,14 +458,38 @@ describe('OPL runtime bridge command whitelist', () => {
           ],
           slots: {},
         },
+        transport_bindings: {
+          surface_kind: 'opl_app_transport_bindings_projection.v1',
+          status: 'available',
+          bindings: [{ binding_id: 'binding-1', canonical_thread_id: 'thread-1' }],
+          authority_boundary: { projection_owner: 'one-person-lab-framework' },
+        },
       }
     );
-    const parsed = result.parsed as any;
-    expect(parsed.app_state.ui_contributions.entries.map((entry: any) => entry.package_id)).toEqual([
+    const parsed = result.parsed as {
+      request_id: string;
+      app_state: {
+        release: { channel: string };
+        ui_contributions: {
+          entries: Array<{ package_id: string }>;
+          slots: Record<string, unknown[]>;
+        };
+        transport_bindings: unknown;
+      };
+    };
+    expect(parsed.request_id).toBe('request-1');
+    expect(parsed.app_state.release).toEqual({ channel: 'stable' });
+    expect(parsed.app_state.ui_contributions.entries.map((entry) => entry.package_id)).toEqual([
       'opl-fleet-agent',
       'opl-channel-weixin',
     ]);
     expect(parsed.app_state.ui_contributions.slots['settings.section']).toHaveLength(2);
+    expect(parsed.app_state.transport_bindings).toEqual({
+      surface_kind: 'opl_app_transport_bindings_projection.v1',
+      status: 'available',
+      bindings: [{ binding_id: 'binding-1', canonical_thread_id: 'thread-1' }],
+      authority_boundary: { projection_owner: 'one-person-lab-framework' },
+    });
   });
 
   it('recognizes only exact package contribution action payloads for Host routing', () => {
