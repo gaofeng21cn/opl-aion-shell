@@ -2218,6 +2218,72 @@
         "description": "Use OPL in a browser on a server or remote device."
       }
     },
+    "remoteCompanion": {
+      "title": "OPL Link",
+      "description": "Pair OPL Link with this desktop to access the canonical workbench from your phone.",
+      "provider": "Managed transport",
+      "loading": "Checking pairing availability...",
+      "unavailable": "Remote pairing is unavailable on this desktop.",
+      "unavailableReasons": {
+        "broker_not_configured": "The pairing service is not configured.",
+        "provider_not_configured": "The remote transport is not configured.",
+        "credential_store_unavailable": "Protected credential storage is unavailable."
+      },
+      "invitationCode": "Invitation code",
+      "invitationCodePlaceholder": "Enter an invitation code",
+      "desktopLabel": "Desktop name",
+      "desktopLabelDefault": "This desktop",
+      "desktopLabelPlaceholder": "Name this desktop",
+      "startPairing": "Create pairing QR",
+      "capacityTitle": "Pairing capacity reached",
+      "capacityDescription": "Revoke an existing device before creating another pairing.",
+      "expiryUnknown": "Expiry unavailable",
+      "expires": "Expires {{time}}",
+      "copied": "Copied to clipboard",
+      "copyFailed": "Could not copy to clipboard",
+      "states": {
+        "reserved": "Ready to scan",
+        "claimed": "Phone claimed",
+        "awaiting_desktop_confirmation": "Waiting for confirmation",
+        "provisioning": "Provisioning",
+        "active": "Connected",
+        "revoking": "Revoking",
+        "provider_reclaim_pending": "Releasing access",
+        "revoked": "Revoked",
+        "expired": "Expired"
+      },
+      "pairing": {
+        "title": "Pair a phone",
+        "qr": "Scan with OPL Link",
+        "qrAlt": "OPL Link pairing QR code",
+        "manualCode": "Manual code",
+        "copyQr": "Copy pairing link",
+        "copyManualCode": "Copy manual code",
+        "authentication": "Authentication string",
+        "confirm": "Confirm pairing",
+        "refresh": "Refresh status"
+      },
+      "pairs": {
+        "title": "Paired devices ({{count}}/{{max}})",
+        "stale": "Needs refresh",
+        "refresh": "Refresh access",
+        "revoke": "Revoke device",
+        "revokeTitle": "Revoke this device?",
+        "revokeDescription": "Access will remain unavailable until the desktop and provider both confirm revocation.",
+        "confirmRevoke": "Revoke pairing"
+      },
+      "errors": {
+        "action_failed": "The pairing action could not be completed.",
+        "invitation_invalid": "This invitation code is invalid.",
+        "invitation_expired": "This invitation code has expired.",
+        "invitation_consumed": "This invitation code has already been used.",
+        "capacity_unavailable": "Pairing capacity is currently unavailable.",
+        "pairing_expired": "This pairing has expired.",
+        "pairing_not_ready": "This pairing is not ready for that action.",
+        "provider_unavailable": "The managed transport is unavailable.",
+        "rate_limited": "Too many pairing requests. Try again later."
+      }
+    },
     "docker": {
       "title": "WebUI and OPL Workspace",
       "description": "The desktop App already includes the local workbench. This area provides browser WebUI actions for local or server deployments.",

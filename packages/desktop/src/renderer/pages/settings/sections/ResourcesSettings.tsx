@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import OplConnectionsSection, { buildConnectionRegistry } from './OplConnectionsSection';
+import RemoteCompanionSettings from './RemoteCompanionSettings';
 import {
   buildAccessProjection,
   type DockerWebuiAction,
@@ -388,6 +389,8 @@ export const ResourcesSettingsContent: React.FC = () => {
             </div>
           </div>
         </section>
+
+        <RemoteCompanionSettings />
 
         <section className='opl-settings-section' id='resource-readiness' data-testid='opl-settings-server-webui'>
           {dockerReadiness !== 'ready' && <span data-testid='settings-resources-exception' aria-hidden='true' />}
