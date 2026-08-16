@@ -21,7 +21,7 @@ const SIGNAL_EXIT_CODES = new Map([
   ['SIGTERM', 143],
 ]);
 const GUEST_SMOKE_HOST_TIMEOUT_GRACE_MS = 120_000;
-const OPL_GATEWAY_BASE_URL = 'https://gflabtoken.cn/v1';
+const OPL_GATEWAY_BASE_URL = 'https://gateway.medopl.com/v1';
 const HOST_CODEX_PROVIDER_SOURCE = 'developer_host_codex_selected_provider';
 const EXPLICIT_API_KEY_FILE_SOURCE = 'explicit_api_key_file';
 const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];

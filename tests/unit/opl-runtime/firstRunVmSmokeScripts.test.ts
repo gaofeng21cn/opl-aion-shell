@@ -3189,7 +3189,7 @@ describe('OPL first-run VM smoke scripts', () => {
         'model_provider = "gflab"',
         '[model_providers.gflab]',
         'name = "OPL Gateway"',
-        'base_url = "https://gflabtoken.cn/v1/"',
+        'base_url = "https://gateway.medopl.com/v1/"',
         'experimental_bearer_token = "host-selected-test-credential"',
         'wire_api = "responses"',
         '',
@@ -3213,7 +3213,7 @@ describe('OPL first-run VM smoke scripts', () => {
       prepared = tartSmoke.prepareHostCodexApiKeyFile(options);
       expect(prepared).toMatchObject({
         source: 'developer_host_codex_selected_provider',
-        providerBaseUrl: 'https://gflabtoken.cn/v1/',
+        providerBaseUrl: 'https://gateway.medopl.com/v1/',
       });
       expect(fs.readFileSync(prepared!.path, 'utf8')).toBe('host-selected-test-credential\n');
       expect(fs.statSync(prepared!.path).mode & 0o777).toBe(0o600);
@@ -3232,7 +3232,7 @@ describe('OPL first-run VM smoke scripts', () => {
         '/tmp/guest/artifacts',
         '/tmp/guest/codex-api-key.txt'
       );
-      expect(command).toContain("--codex-provider-base-url 'https://gflabtoken.cn/v1/'");
+      expect(command).toContain("--codex-provider-base-url 'https://gateway.medopl.com/v1/'");
       expect(command).toContain("--provider-credential-source 'developer_host_codex_selected_provider'");
       expect(command).toContain('--codex-api-key-file');
       expect(command).not.toContain('host-selected-test-credential');

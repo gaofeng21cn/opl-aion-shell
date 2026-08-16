@@ -112,7 +112,7 @@ function buildDeps(): GuidSendDeps {
       name: 'GPT-5.6-Sol',
       use_model: 'gpt-5.6-sol',
       provider: 'gflab',
-      base_url: 'https://gflabtoken.cn/v1',
+      base_url: 'https://gateway.medopl.com/v1',
       api_key: 'test',
     },
     findAgentByKey: vi.fn(),
