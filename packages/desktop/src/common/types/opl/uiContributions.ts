@@ -78,11 +78,16 @@ export type OplChannelAccessAction = {
   input: OplChannelAccessActionInput;
 };
 
+export type OplChannelAccessQrChallenge = {
+  payload: string;
+  expiresAtMs: number;
+};
+
 export type OplChannelAccessConnection = {
   state: 'disconnected' | 'connecting' | 'qr_ready' | 'qr_scanned' | 'connected' | 'attention';
   accountDisplayName?: string;
   reasonCode?: string;
-  qrChallenge?: { payload: string; expiresAtMs: number };
+  qrChallenge?: OplChannelAccessQrChallenge;
 };
 
 export type OplChannelAccessPairing = {
@@ -121,6 +126,14 @@ export type OplChannelAccessResult =
       unavailableReason: string;
       refreshAfterMs?: number;
     };
+
+export function activeOplChannelAccessQrChallenge(
+  connection: OplChannelAccessConnection,
+  nowMs: number
+): OplChannelAccessQrChallenge | null {
+  const challenge = connection.qrChallenge;
+  return connection.state === 'qr_ready' && challenge && challenge.expiresAtMs > nowMs ? challenge : null;
+}
 
 const EMPTY_PROJECTION: OplUiContributionsProjection = Object.freeze({
   surfaceKind: 'unavailable',

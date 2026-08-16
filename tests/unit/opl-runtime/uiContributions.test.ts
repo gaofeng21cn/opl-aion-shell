@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeOplChannelAccessQrChallenge,
   hasPackageContributionExecuteAction,
   readOplChannelAccessResult,
   readOplPackageContributionReadResult,
@@ -214,6 +215,15 @@ describe('OPL UI contribution projection', () => {
         ],
       })
     ).toBeNull();
+  });
+
+  it('exposes a QR challenge only while qr_ready and before its expiry', () => {
+    const challenge = { payload: 'ephemeral', expiresAtMs: 2_000 };
+
+    expect(activeOplChannelAccessQrChallenge({ state: 'qr_ready', qrChallenge: challenge }, 1_999)).toBe(challenge);
+    expect(activeOplChannelAccessQrChallenge({ state: 'connected', qrChallenge: challenge }, 1_999)).toBeNull();
+    expect(activeOplChannelAccessQrChallenge({ state: 'qr_ready', qrChallenge: challenge }, 2_000)).toBeNull();
+    expect(activeOplChannelAccessQrChallenge({ state: 'qr_ready', qrChallenge: challenge }, 2_001)).toBeNull();
   });
 
   it('extracts contribution reads only from the exact validated envelope identity', () => {

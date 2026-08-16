@@ -6,6 +6,7 @@
 
 import { ipcBridge } from '@/common';
 import {
+  activeOplChannelAccessQrChallenge,
   hasPackageContributionExecuteAction,
   readOplChannelAccessResult,
   readOplPackageContributionReadResult,
@@ -72,7 +73,10 @@ const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
   const [result, setResult] = useState<OplChannelAccessResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [qrExpiryTick, setQrExpiryTick] = useState(0);
   const view = entry.view;
+  const qrConnection = result?.status === 'available' ? result.connection : null;
+  const projectedQrChallenge = qrConnection?.qrChallenge;
 
   const load = useCallback(async () => {
     if (!view) return;
@@ -111,6 +115,17 @@ const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
     }, result.refreshAfterMs);
     return () => window.clearTimeout(timer);
   }, [load, result?.refreshAfterMs, result]);
+
+  useEffect(() => {
+    if (qrConnection?.state !== 'qr_ready' || !projectedQrChallenge) return;
+    const remainingMs = projectedQrChallenge.expiresAtMs - Date.now();
+    if (remainingMs <= 0) return;
+    const timer = window.setTimeout(
+      () => setQrExpiryTick((current) => current + 1),
+      Math.min(remainingMs + 1, 2_147_483_647)
+    );
+    return () => window.clearTimeout(timer);
+  }, [projectedQrChallenge, qrConnection?.state, qrExpiryTick]);
 
   const requestAction = useCallback(
     (action: OplChannelAccessAction) => {
@@ -187,6 +202,7 @@ const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
   }
 
   const displayTime = (value: number) => new Date(value).toLocaleString(locale);
+  const qrChallenge = activeOplChannelAccessQrChallenge(result.connection, Date.now());
   return (
     <div className='flex min-w-0 flex-col gap-12px' data-testid='opl-channel-access'>
       <div className='flex min-w-0 flex-wrap items-center gap-8px'>
@@ -200,10 +216,10 @@ const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
         <div className='ml-auto'>{actions(result.actions)}</div>
       </div>
 
-      {result.connection.qrChallenge && (
+      {qrChallenge && (
         <div className='flex justify-center py-8px' data-testid='opl-channel-access-qr'>
           <QRCodeSVG
-            value={result.connection.qrChallenge.payload}
+            value={qrChallenge.payload}
             size={160}
             aria-label={t('common.oplUiContributions.channelAccess.qrCode')}
           />
