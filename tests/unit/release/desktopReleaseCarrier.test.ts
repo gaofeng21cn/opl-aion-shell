@@ -6,9 +6,7 @@ const root = resolve(import.meta.dirname, '../../..');
 
 describe('desktop release carrier contract', () => {
   it('keeps AionUI as the active branded carrier for the App-owned release kernel', () => {
-    const carrier = JSON.parse(
-      readFileSync(resolve(root, 'contracts/desktop-release-carrier.json'), 'utf8'),
-    );
+    const carrier = JSON.parse(readFileSync(resolve(root, 'contracts/desktop-release-carrier.json'), 'utf8'));
     const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
     const builder = readFileSync(resolve(root, 'packages/desktop/electron-builder.yml'), 'utf8');
 
