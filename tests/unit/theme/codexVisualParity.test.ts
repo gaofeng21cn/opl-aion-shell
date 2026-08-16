@@ -288,7 +288,6 @@ describe('Codex visual parity overlay', () => {
     );
     const channelForms = [
       'DingTalkConfigForm.tsx',
-      'WeixinConfigForm.tsx',
       'WecomConfigForm.tsx',
       'TelegramConfigForm.tsx',
       'LarkConfigForm.tsx',
