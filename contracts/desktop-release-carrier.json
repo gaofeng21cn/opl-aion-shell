@@ -17,10 +17,5 @@
   },
   "artifact_name_template": "One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}",
   "entitlements": "entitlements.plist",
-  "carrier_specific_payload": [
-    "aioncore",
-    "native_modules",
-    "managed_resources",
-    "optional_full_runtime"
-  ]
+  "carrier_specific_payload": ["aioncore", "native_modules", "managed_resources", "optional_full_runtime"]
 }

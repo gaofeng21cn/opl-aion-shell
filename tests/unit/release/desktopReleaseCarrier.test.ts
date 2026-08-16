@@ -6,9 +6,7 @@ const root = resolve(import.meta.dirname, '../../..');
 
 describe('desktop release carrier contract', () => {
   it('keeps AionUI as the active branded carrier for the App-owned release kernel', () => {
-    const carrier = JSON.parse(
-      readFileSync(resolve(root, 'contracts/desktop-release-carrier.json'), 'utf8'),
-    );
+    const carrier = JSON.parse(readFileSync(resolve(root, 'contracts/desktop-release-carrier.json'), 'utf8'));
     const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
     const builder = readFileSync(resolve(root, 'packages/desktop/electron-builder.yml'), 'utf8');
 
@@ -25,8 +23,8 @@ describe('desktop release carrier contract', () => {
       entitlements: 'entitlements.plist',
     });
     expect(carrier.commands.build_macos).toBe('bun run build-mac:arm64');
-    expect(pkg.dependencies['electron-updater']).toBe('6.8.3');
-    expect(pkg.devDependencies.electron).toBe('37.10.3');
+    expect(pkg.dependencies['electron-updater']).toBe('6.8.9');
+    expect(pkg.devDependencies.electron).toBe('41.10.3');
     expect(pkg.devDependencies['electron-builder']).toBe('26.15.3');
     expect(pkg.devDependencies['electron-builder-squirrel-windows']).toBe('26.15.3');
     expect(pkg.devDependencies['builder-util']).toBe('26.15.3');
