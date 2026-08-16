@@ -81,10 +81,15 @@ function parseDocument(value: unknown): BindingDocument {
   }
   const bindings = record.bindings.map(parseBinding);
   const keys = new Set<string>();
+  const threads = new Set<string>();
   for (const binding of bindings) {
     const key = bindingKey(binding);
-    if (keys.has(key)) throw new Error('Duplicate exact channel binding identity.');
+    const thread = threadKey(binding);
+    if (keys.has(key) || threads.has(thread)) {
+      throw new Error('Duplicate exact channel binding identity or canonical thread.');
+    }
     keys.add(key);
+    threads.add(thread);
   }
   return { schema: BINDING_SCHEMA, bindings };
 }

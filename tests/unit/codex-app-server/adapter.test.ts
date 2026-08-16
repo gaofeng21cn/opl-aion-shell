@@ -310,6 +310,20 @@ describe('CodexAppServerAdapter', () => {
       if (process.platform !== 'win32') {
         expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
       }
+      await fs.writeFile(
+        file,
+        `${JSON.stringify({
+          schema: 'opl_app_transport_bindings_adapter_state.v1',
+          bindings: [
+            first.binding,
+            { ...first.binding, account_id: 'account-2', channel_session_id: 'session-2' },
+          ],
+        })}\n`,
+        'utf8'
+      );
+      await expect(restartedProcess.assertKnownThread(first.binding)).rejects.toThrow(
+        /Duplicate exact channel binding identity or canonical thread/
+      );
       await fs.writeFile(file, '{broken', 'utf8');
       await expect(restartedProcess.assertKnownThread(first.binding)).rejects.toThrow();
     } finally {
