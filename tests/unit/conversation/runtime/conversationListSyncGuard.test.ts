@@ -169,6 +169,44 @@ describe('mergeCanonicalThreadDirectory', () => {
     ]);
   });
 
+  it('does not create duplicate leaf-name groups for Codex-managed worktrees', () => {
+    const mainWorkspace = '/Users/example/workspace/one-person-lab-cloud';
+    const worktreeWorkspace = '/Users/example/.codex/worktrees/abc123/one-person-lab-cloud';
+    const [mainTask, worktreeTask] = mergeCanonicalThreadDirectory(
+      [],
+      directory([
+        thread({ id: 'main-thread', workspace: mainWorkspace, projectId: '' }),
+        thread({ id: 'worktree-thread', workspace: worktreeWorkspace, projectId: '' }),
+      ])
+    );
+
+    const items = groupConversationsByWorkspace([mainTask, worktreeTask], (key) => key)[0]?.items ?? [];
+
+    expect(items.filter((item) => item.type === 'workspace')).toEqual([
+      expect.objectContaining({
+        workspaceGroup: expect.objectContaining({ workspace: mainWorkspace, conversations: [mainTask] }),
+      }),
+    ]);
+    expect(items.filter((item) => item.type === 'conversation')).toEqual([
+      expect.objectContaining({ conversation: worktreeTask }),
+    ]);
+    expect(worktreeTask.extra).toMatchObject({ workspace: worktreeWorkspace, custom_workspace: false });
+  });
+
+  it('keeps explicit project affinity authoritative for a Codex-managed worktree', () => {
+    const projectId = '/Users/example/workspace/one-person-lab-cloud';
+    const workspace = '/Users/example/.codex/worktrees/abc123/one-person-lab-cloud';
+    const [projected] = mergeCanonicalThreadDirectory([], directory([thread({ workspace, projectId })]));
+
+    expect(groupConversationsByWorkspace([projected], (key) => key)[0]?.items).toEqual([
+      expect.objectContaining({
+        type: 'workspace',
+        workspaceGroup: expect.objectContaining({ workspace: projectId, conversations: [projected] }),
+      }),
+    ]);
+    expect(projected.extra).toMatchObject({ workspace, canonical_project_id: projectId, custom_workspace: true });
+  });
+
   it('keeps an OPL channel temporary task projectless and ungrouped', () => {
     const workspace = '/Users/example/Library/Application Support/One Person Lab/opl-data/codex-temp-05ee8303';
     const temporary = {

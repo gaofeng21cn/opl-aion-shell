@@ -243,6 +243,18 @@
       "image_update_command_wiring_complete": false,
       "multi_arch_build_plan_source_implemented": true,
       "multi_arch_qualification_complete": false,
+      "release_tier": "additional_nonblocking",
+      "qualification_trigger": "manual_protected_release_workflow",
+      "included_in_pr_or_main_ci": false,
+      "required_oci_platforms": [
+        "linux/amd64",
+        "linux/arm64"
+      ],
+      "native_runner_qualification": {
+        "amd64": "ubuntu-24.04",
+        "arm64": "ubuntu-24.04-arm",
+        "emulation_allowed_as_runtime_qualification": false
+      },
       "signature_verification_implemented": false,
       "security_admission_complete": false,
       "release_admission_complete": false,
@@ -1045,11 +1057,11 @@
         "project_affinity_states": ["unbound", "bound"],
         "project_affinity_cardinality": "zero_or_one",
         "projectless_session_semantics": "no_user_selected_project_affinity_not_no_runtime_cwd",
-        "projectless_detection": "explicit_project_id_absent_defines_unbound_identity_while_managed_scratch_recorded_cwd_never_creates_directory_group",
+        "projectless_detection": "explicit_project_id_absent_defines_unbound_identity_while_managed_scratch_recorded_cwd_including_user_documents_codex_and_user_codex_worktrees_never_creates_directory_group",
         "recorded_cwd_role": "canonical_runtime_workspace_and_derived_directory_group_fallback_when_explicit_project_id_absent_and_not_managed_scratch",
         "project_affinity_source": "explicit_project_id_projection",
         "project_affinity_role": "explicit_project_id_wins_for_sidebar_grouping_non_managed_scratch_recorded_cwd_only_supplies_derived_directory_group",
-        "managed_scratch_presentation": "user_documents_codex_subtree_preserves_recorded_cwd_and_renders_unbound_without_leaf_directory_project_groups",
+        "managed_scratch_presentation": "user_documents_codex_and_user_codex_worktrees_subtrees_preserve_recorded_cwd_and_render_unbound_without_leaf_directory_project_groups",
         "workspace_binding_role": "new_session_initial_cwd_and_explicit_project_affinity_assignment_are_distinct",
         "workspace_path_projection": {
           "picker_result": "host_path_and_canonical_runtime_path",

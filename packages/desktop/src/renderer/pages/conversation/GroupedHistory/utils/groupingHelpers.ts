@@ -36,9 +36,13 @@ export const getConversationPinnedAt = (conversation: TChatConversation): number
 
 const MANAGED_CODEX_SCRATCH_PATTERNS = [
   /^\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
   /^\/home\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/home\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
   /^[a-z]:\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^[a-z]:\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
   /^\/mnt\/[a-z]\/Users\/[^/]+\/Documents\/Codex(?:\/|$)/i,
+  /^\/mnt\/[a-z]\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
 ];
 
 export const isManagedCodexScratchWorkspace = (workspace: string): boolean => {
