@@ -1,0 +1,26 @@
+{
+  "schema": "opl_app_desktop_release_carrier.v1",
+  "owner_repo": "gaofeng21cn/opl-aion-shell",
+  "carrier_id": "aionui",
+  "product_name": "One Person Lab",
+  "bundle_id": "cn.onepersonlab.opl",
+  "release_role": "active_stable",
+  "release_repository": "gaofeng21cn/one-person-lab-app",
+  "package_manager": "bun",
+  "commands": {
+    "install": "bun install --frozen-lockfile",
+    "build_macos": "bun run build-mac:arm64",
+    "qualify_distribution": "bash scripts/verify-release-assets.sh release-assets",
+    "qualify_updater": "app_owned_standard_updater_gates",
+    "qualify_prepublication": "app_owned_standard_prepublication_gates",
+    "qualify_public_release": "app_owned_standard_public_readback_gates"
+  },
+  "artifact_name_template": "One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}",
+  "entitlements": "entitlements.plist",
+  "carrier_specific_payload": [
+    "aioncore",
+    "native_modules",
+    "managed_resources",
+    "optional_full_runtime"
+  ]
+}
