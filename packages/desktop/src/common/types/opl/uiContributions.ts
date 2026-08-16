@@ -52,9 +52,9 @@ export type OplUiContributionsProjection = {
 
 export type OplTransportBinding = {
   bindingId: string;
-  packageId: string;
-  transportId: string;
-  transportConversationId: string;
+  providerId: string;
+  accountId: string;
+  channelSessionId: string;
   canonicalThreadHost: string;
   canonicalThreadId: string;
   projectAffinity: 'projectless';
@@ -321,17 +321,27 @@ export function readOplTransportBindingsProjection(state: unknown): OplTransport
   const bindings = projection.bindings.flatMap((value): OplTransportBinding[] => {
     const binding = asRecord(value);
     const bindingId = opaqueId(binding?.binding_id);
-    const packageId = stableId(binding?.package_id);
-    const transportId = stableId(binding?.transport_id);
-    const transportConversationId = opaqueId(binding?.transport_conversation_id);
+    const providerId = stableId(binding?.provider_id);
+    const accountId = opaqueId(binding?.account_id);
+    const channelSessionId = opaqueId(binding?.channel_session_id);
     const canonicalThreadHost = opaqueId(binding?.canonical_thread_host);
     const canonicalThreadId = opaqueId(binding?.canonical_thread_id);
     if (
       !binding ||
+      !hasOnlyKeys(binding, [
+        'binding_id',
+        'provider_id',
+        'account_id',
+        'channel_session_id',
+        'canonical_thread_host',
+        'canonical_thread_id',
+        'project_affinity',
+        'status',
+      ]) ||
       !bindingId ||
-      !packageId ||
-      !transportId ||
-      !transportConversationId ||
+      !providerId ||
+      !accountId ||
+      !channelSessionId ||
       !canonicalThreadHost ||
       !canonicalThreadId ||
       binding.project_affinity !== 'projectless' ||
@@ -342,9 +352,9 @@ export function readOplTransportBindingsProjection(state: unknown): OplTransport
     return [
       {
         bindingId,
-        packageId,
-        transportId,
-        transportConversationId,
+        providerId,
+        accountId,
+        channelSessionId,
         canonicalThreadHost,
         canonicalThreadId,
         projectAffinity: 'projectless',
@@ -354,15 +364,8 @@ export function readOplTransportBindingsProjection(state: unknown): OplTransport
   });
   if (bindings.length !== projection.bindings.length) return unavailableTransportBindingsProjection();
   const bindingIdentities = bindings.map(
-    (binding) => `${binding.packageId}:${binding.transportId}:${binding.transportConversationId}`
+    (binding) => `${binding.providerId}:${binding.accountId}:${binding.channelSessionId}`
   );
-  const transportTargets = new Map<string, string>();
-  for (const binding of bindings) {
-    const target = `${binding.canonicalThreadHost}:${binding.canonicalThreadId}`;
-    const current = transportTargets.get(binding.transportConversationId);
-    if (current && current !== target) return unavailableTransportBindingsProjection();
-    transportTargets.set(binding.transportConversationId, target);
-  }
   if (new Set(bindingIdentities).size !== bindingIdentities.length) return unavailableTransportBindingsProjection();
   return {
     surfaceKind: 'opl_app_transport_bindings_projection.v1',

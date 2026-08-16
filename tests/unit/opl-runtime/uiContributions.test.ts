@@ -109,9 +109,9 @@ describe('OPL UI contribution projection', () => {
   it('parses the canonical transport binding projection and rejects ambiguous targets', () => {
     const binding = {
       binding_id: 'binding-1',
-      package_id: 'opl-weixin',
-      transport_id: 'weixin',
-      transport_conversation_id: 'transport-1',
+      provider_id: 'opl-weixin',
+      account_id: 'account-1',
+      channel_session_id: 'transport-1',
       canonical_thread_host: 'codex-app-server',
       canonical_thread_id: 'thread-1',
       project_affinity: 'projectless',
@@ -129,7 +129,9 @@ describe('OPL UI contribution projection', () => {
       status: 'available',
       bindings: [
         {
-          transportConversationId: 'transport-1',
+          providerId: 'opl-weixin',
+          accountId: 'account-1',
+          channelSessionId: 'transport-1',
           canonicalThreadHost: 'codex-app-server',
           canonicalThreadId: 'thread-1',
         },

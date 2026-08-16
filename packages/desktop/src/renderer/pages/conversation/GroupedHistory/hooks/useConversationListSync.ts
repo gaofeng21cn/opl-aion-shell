@@ -7,7 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
 import type { CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
-import { readOplTransportBindingsProjection } from '@/common/types/opl/uiContributions';
+import { readOplTransportBindingsProjection, type OplTransportBinding } from '@/common/types/opl/uiContributions';
 import {
   canonicalCodexThreadId,
   projectCanonicalCodexThread,
@@ -114,6 +114,18 @@ export type ProjectedTransportThreadBinding = {
   threadId: string;
   temporaryWorkspace?: boolean;
 };
+
+export const projectTransportBinding = (
+  binding: Pick<
+    OplTransportBinding,
+    'channelSessionId' | 'canonicalThreadHost' | 'canonicalThreadId' | 'projectAffinity'
+  >
+): ProjectedTransportThreadBinding => ({
+  conversationId: binding.channelSessionId,
+  canonicalThreadHost: binding.canonicalThreadHost,
+  threadId: binding.canonicalThreadId,
+  temporaryWorkspace: binding.projectAffinity === 'projectless',
+});
 
 export type LegacyWeixinCanonicalThreadBinding = {
   conversationId: string;
@@ -413,12 +425,7 @@ const refreshConversationDirectory = async () => {
       : readOplTransportBindingsProjection(null);
   projectedTransportBindingsState =
     transportBindingsProjection.status === 'available'
-      ? transportBindingsProjection.bindings.map((binding) => ({
-          conversationId: binding.transportConversationId,
-          canonicalThreadHost: binding.canonicalThreadHost,
-          threadId: binding.canonicalThreadId,
-          temporaryWorkspace: binding.projectAffinity === 'projectless',
-        }))
+      ? transportBindingsProjection.bindings.map(projectTransportBinding)
       : [];
 
   const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;

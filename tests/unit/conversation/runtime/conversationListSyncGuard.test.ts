@@ -12,6 +12,7 @@ import {
   getSidebarStreamGuardDecision,
   inferLegacyWeixinCanonicalThreadBindings,
   mergeCanonicalThreadDirectory,
+  projectTransportBinding,
   visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
 import {
@@ -117,6 +118,22 @@ describe('getSidebarStreamGuardDecision', () => {
 });
 
 describe('mergeCanonicalThreadDirectory', () => {
+  it('projects a callback binding onto the shared transport projection shape', () => {
+    expect(
+      projectTransportBinding({
+        channelSessionId: 'weixin-user-1',
+        canonicalThreadHost: 'local-host',
+        canonicalThreadId: 'thread-1',
+        projectAffinity: 'projectless',
+      })
+    ).toEqual({
+      conversationId: 'weixin-user-1',
+      canonicalThreadHost: 'local-host',
+      threadId: 'thread-1',
+      temporaryWorkspace: true,
+    });
+  });
+
   it('projects a canonical task from explicit project affinity rather than recorded cwd', () => {
     const [projected] = mergeCanonicalThreadDirectory([], directory([thread()]));
 

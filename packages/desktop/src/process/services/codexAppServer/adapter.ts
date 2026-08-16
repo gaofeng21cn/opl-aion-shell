@@ -60,6 +60,45 @@ export type CodexAppServerEventSink = {
   turnCompleted: (event: IConversationTurnCompletedEvent) => void;
 };
 
+/**
+ * Narrow callback surface for an optional channel provider. The provider keeps
+ * its own transport lifecycle; this adapter only starts or resumes one
+ * canonical Codex thread and returns the binding that the App host may project.
+ */
+export type CodexAppServerChannelBinding = {
+  providerId: string;
+  accountId: string;
+  channelSessionId: string;
+  canonicalThreadHost: string;
+  canonicalThreadId: string;
+  projectAffinity: 'projectless';
+  status: 'bound';
+};
+
+export type CodexAppServerChannelTurnRequest = Omit<CodexThreadTurnStartRequest, 'threadId' | 'conversationId'> & {
+  providerId: string;
+  accountId: string;
+  channelSessionId: string;
+  workspace: string;
+  binding?: Pick<CodexAppServerChannelBinding, 'canonicalThreadHost' | 'canonicalThreadId'>;
+};
+
+export type CodexAppServerChannelTurnResult = {
+  binding: CodexAppServerChannelBinding;
+  turnId: string;
+};
+
+export type CodexAppServerChannelTurnInterruptRequest = {
+  binding: Pick<CodexAppServerChannelBinding, 'canonicalThreadHost' | 'canonicalThreadId'> &
+    Pick<CodexAppServerChannelTurnRequest, 'providerId' | 'accountId' | 'channelSessionId'>;
+  turnId: string;
+};
+
+export type CodexAppServerChannelTurnCallback = {
+  start: (request: CodexAppServerChannelTurnRequest) => Promise<CodexAppServerChannelTurnResult>;
+  interrupt: (request: CodexAppServerChannelTurnInterruptRequest) => Promise<void>;
+};
+
 type AdapterOptions = {
   rpc: CodexAppServerRpc;
   host?: string;
@@ -1001,6 +1040,78 @@ export class CodexAppServerAdapter {
 
   setEventSink(sink: CodexAppServerEventSink | null): void {
     this.eventSink = sink;
+  }
+
+  createChannelTurnCallback(): CodexAppServerChannelTurnCallback {
+    return {
+      start: (request) => this.startChannelTurn(request),
+      interrupt: (request) => this.interruptChannelTurn(request),
+    };
+  }
+
+  async startChannelTurn(request: CodexAppServerChannelTurnRequest): Promise<CodexAppServerChannelTurnResult> {
+    const providerId = requiredString(request.providerId, 'channel provider id');
+    const accountId = requiredString(request.accountId, 'channel account id');
+    const channelSessionId = requiredString(request.channelSessionId, 'channel session id');
+    const persistedBinding = request.binding;
+    let thread: CodexThreadDescriptor;
+    if (persistedBinding) {
+      if (requiredString(persistedBinding.canonicalThreadHost, 'channel binding host') !== this.host) {
+        throw new Error('Channel binding host does not match the active Codex app-server.');
+      }
+      const canonicalThreadId = requiredString(persistedBinding.canonicalThreadId, 'channel binding thread id');
+      const readback = await this.readThread(canonicalThreadId);
+      if (readback.thread.id !== canonicalThreadId || readback.thread.host !== this.host) {
+        throw new Error('Channel binding readback did not match the active Codex app-server thread.');
+      }
+      thread = await this.resumeThread(canonicalThreadId);
+    } else {
+      const started = await this.startThread({
+        workspace: requiredString(request.workspace, 'channel thread workspace'),
+        ...(request.model?.trim() ? { model: request.model.trim() } : {}),
+      });
+      const readback = await this.readThread(started.id);
+      if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
+        throw new Error('Channel thread start readback did not match the active Codex app-server.');
+      }
+      thread = readback.thread;
+    }
+    const turn = await this.startTurn({
+      threadId: thread.id,
+      conversationId: channelSessionId,
+      msgId: request.msgId,
+      input: request.input,
+      ...(request.files ? { files: request.files } : {}),
+      ...(request.model ? { model: request.model } : {}),
+      ...(request.effort ? { effort: request.effort } : {}),
+      ...(request.permissionMode ? { permissionMode: request.permissionMode } : {}),
+    });
+    return {
+      binding: {
+        providerId,
+        accountId,
+        channelSessionId,
+        canonicalThreadHost: thread.host,
+        canonicalThreadId: thread.id,
+        projectAffinity: 'projectless',
+        status: 'bound',
+      },
+      turnId: turn.turnId,
+    };
+  }
+
+  async interruptChannelTurn(request: CodexAppServerChannelTurnInterruptRequest): Promise<void> {
+    requiredString(request.binding.providerId, 'channel provider id');
+    requiredString(request.binding.accountId, 'channel account id');
+    requiredString(request.binding.channelSessionId, 'channel session id');
+    if (requiredString(request.binding.canonicalThreadHost, 'channel binding host') !== this.host) {
+      throw new Error('Channel binding host does not match the active Codex app-server.');
+    }
+    await this.interruptTurn({
+      threadId: requiredString(request.binding.canonicalThreadId, 'channel canonical thread id'),
+      turnId: requiredString(request.turnId, 'channel turn id'),
+      conversationId: requiredString(request.binding.channelSessionId, 'channel session id'),
+    });
   }
 
   listPendingApprovals(threadIdValue: string, conversationIdValue: string): IResponseMessage[] {
