@@ -49,6 +49,7 @@ type PendingPairing = {
   expires_at: string;
   state: RemotePairingState;
   authentication_string: string | null;
+  confirm_idempotency_key?: string;
 };
 
 type RemoteCompanionServiceOptions = {
@@ -104,13 +105,17 @@ export class RemoteCompanionService {
   private transportOff: (() => void) | null = null;
   private canonicalOff: (() => void) | null = null;
   private eventSendQueue = Promise.resolve();
+  private loadPromise: Promise<void> | null = null;
 
   constructor(options: RemoteCompanionServiceOptions) {
     this.broker = options.broker;
     this.brokerConfig = options.brokerConfig;
     this.credentialStore = options.credentialStore;
     this.transport = options.transport;
-    this.canonical = new RemoteCanonicalActionBridge(options.canonical);
+    this.canonical = new RemoteCanonicalActionBridge({
+      ...options.canonical,
+      revokePair: (pairId) => this.revokePair({ pair_id: pairId }).then(() => undefined),
+    });
     this.desktopDeviceId = options.desktopDeviceId ?? randomUUID();
     this.now = options.now ?? (() => new Date());
     this.sleep = options.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
@@ -146,7 +151,7 @@ export class RemoteCompanionService {
       desktop_device_id: this.desktopDeviceId,
       desktop_device_label: desktopLabel,
       desktop_public_key: keyMaterial.public_key,
-    });
+    }, randomUUID());
     this.assertBrokerProtocol(created);
     const pairing: PendingPairing = {
       pair_id: requiredText(created.pairing_id, 'pairing_id'),
@@ -189,7 +194,13 @@ export class RemoteCompanionService {
     if (!pairing.authentication_string || value !== pairing.authentication_string) {
       throw new Error('Remote pairing authentication string does not match.');
     }
-    const response = await this.broker.confirmPairing(pairing.pair_id, pairing.desktop_pair_token, value);
+    pairing.confirm_idempotency_key ??= randomUUID();
+    const response = await this.broker.confirmPairing(
+      pairing.pair_id,
+      pairing.desktop_pair_token,
+      value,
+      pairing.confirm_idempotency_key
+    );
     this.assertBrokerProtocol(response);
     pairing.state = response.state;
     this.emitState();
@@ -199,65 +210,20 @@ export class RemoteCompanionService {
   async revokePair(input: RemoteRevokePairingRequest): Promise<RemoteCompanionState> {
     await this.ensureLoaded();
     const pairId = requiredText(input.pair_id, 'pair_id');
-    const pending = this.pendingPairings.get(pairId);
     const record = this.credentials.get(pairId);
-    if (record && record.state !== 'active') throw new Error('Remote pair revocation is already in progress.');
-    const bearerToken = record?.device_credential ?? pending?.desktop_pair_token;
-    if (!bearerToken) throw new Error('Remote pair credentials are unavailable.');
     if (record) {
-      record.state = 'revoking';
-      await this.persistCredentials();
-    } else if (pending) {
-      pending.state = 'revoking';
-      this.emitState();
+      return this.revokePersistedPair(record);
     }
-    try {
-      const response = await this.broker.revokePair(pairId, bearerToken);
-      this.assertBrokerProtocol(response);
-      const terminal = await this.waitForRevocation(response, pairId);
-      if (
-        !terminal ||
-        !terminal.desktop_provider_identity_absent ||
-        !terminal.ios_provider_identity_absent ||
-        !terminal.seat_released
-      ) {
-        throw new Error('Remote pair revocation did not reach the provider-absence terminal state.');
-      }
-    } catch (error) {
-      if (record) {
-        record.state = 'active';
-        await this.persistCredentials();
-      } else if (pending) {
-        pending.state = 'reserved';
-        this.emitState();
-      }
-      throw error;
-    }
-    await this.transport.disconnect(pairId);
-    this.credentials.delete(pairId);
-    this.pendingPairings.delete(pairId);
-    this.refreshRequired.delete(pairId);
-    await this.persistCredentials();
-    this.emitState();
-    return this.publicState();
+    const pending = this.pendingPairings.get(pairId);
+    if (!pending) throw new Error('Remote pair credentials are unavailable.');
+    return this.revokePendingPair(pending);
   }
 
   async refreshPair(pairId: string): Promise<RemoteCompanionState> {
     await this.ensureLoaded();
     const record = this.credentials.get(requiredText(pairId, 'pair_id'));
     if (!record || record.state !== 'active') throw new Error('Remote pair credentials are unavailable.');
-    const credentials = await this.broker.refreshProviderCredentials(
-      record.pair_id,
-      record.device_credential,
-      record.desktop_device_id
-    );
-    this.assertProviderCredentials(credentials);
-    record.sdk_app_id = credentials.sdk_app_id;
-    record.provider_user_id = credentials.provider_user_id;
-    record.peer_provider_user_id = credentials.peer_provider_user_id;
-    record.usersig_expires_at = credentials.usersig_expires_at;
-    await this.transport.connect(record.pair_id, credentials);
-    this.refreshRequired.delete(record.pair_id);
+    await this.refreshActivePair(record);
     await this.persistCredentials();
     this.emitState();
     return this.publicState();
@@ -268,36 +234,34 @@ export class RemoteCompanionService {
     const record = this.credentials.get(requiredText(request.pair_id, 'pair_id'));
     if (!record || record.state !== 'active') throw new Error('Remote pair is not active.');
     if (request.key_epoch !== record.key_epoch) throw new Error('Remote pair key epoch is stale.');
-    const cached = this.requestDedupe.get(record.pair_id, record.key_epoch, request.request_id);
-    if (cached) return clone(cached as RemoteActionResponse);
-    if (this.refreshRequired.has(record.pair_id) && request.action_id !== 'canonical_task.refresh') {
-      return {
-        request_id: request.request_id,
-        accepted: false,
-        action_id: request.action_id,
-        payload: {},
-        error_code: 'canonical_refresh_required',
-        refresh_required: true,
-      };
-    }
-    try {
-      const response = await this.canonical.execute(request);
-      if (request.action_id === 'canonical_task.refresh') this.refreshRequired.delete(record.pair_id);
-      this.requestDedupe.set(record.pair_id, record.key_epoch, request.request_id, response);
-      await this.persistCredentials();
-      return clone(response);
-    } catch (error) {
-      const response: RemoteActionResponse = {
-        request_id: request.request_id,
-        accepted: false,
-        action_id: request.action_id,
-        payload: {},
-        error_code: error instanceof RemoteActionDispatchError ? error.code : 'canonical_failure',
-        refresh_required: this.refreshRequired.has(record.pair_id),
-      };
-      this.requestDedupe.set(record.pair_id, record.key_epoch, request.request_id, response);
-      return response;
-    }
+    const response = await this.requestDedupe.run(record.pair_id, record.key_epoch, request.request_id, async () => {
+      if (this.refreshRequired.has(record.pair_id) && request.action_id !== 'canonical_task.refresh') {
+        return {
+          request_id: request.request_id,
+          accepted: false,
+          action_id: request.action_id,
+          payload: {},
+          error_code: 'canonical_refresh_required',
+          refresh_required: true,
+        } satisfies RemoteActionResponse;
+      }
+      try {
+        const result = await this.canonical.execute(request);
+        if (request.action_id === 'canonical_task.refresh') this.refreshRequired.delete(record.pair_id);
+        await this.persistCredentials();
+        return result;
+      } catch (error) {
+        return {
+          request_id: request.request_id,
+          accepted: false,
+          action_id: request.action_id,
+          payload: {},
+          error_code: error instanceof RemoteActionDispatchError ? error.code : 'canonical_failure',
+          refresh_required: this.refreshRequired.has(record.pair_id),
+        } satisfies RemoteActionResponse;
+      }
+    });
+    return clone(response);
   }
 
   markUnknownResult(pairId: string): void {
@@ -450,6 +414,118 @@ export class RemoteCompanionService {
     return next;
   }
 
+  private async refreshActivePair(record: RemoteCredentialRecord): Promise<void> {
+    const idempotencyKey = record.provider_refresh_idempotency_key ?? randomUUID();
+    if (!record.provider_refresh_idempotency_key) {
+      record.provider_refresh_idempotency_key = idempotencyKey;
+      await this.persistCredentials();
+    }
+    const credentials = await this.broker.refreshProviderCredentials(
+      record.pair_id,
+      record.device_credential,
+      record.desktop_device_id,
+      idempotencyKey
+    );
+    this.assertProviderCredentials(credentials);
+    record.sdk_app_id = credentials.sdk_app_id;
+    record.provider_user_id = credentials.provider_user_id;
+    record.peer_provider_user_id = credentials.peer_provider_user_id;
+    record.usersig_expires_at = credentials.usersig_expires_at;
+    await this.persistCredentials();
+    await this.transport.connect(record.pair_id, credentials);
+    delete record.provider_refresh_idempotency_key;
+    this.refreshRequired.delete(record.pair_id);
+    await this.persistCredentials();
+  }
+
+  private async revokePersistedPair(record: RemoteCredentialRecord): Promise<RemoteCompanionState> {
+    if (record.state !== 'active' && record.state !== 'revoking' && record.state !== 'provider_reclaim_pending') {
+      throw new Error('Remote pair revocation is already complete.');
+    }
+    record.revocation_idempotency_key ??= randomUUID();
+    if (record.state === 'active') record.state = 'revoking';
+    await this.persistCredentials();
+    this.emitState();
+
+    let response: BrokerRevokePairingResponse;
+    try {
+      if (record.revocation_receipt_id && record.revocation_receipt_token) {
+        response = {
+          protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+          pairing_id: record.pair_id,
+          state: record.state,
+          revocation_receipt_id: record.revocation_receipt_id,
+          revocation_receipt_token: record.revocation_receipt_token,
+        };
+      } else {
+        response = await this.broker.revokePair(
+          record.pair_id,
+          record.device_credential,
+          record.revocation_idempotency_key
+        );
+        this.assertBrokerProtocol(response);
+        record.state = this.revocationState(response.state);
+        record.revocation_receipt_id = requiredText(response.revocation_receipt_id, 'revocation_receipt_id');
+        record.revocation_receipt_token = requiredText(response.revocation_receipt_token, 'revocation_receipt_token');
+        await this.persistCredentials();
+        this.emitState();
+      }
+      const terminal = await this.waitForRevocation(response, record.pair_id, record);
+      if (
+        !terminal ||
+        !terminal.desktop_provider_identity_absent ||
+        !terminal.ios_provider_identity_absent ||
+        !terminal.seat_released
+      ) {
+        throw new Error('Remote pair revocation did not reach the provider-absence terminal state.');
+      }
+    } catch (error) {
+      await this.persistCredentials().catch(() => undefined);
+      this.emitState();
+      throw error;
+    }
+    await this.finalizeRevocation(record.pair_id);
+    return this.publicState();
+  }
+
+  private async revokePendingPair(pairing: PendingPairing): Promise<RemoteCompanionState> {
+    const bearerToken = pairing.desktop_pair_token;
+    pairing.state = 'revoking';
+    this.emitState();
+    try {
+      const response = await this.broker.revokePair(pairing.pair_id, bearerToken, randomUUID());
+      this.assertBrokerProtocol(response);
+      const terminal = await this.waitForRevocation(response, pairing.pair_id);
+      if (
+        !terminal ||
+        !terminal.desktop_provider_identity_absent ||
+        !terminal.ios_provider_identity_absent ||
+        !terminal.seat_released
+      ) {
+        throw new Error('Remote pair revocation did not reach the provider-absence terminal state.');
+      }
+    } catch (error) {
+      pairing.state = 'reserved';
+      this.emitState();
+      throw error;
+    }
+    await this.finalizeRevocation(pairing.pair_id);
+    return this.publicState();
+  }
+
+  private async finalizeRevocation(pairId: string): Promise<void> {
+    await this.transport.disconnect(pairId);
+    this.credentials.delete(pairId);
+    this.pendingPairings.delete(pairId);
+    this.refreshRequired.delete(pairId);
+    await this.persistCredentials();
+    this.emitState();
+  }
+
+  private revocationState(state: RemotePairingState): Extract<RemotePairingState, 'revoking' | 'provider_reclaim_pending'> {
+    return state === 'provider_reclaim_pending' ? state : 'revoking';
+  }
+
   private async activatePairing(pairing: PendingPairing, response: BrokerReadPairingResponse): Promise<void> {
     const activation = response.device_activation;
     if (!activation || activation.device_id !== pairing.desktop_device_id) return;
@@ -516,7 +592,8 @@ export class RemoteCompanionService {
 
   private async waitForRevocation(
     response: BrokerRevokePairingResponse,
-    pairId: string
+    pairId: string,
+    record?: RemoteCredentialRecord
   ): Promise<BrokerRevocationResponse | null> {
     for (let attempt = 0; attempt < this.revokePollAttempts; attempt += 1) {
       // Revocation readback must remain ordered so an earlier provider state cannot be skipped.
@@ -526,6 +603,14 @@ export class RemoteCompanionService {
         response.revocation_receipt_token
       );
       this.assertBrokerProtocol(status);
+      if (record && status.pairing_id === pairId) {
+        const nextState = this.revocationState(status.state);
+        if (record.state !== nextState) {
+          record.state = nextState;
+          await this.persistCredentials();
+          this.emitState();
+        }
+      }
       if (
         status.pairing_id === pairId &&
         status.state === 'revoked' &&
@@ -543,7 +628,14 @@ export class RemoteCompanionService {
 
   private async ensureLoaded(): Promise<void> {
     if (this.loaded) return;
-    this.loaded = true;
+    this.loadPromise ??= this.loadPersistedState().finally(() => {
+      this.loaded = true;
+      this.loadPromise = null;
+    });
+    await this.loadPromise;
+  }
+
+  private async loadPersistedState(): Promise<void> {
     try {
       const records = await this.credentialStore.list();
       for (const record of records) {
@@ -558,7 +650,32 @@ export class RemoteCompanionService {
       }
     } catch {
       this.credentialStoreUnavailable = true;
+      return;
     }
+    if (!this.brokerConfig.baseUrl) return;
+
+    await Promise.all(
+      [...this.credentials.values()]
+        .filter((record) => record.state === 'active')
+        .map(async (record) => {
+          try {
+            await this.refreshActivePair(record);
+          } catch {
+            this.refreshRequired.add(record.pair_id);
+          }
+        })
+    );
+    await Promise.all(
+      [...this.credentials.values()]
+        .filter((record) => record.state === 'revoking' || record.state === 'provider_reclaim_pending')
+        .map(async (record) => {
+          try {
+            await this.revokePersistedPair(record);
+          } catch {
+            // Keep the encrypted receipt and revoking status for the next startup retry.
+          }
+        })
+    );
   }
 
   private async persistCredentials(): Promise<void> {

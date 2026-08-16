@@ -56,10 +56,11 @@ describe('OPL Link transport wire', () => {
       sender_device_id: IOS_DEVICE_ID,
       recipient_device_id: DESKTOP_DEVICE_ID,
       key_epoch: 1,
+      sender_sequence: 1,
     } as const;
     const aad = associatedData(envelope, 'ios_to_desktop');
     expect(aad.toString('utf8')).toBe(
-      'protocol_version=23:opl_remote_transport.v1|pair_id=13:pair-test-001|sender_device_id=15:ios-test-device|recipient_device_id=19:desktop-test-device|key_epoch=1:1|channel_direction=14:ios_to_desktop'
+      'protocol_version=23:opl_remote_transport.v1|pair_id=13:pair-test-001|sender_device_id=15:ios-test-device|recipient_device_id=19:desktop-test-device|key_epoch=1:1|sender_sequence=1:1|channel_direction=14:ios_to_desktop'
     );
 
     const cipher = createCipheriv('aes-256-gcm', keys.ios_to_desktop, Buffer.from('000102030405060708090a0b', 'hex'));
@@ -70,7 +71,7 @@ describe('OPL Link transport wire', () => {
       cipher.getAuthTag(),
     ]);
     expect(ciphertextAndTag.toString('hex')).toBe(
-      'c90ce480a4b58bf4d5c076ee419a3661510728dcf87443d9c258b16492e6dc1c57c856cced4851'
+      'c90ce480a4b58bf4d5c076ee419a3661510728dcf874430328912093e560fccc293cd3535ea01c'
     );
   });
 
@@ -111,6 +112,35 @@ describe('OPL Link transport wire', () => {
       payload: {},
     });
     expect(() => validateEnvelope({ ...envelope, action_id: 'canonical_task.refresh' })).toThrow();
+  });
+
+  it('authenticates sender sequence as part of the encrypted envelope', () => {
+    const desktopMaterial = keyMaterialFromRawPrivate(DESKTOP_PRIVATE_KEY_HEX, DESKTOP_PUBLIC_KEY);
+    const keys = deriveDirectionalKeys(desktopMaterial, IOS_PUBLIC_KEY, PAIR_ID, 1);
+    const envelope = encryptPayload({
+      key: keys.desktop_to_ios,
+      pair_id: PAIR_ID,
+      sender_device_id: DESKTOP_DEVICE_ID,
+      recipient_device_id: IOS_DEVICE_ID,
+      key_epoch: 1,
+      sender_sequence: 1,
+      direction: 'desktop_to_ios',
+      nonce: Buffer.from('0a0b0c0d0e0f101112131415', 'hex'),
+      payload: {
+        kind: 'command',
+        request_id: 'request-001',
+        action_id: 'canonical_task.refresh',
+        payload: {},
+      },
+    });
+
+    expect(() =>
+      decryptPayload({
+        key: keys.desktop_to_ios,
+        envelope: { ...envelope, sender_sequence: 2 },
+        direction: 'desktop_to_ios',
+      })
+    ).toThrow();
   });
 
   it('rejects duplicate and regressed sequences while marking a gap', () => {

@@ -120,11 +120,11 @@ export class RemoteBrokerClient {
     return this.config.baseUrl !== null;
   }
 
-  async createPairing(request: BrokerCreatePairingRequest): Promise<BrokerCreatePairingResponse> {
+  async createPairing(request: BrokerCreatePairingRequest, idempotencyKey = randomUUID()): Promise<BrokerCreatePairingResponse> {
     return this.request<BrokerCreatePairingResponse>('/pairings', {
       method: 'POST',
       body: { protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION, ...request },
-      idempotencyKey: randomUUID(),
+      idempotencyKey,
     });
   }
 
@@ -138,7 +138,8 @@ export class RemoteBrokerClient {
   async confirmPairing(
     pairingId: string,
     bearerToken: string,
-    authenticationString: string
+    authenticationString: string,
+    idempotencyKey = randomUUID()
   ): Promise<BrokerConfirmPairingResponse> {
     return this.request<BrokerConfirmPairingResponse>(`/pairings/${encodeURIComponent(pairingId)}/confirm`, {
       method: 'POST',
@@ -147,28 +148,33 @@ export class RemoteBrokerClient {
         protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
         authentication_string: authenticationString,
       },
-      idempotencyKey: randomUUID(),
+      idempotencyKey,
     });
   }
 
   async refreshProviderCredentials(
     pairingId: string,
     bearerToken: string,
-    deviceId: string
+    deviceId: string,
+    idempotencyKey = randomUUID()
   ): Promise<RemoteProviderCredentialProjection> {
     return this.request<RemoteProviderCredentialProjection>(`/pairings/${encodeURIComponent(pairingId)}/credentials`, {
       method: 'POST',
       bearerToken,
       body: { protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION, device_id: deviceId },
-      idempotencyKey: randomUUID(),
+      idempotencyKey,
     });
   }
 
-  async revokePair(pairingId: string, bearerToken: string): Promise<BrokerRevokePairingResponse> {
+  async revokePair(
+    pairingId: string,
+    bearerToken: string,
+    idempotencyKey = randomUUID()
+  ): Promise<BrokerRevokePairingResponse> {
     return this.request<BrokerRevokePairingResponse>(`/pairings/${encodeURIComponent(pairingId)}`, {
       method: 'DELETE',
       bearerToken,
-      idempotencyKey: randomUUID(),
+      idempotencyKey,
     });
   }
 

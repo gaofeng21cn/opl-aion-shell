@@ -12,6 +12,7 @@ import { readRemoteBrokerConfig, RemoteBrokerClient } from '../services/remote-c
 import { ElectronRemoteCredentialStore } from '../services/remote-companion/credentialStore';
 import { TencentCloudImAdapter } from '../services/remote-companion/tencentImAdapter';
 import { getActiveCodexAppServerAdapter } from './codexAppServerBridge';
+import { resolveSelectedWorkspaceRoot } from './oplRuntimeBridge';
 
 let activeService: RemoteCompanionService | null = null;
 let disposeStateListener: (() => void) | null = null;
@@ -104,7 +105,11 @@ function createCanonicalPort(): RemoteCanonicalActionPort {
         return approval ? [approval] : [];
       }),
     startTurn: (request) => adapter.startTurn(request),
-    startWithDesktopDefaults: (request) => adapter.startWithDesktopDefaults(request),
+    startWithDesktopDefaults: (request) =>
+      adapter.startWithDesktopDefaults({
+        ...request,
+        workspace: resolveSelectedWorkspaceRoot(process.env),
+      }),
     interruptTurn: (request) => adapter.interruptTurn(request),
     respondRemoteApproval: (request) =>
       adapter.respondApproval({ requestId: request.approval_id, decision: request.decision }),

@@ -9,19 +9,21 @@ import type {
 
 export type RemoteBrokerPort = {
   configured: boolean;
-  createPairing(request: BrokerCreatePairingRequest): Promise<BrokerCreatePairingResponse>;
+  createPairing(request: BrokerCreatePairingRequest, idempotencyKey?: string): Promise<BrokerCreatePairingResponse>;
   readPairing(pairingId: string, bearerToken: string): Promise<BrokerReadPairingResponse>;
   confirmPairing(
     pairingId: string,
     bearerToken: string,
-    authenticationString: string
+    authenticationString: string,
+    idempotencyKey?: string
   ): Promise<BrokerConfirmPairingResponse>;
-  revokePair(pairingId: string, bearerToken: string): Promise<BrokerRevokePairingResponse>;
+  revokePair(pairingId: string, bearerToken: string, idempotencyKey?: string): Promise<BrokerRevokePairingResponse>;
   readRevocation(receiptId: string, receiptToken: string): Promise<BrokerRevocationResponse>;
   refreshProviderCredentials(
     pairingId: string,
     bearerToken: string,
-    deviceId: string
+    deviceId: string,
+    idempotencyKey?: string
   ): Promise<{
     provider: 'tencent_cloud_im';
     sdk_app_id: number;

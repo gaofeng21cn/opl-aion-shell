@@ -25,6 +25,10 @@ export type RemoteCredentialRecord = {
   peer_provider_user_id: string;
   sdk_app_id: number;
   usersig_expires_at: string | null;
+  provider_refresh_idempotency_key?: string;
+  revocation_idempotency_key?: string;
+  revocation_receipt_id?: string;
+  revocation_receipt_token?: string;
 };
 
 export interface RemoteCredentialStore {

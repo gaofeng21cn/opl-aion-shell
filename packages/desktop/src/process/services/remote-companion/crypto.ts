@@ -213,17 +213,49 @@ export class RemoteReplayGuard {
 
 export class RemoteRequestDedupe {
   private readonly responses = new Map<string, unknown>();
+  private readonly inFlight = new Map<string, Promise<unknown>>();
+
+  async run<T>(pairId: string, keyEpoch: number, requestId: string, operation: () => Promise<T>): Promise<T> {
+    const key = this.key(pairId, keyEpoch, requestId);
+    const cached = this.responses.get(key);
+    if (cached !== undefined) return cached as T;
+    const existing = this.inFlight.get(key);
+    if (existing) return (await existing) as T;
+
+    let promise: Promise<T>;
+    try {
+      promise = operation();
+    } catch (error) {
+      promise = Promise.reject(error);
+    }
+    this.inFlight.set(key, promise);
+    void promise.then(
+      (response) => {
+        this.set(pairId, keyEpoch, requestId, response);
+        this.inFlight.delete(key);
+      },
+      () => {
+        this.inFlight.delete(key);
+      }
+    );
+    return promise;
+  }
 
   get(pairId: string, keyEpoch: number, requestId: string): unknown | undefined {
-    return this.responses.get(`${pairId}\u001f${keyEpoch}\u001f${requestId}`);
+    return this.responses.get(this.key(pairId, keyEpoch, requestId));
   }
 
   set(pairId: string, keyEpoch: number, requestId: string, response: unknown): void {
-    this.responses.set(`${pairId}\u001f${keyEpoch}\u001f${requestId}`, response);
+    this.responses.set(this.key(pairId, keyEpoch, requestId), response);
     if (this.responses.size > 2048) this.responses.delete(this.responses.keys().next().value as string);
   }
 
   clear(): void {
     this.responses.clear();
+    this.inFlight.clear();
+  }
+
+  private key(pairId: string, keyEpoch: number, requestId: string): string {
+    return `${pairId}\u001f${keyEpoch}\u001f${requestId}`;
   }
 }

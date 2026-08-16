@@ -1114,7 +1114,7 @@ function developerModePrefersLocalCheckout(env: NodeJS.ProcessEnv): boolean {
   return identity.status === 'ready' && identity.login === config.autoEnableGithubLogin;
 }
 
-function resolveSelectedWorkspaceRoot(env: NodeJS.ProcessEnv): string {
+export function resolveSelectedWorkspaceRoot(env: NodeJS.ProcessEnv): string {
   const explicitWorkspaceRoot = normalizeOptionalString(env.OPL_WORKSPACE_ROOT);
   if (explicitWorkspaceRoot) {
     return path.resolve(explicitWorkspaceRoot);
@@ -2217,6 +2217,7 @@ export const __oplRuntimeBridgeTest = {
   buildStandardBootstrapCommand,
   buildStandardBootstrapEnv,
   resolveDefaultFullRuntimeHome,
+  resolveSelectedWorkspaceRoot,
   resolvePackagedFullRuntimeRoot,
   commandFailureResult,
   developerModePrefersLocalCheckout,

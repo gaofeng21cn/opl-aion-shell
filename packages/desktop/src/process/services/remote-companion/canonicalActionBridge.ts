@@ -55,6 +55,7 @@ export type RemoteCanonicalActionPort = {
     text: string;
     msgId: string;
   }): Promise<{ thread: CodexThreadDescriptor; turn: CodexThreadTurnStartResult }>;
+  revokePair?(pairId: string): Promise<void>;
   interruptTurn(request: { threadId: string; conversationId: string; turnId: string }): Promise<void>;
   respondRemoteApproval?(request: { approval_id: string; decision: CodexThreadApprovalDecision }): Promise<void>;
   subscribeEvents?(listener: (event: RemoteProjectionEvent) => void): () => void;
@@ -243,10 +244,14 @@ export class RemoteCanonicalActionBridge {
         }
         case 'pair.revoke':
           requireEmptyPayload(request);
-          throw new RemoteActionDispatchError(
-            'unsupported_action_mapping',
-            'Pair revocation is handled by the pairing service.'
-          );
+          if (!this.port.revokePair) {
+            throw new RemoteActionDispatchError(
+              'unsupported_action_mapping',
+              'Pair revocation is unavailable until the pairing service is connected.'
+            );
+          }
+          await this.port.revokePair(request.pair_id);
+          return this.accept(request, { pair_id: request.pair_id });
       }
     } catch (error) {
       if (error instanceof RemoteActionDispatchError) throw error;

@@ -1351,8 +1351,9 @@ export class CodexAppServerAdapter {
   async startWithDesktopDefaults(request: {
     text: string;
     msgId: string;
+    workspace: string;
   }): Promise<{ thread: CodexThreadDescriptor; turn: CodexThreadTurnStartResult }> {
-    const thread = await this.startThread({ workspace: requiredString(this.channelWorkspace, 'channel workspace') });
+    const thread = await this.startThread({ workspace: requiredString(request.workspace, 'desktop workspace') });
     const turn = await this.startTurn({
       threadId: thread.id,
       conversationId: thread.id,

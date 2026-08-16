@@ -1,9 +1,11 @@
 import TencentCloudChat from '@tencentcloud/chat';
 import {
+  REMOTE_COMPANION_MAX_MESSAGE_BYTES,
   isValidRemoteSdkAppId,
   type RemoteProviderCredentialProjection,
   type RemoteTransportEnvelope,
 } from '@/common/types/remoteCompanion';
+import { serializeEnvelope } from './protocol';
 
 export type RemoteTransportMessageListener = (input: {
   pair_id: string;
@@ -149,6 +151,9 @@ export class TencentCloudImSdkGateway implements TencentCloudImGateway {
   async sendPairCustomMessage(input: { pair_id: string; body: string }): Promise<void> {
     const session = this.sessions.get(input.pair_id);
     if (!session || !session.chat.isReady()) throw new TencentCloudImUnavailableError();
+    if (Buffer.byteLength(input.body, 'utf8') > REMOTE_COMPANION_MAX_MESSAGE_BYTES) {
+      throw new TencentCloudImUnavailableError('Tencent Cloud transport message is too large.');
+    }
     const message = session.chat.createCustomMessage({
       to: session.peerProviderUserId,
       conversationType: this.sdk.TYPES.CONV_C2C,
@@ -206,6 +211,7 @@ export class TencentCloudImSdkGateway implements TencentCloudImGateway {
       if (!message.payload || typeof message.payload !== 'object' || Array.isArray(message.payload)) continue;
       const payload = message.payload as Record<string, unknown>;
       if (payload.extension !== input.pairId || typeof payload.data !== 'string') continue;
+      if (Buffer.byteLength(payload.data, 'utf8') > REMOTE_COMPANION_MAX_MESSAGE_BYTES) continue;
       let envelope: unknown;
       try {
         envelope = JSON.parse(payload.data);
@@ -266,7 +272,7 @@ export class TencentCloudImAdapter implements RemoteTransportAdapter {
   }
 
   async send(pairId: string, envelope: RemoteTransportEnvelope): Promise<void> {
-    await this.gateway.sendPairCustomMessage({ pair_id: pairId, body: JSON.stringify(envelope) });
+    await this.gateway.sendPairCustomMessage({ pair_id: pairId, body: serializeEnvelope(envelope) });
   }
 
   onMessage(listener: RemoteTransportMessageListener): () => void {

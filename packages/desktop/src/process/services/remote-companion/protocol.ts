@@ -177,7 +177,7 @@ export function validateEncryptedPayload(value: unknown): RemoteEncryptedPayload
 export function associatedData(
   envelope: Pick<
     RemoteTransportEnvelope,
-    'protocol_version' | 'pair_id' | 'sender_device_id' | 'recipient_device_id' | 'key_epoch'
+    'protocol_version' | 'pair_id' | 'sender_device_id' | 'recipient_device_id' | 'key_epoch' | 'sender_sequence'
   >,
   direction: RemoteChannelDirection
 ): Buffer {
@@ -187,6 +187,7 @@ export function associatedData(
     ['sender_device_id', envelope.sender_device_id],
     ['recipient_device_id', envelope.recipient_device_id],
     ['key_epoch', String(envelope.key_epoch)],
+    ['sender_sequence', String(envelope.sender_sequence)],
     ['channel_direction', direction],
   ];
   return Buffer.from(
