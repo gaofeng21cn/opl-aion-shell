@@ -272,10 +272,12 @@
     },
     "mobile": {
       "initial_surface": "native_ios_remote_companion",
-      "product_name": "One Person Lab: AI Companion",
-      "home_screen_name": "OPL",
+      "product_name": "OPL Link",
+      "home_screen_name": "OPL Link",
+      "implementation_owner": "opl-link",
+      "source_repository": "https://github.com/gaofeng21cn/opl-link",
       "companion_policy_ref": "contracts/app-remote-companion.json",
-      "transport": "ably_outbound_wss_with_short_lived_token_auth",
+      "transport": "tencent_cloud_im_outbound_tls_with_short_lived_usersig",
       "optional_web_fallback": "desktop_webui_remains_available_but_is_not_the_ios_product",
       "separate_product_renderer_allowed": false,
       "full_workbench_surface": false
