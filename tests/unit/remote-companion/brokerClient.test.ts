@@ -124,6 +124,34 @@ describe('RemoteBrokerClient', () => {
     expect(String(fetchImpl.mock.calls[1][0])).not.toContain('receipt-token-001');
   });
 
+  it('reuses the supplied idempotency key across a mutation retry', async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
+      response({
+        protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+        pairing_id: 'pair-test-001',
+        state: 'revoking',
+        revocation_receipt_id: 'receipt-001',
+        revocation_receipt_token: 'receipt-token-001',
+      })
+    );
+    const client = new RemoteBrokerClient({
+      config: { baseUrl: 'https://broker.example.test' },
+      fetchImpl,
+    });
+
+    await client.revokePair('pair-test-001', 'desktop-token-001', 'revoke-operation-001');
+    await client.revokePair('pair-test-001', 'desktop-token-001', 'revoke-operation-001');
+
+    expect(fetchImpl.mock.calls).toHaveLength(2);
+    const firstCall = fetchImpl.mock.calls[0];
+    const secondCall = fetchImpl.mock.calls[1];
+    if (!firstCall?.[1] || !secondCall?.[1]) throw new Error('Expected both broker mutation requests to include init.');
+    const firstHeaders = firstCall[1].headers as Record<string, string>;
+    const secondHeaders = secondCall[1].headers as Record<string, string>;
+    expect(firstHeaders['idempotency-key']).toBe('revoke-operation-001');
+    expect(secondHeaders['idempotency-key']).toBe('revoke-operation-001');
+  });
+
   it('preserves broker error code and retryability without echoing secret request data', async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       response(

@@ -120,7 +120,10 @@ export class RemoteBrokerClient {
     return this.config.baseUrl !== null;
   }
 
-  async createPairing(request: BrokerCreatePairingRequest, idempotencyKey = randomUUID()): Promise<BrokerCreatePairingResponse> {
+  async createPairing(
+    request: BrokerCreatePairingRequest,
+    idempotencyKey = randomUUID()
+  ): Promise<BrokerCreatePairingResponse> {
     return this.request<BrokerCreatePairingResponse>('/pairings', {
       method: 'POST',
       body: { protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION, ...request },

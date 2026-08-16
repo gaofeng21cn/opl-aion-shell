@@ -58,6 +58,25 @@ function canonicalPort(): RemoteCanonicalActionPort {
     }),
     readThread: vi.fn(),
     startTurn: vi.fn().mockResolvedValue({ turnId: 'turn-001', msgId: 'message-001' }),
+    startWithDesktopDefaults: vi.fn().mockResolvedValue({
+      thread: {
+        id: 'thread-started',
+        title: 'Started task',
+        summary: '',
+        status: 'running',
+        projectId: '',
+        workspace: '/workspace/project',
+        host: 'codex-app-server',
+        owner: null,
+        goal: null,
+        parentThreadId: null,
+        ancestorThreadIds: [],
+        activeTurnId: null,
+        archived: false,
+        updatedAt: '2026-08-17T12:00:00.000Z',
+      },
+      turn: { turnId: 'turn-started', msgId: 'message-started' },
+    }),
     interruptTurn: vi.fn().mockResolvedValue(undefined),
   };
 }
@@ -161,6 +180,26 @@ function service(
 }
 
 describe('RemoteCompanionService', () => {
+  it('refreshes active credentials and reconnects the provider on cold start', async () => {
+    const store = new InMemoryRemoteCredentialStore([activeRecord()]);
+    const remoteBroker = broker();
+    const remoteTransport = transport();
+    const target = service(store, canonicalPort(), remoteBroker, remoteTransport);
+
+    await target.getState();
+
+    expect(remoteBroker.refreshProviderCredentials).toHaveBeenCalledWith(
+      PAIR_ID,
+      'device-credential-001',
+      DESKTOP_DEVICE_ID,
+      expect.any(String)
+    );
+    expect(remoteTransport.connect).toHaveBeenCalledWith(
+      PAIR_ID,
+      expect.objectContaining({ sdk_app_id: 100001, usersig: 'usersig-001' })
+    );
+  });
+
   it('creates a pending pairing projection without exposing the pair token', async () => {
     const remoteBroker = broker();
     const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, transport());
@@ -171,7 +210,8 @@ describe('RemoteCompanionService', () => {
     expect(state.pairing?.qr_url).toContain('protocol_version=opl_remote_transport.v1');
     expect(JSON.stringify(state)).not.toContain('desktop-pair-token-001');
     expect(remoteBroker.createPairing).toHaveBeenCalledWith(
-      expect.objectContaining({ desktop_device_id: DESKTOP_DEVICE_ID, desktop_device_label: 'This desktop' })
+      expect.objectContaining({ desktop_device_id: DESKTOP_DEVICE_ID, desktop_device_label: 'This desktop' }),
+      expect.any(String)
     );
   });
 
@@ -317,6 +357,78 @@ describe('RemoteCompanionService', () => {
     expect((await target.getState()).pairs[0]?.projection_stale).toBe(false);
   });
 
+  it('atomically shares an in-flight duplicate start request', async () => {
+    const canonical = canonicalPort();
+    let resolveStart:
+      | ((value: Awaited<ReturnType<NonNullable<RemoteCanonicalActionPort['startWithDesktopDefaults']>>>) => void)
+      | null = null;
+    const startWithDesktopDefaults = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<NonNullable<RemoteCanonicalActionPort['startWithDesktopDefaults']>>>>(
+          (resolve) => {
+            resolveStart = resolve;
+          }
+        )
+    );
+    canonical.startWithDesktopDefaults = startWithDesktopDefaults;
+    const target = service(new InMemoryRemoteCredentialStore([activeRecord()]), canonical, broker(), transport());
+    const request: RemoteActionRequest = {
+      pair_id: PAIR_ID,
+      key_epoch: 1,
+      request_id: 'request-start-concurrent',
+      action_id: 'canonical_task.start',
+      payload: { text: 'Start once' },
+    };
+
+    const first = target.executeAction(request);
+    const duplicate = target.executeAction(request);
+    await vi.waitFor(() => expect(startWithDesktopDefaults).toHaveBeenCalledOnce());
+    resolveStart?.({
+      thread: {
+        id: 'thread-concurrent',
+        title: 'Concurrent task',
+        summary: '',
+        status: 'running',
+        projectId: '',
+        workspace: '/workspace/project',
+        host: 'codex-app-server',
+        owner: null,
+        goal: null,
+        parentThreadId: null,
+        ancestorThreadIds: [],
+        activeTurnId: null,
+        archived: false,
+        updatedAt: '2026-08-17T12:00:00.000Z',
+      },
+      turn: { turnId: 'turn-concurrent', msgId: 'message-concurrent' },
+    });
+    const [firstResponse, duplicateResponse] = await Promise.all([first, duplicate]);
+    expect(duplicateResponse).toEqual(firstResponse);
+  });
+
+  it('maps the canonical pair.revoke wire action to the service revocation path', async () => {
+    const remoteBroker = broker();
+    const remoteTransport = transport();
+    const target = service(
+      new InMemoryRemoteCredentialStore([activeRecord()]),
+      canonicalPort(),
+      remoteBroker,
+      remoteTransport
+    );
+
+    const response = await target.executeAction({
+      pair_id: PAIR_ID,
+      key_epoch: 1,
+      request_id: 'request-revoke-wire',
+      action_id: 'pair.revoke',
+      payload: {},
+    });
+
+    expect(response).toMatchObject({ accepted: true, action_id: 'pair.revoke', payload: { pair_id: PAIR_ID } });
+    expect(remoteBroker.revokePair).toHaveBeenCalledWith(PAIR_ID, 'device-credential-001', expect.any(String));
+    expect(remoteTransport.disconnect).toHaveBeenCalledWith(PAIR_ID);
+  });
+
   it('waits for both provider identities and seat release before deleting a pair', async () => {
     const remoteTransport = transport();
     const target = service(
@@ -333,9 +445,10 @@ describe('RemoteCompanionService', () => {
     expect((await target.getState()).pairs).toEqual([]);
   });
 
-  it('restores active state when revocation does not reach the terminal owner readback', async () => {
+  it('persists revocation receipt and provider reclaim status when terminal readback is not ready', async () => {
+    const store = new InMemoryRemoteCredentialStore([activeRecord()]);
     const target = service(
-      new InMemoryRemoteCredentialStore([activeRecord()]),
+      store,
       canonicalPort(),
       broker({
         readRevocation: vi.fn().mockResolvedValue({
@@ -351,6 +464,40 @@ describe('RemoteCompanionService', () => {
     );
 
     await expect(target.revokePair({ pair_id: PAIR_ID })).rejects.toThrow('provider-absence terminal state');
-    expect((await target.getState()).pairs[0]?.state).toBe('active');
+    expect((await target.getState()).pairs[0]?.state).toBe('provider_reclaim_pending');
+    expect(await store.list()).toEqual([
+      expect.objectContaining({
+        state: 'provider_reclaim_pending',
+        revocation_receipt_id: 'receipt-001',
+        revocation_receipt_token: 'receipt-token-001',
+      }),
+    ]);
+  });
+
+  it('resumes a persisted revocation receipt during cold start without issuing a second revoke', async () => {
+    const store = new InMemoryRemoteCredentialStore([activeRecord()]);
+    const firstBroker = broker({
+      readRevocation: vi.fn().mockResolvedValue({
+        protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+        pairing_id: PAIR_ID,
+        state: 'provider_reclaim_pending',
+        desktop_provider_identity_absent: true,
+        ios_provider_identity_absent: false,
+        seat_released: false,
+      }),
+    });
+    const first = service(store, canonicalPort(), firstBroker, transport());
+    await expect(first.revokePair({ pair_id: PAIR_ID })).rejects.toThrow('provider-absence terminal state');
+    first.dispose();
+
+    const secondBroker = broker();
+    const secondTransport = transport();
+    const second = service(store, canonicalPort(), secondBroker, secondTransport);
+    const state = await second.getState();
+
+    expect(state.pairs).toEqual([]);
+    expect(secondBroker.revokePair).not.toHaveBeenCalled();
+    expect(secondBroker.readRevocation).toHaveBeenCalledWith('receipt-001', 'receipt-token-001');
+    expect(secondTransport.disconnect).toHaveBeenCalledWith(PAIR_ID);
   });
 });

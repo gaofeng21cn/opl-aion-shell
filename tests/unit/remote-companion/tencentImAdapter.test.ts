@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { RemoteProviderCredentialProjection, RemoteTransportEnvelope } from '@/common/types/remoteCompanion';
+import {
+  REMOTE_COMPANION_MAX_MESSAGE_BYTES,
+  type RemoteProviderCredentialProjection,
+  type RemoteTransportEnvelope,
+} from '@/common/types/remoteCompanion';
 import {
   TencentCloudImAdapter,
   TencentCloudImSdkGateway,
@@ -150,5 +154,33 @@ describe('TencentCloudImAdapter', () => {
 
     await expect(gateway.connect(invalid)).rejects.toThrow('SDKAppID is invalid');
     expect(fake.sdk.create).not.toHaveBeenCalled();
+  });
+
+  it('enforces the 65536-byte limit on real Tencent outbound and inbound bodies', async () => {
+    const fake = fakeSdk();
+    const gateway = new TencentCloudImSdkGateway(fake.sdk);
+    const adapter = new TencentCloudImAdapter(gateway);
+    const received = vi.fn();
+    adapter.onMessage(received);
+    await adapter.connect(PAIR_ID, credentials());
+
+    const oversizedEnvelope = {
+      ...envelope(),
+      ciphertext: 'A'.repeat(REMOTE_COMPANION_MAX_MESSAGE_BYTES),
+    };
+    await expect(adapter.send(PAIR_ID, oversizedEnvelope)).rejects.toThrow('too large');
+    expect(fake.chat.sendMessage).not.toHaveBeenCalled();
+
+    fake.emit(fake.sdk.EVENT.MESSAGE_RECEIVED, {
+      data: [
+        {
+          type: fake.sdk.TYPES.MSG_CUSTOM,
+          from: 'ios-user-001',
+          payload: { extension: PAIR_ID, data: JSON.stringify(oversizedEnvelope) },
+        },
+      ],
+    });
+    await Promise.resolve();
+    expect(received).not.toHaveBeenCalled();
   });
 });

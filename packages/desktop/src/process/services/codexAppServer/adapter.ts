@@ -1354,12 +1354,15 @@ export class CodexAppServerAdapter {
     workspace: string;
   }): Promise<{ thread: CodexThreadDescriptor; turn: CodexThreadTurnStartResult }> {
     const thread = await this.startThread({ workspace: requiredString(request.workspace, 'desktop workspace') });
-    const turn = await this.startTurn({
-      threadId: thread.id,
-      conversationId: thread.id,
-      msgId: requiredString(request.msgId, 'remote task request id'),
-      input: requiredString(request.text, 'remote task text'),
-    });
+    const turn = await this.startTurn(
+      {
+        threadId: thread.id,
+        conversationId: thread.id,
+        msgId: requiredString(request.msgId, 'remote task request id'),
+        input: requiredString(request.text, 'remote task text'),
+      },
+      { useServerDefaults: true }
+    );
     return { thread, turn };
   }
 
@@ -1433,7 +1436,10 @@ export class CodexAppServerAdapter {
     this.loadedThreads.delete(threadId);
   }
 
-  async startTurn(request: CodexThreadTurnStartRequest): Promise<CodexThreadTurnStartResult> {
+  async startTurn(
+    request: CodexThreadTurnStartRequest,
+    options: { useServerDefaults?: boolean } = {}
+  ): Promise<CodexThreadTurnStartResult> {
     const threadId = requiredString(request.threadId, 'turn thread id');
     const conversationId = requiredString(request.conversationId, 'turn conversation id');
     const msgId = requiredString(request.msgId, 'turn user message id');
@@ -1466,7 +1472,7 @@ export class CodexAppServerAdapter {
           input: [{ type: 'text', text: input, text_elements: [] }, ...(request.files ?? []).map(turnInputForFile)],
           ...(request.model?.trim() ? { model: request.model.trim() } : {}),
           ...(request.effort?.trim() ? { effort: request.effort.trim() } : {}),
-          ...permissionModeParams(request.permissionMode),
+          ...(options.useServerDefaults ? {} : permissionModeParams(request.permissionMode)),
         }),
         'turn start response'
       );

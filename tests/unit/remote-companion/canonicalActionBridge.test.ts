@@ -13,6 +13,7 @@ import {
 } from '@/process/services/remote-companion/canonicalActionBridge';
 
 const THREAD_ID = 'thread-001';
+const PAIR_ID = 'pair-test-001';
 
 function thread(overrides: Partial<CodexThreadDescriptor> = {}): CodexThreadDescriptor {
   return {
@@ -77,6 +78,7 @@ function portFixture() {
     turn: { turnId: 'turn-started', msgId: 'message-started' },
   });
   const interruptTurn = vi.fn().mockResolvedValue(undefined);
+  const revokePair = vi.fn().mockResolvedValue(undefined);
   const respondRemoteApproval = vi
     .fn<(request: { approval_id: string; decision: CodexThreadApprovalDecision }) => Promise<void>>()
     .mockResolvedValue(undefined);
@@ -87,6 +89,7 @@ function portFixture() {
     startTurn,
     startWithDesktopDefaults,
     interruptTurn,
+    revokePair,
     respondRemoteApproval,
   };
   return {
@@ -97,6 +100,7 @@ function portFixture() {
     startTurn,
     startWithDesktopDefaults,
     interruptTurn,
+    revokePair,
     respondRemoteApproval,
   };
 }
@@ -167,6 +171,18 @@ describe('RemoteCanonicalActionBridge', () => {
         active_turn_id: null,
       },
     });
+  });
+
+  it('maps pair.revoke to the pairing service port', async () => {
+    const fixture = portFixture();
+    const bridge = new RemoteCanonicalActionBridge(fixture.port);
+
+    const response = await bridge.execute(
+      request({ action_id: 'pair.revoke', request_id: 'request-revoke-001', payload: {} })
+    );
+
+    expect(response.payload).toEqual({ pair_id: PAIR_ID });
+    expect(fixture.revokePair).toHaveBeenCalledWith(PAIR_ID);
   });
 
   it('resolves stop from the canonical active turn and rejects a client-selected turn id', async () => {

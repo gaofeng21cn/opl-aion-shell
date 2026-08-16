@@ -46,6 +46,16 @@ describe('OPL App updater channel readback', () => {
   });
 });
 
+describe('OPL selected workspace projection', () => {
+  it('returns only the selected workspace root for desktop task consumers', () => {
+    expect(
+      __oplRuntimeBridgeTest.resolveSelectedWorkspaceRoot({
+        OPL_WORKSPACE_ROOT: '/Users/example/current-workspace',
+      } as NodeJS.ProcessEnv)
+    ).toBe('/Users/example/current-workspace');
+  });
+});
+
 function makeTempRoot(name: string): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
   tmpRoots.push(root);

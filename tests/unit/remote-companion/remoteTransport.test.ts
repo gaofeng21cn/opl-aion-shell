@@ -1,5 +1,5 @@
 import { createCipheriv } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   authenticationString,
   decryptPayload,
@@ -201,5 +201,22 @@ describe('OPL Link transport wire', () => {
     expect(dedupe.get(PAIR_ID, 1, 'request-001')).toEqual(response);
     expect(dedupe.get(PAIR_ID, 2, 'request-001')).toBeUndefined();
     expect(dedupe.get('pair-other-001', 1, 'request-001')).toBeUndefined();
+  });
+
+  it('shares an in-flight request before storing its completed response', async () => {
+    const dedupe = new RemoteRequestDedupe();
+    let resolveOperation: ((value: { accepted: boolean }) => void) | null = null;
+    const operation = vi.fn(
+      () =>
+        new Promise<{ accepted: boolean }>((resolve) => {
+          resolveOperation = resolve;
+        })
+    );
+
+    const first = dedupe.run(PAIR_ID, 1, 'request-in-flight', operation);
+    const duplicate = dedupe.run(PAIR_ID, 1, 'request-in-flight', operation);
+    expect(operation).toHaveBeenCalledOnce();
+    resolveOperation?.({ accepted: true });
+    await expect(Promise.all([first, duplicate])).resolves.toEqual([{ accepted: true }, { accepted: true }]);
   });
 });

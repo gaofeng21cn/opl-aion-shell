@@ -114,7 +114,9 @@ export class RemoteCompanionService {
     this.transport = options.transport;
     this.canonical = new RemoteCanonicalActionBridge({
       ...options.canonical,
-      revokePair: (pairId) => this.revokePair({ pair_id: pairId }).then(() => undefined),
+      revokePair: async (pairId): Promise<void> => {
+        await this.revokePair({ pair_id: pairId });
+      },
     });
     this.desktopDeviceId = options.desktopDeviceId ?? randomUUID();
     this.now = options.now ?? (() => new Date());
@@ -146,12 +148,15 @@ export class RemoteCompanionService {
     const invitationCode = requiredText(request.invitation_code, 'invitation_code');
     const desktopLabel = requiredText(request.desktop_label, 'desktop_label').slice(0, 80);
     const keyMaterial = generateX25519KeyMaterial();
-    const created = await this.broker.createPairing({
-      invitation_code: invitationCode,
-      desktop_device_id: this.desktopDeviceId,
-      desktop_device_label: desktopLabel,
-      desktop_public_key: keyMaterial.public_key,
-    }, randomUUID());
+    const created = await this.broker.createPairing(
+      {
+        invitation_code: invitationCode,
+        desktop_device_id: this.desktopDeviceId,
+        desktop_device_label: desktopLabel,
+        desktop_public_key: keyMaterial.public_key,
+      },
+      randomUUID()
+    );
     this.assertBrokerProtocol(created);
     const pairing: PendingPairing = {
       pair_id: requiredText(created.pairing_id, 'pairing_id'),
@@ -480,7 +485,7 @@ export class RemoteCompanionService {
         throw new Error('Remote pair revocation did not reach the provider-absence terminal state.');
       }
     } catch (error) {
-      await this.persistCredentials().catch(() => undefined);
+      await this.persistCredentials().catch((): undefined => undefined);
       this.emitState();
       throw error;
     }
@@ -522,7 +527,9 @@ export class RemoteCompanionService {
     this.emitState();
   }
 
-  private revocationState(state: RemotePairingState): Extract<RemotePairingState, 'revoking' | 'provider_reclaim_pending'> {
+  private revocationState(
+    state: RemotePairingState
+  ): Extract<RemotePairingState, 'revoking' | 'provider_reclaim_pending'> {
     return state === 'provider_reclaim_pending' ? state : 'revoking';
   }
 
