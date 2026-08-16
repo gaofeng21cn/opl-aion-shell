@@ -163,6 +163,60 @@ describe('CodexAppServerAdapter', () => {
     });
   });
 
+  it('exposes the bounded channel callback over one canonical thread and turn', async () => {
+    let notificationHandler: ((method: string, params: unknown) => void) | undefined;
+    rpc = {
+      request,
+      onNotification: (handler) => {
+        notificationHandler = handler;
+        return vi.fn();
+      },
+      dispose: vi.fn(),
+    };
+    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host', channelWorkspace: '/workspace/channel' });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/start') return { thread: rawThread('channel-thread', { cwd: '/workspace/channel' }) };
+      if (method === 'thread/read') return { thread: rawThread('channel-thread', { cwd: '/workspace/channel' }) };
+      if (method === 'thread/resume') return resumedThread(rawThread('channel-thread', { cwd: '/workspace/channel' }));
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'model/list') return { data: [] };
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    const callback = adapter.createChannelTurnCallback();
+    expect(Object.keys(callback).sort()).toEqual(['resumeThread', 'startThread', 'startTurn', 'subscribeTurn']);
+    const thread = await callback.startThread({
+      provider_id: 'opl-channel-weixin',
+      account_id: 'account-1',
+      channel_session_id: 'session-1',
+    });
+    expect(thread).toEqual({ canonical_thread_id: 'channel-thread' });
+
+    await callback.resumeThread(thread);
+    const turn = await callback.startTurn({ ...thread, text: 'Hello from WeChat' });
+    const onTerminal = vi.fn();
+    callback.subscribeTurn(turn, { onTerminal });
+    notificationHandler?.('item/agentMessage/delta', {
+      threadId: 'channel-thread',
+      turnId: 'turn-1',
+      itemId: 'message-1',
+      delta: 'Hello back',
+    });
+    notificationHandler?.('turn/completed', {
+      threadId: 'channel-thread',
+      turnId: 'turn-1',
+      turn: { id: 'turn-1', status: 'completed' },
+    });
+
+    expect(onTerminal).toHaveBeenCalledWith({
+      canonical_thread_id: 'channel-thread',
+      canonical_turn_id: 'turn-1',
+      status: 'completed',
+      response_text: 'Hello back',
+    });
+  });
+
   it('uses thread/list fields without hydrating every active thread', async () => {
     request.mockResolvedValueOnce({
       data: [

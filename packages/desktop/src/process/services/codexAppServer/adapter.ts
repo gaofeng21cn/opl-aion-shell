@@ -62,46 +62,61 @@ export type CodexAppServerEventSink = {
 
 /**
  * Narrow callback surface for an optional channel provider. The provider keeps
- * its own transport lifecycle; this adapter only starts or resumes one
- * canonical Codex thread and returns the binding that the App host may project.
+ * its own transport lifecycle; this adapter only operates canonical Codex
+ * thread and turn refs.
  */
-export type CodexAppServerChannelBinding = {
-  providerId: string;
-  accountId: string;
-  channelSessionId: string;
-  canonicalThreadHost: string;
-  canonicalThreadId: string;
-  projectAffinity: 'projectless';
-  status: 'bound';
+export type CodexAppServerChannelConversationIdentity = {
+  provider_id: string;
+  account_id: string;
+  channel_session_id: string;
 };
 
-export type CodexAppServerChannelTurnRequest = Omit<CodexThreadTurnStartRequest, 'threadId' | 'conversationId'> & {
-  providerId: string;
-  accountId: string;
-  channelSessionId: string;
-  workspace: string;
-  binding?: Pick<CodexAppServerChannelBinding, 'canonicalThreadHost' | 'canonicalThreadId'>;
+export type CodexAppServerChannelThreadRef = {
+  canonical_thread_id: string;
 };
 
-export type CodexAppServerChannelTurnResult = {
-  binding: CodexAppServerChannelBinding;
-  turnId: string;
+export type CodexAppServerChannelTurnRef = CodexAppServerChannelThreadRef & {
+  canonical_turn_id: string;
 };
 
-export type CodexAppServerChannelTurnInterruptRequest = {
-  binding: Pick<CodexAppServerChannelBinding, 'canonicalThreadHost' | 'canonicalThreadId'> &
-    Pick<CodexAppServerChannelTurnRequest, 'providerId' | 'accountId' | 'channelSessionId'>;
-  turnId: string;
+export type CodexAppServerChannelTurnTerminalEvent = CodexAppServerChannelTurnRef &
+  (
+    | { status: 'completed'; response_text: string }
+    | { status: 'failed'; error: { code: string; message: string } }
+    | { status: 'cancelled' }
+  );
+
+export type CodexAppServerChannelTurnObserver = {
+  onTerminal: (event: CodexAppServerChannelTurnTerminalEvent) => void | Promise<void>;
+};
+
+export type CodexAppServerChannelDisposable = {
+  dispose: () => void | Promise<void>;
 };
 
 export type CodexAppServerChannelTurnCallback = {
-  start: (request: CodexAppServerChannelTurnRequest) => Promise<CodexAppServerChannelTurnResult>;
-  interrupt: (request: CodexAppServerChannelTurnInterruptRequest) => Promise<void>;
+  startThread: (input: CodexAppServerChannelConversationIdentity) => Promise<CodexAppServerChannelThreadRef>;
+  resumeThread: (input: CodexAppServerChannelThreadRef) => Promise<void>;
+  startTurn: (input: CodexAppServerChannelTurnRef & { text: string }) => Promise<CodexAppServerChannelTurnRef>;
+  subscribeTurn: (
+    input: CodexAppServerChannelTurnRef,
+    observer: CodexAppServerChannelTurnObserver
+  ) => CodexAppServerChannelDisposable;
+};
+
+type ChannelTurnSubscription = {
+  onTerminal: (event: CodexAppServerChannelTurnTerminalEvent) => void | Promise<void>;
+};
+
+type ChannelTurnText = {
+  canonicalTurnId: string;
+  text: string;
 };
 
 type AdapterOptions = {
   rpc: CodexAppServerRpc;
   host?: string;
+  channelWorkspace?: string;
   pageSize?: number;
   maxPages?: number;
 };
@@ -1018,11 +1033,14 @@ export class CodexAppServerAdapter {
   private readonly host: string;
   private readonly pageSize: number;
   private readonly maxPages: number;
+  private readonly channelWorkspace: string;
   private readonly assignedProjectAffinities = new Map<string, string>();
   private readonly activeConversations = new Map<string, ActiveConversation>();
   private readonly startingThreads = new Set<string>();
   private readonly loadedThreads = new Set<string>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
+  private readonly channelTurnSubscriptions = new Map<string, Set<ChannelTurnSubscription>>();
+  private readonly channelTurnText = new Map<string, ChannelTurnText>();
   private eventSink: CodexAppServerEventSink | null = null;
   private readonly disposeNotification?: () => void;
   private readonly disposeServerRequest?: () => void;
@@ -1030,6 +1048,7 @@ export class CodexAppServerAdapter {
   constructor(options: AdapterOptions) {
     this.rpc = options.rpc;
     this.host = options.host ?? os.hostname();
+    this.channelWorkspace = options.channelWorkspace?.trim() ?? '';
     this.pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
     this.maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     this.disposeNotification = this.rpc.onNotification?.((method, params) => this.handleNotification(method, params));
@@ -1044,74 +1063,73 @@ export class CodexAppServerAdapter {
 
   createChannelTurnCallback(): CodexAppServerChannelTurnCallback {
     return {
-      start: (request) => this.startChannelTurn(request),
-      interrupt: (request) => this.interruptChannelTurn(request),
+      startThread: (input) => this.startChannelThread(input),
+      resumeThread: (input) => this.resumeChannelThread(input),
+      startTurn: (input) => this.startChannelTurn(input),
+      subscribeTurn: (input, observer) => this.subscribeChannelTurn(input, observer),
     };
   }
 
-  async startChannelTurn(request: CodexAppServerChannelTurnRequest): Promise<CodexAppServerChannelTurnResult> {
-    const providerId = requiredString(request.providerId, 'channel provider id');
-    const accountId = requiredString(request.accountId, 'channel account id');
-    const channelSessionId = requiredString(request.channelSessionId, 'channel session id');
-    const persistedBinding = request.binding;
-    let thread: CodexThreadDescriptor;
-    if (persistedBinding) {
-      if (requiredString(persistedBinding.canonicalThreadHost, 'channel binding host') !== this.host) {
-        throw new Error('Channel binding host does not match the active Codex app-server.');
-      }
-      const canonicalThreadId = requiredString(persistedBinding.canonicalThreadId, 'channel binding thread id');
-      const readback = await this.readThread(canonicalThreadId);
-      if (readback.thread.id !== canonicalThreadId || readback.thread.host !== this.host) {
-        throw new Error('Channel binding readback did not match the active Codex app-server thread.');
-      }
-      thread = await this.resumeThread(canonicalThreadId);
-    } else {
-      const started = await this.startThread({
-        workspace: requiredString(request.workspace, 'channel thread workspace'),
-        ...(request.model?.trim() ? { model: request.model.trim() } : {}),
-      });
-      const readback = await this.readThread(started.id);
-      if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
-        throw new Error('Channel thread start readback did not match the active Codex app-server.');
-      }
-      thread = readback.thread;
+  private async startChannelThread(
+    input: CodexAppServerChannelConversationIdentity
+  ): Promise<CodexAppServerChannelThreadRef> {
+    requiredString(input.provider_id, 'channel provider id');
+    requiredString(input.account_id, 'channel account id');
+    requiredString(input.channel_session_id, 'channel session id');
+    const started = await this.startThread({ workspace: requiredString(this.channelWorkspace, 'channel workspace') });
+    const readback = await this.readThread(started.id);
+    if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
+      throw new Error('Channel thread start readback did not match the active Codex app-server.');
     }
+    return { canonical_thread_id: started.id };
+  }
+
+  private async resumeChannelThread(input: CodexAppServerChannelThreadRef): Promise<void> {
+    const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
+    const readback = await this.readThread(canonicalThreadId);
+    if (readback.thread.id !== canonicalThreadId || readback.thread.host !== this.host) {
+      throw new Error('Channel binding readback did not match the active Codex app-server thread.');
+    }
+    const resumed = await this.resumeThread(canonicalThreadId);
+    if (resumed.id !== canonicalThreadId || resumed.host !== this.host) {
+      throw new Error('Channel thread resume did not match the active Codex app-server thread.');
+    }
+  }
+
+  private async startChannelTurn(
+    input: CodexAppServerChannelTurnRef & { text: string }
+  ): Promise<CodexAppServerChannelTurnRef> {
+    const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
+    const text = requiredString(input.text, 'channel turn text');
     const turn = await this.startTurn({
-      threadId: thread.id,
-      conversationId: channelSessionId,
-      msgId: request.msgId,
-      input: request.input,
-      ...(request.files ? { files: request.files } : {}),
-      ...(request.model ? { model: request.model } : {}),
-      ...(request.effort ? { effort: request.effort } : {}),
-      ...(request.permissionMode ? { permissionMode: request.permissionMode } : {}),
+      threadId: canonicalThreadId,
+      conversationId: canonicalThreadId,
+      msgId: `channel-${canonicalThreadId}-${Date.now()}`,
+      input: text,
     });
-    return {
-      binding: {
-        providerId,
-        accountId,
-        channelSessionId,
-        canonicalThreadHost: thread.host,
-        canonicalThreadId: thread.id,
-        projectAffinity: 'projectless',
-        status: 'bound',
-      },
-      turnId: turn.turnId,
-    };
+    this.channelTurnText.set(canonicalThreadId, { canonicalTurnId: turn.turnId, text: '' });
+    return { canonical_thread_id: canonicalThreadId, canonical_turn_id: turn.turnId };
   }
 
-  async interruptChannelTurn(request: CodexAppServerChannelTurnInterruptRequest): Promise<void> {
-    requiredString(request.binding.providerId, 'channel provider id');
-    requiredString(request.binding.accountId, 'channel account id');
-    requiredString(request.binding.channelSessionId, 'channel session id');
-    if (requiredString(request.binding.canonicalThreadHost, 'channel binding host') !== this.host) {
-      throw new Error('Channel binding host does not match the active Codex app-server.');
-    }
-    await this.interruptTurn({
-      threadId: requiredString(request.binding.canonicalThreadId, 'channel canonical thread id'),
-      turnId: requiredString(request.turnId, 'channel turn id'),
-      conversationId: requiredString(request.binding.channelSessionId, 'channel session id'),
-    });
+  private subscribeChannelTurn(
+    input: CodexAppServerChannelTurnRef,
+    observer: CodexAppServerChannelTurnObserver
+  ): CodexAppServerChannelDisposable {
+    const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
+    const canonicalTurnId = requiredString(input.canonical_turn_id, 'channel canonical turn id');
+    const subscription: ChannelTurnSubscription = {
+      onTerminal: (event) => observer.onTerminal(event),
+    };
+    const key = `${canonicalThreadId}:${canonicalTurnId}`;
+    const subscriptions = this.channelTurnSubscriptions.get(key) ?? new Set<ChannelTurnSubscription>();
+    subscriptions.add(subscription);
+    this.channelTurnSubscriptions.set(key, subscriptions);
+    return {
+      dispose: () => {
+        subscriptions.delete(subscription);
+        if (subscriptions.size === 0) this.channelTurnSubscriptions.delete(key);
+      },
+    };
   }
 
   listPendingApprovals(threadIdValue: string, conversationIdValue: string): IResponseMessage[] {
@@ -1459,6 +1477,8 @@ export class CodexAppServerAdapter {
     this.startingThreads.clear();
     this.loadedThreads.clear();
     this.pendingApprovals.clear();
+    this.channelTurnSubscriptions.clear();
+    this.channelTurnText.clear();
     this.rpc.dispose();
   }
 
@@ -1508,6 +1528,8 @@ export class CodexAppServerAdapter {
     if (method === 'item/agentMessage/delta') {
       const itemId = optionalString(value.itemId);
       if (itemId && typeof value.delta === 'string') {
+        const channelTurn = this.channelTurnText.get(threadId);
+        if (channelTurn?.canonicalTurnId === turnId) channelTurn.text += value.delta;
         this.emit(messageFor(context, 'text', value.delta, itemId, turnId));
       }
       return;
@@ -1606,6 +1628,8 @@ export class CodexAppServerAdapter {
             ? value.completedAtMs
             : Date.now();
       if (method === 'item/completed' && item.type === 'agentMessage' && itemId && typeof item.text === 'string') {
+        const channelTurn = this.channelTurnText.get(threadId);
+        if (channelTurn?.canonicalTurnId === turnId) channelTurn.text = item.text;
         this.emit({ ...messageFor(context, 'text', item.text, itemId, turnId, timestamp), replace: true });
         return;
       }
@@ -1655,6 +1679,8 @@ export class CodexAppServerAdapter {
     const turn = value.turn;
     const completedTurnId = optionalString(turn.id) ?? turnId;
     const failed = turn.status === 'failed';
+    const cancelled = turn.status === 'interrupted';
+    const channelTurn = this.channelTurnText.get(threadId);
     if (failed) {
       const error = isRecord(turn.error) ? optionalString(turn.error.message) : null;
       this.emit(
@@ -1665,6 +1691,34 @@ export class CodexAppServerAdapter {
           completedTurnId,
           completedTurnId
         )
+      );
+    }
+    if (channelTurn?.canonicalTurnId === completedTurnId) {
+      this.channelTurnText.delete(threadId);
+      this.emitChannelTurnTerminal(
+        threadId,
+        cancelled
+          ? { canonical_thread_id: threadId, canonical_turn_id: completedTurnId, status: 'cancelled' }
+          : failed
+            ? {
+                canonical_thread_id: threadId,
+                canonical_turn_id: completedTurnId,
+                status: 'failed',
+                error: {
+                  code: isRecord(turn.error)
+                    ? (optionalString(turn.error.code) ?? 'codex_turn_failed')
+                    : 'codex_turn_failed',
+                  message:
+                    (isRecord(turn.error) ? optionalString(turn.error.message) : null) ??
+                    'Canonical Codex turn failed.',
+                },
+              }
+            : {
+                canonical_thread_id: threadId,
+                canonical_turn_id: completedTurnId,
+                status: 'completed',
+                response_text: channelTurn.text,
+              }
       );
     }
     this.emit(messageFor(context, 'finish', { session_id: threadId }, completedTurnId, completedTurnId));
@@ -1691,6 +1745,18 @@ export class CodexAppServerAdapter {
       workspace: context.workspace,
       model: { platform: 'codex', name: 'Codex', use_model: '' },
       last_message: { content: null, created_at: Date.now() },
+    });
+  }
+
+  private emitChannelTurnTerminal(eventThreadId: string, event: CodexAppServerChannelTurnTerminalEvent): void {
+    const key = `${eventThreadId}:${event.canonical_turn_id}`;
+    const subscriptions = this.channelTurnSubscriptions.get(key);
+    if (!subscriptions) return;
+    this.channelTurnSubscriptions.delete(key);
+    subscriptions.forEach((subscription) => {
+      void Promise.resolve(subscription.onTerminal(event)).catch(() => {
+        // Provider callback errors must not change the canonical turn result.
+      });
     });
   }
 
