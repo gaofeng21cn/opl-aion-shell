@@ -12,6 +12,7 @@ import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Checkbox, Dropdown, Menu, Spin, Tooltip } from '@arco-design/web-react';
 import {
+  BranchOne,
   DeleteOne,
   EditOne,
   Export,
@@ -29,7 +30,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { ConversationRowProps } from './types';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
-import { isConversationPinned } from './utils/groupingHelpers';
+import { isCodexManagedWorktreeConversation, isConversationPinned } from './utils/groupingHelpers';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const {
@@ -65,6 +66,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const { t } = useTranslation();
   const { info: assistantInfo } = usePresetAssistantInfo(conversation);
   const isPinned = isConversationPinned(conversation);
+  const isManagedWorktree = isCodexManagedWorktreeConversation(conversation);
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
@@ -195,19 +197,32 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
           )}
         </span>
         <FlexFullContainer className='h-24px min-w-0 flex-1 collapsed-hidden'>
-          <Tooltip
-            content={conversation.name}
-            disabled={!inlineNameTooltipEnabled}
-            trigger='hover'
-            popupVisible={inlineNameTooltipEnabled ? undefined : false}
-            unmountOnExit
-            popupHoverStay={false}
-            position='top'
-          >
-            <div className='chat-history__item-name overflow-hidden text-ellipsis block w-full text-14px font-[500] lh-24px whitespace-nowrap min-w-0 text-t-primary'>
-              <span className='block overflow-hidden text-ellipsis whitespace-nowrap'>{conversation.name}</span>
-            </div>
-          </Tooltip>
+          <div className='h-full min-w-0 flex items-center gap-4px pr-24px'>
+            <Tooltip
+              content={conversation.name}
+              disabled={!inlineNameTooltipEnabled}
+              trigger='hover'
+              popupVisible={inlineNameTooltipEnabled ? undefined : false}
+              unmountOnExit
+              popupHoverStay={false}
+              position='top'
+            >
+              <div className='chat-history__item-name overflow-hidden text-ellipsis block min-w-0 flex-1 text-14px font-[500] lh-24px whitespace-nowrap text-t-primary'>
+                <span className='block overflow-hidden text-ellipsis whitespace-nowrap'>{conversation.name}</span>
+              </div>
+            </Tooltip>
+            {isManagedWorktree && (
+              <span
+                role='img'
+                aria-label={t('conversation.history.managedWorktree')}
+                title={t('conversation.history.managedWorktree')}
+                data-opl-worktree-indicator='true'
+                className='flex-shrink-0 flex items-center justify-center text-[rgb(var(--primary-6))]'
+              >
+                <BranchOne theme='outline' size='15' aria-hidden='true' />
+              </span>
+            )}
+          </div>
         </FlexFullContainer>
 
         {renderCompletionUnreadDot()}

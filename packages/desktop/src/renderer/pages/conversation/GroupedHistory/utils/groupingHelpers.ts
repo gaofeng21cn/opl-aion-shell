@@ -45,6 +45,16 @@ const MANAGED_CODEX_SCRATCH_PATTERNS = [
   /^\/mnt\/[a-z]\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
 ];
 
+const CODEX_MANAGED_WORKTREE_PATTERNS = [
+  /^\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
+  /^\/home\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
+  /^[a-z]:\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
+  /^\/mnt\/[a-z]\/Users\/[^/]+\/\.codex\/worktrees\/[^/]+(?:\/|$)/i,
+];
+
+const normalizeWorkspacePath = (workspace: string): string =>
+  workspace.trim().replaceAll('\\', '/').replace(/\/{2,}/g, '/');
+
 export const isManagedCodexScratchWorkspace = (workspace: string): boolean => {
   const normalized = workspace
     .trim()
@@ -52,6 +62,16 @@ export const isManagedCodexScratchWorkspace = (workspace: string): boolean => {
     .replace(/\/{2,}/g, '/');
   return MANAGED_CODEX_SCRATCH_PATTERNS.some((pattern) => pattern.test(normalized));
 };
+
+export const isCodexManagedWorktreeWorkspace = (workspace: string): boolean => {
+  const normalized = normalizeWorkspacePath(workspace);
+  return CODEX_MANAGED_WORKTREE_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+export const isCodexManagedWorktreeConversation = (conversation: TChatConversation): boolean =>
+  conversation.type === 'acp' &&
+  conversation.extra?.backend === 'codex' &&
+  isCodexManagedWorktreeWorkspace(conversation.extra?.workspace ?? '');
 
 export const getConversationDirectoryGroup = (conversation: TChatConversation): string | null => {
   const workspace = conversation.extra?.workspace?.trim() ?? '';

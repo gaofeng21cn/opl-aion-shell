@@ -1123,6 +1123,7 @@ export type I18nKey =
   | 'conversation.history.exportSuccess'
   | 'conversation.history.exportTargetFolder'
   | 'conversation.history.exporting'
+  | 'conversation.history.managedWorktree'
   | 'conversation.history.moveToProject'
   | 'conversation.history.moveToProjectFailed'
   | 'conversation.history.moveToProjectSuccess'

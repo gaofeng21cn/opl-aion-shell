@@ -83,6 +83,7 @@
     "pinned": "Pinned",
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
+    "managedWorktree": "Isolated worktree",
     "deleteSuccess": "Deleted successfully",
     "deleteFailed": "Delete failed",
     "today": "Today",
