@@ -49,7 +49,15 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-function contribution(input: { confirmationRequired?: boolean; kind?: string; slot?: string; viewType?: string } = {}) {
+function contribution(
+  input: {
+    actionBoundary?: string;
+    confirmationRequired?: boolean;
+    kind?: string;
+    slot?: string;
+    viewType?: string;
+  } = {}
+) {
   return {
     contribution_key: 'example.package:activity',
     contribution_id: 'activity',
@@ -59,6 +67,7 @@ function contribution(input: { confirmationRequired?: boolean; kind?: string; sl
     trust_tier: 'declarative',
     scope: 'root',
     sort_order: 10,
+    ...(input.actionBoundary ? { action_boundary: input.actionBoundary } : {}),
     view: {
       view_id: 'activity',
       view_type: input.viewType ?? 'activity_log',
@@ -256,7 +265,16 @@ describe('OplUiContributionSlot', () => {
   });
 
   it('renders channel_access data and dispatches the exact validated entity input', async () => {
-    stateMocks.appState = appState([contribution({ slot: 'settings.section', viewType: 'channel_access' })]);
+    stateMocks.appState = appState(
+      [
+        contribution({
+          actionBoundary: 'opl.connect.channel-provider-host',
+          slot: 'settings.section',
+          viewType: 'channel_access',
+        }),
+      ],
+      false
+    );
     stateMocks.runPackageContribution.mockResolvedValue(channelAccessReadResult());
 
     render(<OplUiContributionSlot slot='settings.section' />);
