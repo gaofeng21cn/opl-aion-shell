@@ -10,6 +10,7 @@ describe('channelProviderHost', () => {
 
   it('loads the selected Framework public bootstrap and returns its bounded handle', async () => {
     const callback = {
+      readTransportBindings: vi.fn(async () => []),
       startThread: vi.fn(),
       resumeThread: vi.fn(),
       startTurn: vi.fn(),

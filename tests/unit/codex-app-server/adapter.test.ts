@@ -183,6 +183,7 @@ describe('CodexAppServerAdapter', () => {
         created: true,
       })),
       assertKnownThread: vi.fn(async () => undefined),
+      readBindings: vi.fn(async () => []),
     } satisfies ChannelBindingStore;
     adapter = new CodexAppServerAdapter({
       rpc,
@@ -201,7 +202,15 @@ describe('CodexAppServerAdapter', () => {
     });
 
     const callback = adapter.createChannelTurnCallback();
-    expect(Object.keys(callback).toSorted()).toEqual(['resumeThread', 'startThread', 'startTurn', 'subscribeTurn']);
+    expect(Object.keys(callback).toSorted()).toEqual([
+      'readTransportBindings',
+      'resumeThread',
+      'startThread',
+      'startTurn',
+      'subscribeTurn',
+    ]);
+    await expect(callback.readTransportBindings()).resolves.toEqual([]);
+    expect(bindingStore.readBindings).toHaveBeenCalledOnce();
     const thread = await callback.startThread({
       provider_id: 'opl-channel-weixin',
       account_id: 'account-1',
@@ -255,6 +264,7 @@ describe('CodexAppServerAdapter', () => {
     const bindingStore = {
       getOrCreate: vi.fn(async () => ({ binding, created: false })),
       assertKnownThread: vi.fn(async () => undefined),
+      readBindings: vi.fn(async () => [binding]),
     } satisfies ChannelBindingStore;
     adapter = new CodexAppServerAdapter({
       rpc,
@@ -270,7 +280,9 @@ describe('CodexAppServerAdapter', () => {
       throw new Error(`Unexpected method: ${method}`);
     });
 
-    await expect(adapter.createChannelTurnCallback().startThread(binding)).resolves.toEqual({
+    const callback = adapter.createChannelTurnCallback();
+    await expect(callback.readTransportBindings()).resolves.toEqual([binding]);
+    await expect(callback.startThread(binding)).resolves.toEqual({
       canonical_thread_host: 'local-host',
       canonical_thread_id: 'existing-thread',
     });
@@ -303,6 +315,7 @@ describe('CodexAppServerAdapter', () => {
       expect(create).toHaveBeenCalledOnce();
       expect([first.created, concurrent.created].toSorted()).toEqual([false, true]);
       const restartedProcess = new FileChannelBindingStore(file);
+      await expect(restartedProcess.readBindings()).resolves.toEqual([first.binding]);
       await expect(restartedProcess.assertKnownThread(first.binding)).resolves.toBeUndefined();
       await expect(restartedProcess.getOrCreate({ ...identity, account_id: ' account-1' }, create)).rejects.toThrow(
         /Invalid channel binding account_id/
@@ -321,8 +334,12 @@ describe('CodexAppServerAdapter', () => {
       await expect(restartedProcess.assertKnownThread(first.binding)).rejects.toThrow(
         /Duplicate exact channel binding identity or canonical thread/
       );
+      await expect(restartedProcess.readBindings()).rejects.toThrow(
+        /Duplicate exact channel binding identity or canonical thread/
+      );
       await fs.writeFile(file, '{broken', 'utf8');
       await expect(restartedProcess.assertKnownThread(first.binding)).rejects.toThrow();
+      await expect(restartedProcess.readBindings()).rejects.toThrow();
     } finally {
       await fs.rm(directory, { recursive: true, force: true });
     }

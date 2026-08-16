@@ -106,6 +106,12 @@ export type CodexAppServerChannelTurnCallback = {
   ) => CodexAppServerChannelDisposable;
 };
 
+export type CodexAppServerChannelBinding = CodexAppServerChannelConversationIdentity & CodexAppServerChannelThreadRef;
+
+export type CodexAppServerChannelHostCallback = CodexAppServerChannelTurnCallback & {
+  readTransportBindings: () => Promise<readonly CodexAppServerChannelBinding[]>;
+};
+
 type ChannelTurnSubscription = {
   onTerminal: (event: CodexAppServerChannelTurnTerminalEvent) => void | Promise<void>;
 };
@@ -1066,8 +1072,14 @@ export class CodexAppServerAdapter {
     this.eventSink = sink;
   }
 
-  createChannelTurnCallback(): CodexAppServerChannelTurnCallback {
+  createChannelTurnCallback(): CodexAppServerChannelHostCallback {
     return {
+      readTransportBindings: async () => {
+        if (!this.channelBindingStore) {
+          throw new Error('Channel callback requires an exact binding store.');
+        }
+        return await this.channelBindingStore.readBindings();
+      },
       startThread: (input) => this.startChannelThread(input),
       resumeThread: (input) => this.resumeChannelThread(input),
       startTurn: (input) => this.startChannelTurn(input),

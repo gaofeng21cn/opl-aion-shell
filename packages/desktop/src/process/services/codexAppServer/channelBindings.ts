@@ -22,6 +22,7 @@ export type ChannelBindingStore = Readonly<{
     create: () => Promise<ChannelThreadRef>
   ): Promise<Readonly<{ binding: ChannelThreadBinding; created: boolean }>>;
   assertKnownThread(thread: ChannelThreadRef): Promise<void>;
+  readBindings(): Promise<readonly ChannelThreadBinding[]>;
 }>;
 
 type BindingDocument = Readonly<{
@@ -131,6 +132,18 @@ export class FileChannelBindingStore implements ChannelBindingStore {
       if (!document.bindings.some((binding) => threadKey(binding) === expected)) {
         throw new Error('Canonical channel thread has no exact binding.');
       }
+    });
+    this.writeTail = operation.then(
+      (): void => undefined,
+      (): void => undefined
+    );
+    return await operation;
+  }
+
+  async readBindings(): Promise<readonly ChannelThreadBinding[]> {
+    const operation = this.writeTail.then(async () => {
+      const document = await this.read();
+      return Object.freeze(document.bindings.map((binding) => Object.freeze({ ...binding })));
     });
     this.writeTail = operation.then(
       (): void => undefined,
