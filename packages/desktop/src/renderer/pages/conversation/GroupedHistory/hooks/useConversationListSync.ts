@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { TChatConversation } from '@/common/config/storage';
 import type { CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
+import { readOplTransportBindingsProjection } from '@/common/types/opl/uiContributions';
 import {
   canonicalCodexThreadId,
   projectCanonicalCodexThread,
@@ -107,7 +108,14 @@ type ConversationListSyncSnapshot = {
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
 
-export type WeixinCanonicalThreadBinding = {
+export type ProjectedTransportThreadBinding = {
+  conversationId: string;
+  canonicalThreadHost: string;
+  threadId: string;
+  temporaryWorkspace?: boolean;
+};
+
+export type LegacyWeixinCanonicalThreadBinding = {
   conversationId: string;
   threadId: string;
 };
@@ -125,22 +133,22 @@ const isWeixinCodexTransportConversation = (conversation: TChatConversation): bo
   return conversation.source === 'weixin' && conversation.type === 'acp' && conversation.extra.backend === 'codex';
 };
 
-export const inferWeixinCanonicalThreadBindings = (
+// Temporary migration fallback until the shared provider callback produces transport bindings end to end.
+export const inferLegacyWeixinCanonicalThreadBindings = (
   localConversations: TChatConversation[],
-  directory: CodexThreadDirectory | null
-): WeixinCanonicalThreadBinding[] => {
+  directory: CodexThreadDirectory | null,
+  projectedConversationIds: ReadonlySet<string> = new Set()
+): LegacyWeixinCanonicalThreadBinding[] => {
   if (!directory) return [];
-
   const threadByTemporaryWorkspace = new Map<string, (typeof directory.threads)[number] | null>();
   directory.threads.forEach((thread) => {
     const leaf = workspaceLeaf(thread.workspace);
     if (!leaf.startsWith('codex-temp-')) return;
     threadByTemporaryWorkspace.set(leaf, threadByTemporaryWorkspace.has(leaf) ? null : thread);
   });
-
   return localConversations.flatMap((conversation) => {
     if (
-      conversation.type !== 'acp' ||
+      projectedConversationIds.has(conversation.id) ||
       !isWeixinCodexTransportConversation(conversation) ||
       canonicalCodexThreadId(conversation)
     ) {
@@ -156,9 +164,9 @@ export const inferWeixinCanonicalThreadBindings = (
   });
 };
 
-const applyWeixinCanonicalThreadBindings = (
+const applyLegacyWeixinCanonicalThreadBindings = (
   localConversations: TChatConversation[],
-  bindings: WeixinCanonicalThreadBinding[]
+  bindings: LegacyWeixinCanonicalThreadBinding[]
 ): TChatConversation[] => {
   if (bindings.length === 0) return localConversations;
   const threadIdByConversationId = new Map(bindings.map((binding) => [binding.conversationId, binding.threadId]));
@@ -173,6 +181,30 @@ const applyWeixinCanonicalThreadBindings = (
       },
     };
   });
+};
+
+const uniqueProjectedTransportBindings = (
+  bindings: readonly ProjectedTransportThreadBinding[]
+): ReadonlyMap<string, ProjectedTransportThreadBinding> => {
+  const unique = new Map<string, ProjectedTransportThreadBinding | null>();
+  bindings.forEach((binding) => {
+    if (!unique.has(binding.conversationId)) {
+      unique.set(binding.conversationId, binding);
+      return;
+    }
+    const current = unique.get(binding.conversationId);
+    if (!current) return;
+    if (current.threadId !== binding.threadId || current.canonicalThreadHost !== binding.canonicalThreadHost) {
+      unique.set(binding.conversationId, null);
+      return;
+    }
+    if (binding.temporaryWorkspace === true && current.temporaryWorkspace !== true) {
+      unique.set(binding.conversationId, { ...current, temporaryWorkspace: true });
+    }
+  });
+  return new Map(
+    [...unique.entries()].filter((entry): entry is [string, ProjectedTransportThreadBinding] => entry[1] !== null)
+  );
 };
 
 export const createSingleFlightDirtyReplay = (operation: () => Promise<void>): (() => Promise<void>) => {
@@ -210,6 +242,7 @@ const listeners = new Set<() => void>();
 let isStoreInitialized = false;
 let localConversationsState: TChatConversation[] = [];
 let canonicalDirectoryState: CodexThreadDirectory | null = null;
+let projectedTransportBindingsState: ProjectedTransportThreadBinding[] = [];
 let conversationsState: TChatConversation[] = [];
 let generatingConversationIdsState = new Set<string>();
 let completionUnreadConversationIdsState = new Set<string>();
@@ -253,29 +286,42 @@ const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snap
 export const mergeCanonicalThreadDirectory = (
   localConversations: TChatConversation[],
   directory: CodexThreadDirectory | null,
-  preserveLocalConversationIds: ReadonlySet<string> = new Set()
+  preserveLocalConversationIds: ReadonlySet<string> = new Set(),
+  projectedTransportBindings: readonly ProjectedTransportThreadBinding[] = []
 ): TChatConversation[] => {
   if (!directory) return localConversations;
 
-  const inferredBindings = inferWeixinCanonicalThreadBindings(localConversations, directory);
-  const boundLocalConversations = applyWeixinCanonicalThreadBindings(localConversations, inferredBindings);
-
+  const projectedBindingByConversationId = uniqueProjectedTransportBindings(projectedTransportBindings);
   const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
-  const weixinTransportThreadIds = new Set(
-    boundLocalConversations
-      .filter(isWeixinCodexTransportConversation)
-      .map(canonicalCodexThreadId)
-      .filter((threadId): threadId is string => Boolean(threadId))
-  );
+  const temporaryTransportThreadIds = new Set<string>();
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
-  const unmatchedLocal = boundLocalConversations.filter((conversation) => {
-    const threadId = canonicalCodexThreadId(conversation);
+  const unmatchedLocal = localConversations.filter((conversation) => {
+    const projectedBinding = projectedBindingByConversationId.get(conversation.id);
+    const hasProjectedBinding = projectedBindingByConversationId.has(conversation.id);
+    const applicableProjectedBinding =
+      projectedBinding?.canonicalThreadHost === directory.host ? projectedBinding : null;
+    const legacyTransportThreadId =
+      !hasProjectedBinding && isWeixinCodexTransportConversation(conversation)
+        ? canonicalCodexThreadId(conversation)
+        : null;
+    const isTransport = hasProjectedBinding || Boolean(legacyTransportThreadId);
+    const threadId =
+      applicableProjectedBinding?.threadId ??
+      legacyTransportThreadId ??
+      (!isTransport ? canonicalCodexThreadId(conversation) : null);
     if (threadId && returnedThreadIds.has(threadId)) {
-      if (!isWeixinCodexTransportConversation(conversation) && conversation.type === 'acp') {
+      if (isTransport) {
+        const legacyTemporary = (conversation.extra as { is_temporary_workspace?: boolean }).is_temporary_workspace;
+        if (applicableProjectedBinding?.temporaryWorkspace === true || legacyTemporary === true) {
+          temporaryTransportThreadIds.add(threadId);
+        }
+      } else if (conversation.type === 'acp') {
         cachedByThreadId.set(threadId, conversation);
       }
       return false;
     }
+
+    if (isWeixinCodexTransportConversation(conversation) || hasProjectedBinding) return true;
 
     // Only a complete overview may retire unmatched Codex cache rows. A bounded
     // recent directory remains useful without turning older local rows into ghosts.
@@ -303,7 +349,7 @@ export const mergeCanonicalThreadDirectory = (
     ...unmatchedLocal,
     ...directory.threads.map((thread) => {
       const projected = projectCanonicalCodexThread(thread, cachedByThreadId.get(thread.id));
-      if (!weixinTransportThreadIds.has(thread.id)) return projected;
+      if (!temporaryTransportThreadIds.has(thread.id)) return projected;
       return {
         ...projected,
         extra: {
@@ -328,7 +374,8 @@ const applyConversationProjection = () => {
   conversationsState = mergeCanonicalThreadDirectory(
     localConversationsState.filter(isVisibleHistoryConversation),
     canonicalDirectoryState,
-    pendingCanonicalConversationIdsState
+    pendingCanonicalConversationIdsState,
+    projectedTransportBindingsState
   );
   conversation_idsState = visibleConversationIds(conversationsState);
   emitStoreChange();
@@ -346,9 +393,10 @@ const upsertLocalConversation = (conversation: TChatConversation) => {
 };
 
 const refreshConversationDirectory = async () => {
-  const [localResult, canonicalResult] = await Promise.allSettled([
+  const [localResult, canonicalResult, appStateResult] = await Promise.allSettled([
     ipcBridge.database.getUserConversations.invoke({ limit: 10000 }),
     ipcBridge.codexThreads.list.invoke({ includeArchived: true }),
+    ipcBridge.oplRuntime.getAppState.invoke({ profile: 'fast' }),
   ]);
 
   if (localResult.status === 'fulfilled' && Array.isArray(localResult.value?.items)) {
@@ -359,14 +407,32 @@ const refreshConversationDirectory = async () => {
   if (canonicalResult.status === 'rejected') {
     console.error('[WorkspaceGroupedHistory] Failed to load canonical Codex task directory:', canonicalResult.reason);
   }
+  const transportBindingsProjection =
+    appStateResult.status === 'fulfilled' && appStateResult.value?.ok !== false
+      ? readOplTransportBindingsProjection(appStateResult.value?.parsed)
+      : readOplTransportBindingsProjection(null);
+  projectedTransportBindingsState =
+    transportBindingsProjection.status === 'available'
+      ? transportBindingsProjection.bindings.map((binding) => ({
+          conversationId: binding.transportConversationId,
+          canonicalThreadHost: binding.canonicalThreadHost,
+          threadId: binding.canonicalThreadId,
+          temporaryWorkspace: binding.projectAffinity === 'projectless',
+        }))
+      : [];
 
   const canonicalDirectory = canonicalResult.status === 'fulfilled' ? canonicalResult.value : null;
   if (canonicalDirectory) {
-    const inferredBindings = inferWeixinCanonicalThreadBindings(localConversationsState, canonicalDirectory);
-    if (inferredBindings.length > 0) {
-      localConversationsState = applyWeixinCanonicalThreadBindings(localConversationsState, inferredBindings);
+    const projectedConversationIds = new Set(projectedTransportBindingsState.map((binding) => binding.conversationId));
+    const legacyBindings = inferLegacyWeixinCanonicalThreadBindings(
+      localConversationsState,
+      canonicalDirectory,
+      projectedConversationIds
+    );
+    if (legacyBindings.length > 0) {
+      localConversationsState = applyLegacyWeixinCanonicalThreadBindings(localConversationsState, legacyBindings);
       const persistenceResults = await Promise.allSettled(
-        inferredBindings.map(async (binding) => {
+        legacyBindings.map(async (binding) => {
           const updated = await ipcBridge.conversation.update.invoke({
             id: binding.conversationId,
             updates: { extra: { canonical_thread_id: binding.threadId } } as Partial<TChatConversation>,
@@ -377,7 +443,7 @@ const refreshConversationDirectory = async () => {
       );
       persistenceResults.forEach((result) => {
         if (result.status === 'rejected') {
-          console.warn('[WorkspaceGroupedHistory] Failed to persist WeChat canonical thread binding:', result.reason);
+          console.warn('[WorkspaceGroupedHistory] Failed to persist legacy WeChat thread binding:', result.reason);
         }
       });
     }

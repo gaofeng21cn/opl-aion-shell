@@ -50,10 +50,93 @@ export type OplUiContributionsProjection = {
   entries: OplUiContribution[];
 };
 
+export type OplTransportBinding = {
+  bindingId: string;
+  packageId: string;
+  transportId: string;
+  transportConversationId: string;
+  canonicalThreadHost: string;
+  canonicalThreadId: string;
+  projectAffinity: 'projectless';
+  status: 'bound';
+};
+
+export type OplTransportBindingsProjection = {
+  surfaceKind: 'opl_app_transport_bindings_projection.v1' | 'unavailable';
+  status: 'available' | 'unavailable';
+  bindings: OplTransportBinding[];
+  unavailableReason?: 'producer_absent' | 'projection_unavailable' | 'invalid_projection';
+};
+
+export type OplChannelAccessActionInput =
+  | { channel_id: string }
+  | { channel_id: string; pairing_id: string }
+  | { channel_id: string; user_id: string };
+
+export type OplChannelAccessAction = {
+  commandId: string;
+  input: OplChannelAccessActionInput;
+};
+
+export type OplChannelAccessConnection = {
+  state: 'disconnected' | 'connecting' | 'qr_ready' | 'qr_scanned' | 'connected' | 'attention';
+  accountDisplayName?: string;
+  reasonCode?: string;
+  qrChallenge?: { payload: string; expiresAtMs: number };
+};
+
+export type OplChannelAccessPairing = {
+  pairingId: string;
+  platformUserId?: string;
+  displayName?: string;
+  requestedAtMs: number;
+  expiresAtMs: number;
+  actions: OplChannelAccessAction[];
+};
+
+export type OplChannelAccessUser = {
+  userId: string;
+  platformUserId?: string;
+  displayName?: string;
+  authorizedAtMs: number;
+  lastActiveAtMs?: number;
+  actions: OplChannelAccessAction[];
+};
+
+export type OplChannelAccessResult =
+  | {
+      schemaVersion: 'opl-app-channel-access.v1';
+      status: 'available';
+      channelId: string;
+      connection: OplChannelAccessConnection;
+      actions: OplChannelAccessAction[];
+      pendingPairings: OplChannelAccessPairing[];
+      authorizedUsers: OplChannelAccessUser[];
+      refreshAfterMs?: number;
+    }
+  | {
+      schemaVersion: 'opl-app-channel-access.v1';
+      status: 'unavailable';
+      channelId: string;
+      unavailableReason: string;
+      refreshAfterMs?: number;
+    };
+
 const EMPTY_PROJECTION: OplUiContributionsProjection = Object.freeze({
   surfaceKind: 'unavailable',
   entries: Object.freeze([]) as unknown as OplUiContribution[],
 });
+
+function unavailableTransportBindingsProjection(
+  reason: OplTransportBindingsProjection['unavailableReason'] = 'invalid_projection'
+): OplTransportBindingsProjection {
+  return {
+    surfaceKind: 'unavailable',
+    status: 'unavailable',
+    bindings: [],
+    unavailableReason: reason,
+  };
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -63,6 +146,27 @@ function asRecord(value: unknown): Record<string, unknown> | null {
 
 function asString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function asInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+function hasOnlyKeys(record: Record<string, unknown>, keys: readonly string[]): boolean {
+  const allowed = new Set(keys);
+  return Object.keys(record).every((key) => allowed.has(key));
+}
+
+function stableId(value: unknown): string | null {
+  const normalized = asString(value);
+  return normalized && /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/.test(normalized) && normalized.length <= 128
+    ? normalized
+    : null;
+}
+
+function opaqueId(value: unknown): string | null {
+  const normalized = asString(value);
+  return normalized && normalized.length <= 512 ? normalized : null;
 }
 
 function localizedText(value: unknown): OplUiLocalizedText {
@@ -171,6 +275,359 @@ export function readOplUiContributionsProjection(state: unknown): OplUiContribut
       left.contributionId.localeCompare(right.contributionId)
   );
   return { surfaceKind: 'opl_app_ui_contributions_projection.v1', entries };
+}
+
+export function readOplTransportBindingsProjection(state: unknown): OplTransportBindingsProjection {
+  const root = asRecord(state);
+  const appState = asRecord(root?.app_state) ?? root;
+  const projection = asRecord(appState?.transport_bindings);
+  if (projection?.surface_kind !== 'opl_app_transport_bindings_projection.v1') {
+    return unavailableTransportBindingsProjection();
+  }
+  if (!asRecord(projection.authority_boundary) || !Array.isArray(projection.bindings)) {
+    return unavailableTransportBindingsProjection();
+  }
+  if (projection.status === 'unavailable') {
+    const reason = projection.unavailable_reason;
+    if (
+      projection.bindings.length !== 0 ||
+      (reason !== 'producer_absent' && reason !== 'projection_unavailable' && reason !== 'invalid_projection')
+    ) {
+      return unavailableTransportBindingsProjection();
+    }
+    return {
+      surfaceKind: 'opl_app_transport_bindings_projection.v1',
+      status: 'unavailable',
+      bindings: [],
+      unavailableReason: reason,
+    };
+  }
+  if (projection.status !== 'available' || projection.unavailable_reason !== undefined) {
+    return unavailableTransportBindingsProjection();
+  }
+  const bindings = projection.bindings.flatMap((value): OplTransportBinding[] => {
+    const binding = asRecord(value);
+    const bindingId = opaqueId(binding?.binding_id);
+    const packageId = stableId(binding?.package_id);
+    const transportId = stableId(binding?.transport_id);
+    const transportConversationId = opaqueId(binding?.transport_conversation_id);
+    const canonicalThreadHost = opaqueId(binding?.canonical_thread_host);
+    const canonicalThreadId = opaqueId(binding?.canonical_thread_id);
+    if (
+      !binding ||
+      !bindingId ||
+      !packageId ||
+      !transportId ||
+      !transportConversationId ||
+      !canonicalThreadHost ||
+      !canonicalThreadId ||
+      binding.project_affinity !== 'projectless' ||
+      binding.status !== 'bound'
+    ) {
+      return [];
+    }
+    return [
+      {
+        bindingId,
+        packageId,
+        transportId,
+        transportConversationId,
+        canonicalThreadHost,
+        canonicalThreadId,
+        projectAffinity: 'projectless',
+        status: 'bound',
+      },
+    ];
+  });
+  if (bindings.length !== projection.bindings.length) return unavailableTransportBindingsProjection();
+  const bindingIdentities = bindings.map(
+    (binding) => `${binding.packageId}:${binding.transportId}:${binding.transportConversationId}`
+  );
+  const transportTargets = new Map<string, string>();
+  for (const binding of bindings) {
+    const target = `${binding.canonicalThreadHost}:${binding.canonicalThreadId}`;
+    const current = transportTargets.get(binding.transportConversationId);
+    if (current && current !== target) return unavailableTransportBindingsProjection();
+    transportTargets.set(binding.transportConversationId, target);
+  }
+  if (new Set(bindingIdentities).size !== bindingIdentities.length) return unavailableTransportBindingsProjection();
+  return {
+    surfaceKind: 'opl_app_transport_bindings_projection.v1',
+    status: 'available',
+    bindings,
+  };
+}
+
+function parseChannelActionInput(value: unknown): OplChannelAccessActionInput | null {
+  const input = asRecord(value);
+  const channelId = stableId(input?.channel_id);
+  if (!input || !channelId) return null;
+  if (hasOnlyKeys(input, ['channel_id'])) return { channel_id: channelId };
+  const pairingId = opaqueId(input.pairing_id);
+  if (pairingId && hasOnlyKeys(input, ['channel_id', 'pairing_id'])) {
+    return { channel_id: channelId, pairing_id: pairingId };
+  }
+  const userId = opaqueId(input.user_id);
+  if (userId && hasOnlyKeys(input, ['channel_id', 'user_id'])) return { channel_id: channelId, user_id: userId };
+  return null;
+}
+
+function parseChannelActions(
+  value: unknown,
+  scope: 'channel' | 'pairing' | 'user',
+  entityId?: string
+): OplChannelAccessAction[] | null {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const actions = value.flatMap((item): OplChannelAccessAction[] => {
+    const action = asRecord(item);
+    const commandId = stableId(action?.command_id);
+    const input = parseChannelActionInput(action?.input);
+    const inputMatchesScope =
+      input &&
+      ((scope === 'channel' && !('pairing_id' in input) && !('user_id' in input)) ||
+        (scope === 'pairing' && 'pairing_id' in input && input.pairing_id === entityId) ||
+        (scope === 'user' && 'user_id' in input && input.user_id === entityId));
+    return action && hasOnlyKeys(action, ['command_id', 'input']) && commandId && inputMatchesScope
+      ? [{ commandId, input }]
+      : [];
+  });
+  if (actions.length !== value.length) return null;
+  const identities = actions.map((action) => `${action.commandId}:${JSON.stringify(action.input)}`);
+  return new Set(identities).size === identities.length ? actions : null;
+}
+
+function parseChannelConnection(value: unknown): OplChannelAccessConnection | null {
+  const connection = asRecord(value);
+  if (!connection || !hasOnlyKeys(connection, ['state', 'account_display_name', 'reason_code', 'qr_challenge'])) {
+    return null;
+  }
+  const states = ['disconnected', 'connecting', 'qr_ready', 'qr_scanned', 'connected', 'attention'] as const;
+  if (!states.includes(connection.state as (typeof states)[number])) return null;
+  const accountDisplayName =
+    connection.account_display_name === undefined ? null : asString(connection.account_display_name);
+  const reasonCode = connection.reason_code === undefined ? null : stableId(connection.reason_code);
+  if (connection.account_display_name !== undefined && !accountDisplayName) return null;
+  if (connection.reason_code !== undefined && !reasonCode) return null;
+  const qr = connection.qr_challenge === undefined ? null : asRecord(connection.qr_challenge);
+  const qrPayload = qr ? asString(qr.payload) : null;
+  const qrExpiry = qr ? asInteger(qr.expires_at_ms) : null;
+  if (
+    qr &&
+    (!hasOnlyKeys(qr, ['payload', 'expires_at_ms']) || !qrPayload || qrPayload.length > 8192 || qrExpiry === null)
+  ) {
+    return null;
+  }
+  return {
+    state: connection.state as OplChannelAccessConnection['state'],
+    ...(accountDisplayName ? { accountDisplayName } : {}),
+    ...(reasonCode ? { reasonCode } : {}),
+    ...(qr && qrPayload && qrExpiry !== null ? { qrChallenge: { payload: qrPayload, expiresAtMs: qrExpiry } } : {}),
+  };
+}
+
+function parseChannelPairings(value: unknown): OplChannelAccessPairing[] | null {
+  if (!Array.isArray(value) || value.length > 100) return null;
+  const pairings = value.flatMap((item): OplChannelAccessPairing[] => {
+    const pairing = asRecord(item);
+    if (
+      !pairing ||
+      !hasOnlyKeys(pairing, [
+        'pairing_id',
+        'platform_user_id',
+        'display_name',
+        'requested_at_ms',
+        'expires_at_ms',
+        'actions',
+      ])
+    ) {
+      return [];
+    }
+    const pairingId = opaqueId(pairing.pairing_id);
+    const platformUserId = pairing.platform_user_id === undefined ? null : opaqueId(pairing.platform_user_id);
+    const displayName = pairing.display_name === undefined ? null : asString(pairing.display_name);
+    const requestedAtMs = asInteger(pairing.requested_at_ms);
+    const expiresAtMs = asInteger(pairing.expires_at_ms);
+    const actions = pairingId ? parseChannelActions(pairing.actions, 'pairing', pairingId) : null;
+    if (
+      !pairingId ||
+      (pairing.platform_user_id !== undefined && !platformUserId) ||
+      (pairing.display_name !== undefined && (!displayName || displayName.length > 256)) ||
+      requestedAtMs === null ||
+      expiresAtMs === null ||
+      !actions
+    ) {
+      return [];
+    }
+    return [
+      {
+        pairingId,
+        ...(platformUserId ? { platformUserId } : {}),
+        ...(displayName ? { displayName } : {}),
+        requestedAtMs,
+        expiresAtMs,
+        actions,
+      },
+    ];
+  });
+  return pairings.length === value.length && new Set(pairings.map((item) => item.pairingId)).size === pairings.length
+    ? pairings
+    : null;
+}
+
+function parseChannelUsers(value: unknown): OplChannelAccessUser[] | null {
+  if (!Array.isArray(value) || value.length > 100) return null;
+  const users = value.flatMap((item): OplChannelAccessUser[] => {
+    const user = asRecord(item);
+    if (
+      !user ||
+      !hasOnlyKeys(user, [
+        'user_id',
+        'platform_user_id',
+        'display_name',
+        'authorized_at_ms',
+        'last_active_at_ms',
+        'actions',
+      ])
+    ) {
+      return [];
+    }
+    const userId = opaqueId(user.user_id);
+    const platformUserId = user.platform_user_id === undefined ? null : opaqueId(user.platform_user_id);
+    const displayName = user.display_name === undefined ? null : asString(user.display_name);
+    const authorizedAtMs = asInteger(user.authorized_at_ms);
+    const lastActiveAtMs = user.last_active_at_ms === undefined ? null : asInteger(user.last_active_at_ms);
+    const actions = userId ? parseChannelActions(user.actions, 'user', userId) : null;
+    if (
+      !userId ||
+      (user.platform_user_id !== undefined && !platformUserId) ||
+      (user.display_name !== undefined && (!displayName || displayName.length > 256)) ||
+      authorizedAtMs === null ||
+      (user.last_active_at_ms !== undefined && lastActiveAtMs === null) ||
+      !actions
+    ) {
+      return [];
+    }
+    return [
+      {
+        userId,
+        ...(platformUserId ? { platformUserId } : {}),
+        ...(displayName ? { displayName } : {}),
+        authorizedAtMs,
+        ...(lastActiveAtMs !== null ? { lastActiveAtMs } : {}),
+        actions,
+      },
+    ];
+  });
+  return users.length === value.length && new Set(users.map((item) => item.userId)).size === users.length
+    ? users
+    : null;
+}
+
+export function readOplChannelAccessResult(value: unknown): OplChannelAccessResult | null {
+  const result = asRecord(value);
+  const channelId = stableId(result?.channel_id);
+  if (!result || result.schema_version !== 'opl-app-channel-access.v1' || !channelId) return null;
+  const refreshAfterMs = result.refresh_after_ms === undefined ? null : asInteger(result.refresh_after_ms);
+  if (
+    result.refresh_after_ms !== undefined &&
+    (refreshAfterMs === null || refreshAfterMs < 250 || refreshAfterMs > 60000)
+  ) {
+    return null;
+  }
+  if (result.status === 'unavailable') {
+    const unavailableReason = stableId(result.unavailable_reason);
+    if (
+      !unavailableReason ||
+      result.connection !== undefined ||
+      result.actions !== undefined ||
+      result.pending_pairings !== undefined ||
+      result.authorized_users !== undefined ||
+      !hasOnlyKeys(result, ['schema_version', 'status', 'channel_id', 'unavailable_reason', 'refresh_after_ms'])
+    ) {
+      return null;
+    }
+    return {
+      schemaVersion: 'opl-app-channel-access.v1',
+      status: 'unavailable',
+      channelId,
+      unavailableReason,
+      ...(refreshAfterMs !== null ? { refreshAfterMs } : {}),
+    };
+  }
+  if (
+    result.status !== 'available' ||
+    result.unavailable_reason !== undefined ||
+    !hasOnlyKeys(result, [
+      'schema_version',
+      'status',
+      'channel_id',
+      'connection',
+      'actions',
+      'pending_pairings',
+      'authorized_users',
+      'refresh_after_ms',
+    ])
+  ) {
+    return null;
+  }
+  const connection = parseChannelConnection(result.connection);
+  const actions = parseChannelActions(result.actions, 'channel');
+  const pendingPairings = parseChannelPairings(result.pending_pairings);
+  const authorizedUsers = parseChannelUsers(result.authorized_users);
+  if (!connection || !actions || !pendingPairings || !authorizedUsers) return null;
+  const allInputsMatchChannel = [
+    ...actions,
+    ...pendingPairings.flatMap((item) => item.actions),
+    ...authorizedUsers.flatMap((item) => item.actions),
+  ].every((action) => action.input.channel_id === channelId);
+  if (!allInputsMatchChannel) return null;
+  return {
+    schemaVersion: 'opl-app-channel-access.v1',
+    status: 'available',
+    channelId,
+    connection,
+    actions,
+    pendingPairings,
+    authorizedUsers,
+    ...(refreshAfterMs !== null ? { refreshAfterMs } : {}),
+  };
+}
+
+export function readOplPackageContributionReadResult(
+  commandResult: unknown,
+  expected: { packageId: string; ref: string }
+): unknown | null {
+  const command = asRecord(commandResult);
+  const parsed = asRecord(command?.parsed);
+  const contribution = asRecord(parsed?.opl_app_contribution);
+  const carrierReadback = asRecord(contribution?.carrier_readback);
+  const readiness = asRecord(contribution?.readiness);
+  const response = asRecord(contribution?.response);
+  if (
+    command?.surface !== 'package_contribution_read' ||
+    command?.ok === false ||
+    contribution?.surface_kind !== 'opl_app_package_contribution.v1' ||
+    contribution.package_id !== expected.packageId ||
+    contribution.ref !== expected.ref ||
+    contribution.operation !== 'read' ||
+    typeof contribution.confirmation_required !== 'boolean' ||
+    !carrierReadback ||
+    !asString(carrierReadback.kind) ||
+    !asString(carrierReadback.identity) ||
+    !asString(carrierReadback.lifecycle_authority) ||
+    !readiness ||
+    readiness.installed !== true ||
+    readiness.physical_status !== 'available' ||
+    readiness.callability !== 'callable' ||
+    response?.schema_version !== 'opl-package-app-contribution-response.v1' ||
+    response.ok !== true ||
+    response.ref !== expected.ref ||
+    response.operation !== 'read' ||
+    !Object.hasOwn(response, 'result')
+  ) {
+    return null;
+  }
+  return response.result;
 }
 
 export function hasPackageContributionExecuteAction(state: unknown): boolean {

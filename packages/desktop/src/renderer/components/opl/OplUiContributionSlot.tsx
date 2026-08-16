@@ -7,18 +7,24 @@
 import { ipcBridge } from '@/common';
 import {
   hasPackageContributionExecuteAction,
+  readOplChannelAccessResult,
+  readOplPackageContributionReadResult,
   resolveOplUiContributionLabel,
+  type OplChannelAccessAction,
+  type OplChannelAccessActionInput,
+  type OplChannelAccessResult,
   type OplUiContribution,
   type OplUiContributionCommand,
   type OplUiContributionSlot,
 } from '@/common/types/opl/uiContributions';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getOplClientCordisComposition } from '@/renderer/services/oplClientCordis';
-import { Button, Message, Modal, Tag, Tooltip } from '@arco-design/web-react';
+import { Alert, Button, Message, Modal, Spin, Tag, Tooltip, Typography } from '@arco-design/web-react';
 import { Play, Puzzle } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import styles from './OplUiContributionSlot.module.css';
 
 type OplUiContributionSlotProps = {
@@ -28,6 +34,234 @@ type OplUiContributionSlotProps = {
 function supportedEntry(entry: OplUiContribution): boolean {
   return entry.contributionKind === 'command_group' || (entry.contributionKind === 'view' && Boolean(entry.view));
 }
+
+function commandInvocationKey(entry: OplUiContribution, commandId: string, input: Record<string, unknown>): string {
+  return `${entry.contributionKey}:${commandId}:${JSON.stringify(input)}`;
+}
+
+type ChannelAccessViewProps = {
+  entry: OplUiContribution;
+  locale: string;
+  actionAvailable: boolean;
+  runningCommandKey: string | null;
+  executeCommand: (
+    entry: OplUiContribution,
+    command: OplUiContributionCommand,
+    confirmed: boolean,
+    input: OplChannelAccessActionInput
+  ) => Promise<boolean>;
+};
+
+const CONNECTION_STATE_KEYS = {
+  disconnected: 'common.oplUiContributions.channelAccess.states.disconnected',
+  connecting: 'common.oplUiContributions.channelAccess.states.connecting',
+  qr_ready: 'common.oplUiContributions.channelAccess.states.qrReady',
+  qr_scanned: 'common.oplUiContributions.channelAccess.states.qrScanned',
+  connected: 'common.oplUiContributions.channelAccess.states.connected',
+  attention: 'common.oplUiContributions.channelAccess.states.attention',
+} as const;
+
+const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
+  entry,
+  locale,
+  actionAvailable,
+  runningCommandKey,
+  executeCommand,
+}) => {
+  const { t } = useTranslation();
+  const [result, setResult] = useState<OplChannelAccessResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const view = entry.view;
+
+  const load = useCallback(async () => {
+    if (!view) return;
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const commandResult = await ipcBridge.oplRuntime.runPackageContribution.invoke({
+        packageId: entry.packageId,
+        ref: view.dataRef,
+        operation: 'read',
+        input: {},
+      });
+      const readResult = readOplPackageContributionReadResult(commandResult, {
+        packageId: entry.packageId,
+        ref: view.dataRef,
+      });
+      const channelResult = readOplChannelAccessResult(readResult);
+      if (!channelResult) throw new Error('invalid channel access response');
+      setResult(channelResult);
+    } catch {
+      setResult(null);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [entry.packageId, view]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    if (!result?.refreshAfterMs) return;
+    const timer = window.setTimeout((): void => {
+      void load();
+    }, result.refreshAfterMs);
+    return () => window.clearTimeout(timer);
+  }, [load, result?.refreshAfterMs, result]);
+
+  const requestAction = useCallback(
+    (action: OplChannelAccessAction) => {
+      const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+      if (!command || !actionAvailable) return;
+      const run = async () => {
+        if (await executeCommand(entry, command, command.confirmationRequired, action.input)) await load();
+      };
+      if (!command.confirmationRequired) {
+        void run();
+        return;
+      }
+      const label = resolveOplUiContributionLabel(command.label, locale, command.commandId);
+      Modal.confirm({
+        title: t('common.oplUiContributions.confirmTitle', { command: label }),
+        content: t('common.oplUiContributions.confirmDescription', { package: entry.packageId }),
+        okText: t('common.confirm'),
+        cancelText: t('common.cancel'),
+        onOk: run,
+      });
+    },
+    [actionAvailable, entry, executeCommand, load, locale, t]
+  );
+
+  const actions = (values: OplChannelAccessAction[]) => (
+    <div className='flex min-h-28px flex-wrap items-center gap-6px'>
+      {values.flatMap((action) => {
+        const command = entry.commands.find((candidate) => candidate.commandId === action.commandId);
+        if (!command) return [];
+        const key = commandInvocationKey(entry, command.commandId, action.input);
+        return [
+          <Button
+            key={key}
+            size='small'
+            type='text'
+            icon={<Play aria-hidden='true' theme='outline' size={13} fill='currentColor' />}
+            disabled={!actionAvailable}
+            loading={runningCommandKey === key}
+            onClick={() => requestAction(action)}
+          >
+            {resolveOplUiContributionLabel(command.label, locale, command.commandId)}
+          </Button>,
+        ];
+      })}
+    </div>
+  );
+
+  if (loading && !result) {
+    return (
+      <div className='flex min-h-72px items-center justify-center' data-testid='opl-channel-access-loading'>
+        <Spin />
+      </div>
+    );
+  }
+  if (loadError || !result) {
+    return (
+      <Alert
+        type='warning'
+        showIcon
+        content={t('common.oplUiContributions.channelAccess.readFailed')}
+        data-testid='opl-channel-access-read-failed'
+      />
+    );
+  }
+  if (result.status === 'unavailable') {
+    return (
+      <Alert
+        type='info'
+        showIcon
+        content={t('common.oplUiContributions.channelAccess.unavailable')}
+        data-testid='opl-channel-access-unavailable'
+      />
+    );
+  }
+
+  const displayTime = (value: number) => new Date(value).toLocaleString(locale);
+  return (
+    <div className='flex min-w-0 flex-col gap-12px' data-testid='opl-channel-access'>
+      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+        <Tag color={result.connection.state === 'connected' ? 'green' : undefined}>
+          {t(CONNECTION_STATE_KEYS[result.connection.state])}
+        </Tag>
+        {result.connection.accountDisplayName && (
+          <Typography.Text className='min-w-0 break-all'>{result.connection.accountDisplayName}</Typography.Text>
+        )}
+        {result.connection.reasonCode && <Tag>{result.connection.reasonCode}</Tag>}
+        <div className='ml-auto'>{actions(result.actions)}</div>
+      </div>
+
+      {result.connection.qrChallenge && (
+        <div className='flex justify-center py-8px' data-testid='opl-channel-access-qr'>
+          <QRCodeSVG
+            value={result.connection.qrChallenge.payload}
+            size={160}
+            aria-label={t('common.oplUiContributions.channelAccess.qrCode')}
+          />
+        </div>
+      )}
+
+      <section className='flex min-w-0 flex-col gap-6px'>
+        <Typography.Text bold>{t('common.oplUiContributions.channelAccess.pendingPairings')}</Typography.Text>
+        {result.pendingPairings.length === 0 ? (
+          <Typography.Text type='secondary'>{t('common.oplUiContributions.channelAccess.none')}</Typography.Text>
+        ) : (
+          result.pendingPairings.map((pairing) => (
+            <div
+              key={pairing.pairingId}
+              className='flex min-w-0 flex-wrap items-center gap-8px border-0 border-t border-solid border-line py-8px'
+            >
+              <div className='min-w-160px flex-1'>
+                <Typography.Text className='block break-all'>
+                  {pairing.displayName ?? pairing.platformUserId ?? pairing.pairingId}
+                </Typography.Text>
+                <Typography.Text type='secondary' className='block text-12px'>
+                  {t('common.oplUiContributions.channelAccess.expiresAt', { time: displayTime(pairing.expiresAtMs) })}
+                </Typography.Text>
+              </div>
+              {actions(pairing.actions)}
+            </div>
+          ))
+        )}
+      </section>
+
+      <section className='flex min-w-0 flex-col gap-6px'>
+        <Typography.Text bold>{t('common.oplUiContributions.channelAccess.authorizedUsers')}</Typography.Text>
+        {result.authorizedUsers.length === 0 ? (
+          <Typography.Text type='secondary'>{t('common.oplUiContributions.channelAccess.none')}</Typography.Text>
+        ) : (
+          result.authorizedUsers.map((user) => (
+            <div
+              key={user.userId}
+              className='flex min-w-0 flex-wrap items-center gap-8px border-0 border-t border-solid border-line py-8px'
+            >
+              <div className='min-w-160px flex-1'>
+                <Typography.Text className='block break-all'>
+                  {user.displayName ?? user.platformUserId ?? user.userId}
+                </Typography.Text>
+                <Typography.Text type='secondary' className='block text-12px'>
+                  {t('common.oplUiContributions.channelAccess.authorizedAt', {
+                    time: displayTime(user.authorizedAtMs),
+                  })}
+                </Typography.Text>
+              </div>
+              {actions(user.actions)}
+            </div>
+          ))
+        )}
+      </section>
+    </div>
+  );
+};
 
 const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot }) => {
   const { t, i18n } = useTranslation();
@@ -63,8 +297,13 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
   }, [appStateQuery.appState, slot]);
 
   const executeCommand = useCallback(
-    async (entry: OplUiContribution, command: OplUiContributionCommand, confirmed: boolean) => {
-      const commandKey = `${entry.contributionKey}:${command.commandId}`;
+    async (
+      entry: OplUiContribution,
+      command: OplUiContributionCommand,
+      confirmed: boolean,
+      input: Record<string, unknown> = {}
+    ): Promise<boolean> => {
+      const commandKey = commandInvocationKey(entry, command.commandId, input);
       setRunningCommandKey(commandKey);
       try {
         const result = await ipcBridge.oplRuntime.executeAction.invoke({
@@ -72,7 +311,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
           payloadJson: {
             package_id: entry.packageId,
             ref: command.actionRef,
-            input: {},
+            input,
             confirmed,
           },
           dryRun: false,
@@ -81,8 +320,10 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
         const readback = await appStateQuery.load('fast', { forceFresh: true });
         if (!readback) throw new Error(t('common.oplUiContributions.readbackFailed'));
         message.success(t('common.oplUiContributions.executeSuccess'));
+        return true;
       } catch (error) {
         message.error(error instanceof Error ? error.message : t('common.oplUiContributions.executeFailed'));
+        return false;
       } finally {
         setRunningCommandKey(null);
       }
@@ -94,7 +335,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
     (entry: OplUiContribution, command: OplUiContributionCommand) => {
       if (!actionAvailable) return;
       if (!command.confirmationRequired) {
-        void executeCommand(entry, command, false);
+        void executeCommand(entry, command, false, {});
         return;
       }
       const label = resolveOplUiContributionLabel(command.label, locale, command.commandId);
@@ -103,7 +344,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
         content: t('common.oplUiContributions.confirmDescription', { package: entry.packageId }),
         okText: t('common.confirm'),
         cancelText: t('common.cancel'),
-        onOk: () => executeCommand(entry, command, true),
+        onOk: () => executeCommand(entry, command, true, {}),
       });
     },
     [actionAvailable, executeCommand, locale, t]
@@ -141,48 +382,58 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
               <Tag size='small'>{entry.packageId}</Tag>
             </header>
             {supported ? (
-              <>
-                {entry.badges.length > 0 && (
-                  <div className={styles.badges}>
-                    {entry.badges.map((badge) => (
-                      <Tag key={badge.badgeId} size='small' data-tone={badge.tone}>
-                        {resolveOplUiContributionLabel(badge.label, locale, badge.badgeId)}
-                      </Tag>
-                    ))}
-                  </div>
-                )}
-                {entry.commands.length > 0 && (
-                  <div className={styles.actions}>
-                    {entry.commands.map((command) => {
-                      const commandKey = `${entry.contributionKey}:${command.commandId}`;
-                      const label = resolveOplUiContributionLabel(command.label, locale, command.commandId);
-                      return (
-                        <Tooltip
-                          key={command.commandId}
-                          content={
-                            actionAvailable
-                              ? command.confirmationRequired
-                                ? t('common.oplUiContributions.confirmationRequired')
-                                : label
-                              : t('common.oplUiContributions.actionUnavailable')
-                          }
-                        >
-                          <Button
-                            size='small'
-                            type='text'
-                            icon={<Play aria-hidden='true' theme='outline' size={13} fill='currentColor' />}
-                            disabled={!actionAvailable}
-                            loading={runningCommandKey === commandKey}
-                            onClick={() => requestCommand(entry, command)}
+              entry.view?.viewType === 'channel_access' ? (
+                <ChannelAccessView
+                  entry={entry}
+                  locale={locale}
+                  actionAvailable={actionAvailable}
+                  runningCommandKey={runningCommandKey}
+                  executeCommand={executeCommand}
+                />
+              ) : (
+                <>
+                  {entry.badges.length > 0 && (
+                    <div className={styles.badges}>
+                      {entry.badges.map((badge) => (
+                        <Tag key={badge.badgeId} size='small' data-tone={badge.tone}>
+                          {resolveOplUiContributionLabel(badge.label, locale, badge.badgeId)}
+                        </Tag>
+                      ))}
+                    </div>
+                  )}
+                  {entry.commands.length > 0 && (
+                    <div className={styles.actions}>
+                      {entry.commands.map((command) => {
+                        const commandKey = commandInvocationKey(entry, command.commandId, {});
+                        const label = resolveOplUiContributionLabel(command.label, locale, command.commandId);
+                        return (
+                          <Tooltip
+                            key={command.commandId}
+                            content={
+                              actionAvailable
+                                ? command.confirmationRequired
+                                  ? t('common.oplUiContributions.confirmationRequired')
+                                  : label
+                                : t('common.oplUiContributions.actionUnavailable')
+                            }
                           >
-                            {label}
-                          </Button>
-                        </Tooltip>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+                            <Button
+                              size='small'
+                              type='text'
+                              icon={<Play aria-hidden='true' theme='outline' size={13} fill='currentColor' />}
+                              disabled={!actionAvailable}
+                              loading={runningCommandKey === commandKey}
+                              onClick={() => requestCommand(entry, command)}
+                            >
+                              {label}
+                            </Button>
+                          </Tooltip>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )
             ) : (
               <p className={styles.fallback} role='status'>
                 {t('common.oplUiContributions.unsupportedKind', { kind: entry.contributionKind })}

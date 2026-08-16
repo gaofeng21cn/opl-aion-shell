@@ -49,7 +49,25 @@
     "executeSuccess": "Package 操作已完成",
     "executeFailed": "Package 操作失败",
     "readbackFailed": "操作已完成，但无法读取最新 App 状态",
-    "unsupportedKind": "此处暂不支持 {{kind}}，其他模块仍可使用。"
+    "unsupportedKind": "此处暂不支持 {{kind}}，其他模块仍可使用。",
+    "channelAccess": {
+      "readFailed": "暂时无法读取渠道访问状态",
+      "unavailable": "渠道提供方当前不可用",
+      "qrCode": "渠道登录二维码",
+      "pendingPairings": "待处理配对",
+      "authorizedUsers": "已授权用户",
+      "none": "无",
+      "expiresAt": "{{time}} 到期",
+      "authorizedAt": "{{time}} 授权",
+      "states": {
+        "disconnected": "未连接",
+        "connecting": "连接中",
+        "qrReady": "可连接",
+        "qrScanned": "确认中",
+        "connected": "已连接",
+        "attention": "需要处理"
+      }
+    }
   },
   "feedback": {
     "includeLogs": "附加已脱敏的诊断日志",

@@ -11,6 +11,7 @@ const stateMocks = vi.hoisted(() => ({
   appState: {} as Record<string, unknown>,
   load: vi.fn(),
   executeAction: vi.fn(),
+  runPackageContribution: vi.fn(),
   modalConfirm: vi.fn(),
   messageSuccess: vi.fn(),
   messageError: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/common', () => ({
   ipcBridge: {
     oplRuntime: {
       executeAction: { invoke: stateMocks.executeAction },
+      runPackageContribution: { invoke: stateMocks.runPackageContribution },
     },
   },
 }));
@@ -47,19 +49,19 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-function contribution(input: { confirmationRequired?: boolean; kind?: string } = {}) {
+function contribution(input: { confirmationRequired?: boolean; kind?: string; slot?: string; viewType?: string } = {}) {
   return {
     contribution_key: 'example.package:activity',
     contribution_id: 'activity',
     package_id: 'example.package',
-    slot: 'runtime.detail',
+    slot: input.slot ?? 'runtime.detail',
     contribution_kind: input.kind ?? 'view',
     trust_tier: 'declarative',
     scope: 'root',
     sort_order: 10,
     view: {
       view_id: 'activity',
-      view_type: 'activity_log',
+      view_type: input.viewType ?? 'activity_log',
       title_i18n: { 'en-US': 'Package activity' },
       data_ref: 'example.activity.v1#current',
     },
@@ -98,6 +100,7 @@ describe('OplUiContributionSlot', () => {
     vi.clearAllMocks();
     stateMocks.appState = appState([contribution()]);
     stateMocks.executeAction.mockResolvedValue({ ok: true });
+    stateMocks.runPackageContribution.mockReset();
     stateMocks.load.mockResolvedValue({ app_state: stateMocks.appState });
   });
 
@@ -186,5 +189,87 @@ describe('OplUiContributionSlot', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('opl-ui-contribution-example.package:activity')).not.toBeInTheDocument();
     });
+  });
+
+  it('renders channel_access data and dispatches the exact validated entity input', async () => {
+    stateMocks.appState = appState([contribution({ slot: 'settings.section', viewType: 'channel_access' })]);
+    stateMocks.runPackageContribution.mockResolvedValue({
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'example.package',
+          ref: 'example.activity.v1#current',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: {
+            kind: 'local',
+            identity: 'example.package@local',
+            lifecycle_authority: 'carrier_owned',
+          },
+          readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'example.activity.v1#current',
+            operation: 'read',
+            result: {
+              schema_version: 'opl-app-channel-access.v1',
+              status: 'available',
+              channel_id: 'example',
+              connection: {
+                state: 'qr_ready',
+                qr_challenge: { payload: 'ephemeral-qr-payload', expires_at_ms: Date.now() + 60_000 },
+              },
+              actions: [],
+              pending_pairings: [],
+              authorized_users: [
+                {
+                  user_id: 'user-1',
+                  display_name: 'Channel user',
+                  authorized_at_ms: 1,
+                  actions: [
+                    {
+                      command_id: 'refresh',
+                      input: { channel_id: 'example', user_id: 'user-1' },
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+
+    render(<OplUiContributionSlot slot='settings.section' />);
+    expect(await screen.findByText('Channel user')).toBeInTheDocument();
+    expect(screen.getByLabelText('common.oplUiContributions.channelAccess.qrCode')).toBeInTheDocument();
+    expect(stateMocks.runPackageContribution).toHaveBeenCalledWith({
+      packageId: 'example.package',
+      ref: 'example.activity.v1#current',
+      operation: 'read',
+      input: {},
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh activity' }));
+    await waitFor(() => {
+      expect(stateMocks.executeAction).toHaveBeenCalledWith({
+        actionId: 'package_contribution_execute',
+        payloadJson: {
+          package_id: 'example.package',
+          ref: 'example.activity.v1#refresh',
+          input: { channel_id: 'example', user_id: 'user-1' },
+          confirmed: false,
+        },
+        dryRun: false,
+      });
+    });
+    await waitFor(() => expect(stateMocks.runPackageContribution).toHaveBeenCalledTimes(2));
   });
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   hasPackageContributionExecuteAction,
+  readOplChannelAccessResult,
+  readOplPackageContributionReadResult,
+  readOplTransportBindingsProjection,
   readOplUiContributionsProjection,
   resolveOplUiContributionLabel,
 } from '@/common/types/opl/uiContributions';
@@ -100,5 +103,178 @@ describe('OPL UI contribution projection', () => {
     expect(resolveOplUiContributionLabel(label, 'zh-CN', 'fallback')).toBe('活动');
     expect(resolveOplUiContributionLabel(label, 'fr-FR', 'fallback')).toBe('Activity');
     expect(resolveOplUiContributionLabel({}, 'en-US', 'fallback')).toBe('fallback');
+  });
+
+  it('parses the canonical transport binding projection and rejects ambiguous targets', () => {
+    const binding = {
+      binding_id: 'binding-1',
+      package_id: 'opl-weixin',
+      transport_id: 'weixin',
+      transport_conversation_id: 'transport-1',
+      canonical_thread_host: 'codex-app-server',
+      canonical_thread_id: 'thread-1',
+      project_affinity: 'projectless',
+      status: 'bound',
+    };
+    const projection = readOplTransportBindingsProjection({
+      transport_bindings: {
+        surface_kind: 'opl_app_transport_bindings_projection.v1',
+        status: 'available',
+        bindings: [binding],
+        authority_boundary: { projection_owner: 'one-person-lab-framework' },
+      },
+    });
+    expect(projection).toMatchObject({
+      status: 'available',
+      bindings: [
+        {
+          transportConversationId: 'transport-1',
+          canonicalThreadHost: 'codex-app-server',
+          canonicalThreadId: 'thread-1',
+        },
+      ],
+    });
+
+    expect(
+      readOplTransportBindingsProjection({
+        transport_bindings: {
+          surface_kind: 'opl_app_transport_bindings_projection.v1',
+          status: 'available',
+          bindings: [binding, { ...binding, binding_id: 'binding-2', canonical_thread_id: 'thread-2' }],
+          authority_boundary: {},
+        },
+      }).status
+    ).toBe('unavailable');
+  });
+
+  it('validates channel_access result actions and their exact scoped input', () => {
+    const value = {
+      schema_version: 'opl-app-channel-access.v1',
+      status: 'available',
+      channel_id: 'weixin',
+      connection: { state: 'connected', account_display_name: 'OPL' },
+      actions: [{ command_id: 'channel.disconnect', input: { channel_id: 'weixin' } }],
+      pending_pairings: [
+        {
+          pairing_id: 'pairing-1',
+          requested_at_ms: 1,
+          expires_at_ms: 2,
+          actions: [
+            {
+              command_id: 'channel.pairing.approve',
+              input: { channel_id: 'weixin', pairing_id: 'pairing-1' },
+            },
+          ],
+        },
+      ],
+      authorized_users: [
+        {
+          user_id: 'user-1',
+          authorized_at_ms: 3,
+          actions: [
+            {
+              command_id: 'channel.user.revoke',
+              input: { channel_id: 'weixin', user_id: 'user-1' },
+            },
+          ],
+        },
+      ],
+      refresh_after_ms: 1000,
+    };
+    expect(readOplChannelAccessResult(value)).toMatchObject({
+      status: 'available',
+      channelId: 'weixin',
+      pendingPairings: [{ actions: [{ input: { channel_id: 'weixin', pairing_id: 'pairing-1' } }] }],
+    });
+    expect(
+      readOplChannelAccessResult({
+        ...value,
+        actions: [{ command_id: 'channel.disconnect', input: { channel_id: 'other' } }],
+      })
+    ).toBeNull();
+    expect(
+      readOplChannelAccessResult({
+        ...value,
+        actions: [{ command_id: 'channel.disconnect', input: { channel_id: 'weixin', user_id: 'user-1' } }],
+      })
+    ).toBeNull();
+    expect(
+      readOplChannelAccessResult({
+        ...value,
+        pending_pairings: [
+          {
+            ...value.pending_pairings[0],
+            actions: [
+              {
+                command_id: 'channel.pairing.approve',
+                input: { channel_id: 'weixin', pairing_id: 'different-pairing' },
+              },
+            ],
+          },
+        ],
+      })
+    ).toBeNull();
+  });
+
+  it('extracts contribution reads only from the exact validated envelope identity', () => {
+    const result = {
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'opl-weixin',
+          ref: 'channel.access.v1#current',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: {
+            kind: 'local',
+            identity: 'opl-weixin@local',
+            lifecycle_authority: 'carrier_owned',
+          },
+          readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'channel.access.v1#current',
+            operation: 'read',
+            result: { status: 'available' },
+          },
+        },
+      },
+    };
+    expect(
+      readOplPackageContributionReadResult(result, {
+        packageId: 'opl-weixin',
+        ref: 'channel.access.v1#current',
+      })
+    ).toEqual({ status: 'available' });
+    expect(
+      readOplPackageContributionReadResult(result, {
+        packageId: 'other',
+        ref: 'channel.access.v1#current',
+      })
+    ).toBeNull();
+
+    for (const invalidContribution of [
+      { ...result.parsed.opl_app_contribution, confirmation_required: undefined },
+      { ...result.parsed.opl_app_contribution, carrier_readback: undefined },
+      { ...result.parsed.opl_app_contribution, readiness: undefined },
+      {
+        ...result.parsed.opl_app_contribution,
+        readiness: { installed: true, physical_status: 'available', callability: 'unavailable' },
+      },
+    ]) {
+      expect(
+        readOplPackageContributionReadResult(
+          { ...result, parsed: { opl_app_contribution: invalidContribution } },
+          { packageId: 'opl-weixin', ref: 'channel.access.v1#current' }
+        )
+      ).toBeNull();
+    }
   });
 });

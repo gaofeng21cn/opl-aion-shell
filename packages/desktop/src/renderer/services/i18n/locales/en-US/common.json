@@ -49,7 +49,25 @@
     "executeSuccess": "Package action completed",
     "executeFailed": "Package action failed",
     "readbackFailed": "The action completed, but fresh App state could not be read",
-    "unsupportedKind": "{{kind}} is not supported here. Other modules remain available."
+    "unsupportedKind": "{{kind}} is not supported here. Other modules remain available.",
+    "channelAccess": {
+      "readFailed": "Channel access is temporarily unavailable",
+      "unavailable": "The channel provider is unavailable",
+      "qrCode": "Channel login QR code",
+      "pendingPairings": "Pending pairings",
+      "authorizedUsers": "Authorized users",
+      "none": "None",
+      "expiresAt": "Expires {{time}}",
+      "authorizedAt": "Authorized {{time}}",
+      "states": {
+        "disconnected": "Disconnected",
+        "connecting": "Connecting",
+        "qrReady": "Ready to connect",
+        "qrScanned": "Confirming",
+        "connected": "Connected",
+        "attention": "Needs attention"
+      }
+    }
   },
   "feedback": {
     "includeLogs": "Attach redacted diagnostic logs",

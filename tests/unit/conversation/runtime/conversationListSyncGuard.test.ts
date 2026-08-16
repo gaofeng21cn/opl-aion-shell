@@ -10,7 +10,7 @@ import type { CodexThreadDescriptor, CodexThreadDirectory } from '@/common/types
 import {
   createSingleFlightDirtyReplay,
   getSidebarStreamGuardDecision,
-  inferWeixinCanonicalThreadBindings,
+  inferLegacyWeixinCanonicalThreadBindings,
   mergeCanonicalThreadDirectory,
   visibleConversationIds,
 } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
@@ -501,10 +501,10 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged[0]?.name).toBe('Canonical task');
   });
 
-  it('binds a WeChat transport conversation to one canonical task row', () => {
-    const transportWorkspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
+  it('prefers a valid shared transport projection over legacy canonical_thread_id', () => {
+    const transportWorkspace = '/Users/example/.opl-app-data/conversations/transport-05ee8303';
     const canonicalWorkspace =
-      '/Users/example/Library/Application Support/One Person Lab/opl-data/conversations/codex-temp-05ee8303';
+      '/Users/example/Library/Application Support/One Person Lab/opl-data/conversations/thread-workspace';
     const transport = {
       id: '05ee8303',
       name: 'wx-acp-codex-user',
@@ -513,6 +513,7 @@ describe('mergeCanonicalThreadDirectory', () => {
       source: 'weixin',
       extra: {
         backend: 'codex',
+        canonical_thread_id: 'legacy-thread',
         workspace: transportWorkspace,
         is_temporary_workspace: true,
       },
@@ -531,10 +532,9 @@ describe('mergeCanonicalThreadDirectory', () => {
     } as TChatConversation;
     const canonicalDirectory = directory([thread({ workspace: canonicalWorkspace, projectId: '' })]);
 
-    expect(inferWeixinCanonicalThreadBindings([transport, cachedCanonical], canonicalDirectory)).toEqual([
-      { conversationId: '05ee8303', threadId: 'thread-1' },
+    const merged = mergeCanonicalThreadDirectory([transport, cachedCanonical], canonicalDirectory, new Set(), [
+      { conversationId: '05ee8303', canonicalThreadHost: 'host-a', threadId: 'thread-1', temporaryWorkspace: true },
     ]);
-    const merged = mergeCanonicalThreadDirectory([transport, cachedCanonical], canonicalDirectory);
 
     expect(merged).toHaveLength(1);
     expect(merged[0]).toMatchObject({
@@ -551,9 +551,68 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(groupConversationsByWorkspace(merged, (key) => key)[0]?.items).toEqual([
       expect.objectContaining({ type: 'conversation', conversation: merged[0] }),
     ]);
+    expect(transport.extra).toHaveProperty('canonical_thread_id', 'legacy-thread');
   });
 
-  it('does not bind a WeChat transport row when the temporary workspace match is ambiguous', () => {
+  it('uses workspace inference only as a migration fallback when the shared projection is unavailable', () => {
+    const workspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
+    const transport = {
+      id: '05ee8303',
+      name: 'wx-acp-codex-user',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: { backend: 'codex', workspace, is_temporary_workspace: true },
+    } as TChatConversation;
+    const canonicalDirectory = directory([thread({ workspace })]);
+
+    expect(inferLegacyWeixinCanonicalThreadBindings([transport], canonicalDirectory)).toEqual([
+      { conversationId: transport.id, threadId: 'thread-1' },
+    ]);
+    expect(inferLegacyWeixinCanonicalThreadBindings([transport], canonicalDirectory, new Set([transport.id]))).toEqual(
+      []
+    );
+  });
+
+  it('ignores a conflicting legacy binding when a current shared binding exists', () => {
+    const transport = {
+      id: 'shared-over-legacy',
+      name: 'WeChat transport',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-2',
+        workspace: '/tmp/legacy-conflict',
+        is_temporary_workspace: true,
+      },
+    } as TChatConversation;
+    const merged = mergeCanonicalThreadDirectory(
+      [transport],
+      directory([thread(), thread({ id: 'thread-2' })]),
+      new Set(),
+      [
+        {
+          conversationId: transport.id,
+          canonicalThreadHost: 'host-a',
+          threadId: 'thread-1',
+          temporaryWorkspace: true,
+        },
+      ]
+    );
+
+    expect(merged.find((conversation) => conversation.extra.canonical_thread_id === 'thread-1')?.extra).toMatchObject({
+      is_temporary_workspace: true,
+    });
+    expect(
+      merged.find((conversation) => conversation.extra.canonical_thread_id === 'thread-2')?.extra
+    ).not.toMatchObject({
+      is_temporary_workspace: true,
+    });
+  });
+
+  it('fails open when projected transport bindings are ambiguous', () => {
     const workspace = '/Users/example/.opl-app-data/conversations/codex-temp-05ee8303';
     const transport = {
       id: '05ee8303',
@@ -564,12 +623,50 @@ describe('mergeCanonicalThreadDirectory', () => {
       extra: { backend: 'codex', workspace, is_temporary_workspace: true },
     } as TChatConversation;
 
-    expect(
-      inferWeixinCanonicalThreadBindings(
-        [transport],
-        directory([thread({ id: 'thread-1', workspace }), thread({ id: 'thread-2', workspace })])
-      )
-    ).toEqual([]);
+    const merged = mergeCanonicalThreadDirectory(
+      [transport],
+      directory([thread({ id: 'thread-1', workspace }), thread({ id: 'thread-2', workspace })]),
+      new Set(),
+      [
+        { conversationId: transport.id, canonicalThreadHost: 'host-a', threadId: 'thread-1' },
+        { conversationId: transport.id, canonicalThreadHost: 'host-a', threadId: 'thread-2' },
+      ]
+    );
+
+    expect(merged).toContain(transport);
+  });
+
+  it('keeps a transport row visible when no projected or legacy binding is available', () => {
+    const transport = {
+      id: 'unbound-weixin',
+      name: 'WeChat transport',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: { backend: 'codex', workspace: '/tmp/unbound', is_temporary_workspace: true },
+    } as TChatConversation;
+
+    expect(mergeCanonicalThreadDirectory([transport], directory([thread()]))).toContain(transport);
+  });
+
+  it('keeps read compatibility for an existing canonical_thread_id without writing a new binding', () => {
+    const transport = {
+      id: 'legacy-weixin',
+      name: 'Legacy WeChat transport',
+      created_at: 1,
+      type: 'acp',
+      source: 'weixin',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: '/tmp/legacy',
+        is_temporary_workspace: true,
+      },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory([transport], directory([thread()]));
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ source: 'codex-app-server', extra: { canonical_thread_id: 'thread-1' } });
   });
 
   it('falls back to shell cache when the canonical directory is unavailable', () => {
