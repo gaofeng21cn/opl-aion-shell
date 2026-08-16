@@ -72,6 +72,7 @@ export type CodexAppServerChannelConversationIdentity = {
 };
 
 export type CodexAppServerChannelThreadRef = {
+  canonical_thread_host: string;
   canonical_thread_id: string;
 };
 
@@ -97,7 +98,7 @@ export type CodexAppServerChannelDisposable = {
 export type CodexAppServerChannelTurnCallback = {
   startThread: (input: CodexAppServerChannelConversationIdentity) => Promise<CodexAppServerChannelThreadRef>;
   resumeThread: (input: CodexAppServerChannelThreadRef) => Promise<void>;
-  startTurn: (input: CodexAppServerChannelTurnRef & { text: string }) => Promise<CodexAppServerChannelTurnRef>;
+  startTurn: (input: CodexAppServerChannelThreadRef & { text: string }) => Promise<CodexAppServerChannelTurnRef>;
   subscribeTurn: (
     input: CodexAppServerChannelTurnRef,
     observer: CodexAppServerChannelTurnObserver
@@ -1081,10 +1082,14 @@ export class CodexAppServerAdapter {
     if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
       throw new Error('Channel thread start readback did not match the active Codex app-server.');
     }
-    return { canonical_thread_id: started.id };
+    return { canonical_thread_host: this.host, canonical_thread_id: started.id };
   }
 
   private async resumeChannelThread(input: CodexAppServerChannelThreadRef): Promise<void> {
+    const canonicalThreadHost = requiredString(input.canonical_thread_host, 'channel canonical thread host');
+    if (canonicalThreadHost !== this.host) {
+      throw new Error('Channel binding targeted a different Codex app-server host.');
+    }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
     const readback = await this.readThread(canonicalThreadId);
     if (readback.thread.id !== canonicalThreadId || readback.thread.host !== this.host) {
@@ -1097,8 +1102,12 @@ export class CodexAppServerAdapter {
   }
 
   private async startChannelTurn(
-    input: CodexAppServerChannelTurnRef & { text: string }
+    input: CodexAppServerChannelThreadRef & { text: string }
   ): Promise<CodexAppServerChannelTurnRef> {
+    const canonicalThreadHost = requiredString(input.canonical_thread_host, 'channel canonical thread host');
+    if (canonicalThreadHost !== this.host) {
+      throw new Error('Channel turn targeted a different Codex app-server host.');
+    }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
     const text = requiredString(input.text, 'channel turn text');
     const turn = await this.startTurn({
@@ -1108,13 +1117,21 @@ export class CodexAppServerAdapter {
       input: text,
     });
     this.channelTurnText.set(canonicalThreadId, { canonicalTurnId: turn.turnId, text: '' });
-    return { canonical_thread_id: canonicalThreadId, canonical_turn_id: turn.turnId };
+    return {
+      canonical_thread_host: this.host,
+      canonical_thread_id: canonicalThreadId,
+      canonical_turn_id: turn.turnId,
+    };
   }
 
   private subscribeChannelTurn(
     input: CodexAppServerChannelTurnRef,
     observer: CodexAppServerChannelTurnObserver
   ): CodexAppServerChannelDisposable {
+    const canonicalThreadHost = requiredString(input.canonical_thread_host, 'channel canonical thread host');
+    if (canonicalThreadHost !== this.host) {
+      throw new Error('Channel subscription targeted a different Codex app-server host.');
+    }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
     const canonicalTurnId = requiredString(input.canonical_turn_id, 'channel canonical turn id');
     const subscription: ChannelTurnSubscription = {
@@ -1698,9 +1715,15 @@ export class CodexAppServerAdapter {
       this.emitChannelTurnTerminal(
         threadId,
         cancelled
-          ? { canonical_thread_id: threadId, canonical_turn_id: completedTurnId, status: 'cancelled' }
+          ? {
+              canonical_thread_host: this.host,
+              canonical_thread_id: threadId,
+              canonical_turn_id: completedTurnId,
+              status: 'cancelled',
+            }
           : failed
             ? {
+                canonical_thread_host: this.host,
                 canonical_thread_id: threadId,
                 canonical_turn_id: completedTurnId,
                 status: 'failed',
@@ -1714,6 +1737,7 @@ export class CodexAppServerAdapter {
                 },
               }
             : {
+                canonical_thread_host: this.host,
                 canonical_thread_id: threadId,
                 canonical_turn_id: completedTurnId,
                 status: 'completed',

@@ -185,13 +185,16 @@ describe('CodexAppServerAdapter', () => {
     });
 
     const callback = adapter.createChannelTurnCallback();
-    expect(Object.keys(callback).sort()).toEqual(['resumeThread', 'startThread', 'startTurn', 'subscribeTurn']);
+    expect(Object.keys(callback).toSorted()).toEqual(['resumeThread', 'startThread', 'startTurn', 'subscribeTurn']);
     const thread = await callback.startThread({
       provider_id: 'opl-channel-weixin',
       account_id: 'account-1',
       channel_session_id: 'session-1',
     });
-    expect(thread).toEqual({ canonical_thread_id: 'channel-thread' });
+    expect(thread).toEqual({
+      canonical_thread_host: 'local-host',
+      canonical_thread_id: 'channel-thread',
+    });
 
     await callback.resumeThread(thread);
     const turn = await callback.startTurn({ ...thread, text: 'Hello from WeChat' });
@@ -210,11 +213,18 @@ describe('CodexAppServerAdapter', () => {
     });
 
     expect(onTerminal).toHaveBeenCalledWith({
+      canonical_thread_host: 'local-host',
       canonical_thread_id: 'channel-thread',
       canonical_turn_id: 'turn-1',
       status: 'completed',
       response_text: 'Hello back',
     });
+    await expect(callback.resumeThread({ ...thread, canonical_thread_host: 'other-host' })).rejects.toThrow(
+      /different Codex app-server host/
+    );
+    await expect(
+      callback.startTurn({ ...thread, canonical_thread_host: 'other-host', text: 'blocked' })
+    ).rejects.toThrow(/different Codex app-server host/);
   });
 
   it('uses thread/list fields without hydrating every active thread', async () => {
