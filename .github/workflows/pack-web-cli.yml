@@ -3,10 +3,6 @@ name: Pack Web CLI
 on:
   workflow_call:
     inputs:
-      ref:
-        description: 'Git ref to checkout (leave empty to use the triggering commit)'
-        type: string
-        default: ''
       append_commit_hash:
         description: 'Append short commit hash to artifact names'
         type: boolean
@@ -17,14 +13,13 @@ on:
         default: false
   workflow_dispatch:
     inputs:
-      ref:
-        description: 'Git ref to checkout (leave empty to use the triggering commit)'
-        type: string
-        default: ''
       skip_code_quality:
         description: 'Skip code quality checks'
         type: boolean
         default: false
+
+permissions:
+  contents: read
 
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
@@ -37,8 +32,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -86,8 +79,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Get commit hash
         id: commit
@@ -139,8 +130,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Get commit hash
         id: commit

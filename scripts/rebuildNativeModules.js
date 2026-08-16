@@ -7,7 +7,7 @@
  * - Falls back to standard bunx if vx is not available
  */
 
-const { execSync, spawnSync } = require('child_process');
+const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -45,12 +45,11 @@ function resolveBunExecutable({ env = process.env, execPath = process.execPath }
   return 'bun';
 }
 
-function quoteCommandExecutable(executable) {
-  return /\s/.test(executable) ? `"${executable.replace(/"/g, '\\"')}"` : executable;
-}
-
-function getBunxCommand(options) {
-  return `${quoteCommandExecutable(resolveBunExecutable(options))} x`;
+function getBunxInvocation(options) {
+  return {
+    command: resolveBunExecutable(options),
+    args: ['x'],
+  };
 }
 
 /**
@@ -70,6 +69,27 @@ function getCommandPrefix(platform, useVx = true) {
     return 'vx --with msvc';
   }
   return 'vx';
+}
+
+function getNativeBuildInvocation(platform, args, options) {
+  const bunx = getBunxInvocation(options);
+  const commandPrefix = getCommandPrefix(platform);
+  if (commandPrefix === 'vx --with msvc') {
+    return {
+      command: 'vx',
+      args: ['--with', 'msvc', bunx.command, ...bunx.args, ...args],
+    };
+  }
+  if (commandPrefix === 'vx') {
+    return {
+      command: 'vx',
+      args: [bunx.command, ...bunx.args, ...args],
+    };
+  }
+  return {
+    command: bunx.command,
+    args: [...bunx.args, ...args],
+  };
 }
 
 /**
@@ -148,14 +168,26 @@ function rebuildWithElectronRebuild(options) {
   const targetArch = normalizeArch(arch);
   const env = buildEnvironment(platform, targetArch, electronVersion);
 
-  const bunxCmd = getBunxCommand();
-  const rebuildCmd = `${bunxCmd} electron-rebuild --only ${modules.join(',')} --force --arch ${targetArch} --electron-version ${electronVersion}`;
-
-  execSync(rebuildCmd, {
-    stdio: 'inherit',
-    cwd,
-    env,
-  });
+  const bunx = getBunxInvocation();
+  execFileSync(
+    bunx.command,
+    [
+      ...bunx.args,
+      'electron-rebuild',
+      '--only',
+      modules.join(','),
+      '--force',
+      '--arch',
+      targetArch,
+      '--electron-version',
+      electronVersion,
+    ],
+    {
+      stdio: 'inherit',
+      cwd,
+      env,
+    }
+  );
 }
 
 /**
@@ -211,10 +243,6 @@ function rebuildSingleModule(options) {
   env.npm_config_platform = platform;
   env.npm_config_target_platform = platform;
 
-  const bunxCmd = getBunxCommand();
-  const cmdPrefix = getCommandPrefix(platform);
-  const useShell = cmdPrefix.length > 0; // Need shell for vx prefix
-
   // For Linux cross-compilation, ALWAYS use prebuild-install
   // because electron-rebuild cannot cross-compile without ARM64 toolchain
   const mustUsePrebuild = platform === 'linux' && isCrossCompile;
@@ -265,16 +293,13 @@ function rebuildSingleModule(options) {
         '--force',
       ];
 
-      const fullCmd = cmdPrefix
-        ? `${cmdPrefix} ${bunxCmd} ${prebuildArgs.join(' ')}`
-        : `${bunxCmd} ${prebuildArgs.join(' ')}`;
-      console.log(`     Running: ${fullCmd}`);
+      const invocation = getNativeBuildInvocation(platform, prebuildArgs);
+      console.log(`     Running: ${invocation.command} ${invocation.args.join(' ')}`);
 
-      execSync(fullCmd, {
+      execFileSync(invocation.command, invocation.args, {
         cwd: moduleRoot,
         env,
         stdio: 'inherit',
-        shell: useShell || process.platform === 'win32',
       });
 
       console.log(`     ✓ prebuild-install succeeded`);
@@ -309,16 +334,13 @@ function rebuildSingleModule(options) {
       `--arch=${targetArch}`,
     ];
 
-    const fullCmd = cmdPrefix
-      ? `${cmdPrefix} ${bunxCmd} ${rebuildArgs.join(' ')}`
-      : `${bunxCmd} ${rebuildArgs.join(' ')}`;
-    console.log(`     Running: ${fullCmd}`);
+    const invocation = getNativeBuildInvocation(platform, rebuildArgs);
+    console.log(`     Running: ${invocation.command} ${invocation.args.join(' ')}`);
 
-    execSync(fullCmd, {
+    execFileSync(invocation.command, invocation.args, {
       cwd: projectRoot,
       env,
       stdio: 'inherit',
-      shell: useShell || process.platform === 'win32',
     });
     return true;
   } catch (error) {
@@ -399,6 +421,6 @@ module.exports = {
   canCrossCompileFromSource,
   isVxAvailable,
   resolveBunExecutable,
-  getBunxCommand,
+  getBunxInvocation,
   getCommandPrefix,
 };

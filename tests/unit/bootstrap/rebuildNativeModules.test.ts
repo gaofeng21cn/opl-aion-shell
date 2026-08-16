@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const { getBunxCommand, resolveBunExecutable } = require('../../../scripts/rebuildNativeModules.js');
+const { getBunxInvocation, resolveBunExecutable } = require('../../../scripts/rebuildNativeModules.js');
 
 const tempDirs: string[] = [];
 
@@ -32,17 +32,17 @@ describe('native rebuild Bun resolution', () => {
     ).toBe(bunExecutable);
   });
 
-  it('quotes an explicit Bun executable whose path contains spaces', () => {
+  it('passes an explicit Bun executable whose path contains spaces without shell quoting', () => {
     const bunExecutable = path.join(makeTempDir(), 'Bun Runtime', 'bun.exe');
     fs.mkdirSync(path.dirname(bunExecutable), { recursive: true });
     fs.writeFileSync(bunExecutable, 'fixture');
 
     expect(
-      getBunxCommand({
+      getBunxInvocation({
         env: { BUN_EXECUTABLE: bunExecutable },
         execPath: path.join(path.dirname(bunExecutable), 'node.exe'),
       })
-    ).toBe(`"${bunExecutable}" x`);
+    ).toEqual({ command: bunExecutable, args: ['x'] });
   });
 
   it('fails closed when BUN_EXECUTABLE does not resolve to a file', () => {

@@ -6987,7 +6987,7 @@ async function runAssistantRouteSmoke(options, secret) {
 }
 
 function unifiedLogPredicate(processName) {
-  const escapedProcessName = processName.replace(/"/g, '\\"');
+  const escapedProcessName = processName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return [
     `process == "${escapedProcessName}"`,
     `eventMessage CONTAINS[c] "${escapedProcessName}"`,

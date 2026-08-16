@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const { normalizeInternalSymlinks, prepareAioncore } = require('../packages/shared-scripts/src/prepare-aioncore.js');
 const { resolveAioncoreVersion } = require('./resolveAioncoreVersion.js');
 
@@ -246,8 +246,15 @@ function buildOfficialProfileApplyHelper({ projectRoot, stagingDir, executablePa
       },
     })}; }\n`
   );
-  execSync(
-    `bun build --compile --target=${bunTarget} --outfile="${executablePath}" "${path.join(sourceRoot, 'official-profile-package-apply.ts')}"`,
+  execFileSync(
+    'bun',
+    [
+      'build',
+      '--compile',
+      `--target=${bunTarget}`,
+      `--outfile=${executablePath}`,
+      path.join(sourceRoot, 'official-profile-package-apply.ts'),
+    ],
     { cwd: projectRoot, stdio: 'inherit' }
   );
 }
@@ -316,7 +323,7 @@ const bunTarget = `bun-${bunTargetPlatform}-${bunTargetArch}`;
 const executableName = platform === 'win32' ? 'aionui-web.exe' : 'aionui-web';
 const executablePath = path.join(tarballContentDir, executableName);
 const webCliEntry = path.join(projectRoot, 'packages/web-cli/src/index.ts');
-execSync(`bun build --compile --target=${bunTarget} --outfile="${executablePath}" "${webCliEntry}"`, {
+execFileSync('bun', ['build', '--compile', `--target=${bunTarget}`, `--outfile=${executablePath}`, webCliEntry], {
   cwd: projectRoot,
   stdio: 'inherit',
 });
@@ -371,7 +378,7 @@ writeOplImageResources({ projectRoot, tarballContentDir, srcPkg, version, runtim
 
 // 9. Create tarball
 fs.mkdirSync(distDir, { recursive: true });
-execSync(`tar -czf ${path.basename(tarballPath)} -C ${stagingDir} aionui-web`, {
+execFileSync('tar', ['-czf', path.basename(tarballPath), '-C', stagingDir, 'aionui-web'], {
   cwd: path.dirname(tarballPath),
   stdio: 'inherit',
 });

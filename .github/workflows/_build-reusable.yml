@@ -7,10 +7,6 @@ on:
         description: 'Build matrix as JSON string (passed via fromJSON in caller)'
         type: string
         required: true
-      ref:
-        description: 'Git ref to checkout (leave empty to use the triggering commit)'
-        type: string
-        default: ''
       skip_code_quality:
         description: 'Skip code quality checks (faster builds for debugging)'
         type: boolean
@@ -44,6 +40,9 @@ on:
         type: string
         default: ''
 
+permissions:
+  contents: read
+
 env:
   BUN_INSTALL_REGISTRY: 'https://registry.npmjs.org/'
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
@@ -59,7 +58,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
       - name: Setup Node.js
@@ -107,8 +105,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -200,8 +196,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ inputs.ref }}
 
       - name: Get commit hash
         id: commit
@@ -321,7 +315,7 @@ jobs:
           echo "Build Command: ${{ matrix.command }}"
           echo "Runner OS: ${{ runner.os }}"
           echo "Runner Arch: ${{ runner.arch }}"
-          echo "Ref: ${{ inputs.ref || '(default)' }}"
+          echo "Trigger SHA: ${{ github.sha }}"
           echo "Commit: ${{ steps.commit.outputs.short }}"
           echo "=========================================="
 
@@ -782,7 +776,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Key | Value |" >> $GITHUB_STEP_SUMMARY
           echo "|-----|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Ref | \`${{ inputs.ref || '(default)' }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trigger SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Commit | \`${{ needs.build.outputs.commit-short }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Platforms | $PLATFORMS |" >> $GITHUB_STEP_SUMMARY
           echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
