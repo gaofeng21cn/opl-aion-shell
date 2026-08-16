@@ -8,7 +8,6 @@ const bridgeMocks = vi.hoisted(() => {
     });
   return {
     handlers,
-    appOn: vi.fn(),
     appWhenReady: vi.fn(async () => undefined),
     createProductionAdapter: vi.fn(),
     providers: {
@@ -37,7 +36,6 @@ const bridgeMocks = vi.hoisted(() => {
 
 vi.mock('electron', () => ({
   app: {
-    on: bridgeMocks.appOn,
     whenReady: bridgeMocks.appWhenReady,
     getPath: vi.fn(() => '/app/user-data'),
   },
@@ -104,5 +102,24 @@ describe('codexAppServerBridge', () => {
     const assign = bridgeMocks.handlers.get('assignProjectAffinity');
     await expect(assign?.({ threadId: 'thread-1', projectId: '/projects/selected' })).resolves.toBe(assigned);
     expect(adapter.assignProjectAffinity).toHaveBeenCalledWith('thread-1', '/projects/selected');
+  });
+
+  it('always disposes the App Server when Host disposal fails', async () => {
+    const adapter = {
+      setEventSink: vi.fn(),
+      dispose: vi.fn(),
+    };
+    const hostError = new Error('host dispose failed');
+    const host = {
+      dispose: vi.fn(async () => {
+        throw hostError;
+      }),
+    };
+    initCodexAppServerBridge(adapter as never, {
+      startChannelProviderHost: vi.fn(async () => host),
+    });
+
+    await expect(disposeCodexAppServerBridge()).rejects.toBe(hostError);
+    expect(adapter.dispose).toHaveBeenCalledOnce();
   });
 });

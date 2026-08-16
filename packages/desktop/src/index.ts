@@ -31,7 +31,7 @@ import { initializeTrayForDesktopMode } from './process/startup/runtime/trayStar
 import { shouldQuitAfterAllWindowsClosed } from './process/startup/runtime/windowAllClosed';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
-import { registerWindowMaximizeListeners } from '@process/bridge';
+import { disposeCodexAppServerBridge, registerWindowMaximizeListeners } from '@process/bridge';
 import { BackendLifecycleManager } from '@aionui/web-host';
 import { resolveBinaryPath } from '@process/backend';
 import './process/bridge/feedbackBridge';
@@ -1024,8 +1024,12 @@ installQuitCleanup({
   // Stop aioncore subprocess — backend shutdown kills all agent children
   // transitively (no separate frontend workerTaskManager remains).
   stopBackend: async () => {
-    await backendManager.stop();
-    await windowsWslRuntime?.terminateAll(5000);
+    try {
+      await disposeCodexAppServerBridge();
+    } finally {
+      await backendManager.stop();
+      await windowsWslRuntime?.terminateAll(5000);
+    }
   },
   destroyPetWindow: async () => {
     const { destroyPetWindow } = await import('./process/pet/petManager');

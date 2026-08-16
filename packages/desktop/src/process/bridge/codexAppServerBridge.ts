@@ -21,7 +21,6 @@ let activeAdapterFactory: () => CodexAppServerAdapter = createDefaultAdapter;
 let activeChannelProviderHost: Promise<ChannelProviderHostDisposable | null> | null = null;
 let channelProviderHostStarter: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostDisposable> =
   startDefaultChannelProviderHost;
-let quitHandlerInstalled = false;
 
 function createDefaultAdapter(): CodexAppServerAdapter {
   const userDataPath = app.getPath('userData');
@@ -52,9 +51,12 @@ export async function disposeCodexAppServerBridge(): Promise<void> {
   const channelProviderHost = activeChannelProviderHost;
   activeAdapter = null;
   activeChannelProviderHost = null;
-  const host = await channelProviderHost;
-  await host?.dispose();
-  adapter?.dispose();
+  try {
+    const host = await channelProviderHost;
+    await host?.dispose();
+  } finally {
+    await adapter?.dispose();
+  }
 }
 
 function getActiveAdapter(): CodexAppServerAdapter {
@@ -104,13 +106,6 @@ export function initCodexAppServerBridge(
   ipcBridge.codexThreads.pendingApprovals.provider(async ({ threadId, conversationId }) =>
     getActiveAdapter().listPendingApprovals(threadId, conversationId)
   );
-
-  if (!quitHandlerInstalled) {
-    quitHandlerInstalled = true;
-    app.on('before-quit', () => {
-      void disposeCodexAppServerBridge();
-    });
-  }
 
   if (adapter) {
     getActiveAdapter();

@@ -275,8 +275,11 @@ describe('CodexAppServerAdapter', () => {
       canonical_thread_id: 'existing-thread',
     });
     expect(request.mock.calls.map(([method]) => method)).not.toContain('thread/start');
-    expect(request.mock.calls.map(([method]) => method)).toContain('thread/resume');
+    const methods = request.mock.calls.map(([method]) => method);
+    expect(methods[0]).toBe('thread/read');
+    expect(methods).not.toContain('thread/resume');
     expect(bindingStore.getOrCreate).toHaveBeenCalledOnce();
+    expect(bindingStore.assertKnownThread).not.toHaveBeenCalled();
   });
 
   it('serializes exact channel binding creation and fails closed on damaged state', async () => {

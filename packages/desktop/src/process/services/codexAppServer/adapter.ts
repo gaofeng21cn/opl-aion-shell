@@ -1104,7 +1104,12 @@ export class CodexAppServerAdapter {
       canonical_thread_host: result.binding.canonical_thread_host,
       canonical_thread_id: result.binding.canonical_thread_id,
     };
-    if (!result.created) await this.resumeChannelThread(thread);
+    if (!result.created) {
+      const readback = await this.readThread(thread.canonical_thread_id);
+      if (readback.thread.id !== thread.canonical_thread_id || readback.thread.host !== this.host) {
+        throw new Error('Persisted channel binding readback did not match the active Codex app-server thread.');
+      }
+    }
     return thread;
   }
 
