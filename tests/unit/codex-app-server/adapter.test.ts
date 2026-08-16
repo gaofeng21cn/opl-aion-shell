@@ -167,6 +167,39 @@ describe('CodexAppServerAdapter', () => {
     });
   });
 
+  it('starts remote tasks in the projected desktop workspace while omitting app-server defaults', async () => {
+    request.mockImplementation(async (method: string, params: unknown) => {
+      if (method === 'thread/start') return { thread: rawThread('remote-thread', { cwd: '/workspace/selected' }) };
+      if (method === 'thread/resume') return resumedThread(rawThread('remote-thread', { cwd: '/workspace/selected' }));
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'model/list') return { data: [] };
+      if (method === 'turn/start') return { turn: { id: 'remote-turn' } };
+      throw new Error(`Unexpected method: ${method} ${JSON.stringify(params)}`);
+    });
+
+    const result = await adapter.startWithDesktopDefaults({
+      text: 'Use desktop defaults',
+      msgId: 'remote-message-001',
+      workspace: '/workspace/selected',
+    });
+
+    expect(result.thread.workspace).toBe('/workspace/selected');
+    expect(result.turn).toEqual({ msgId: 'remote-message-001', turnId: 'remote-turn' });
+    const threadStart = request.mock.calls.find(([method]) => method === 'thread/start');
+    const turnStart = request.mock.calls.find(([method]) => method === 'turn/start');
+    expect(threadStart?.[1]).toEqual({ cwd: '/workspace/selected' });
+    expect(turnStart?.[1]).toEqual({
+      threadId: 'remote-thread',
+      clientUserMessageId: 'remote-message-001',
+      input: [{ type: 'text', text: 'Use desktop defaults', text_elements: [] }],
+    });
+    expect(turnStart?.[1]).not.toHaveProperty('model');
+    expect(turnStart?.[1]).not.toHaveProperty('effort');
+    expect(turnStart?.[1]).not.toHaveProperty('approvalPolicy');
+    expect(turnStart?.[1]).not.toHaveProperty('sandboxPolicy');
+    expect(turnStart?.[1]).not.toHaveProperty('agent');
+  });
+
   it('exposes the bounded channel callback over one canonical thread and turn', async () => {
     let notificationHandler: ((method: string, params: unknown) => void) | undefined;
     rpc = {

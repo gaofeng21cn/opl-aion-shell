@@ -2219,6 +2219,70 @@
         "description": "在服务器或远程设备的浏览器中使用 OPL。"
       }
     },
+    "remoteCompanion": {
+      "title": "OPL Link",
+      "description": "将 OPL Link 与这台桌面配对，从手机访问桌面权威工作台。",
+      "provider": "托管传输",
+      "loading": "正在检查配对可用性……",
+      "unavailable": "这台桌面暂时无法进行远程配对。",
+      "unavailableReasons": {
+        "broker_not_configured": "配对服务尚未配置。",
+        "provider_not_configured": "远程传输尚未配置。",
+        "credential_store_unavailable": "受保护凭据存储不可用。"
+      },
+      "invitationCode": "邀请码",
+      "invitationCodePlaceholder": "输入邀请码",
+      "desktopLabel": "桌面名称",
+      "desktopLabelDefault": "这台桌面",
+      "desktopLabelPlaceholder": "为这台桌面命名",
+      "startPairing": "生成配对二维码",
+      "capacityTitle": "已达到配对上限",
+      "capacityDescription": "撤销一个已有设备后才能创建新的配对。",
+      "expiryUnknown": "无法读取有效期",
+      "expires": "有效期至 {{time}}",
+      "copied": "已复制到剪贴板",
+      "copyFailed": "无法复制到剪贴板",
+      "states": {
+        "reserved": "等待扫描",
+        "claimed": "手机已领取",
+        "awaiting_desktop_confirmation": "等待确认",
+        "provisioning": "正在配置",
+        "active": "已连接",
+        "revoking": "正在撤销",
+        "provider_reclaim_pending": "正在释放访问权",
+        "revoked": "已撤销",
+        "expired": "已过期"
+      },
+      "pairing": {
+        "title": "配对手机",
+        "qr": "使用 OPL Link 扫描",
+        "qrAlt": "OPL Link 配对二维码",
+        "copyQr": "复制配对链接",
+        "authentication": "认证字符串",
+        "confirm": "确认配对",
+        "refresh": "刷新状态"
+      },
+      "pairs": {
+        "title": "已配对设备（{{count}}/{{max}}）",
+        "stale": "需要刷新",
+        "refresh": "刷新访问权",
+        "revoke": "撤销设备",
+        "revokeTitle": "撤销这台设备？",
+        "revokeDescription": "桌面与传输服务都确认撤销完成前，访问权不会被视为已释放。",
+        "confirmRevoke": "撤销配对"
+      },
+      "errors": {
+        "action_failed": "配对操作未能完成。",
+        "invitation_invalid": "邀请码无效。",
+        "invitation_expired": "邀请码已过期。",
+        "invitation_consumed": "邀请码已被使用。",
+        "capacity_unavailable": "当前没有可用的配对容量。",
+        "pairing_expired": "配对已过期。",
+        "pairing_not_ready": "配对尚未准备好执行此操作。",
+        "provider_unavailable": "托管传输暂时不可用。",
+        "rate_limited": "配对请求过于频繁，请稍后再试。"
+      }
+    },
     "docker": {
       "title": "WebUI 与 OPL Workspace",
       "description": "桌面 App 已内置本机工作台；这里提供本机或服务器 WebUI 的打开、检查和维护入口。",

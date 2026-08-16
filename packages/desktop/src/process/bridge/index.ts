@@ -17,6 +17,7 @@ import { initLocalDataLifecycleBridge } from './localDataLifecycleBridge';
 import { disposeCodexAppServerBridge, initCodexAppServerBridge } from './codexAppServerBridge';
 import type { CodexAppServerAdapter } from '../services/codexAppServer/adapter';
 import { initGitWorkspaceBridge, type GitWorkspacePort } from '../services/git-workspace';
+import { disposeRemoteCompanionBridge, initRemoteCompanionBridge } from './remoteCompanionBridge';
 
 export type BridgeDependencies = {
   gitWorkspacePort?: GitWorkspacePort;
@@ -36,6 +37,7 @@ export function initAllBridges(deps: BridgeDependencies = {}): void {
   initLocalDataLifecycleBridge();
   initGitWorkspaceBridge(deps.gitWorkspacePort);
   initCodexAppServerBridge(deps.codexAppServerAdapter);
+  initRemoteCompanionBridge();
 }
 
 export {
@@ -51,6 +53,8 @@ export {
   initLocalDataLifecycleBridge,
   initGitWorkspaceBridge,
   initCodexAppServerBridge,
+  initRemoteCompanionBridge,
+  disposeRemoteCompanionBridge,
   disposeCodexAppServerBridge,
 };
 export { registerWindowMaximizeListeners } from './windowControlsBridge';

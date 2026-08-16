@@ -88,6 +88,13 @@ import type {
   CodexThreadTurnStartResult,
 } from '../types/codex/appServerThreads';
 import type {
+  RemoteCompanionState,
+  RemoteConfirmPairingRequest,
+  RemotePollPairingRequest,
+  RemoteRevokePairingRequest,
+  RemoteStartPairingRequest,
+} from '../types/remoteCompanion';
+import type {
   AutoUpdateCheckResult,
   AutoUpdateStatus,
   AutoUpdateInstallRequest,
@@ -922,6 +929,22 @@ export const codexThreads = {
   ),
   responseStream: bridge.buildEmitter<IResponseMessage>('codex-threads.response-stream'),
   turnCompleted: bridge.buildEmitter<IConversationTurnCompletedEvent>('codex-threads.turn-completed'),
+};
+
+// OPL Link — main-process pairing and provider-neutral transport projection.
+// Secrets and key material never cross this renderer-facing surface.
+export const remoteCompanion = {
+  getState: bridge.buildProvider<RemoteCompanionState, void>('remote-companion.get-state'),
+  startPairing: bridge.buildProvider<RemoteCompanionState, RemoteStartPairingRequest>('remote-companion.start-pairing'),
+  pollPairing: bridge.buildProvider<RemoteCompanionState, RemotePollPairingRequest>('remote-companion.poll-pairing'),
+  confirmPairing: bridge.buildProvider<RemoteCompanionState, RemoteConfirmPairingRequest>(
+    'remote-companion.confirm-pairing'
+  ),
+  revokePairing: bridge.buildProvider<RemoteCompanionState, RemoteRevokePairingRequest>(
+    'remote-companion.revoke-pairing'
+  ),
+  refreshPair: bridge.buildProvider<RemoteCompanionState, { pair_id: string }>('remote-companion.refresh-pair'),
+  stateChanged: bridge.buildEmitter<RemoteCompanionState>('remote-companion.state-changed'),
 };
 
 export type LocalDataLifecycleSectionId = 'updater_cache' | 'user_data_artifacts' | 'runtime_substrate' | 'logs';

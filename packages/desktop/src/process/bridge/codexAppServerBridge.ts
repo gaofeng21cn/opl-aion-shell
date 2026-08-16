@@ -74,6 +74,14 @@ function getActiveAdapter(): CodexAppServerAdapter {
   return activeAdapter;
 }
 
+/**
+ * Exposes the already-installed canonical Codex adapter to narrowly scoped
+ * domain consumers. Callers must not create a second app-server or task store.
+ */
+export function getActiveCodexAppServerAdapter(): CodexAppServerAdapter {
+  return getActiveAdapter();
+}
+
 export function initCodexAppServerBridge(
   adapter?: CodexAppServerAdapter,
   options: {
