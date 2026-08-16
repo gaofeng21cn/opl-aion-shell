@@ -53,7 +53,10 @@ const CODEX_MANAGED_WORKTREE_PATTERNS = [
 ];
 
 const normalizeWorkspacePath = (workspace: string): string =>
-  workspace.trim().replaceAll('\\', '/').replace(/\/{2,}/g, '/');
+  workspace
+    .trim()
+    .replaceAll('\\', '/')
+    .replace(/\/{2,}/g, '/');
 
 export const isManagedCodexScratchWorkspace = (workspace: string): boolean => {
   const normalized = workspace

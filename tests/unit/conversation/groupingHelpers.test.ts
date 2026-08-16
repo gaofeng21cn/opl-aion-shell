@@ -61,10 +61,7 @@ describe('Codex managed worktree presentation', () => {
 
   it('keeps explicit Project grouping independent from the worktree indicator', () => {
     const projectId = '/Users/example/workspace/one-person-lab-app';
-    const worktree = codexConversation(
-      '/Users/example/.codex/worktrees/abc123/one-person-lab-app',
-      projectId
-    );
+    const worktree = codexConversation('/Users/example/.codex/worktrees/abc123/one-person-lab-app', projectId);
 
     expect(getConversationDirectoryGroup(worktree)).toBe(projectId);
     expect(isCodexManagedWorktreeConversation(worktree)).toBe(true);

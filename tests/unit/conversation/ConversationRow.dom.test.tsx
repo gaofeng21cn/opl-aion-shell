@@ -19,8 +19,7 @@ vi.mock('@/renderer/pages/cron', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) =>
-      key === 'conversation.history.managedWorktree' ? '隔离工作树' : key,
+    t: (key: string) => (key === 'conversation.history.managedWorktree' ? '隔离工作树' : key),
   }),
 }));
 
