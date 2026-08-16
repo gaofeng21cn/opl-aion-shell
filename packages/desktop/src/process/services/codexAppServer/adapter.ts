@@ -61,6 +61,9 @@ export type CodexAppServerEventSink = {
   turnCompleted: (event: IConversationTurnCompletedEvent) => void;
 };
 
+export type CodexAppServerResponseListener = (message: IResponseMessage) => void;
+export type CodexAppServerTurnCompletedListener = (event: IConversationTurnCompletedEvent) => void;
+
 /**
  * Narrow callback surface for an optional channel provider. The provider keeps
  * its own transport lifecycle; this adapter only operates canonical Codex
@@ -1051,6 +1054,8 @@ export class CodexAppServerAdapter {
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly channelTurnSubscriptions = new Map<string, Set<ChannelTurnSubscription>>();
   private readonly channelTurnText = new Map<string, ChannelTurnText>();
+  private readonly responseListeners = new Set<CodexAppServerResponseListener>();
+  private readonly turnCompletedListeners = new Set<CodexAppServerTurnCompletedListener>();
   private eventSink: CodexAppServerEventSink | null = null;
   private readonly disposeNotification?: () => void;
   private readonly disposeServerRequest?: () => void;
@@ -1070,6 +1075,16 @@ export class CodexAppServerAdapter {
 
   setEventSink(sink: CodexAppServerEventSink | null): void {
     this.eventSink = sink;
+  }
+
+  onResponse(listener: CodexAppServerResponseListener): () => void {
+    this.responseListeners.add(listener);
+    return () => this.responseListeners.delete(listener);
+  }
+
+  onTurnCompleted(listener: CodexAppServerTurnCompletedListener): () => void {
+    this.turnCompletedListeners.add(listener);
+    return () => this.turnCompletedListeners.delete(listener);
   }
 
   createChannelTurnCallback(): CodexAppServerChannelHostCallback {
@@ -1333,6 +1348,20 @@ export class CodexAppServerAdapter {
     return thread;
   }
 
+  async startWithDesktopDefaults(request: {
+    text: string;
+    msgId: string;
+  }): Promise<{ thread: CodexThreadDescriptor; turn: CodexThreadTurnStartResult }> {
+    const thread = await this.startThread({ workspace: requiredString(this.channelWorkspace, 'channel workspace') });
+    const turn = await this.startTurn({
+      threadId: thread.id,
+      conversationId: thread.id,
+      msgId: requiredString(request.msgId, 'remote task request id'),
+      input: requiredString(request.text, 'remote task text'),
+    });
+    return { thread, turn };
+  }
+
   async resumeThread(threadId: string): Promise<CodexThreadDescriptor> {
     const resumed = await this.resumeRawThread(threadId);
     const thread = mapThread(resumed.thread, false, [], this.host);
@@ -1549,6 +1578,8 @@ export class CodexAppServerAdapter {
     this.pendingApprovals.clear();
     this.channelTurnSubscriptions.clear();
     this.channelTurnText.clear();
+    this.responseListeners.clear();
+    this.turnCompletedListeners.clear();
     this.rpc.dispose();
   }
 
@@ -1573,6 +1604,13 @@ export class CodexAppServerAdapter {
 
   private emit(message: IResponseMessage): void {
     this.eventSink?.response(message);
+    for (const listener of this.responseListeners) {
+      try {
+        listener(message);
+      } catch {
+        // A projection listener must not affect the canonical app-server stream.
+      }
+    }
   }
 
   private handleNotification(method: string, value: unknown): void {
@@ -1803,11 +1841,11 @@ export class CodexAppServerAdapter {
     for (const [key, approval] of this.pendingApprovals) {
       if (approval.turnId === completedTurnId) this.pendingApprovals.delete(key);
     }
-    this.eventSink?.turnCompleted({
+    const completedEvent: IConversationTurnCompletedEvent = {
       session_id: context.conversationId,
       turn_id: completedTurnId,
       status: 'finished',
-      state: failed ? 'error' : 'ai_waiting_input',
+      state: cancelled ? 'stopped' : failed ? 'error' : 'ai_waiting_input',
       detail: failed ? 'Canonical Codex turn failed.' : '',
       can_send_message: true,
       runtime: {
@@ -1822,7 +1860,15 @@ export class CodexAppServerAdapter {
       workspace: context.workspace,
       model: { platform: 'codex', name: 'Codex', use_model: '' },
       last_message: { content: null, created_at: Date.now() },
-    });
+    };
+    this.eventSink?.turnCompleted(completedEvent);
+    for (const listener of this.turnCompletedListeners) {
+      try {
+        listener(completedEvent);
+      } catch {
+        // A projection listener must not affect the canonical app-server stream.
+      }
+    }
   }
 
   private emitChannelTurnTerminal(eventThreadId: string, event: CodexAppServerChannelTurnTerminalEvent): void {

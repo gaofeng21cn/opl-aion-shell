@@ -8,13 +8,45 @@ import {
 import type { RemoteCanonicalActionPort } from '@/process/services/remote-companion/canonicalActionBridge';
 import type { RemoteBrokerPort } from '@/process/services/remote-companion/types';
 import type { RemoteTransportAdapter } from '@/process/services/remote-companion/tencentImAdapter';
-import type { RemoteBrokerConfig } from '@/process/services/remote-companion/brokerClient';
+import type { BrokerReadPairingResponse, RemoteBrokerConfig } from '@/process/services/remote-companion/brokerClient';
 import type { RemoteActionRequest } from '@/common/types/remoteCompanion';
 import { REMOTE_COMPANION_PROTOCOL_VERSION } from '@/common/types/remoteCompanion';
 
 const PAIR_ID = 'pair-test-001';
 const DESKTOP_DEVICE_ID = 'desktop-test-device';
 const IOS_DEVICE_ID = 'ios-test-device';
+
+function deviceActivation(
+  overrides: Partial<NonNullable<BrokerReadPairingResponse['device_activation']>> = {}
+): NonNullable<BrokerReadPairingResponse['device_activation']> {
+  const peer = generateX25519KeyMaterial();
+  return {
+    device_id: DESKTOP_DEVICE_ID,
+    device_label: 'Broker desktop label',
+    peer_device_id: IOS_DEVICE_ID,
+    peer_device_label: 'Broker iPhone label',
+    provider_user_id: 'desktop-user-activation',
+    peer_provider_user_id: 'ios-user-activation',
+    peer_public_key: peer.public_key,
+    sdk_app_id: 'sdk-from-activation',
+    usersig: 'usersig-activation',
+    usersig_expires_at: '2026-08-17T13:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function activePairingResponse(
+  activationOverrides: Partial<NonNullable<BrokerReadPairingResponse['device_activation']>> = {}
+): BrokerReadPairingResponse {
+  return {
+    protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+    pairing_id: PAIR_ID,
+    state: 'active',
+    authentication_string: '867 604',
+    expires_at: '2026-08-17T13:00:00.000Z',
+    device_activation: deviceActivation(activationOverrides),
+  };
+}
 
 function canonicalPort(): RemoteCanonicalActionPort {
   return {
@@ -47,13 +79,13 @@ function activeRecord(): RemoteCredentialRecord {
     pair_id: PAIR_ID,
     desktop_device_id: DESKTOP_DEVICE_ID,
     desktop_label: 'This desktop',
-    ios_device_id: IOS_DEVICE_ID,
-    ios_label: 'Test iPhone',
+    peer_device_id: IOS_DEVICE_ID,
+    peer_device_label: 'Test iPhone',
     state: 'active',
     authentication_string: '867 604',
     key_epoch: 1,
     desktop_key_material: desktop,
-    ios_public_key: ios.public_key,
+    peer_public_key: ios.public_key,
     desktop_sender_sequence: 0,
     last_inbound_sequence: 0,
     seen_inbound_nonces: [],
@@ -114,7 +146,6 @@ function service(
 ): RemoteCompanionService {
   const config: RemoteBrokerConfig = {
     baseUrl: 'https://broker.example.test',
-    tencentSdkAppId: 'sdk-001',
   };
   return new RemoteCompanionService({
     broker: remoteBroker,
@@ -142,6 +173,71 @@ describe('RemoteCompanionService', () => {
     expect(remoteBroker.createPairing).toHaveBeenCalledWith(
       expect.objectContaining({ desktop_device_id: DESKTOP_DEVICE_ID, desktop_device_label: 'This desktop' })
     );
+  });
+
+  it('activates from broker fields and connects with the activation SDKAppID', async () => {
+    const remoteBroker = broker({ readPairing: vi.fn().mockResolvedValue(activePairingResponse()) });
+    const remoteTransport = transport();
+    const store = new InMemoryRemoteCredentialStore();
+    const target = service(store, canonicalPort(), remoteBroker, remoteTransport);
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    const state = await target.pollPairing(PAIR_ID);
+
+    expect(state.pairing).toBeNull();
+    expect(state.pairs).toMatchObject([
+      {
+        pair_id: PAIR_ID,
+        desktop_label: 'Broker desktop label',
+        peer_device_id: IOS_DEVICE_ID,
+        peer_device_label: 'Broker iPhone label',
+        state: 'active',
+      },
+    ]);
+    expect((await store.list())[0]).toMatchObject({
+      device_credential: 'desktop-pair-token-001',
+      peer_device_id: IOS_DEVICE_ID,
+      peer_device_label: 'Broker iPhone label',
+      sdk_app_id: 'sdk-from-activation',
+    });
+    expect(remoteTransport.connect).toHaveBeenCalledWith(
+      PAIR_ID,
+      expect.objectContaining({
+        sdk_app_id: 'sdk-from-activation',
+        provider_user_id: 'desktop-user-activation',
+        peer_provider_user_id: 'ios-user-activation',
+      })
+    );
+  });
+
+  it('does not activate or connect when the broker omits the peer public key', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue(activePairingResponse({ peer_public_key: undefined })),
+    });
+    const remoteTransport = transport();
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, remoteTransport);
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    const state = await target.pollPairing(PAIR_ID);
+
+    expect(state.pairs).toEqual([]);
+    expect(state.pairing).toMatchObject({ pair_id: PAIR_ID, state: 'active' });
+    expect(remoteTransport.connect).not.toHaveBeenCalled();
+  });
+
+  it('enforces one active pair before creating another pairing', async () => {
+    const remoteBroker = broker();
+    const target = service(
+      new InMemoryRemoteCredentialStore([activeRecord()]),
+      canonicalPort(),
+      remoteBroker,
+      transport()
+    );
+
+    await expect(
+      target.startPairing({ invitation_code: 'invitation-002', desktop_label: 'Second desktop label' })
+    ).rejects.toThrow('capacity');
+    expect(remoteBroker.createPairing).not.toHaveBeenCalled();
   });
 
   it('deduplicates a command before the canonical bridge and requires refresh after an unknown result', async () => {

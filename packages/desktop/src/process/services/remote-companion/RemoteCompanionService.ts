@@ -29,7 +29,7 @@ import type {
   RemoteBrokerConfig,
 } from './brokerClient';
 import type { RemoteBrokerPort } from './types';
-import type { RemoteCanonicalActionPort } from './canonicalActionBridge';
+import type { RemoteCanonicalActionPort, RemoteProjectionEvent } from './canonicalActionBridge';
 import { RemoteActionDispatchError, RemoteCanonicalActionBridge } from './canonicalActionBridge';
 import type { RemoteCredentialRecord, RemoteCredentialStore } from './credentialStore';
 import type { RemoteProviderCredentialProjection } from '@/common/types/remoteCompanion';
@@ -101,6 +101,8 @@ export class RemoteCompanionService {
   private credentialStoreUnavailable = false;
   private pairingQrClaimUsed = new Set<string>();
   private transportOff: (() => void) | null = null;
+  private canonicalOff: (() => void) | null = null;
+  private eventSendQueue = Promise.resolve();
 
   constructor(options: RemoteCompanionServiceOptions) {
     this.broker = options.broker;
@@ -114,6 +116,9 @@ export class RemoteCompanionService {
     this.revokePollAttempts = options.revokePollAttempts ?? 30;
     this.revokePollIntervalMs = options.revokePollIntervalMs ?? 1_000;
     this.transportOff = this.transport.onMessage((message) => this.handleIncomingTransportMessage(message));
+    this.canonicalOff = this.canonical.subscribeEvents((event) => {
+      void this.handleCanonicalEvent(event);
+    });
   }
 
   async getState(): Promise<RemoteCompanionState> {
@@ -316,8 +321,8 @@ export class RemoteCompanionService {
     ) {
       throw new RemoteProtocolError('invalid_envelope', 'Remote envelope does not target this active pair.');
     }
-    if (!record.ios_public_key) throw new Error('Remote peer public key is unavailable; refusing plaintext fallback.');
-    const keys = deriveDirectionalKeys(record.desktop_key_material, record.ios_public_key, pairId, record.key_epoch);
+    if (!record.peer_public_key) throw new Error('Remote peer public key is unavailable; refusing plaintext fallback.');
+    const keys = deriveDirectionalKeys(record.desktop_key_material, record.peer_public_key, pairId, record.key_epoch);
     const payload = decryptPayload({ key: keys.ios_to_desktop, envelope, direction: 'ios_to_desktop' });
     const replay = this.replayGuard.reserve(envelope);
     record.last_inbound_sequence = envelope.sender_sequence;
@@ -334,29 +339,79 @@ export class RemoteCompanionService {
       canonical_thread_id: command.canonical_thread_id,
       payload: command.payload,
     });
-    await this.sendEvent(record, {
-      kind: 'event',
-      event_id: randomUUID(),
-      request_id: response.request_id,
-      event_type: response.accepted ? 'action.accepted' : 'action.rejected',
-      payload: response.payload,
-    });
+    const events: Array<Extract<RemoteEncryptedPayload, { kind: 'event' }>> = [
+      {
+        kind: 'event',
+        event_id: randomUUID(),
+        request_id: response.request_id,
+        event_type: response.accepted ? 'action.accepted' : 'action.rejected',
+        payload: response.accepted
+          ? { action_id: response.action_id }
+          : {
+              action_id: response.action_id,
+              error_code: response.error_code ?? 'canonical_failure',
+              refresh_required: response.refresh_required === true,
+            },
+      },
+    ];
+    if (response.accepted) {
+      try {
+        events.push(
+          ...(
+            await this.canonical.project(
+              {
+                pair_id: pairId,
+                key_epoch: record.key_epoch,
+                request_id: command.request_id,
+                action_id: command.action_id,
+                canonical_thread_id: command.canonical_thread_id,
+                payload: command.payload,
+              },
+              response
+            )
+          ).map((event) => ({ kind: 'event' as const, event_id: randomUUID(), ...event }))
+        );
+      } catch {
+        this.markUnknownResult(pairId);
+      }
+    }
+    await this.enqueueEvents(record, events);
   }
 
   dispose(): void {
     this.transportOff?.();
     this.transportOff = null;
+    this.canonicalOff?.();
+    this.canonicalOff = null;
     this.listeners.clear();
+  }
+
+  private async handleCanonicalEvent(event: RemoteProjectionEvent): Promise<void> {
+    await this.ensureLoaded();
+    const record = [...this.credentials.values()].find((candidate) => candidate.state === 'active');
+    if (!record) return;
+    try {
+      await this.enqueueEvents(record, [
+        {
+          kind: 'event',
+          event_id: randomUUID(),
+          event_type: event.event_type,
+          payload: event.payload,
+        },
+      ]);
+    } catch {
+      this.markUnknownResult(record.pair_id);
+    }
   }
 
   private async sendEvent(
     record: RemoteCredentialRecord,
     payload: Extract<RemoteEncryptedPayload, { kind: 'event' }>
   ): Promise<void> {
-    if (!record.ios_public_key) throw new Error('Remote peer public key is unavailable.');
+    if (!record.peer_public_key) throw new Error('Remote peer public key is unavailable.');
     const keys = deriveDirectionalKeys(
       record.desktop_key_material,
-      record.ios_public_key,
+      record.peer_public_key,
       record.pair_id,
       record.key_epoch
     );
@@ -368,7 +423,7 @@ export class RemoteCompanionService {
         key: keys.desktop_to_ios,
         pair_id: record.pair_id,
         sender_device_id: record.desktop_device_id,
-        recipient_device_id: record.ios_device_id,
+        recipient_device_id: record.peer_device_id,
         key_epoch: record.key_epoch,
         sender_sequence: nextSequence,
         direction: 'desktop_to_ios',
@@ -381,41 +436,58 @@ export class RemoteCompanionService {
     }
   }
 
+  private enqueueEvents(
+    record: RemoteCredentialRecord,
+    events: Array<Extract<RemoteEncryptedPayload, { kind: 'event' }>>
+  ): Promise<void> {
+    const next = this.eventSendQueue.then(async () => {
+      for (const event of events) {
+        await this.sendEvent(record, event);
+      }
+    });
+    this.eventSendQueue = next.catch((): void => undefined);
+    return next;
+  }
+
   private async activatePairing(pairing: PendingPairing, response: BrokerReadPairingResponse): Promise<void> {
     const activation = response.device_activation;
     if (!activation || activation.device_id !== pairing.desktop_device_id) return;
-    const deviceCredential = activation.device_credential;
+    const deviceCredential = pairing.desktop_pair_token;
+    const deviceLabel = activation.device_label;
+    const peerDeviceId = activation.peer_device_id;
+    const peerDeviceLabel = activation.peer_device_label;
     const providerUserId = activation.provider_user_id;
     const peerProviderUserId = activation.peer_provider_user_id;
-    const sdkAppId = activation.sdk_app_id ?? this.brokerConfig.tencentSdkAppId;
+    const peerPublicKey = activation.peer_public_key;
+    const sdkAppId = activation.sdk_app_id;
     const usersig = activation.usersig;
     if (
       !deviceCredential ||
+      !deviceLabel ||
+      !peerDeviceId ||
+      !peerDeviceLabel ||
       !providerUserId ||
       !peerProviderUserId ||
+      !peerPublicKey ||
       !sdkAppId ||
       !usersig ||
       !activation.usersig_expires_at
     )
       return;
-    // The approved broker response still does not expose the peer public key.
-    // Do not invent that field or downgrade to plaintext; activation stays
-    // blocked until the owner-backed key is present.
-    const candidate = (activation as { ios_public_key?: string }).ios_public_key ?? '';
-    if (!candidate) {
-      throw new Error('Remote broker did not provide the peer public key required for encrypted transport.');
+    if (this.activePairCount() >= REMOTE_COMPANION_MAX_ACTIVE_PAIRS) {
+      throw new Error('This desktop already has an active OPL Link pair.');
     }
     const record: RemoteCredentialRecord = {
       pair_id: pairing.pair_id,
       desktop_device_id: pairing.desktop_device_id,
-      desktop_label: pairing.desktop_label,
-      ios_device_id: (activation as { ios_device_id?: string }).ios_device_id ?? 'ios',
-      ios_label: (activation as { ios_device_label?: string }).ios_device_label ?? 'iOS',
+      desktop_label: deviceLabel,
+      peer_device_id: peerDeviceId,
+      peer_device_label: peerDeviceLabel,
       state: 'active',
       authentication_string: pairing.authentication_string ?? '',
       key_epoch: 1,
       desktop_key_material: pairing.desktop_key_material,
-      ios_public_key: candidate,
+      peer_public_key: peerPublicKey,
       desktop_sender_sequence: 0,
       device_credential: deviceCredential,
       provider_user_id: providerUserId,
@@ -478,7 +550,7 @@ export class RemoteCompanionService {
         this.replayGuard.prime({
           pair_id: record.pair_id,
           key_epoch: record.key_epoch,
-          sender_device_id: record.ios_device_id,
+          sender_device_id: record.peer_device_id,
           last_sequence: record.last_inbound_sequence ?? 0,
           nonces: record.seen_inbound_nonces,
         });
@@ -500,7 +572,6 @@ export class RemoteCompanionService {
 
   private assertConfigured(): void {
     if (!this.brokerConfig.baseUrl) throw new Error('Remote broker is not configured.');
-    if (!this.brokerConfig.tencentSdkAppId) throw new Error('Tencent Cloud SDKAppID is not configured.');
     if (this.credentialStoreUnavailable) throw new Error('Protected OPL Link credential storage is unavailable.');
   }
 
@@ -524,9 +595,7 @@ export class RemoteCompanionService {
       : null;
     return {
       schema: 'opl_remote_companion_desktop_state.v1',
-      configured: Boolean(
-        this.brokerConfig.baseUrl && this.brokerConfig.tencentSdkAppId && !this.credentialStoreUnavailable
-      ),
+      configured: Boolean(this.brokerConfig.baseUrl && !this.credentialStoreUnavailable),
       provider: 'tencent_cloud_im',
       max_active_pairs: REMOTE_COMPANION_MAX_ACTIVE_PAIRS,
       pairs,
@@ -535,9 +604,7 @@ export class RemoteCompanionService {
         ? 'credential_store_unavailable'
         : !this.brokerConfig.baseUrl
           ? 'broker_not_configured'
-          : !this.brokerConfig.tencentSdkAppId
-            ? 'provider_not_configured'
-            : null,
+          : null,
     };
   }
 
@@ -546,8 +613,8 @@ export class RemoteCompanionService {
       pair_id: record.pair_id,
       desktop_device_id: record.desktop_device_id,
       desktop_label: record.desktop_label,
-      ios_device_id: record.ios_device_id,
-      ios_label: record.ios_label,
+      peer_device_id: record.peer_device_id,
+      peer_device_label: record.peer_device_label,
       state: record.state,
       authentication_string: record.authentication_string,
       expires_at: record.usersig_expires_at ?? nowIso(this.now),

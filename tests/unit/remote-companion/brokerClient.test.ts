@@ -20,7 +20,7 @@ describe('RemoteBrokerClient', () => {
         OPL_REMOTE_COMPANION_BROKER_URL: 'https://broker.example.test/',
         OPL_TENCENT_SDK_APP_ID: 'sdk-001',
       } as NodeJS.ProcessEnv)
-    ).toEqual({ baseUrl: 'https://broker.example.test', tencentSdkAppId: 'sdk-001' });
+    ).toEqual({ baseUrl: 'https://broker.example.test' });
     expect(
       readRemoteBrokerConfig({
         OPL_REMOTE_COMPANION_BROKER_URL: 'http://broker.example.test',
@@ -42,7 +42,7 @@ describe('RemoteBrokerClient', () => {
       })
     );
     const client = new RemoteBrokerClient({
-      config: { baseUrl: 'https://broker.example.test', tencentSdkAppId: 'sdk-001' },
+      config: { baseUrl: 'https://broker.example.test' },
       fetchImpl,
     });
 
@@ -99,7 +99,7 @@ describe('RemoteBrokerClient', () => {
         })
       );
     const client = new RemoteBrokerClient({
-      config: { baseUrl: 'https://broker.example.test', tencentSdkAppId: 'sdk-001' },
+      config: { baseUrl: 'https://broker.example.test' },
       fetchImpl,
     });
 
@@ -138,7 +138,7 @@ describe('RemoteBrokerClient', () => {
       )
     );
     const client = new RemoteBrokerClient({
-      config: { baseUrl: 'https://broker.example.test', tencentSdkAppId: 'sdk-001' },
+      config: { baseUrl: 'https://broker.example.test' },
       fetchImpl,
     });
 

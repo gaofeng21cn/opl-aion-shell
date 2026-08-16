@@ -9,7 +9,6 @@ const BROKER_BASE_PATH = '/v1/remote-companion';
 
 export type RemoteBrokerConfig = {
   baseUrl: string | null;
-  tencentSdkAppId: string | null;
 };
 
 export type BrokerCreatePairingRequest = {
@@ -37,9 +36,12 @@ export type BrokerReadPairingResponse = {
   expires_at: string;
   device_activation?: {
     device_id: string;
-    device_credential?: string;
+    device_label?: string;
+    peer_device_id?: string;
+    peer_device_label?: string;
     provider_user_id?: string;
     peer_provider_user_id?: string;
+    peer_public_key?: string;
     sdk_app_id?: string;
     usersig?: string;
     usersig_expires_at?: string;
@@ -97,7 +99,6 @@ export function readRemoteBrokerConfig(env: NodeJS.ProcessEnv = process.env): Re
   }
   return {
     baseUrl,
-    tencentSdkAppId: env.OPL_TENCENT_SDK_APP_ID?.trim() || null,
   };
 }
 

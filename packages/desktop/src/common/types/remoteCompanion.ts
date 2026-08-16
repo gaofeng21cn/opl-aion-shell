@@ -10,7 +10,7 @@ export const REMOTE_COMPANION_PROTOCOL_VERSION = 'opl_remote_transport.v1' as co
 export const REMOTE_COMPANION_URL_SCHEME = 'opllink' as const;
 export const REMOTE_COMPANION_PAIRING_HOST = 'pair' as const;
 export const REMOTE_COMPANION_MAX_MESSAGE_BYTES = 65_536;
-export const REMOTE_COMPANION_MAX_ACTIVE_PAIRS = 3;
+export const REMOTE_COMPANION_MAX_ACTIVE_PAIRS = 1;
 
 export const REMOTE_COMPANION_ALLOWED_ACTIONS = [
   'canonical_task.list',
@@ -89,8 +89,8 @@ export type RemotePairingPublicState = {
   pair_id: string;
   desktop_device_id: string;
   desktop_label: string;
-  ios_device_id: string | null;
-  ios_label: string | null;
+  peer_device_id: string | null;
+  peer_device_label: string | null;
   state: RemotePairingState;
   authentication_string: string | null;
   expires_at: string;
@@ -117,7 +117,7 @@ export type RemoteCompanionState = {
   max_active_pairs: typeof REMOTE_COMPANION_MAX_ACTIVE_PAIRS;
   pairs: RemotePairingPublicState[];
   pairing: RemotePairingSessionPublicState | null;
-  unavailable_reason: 'broker_not_configured' | 'provider_not_configured' | 'credential_store_unavailable' | null;
+  unavailable_reason: 'broker_not_configured' | 'credential_store_unavailable' | null;
 };
 
 export type RemoteStartPairingRequest = {

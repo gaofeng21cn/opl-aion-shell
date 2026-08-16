@@ -10,13 +10,13 @@ export type RemoteCredentialRecord = {
   pair_id: string;
   desktop_device_id: string;
   desktop_label: string;
-  ios_device_id: string;
-  ios_label: string;
+  peer_device_id: string;
+  peer_device_label: string;
   state: Extract<RemotePairingState, 'active' | 'revoking' | 'provider_reclaim_pending'>;
   authentication_string: string;
   key_epoch: number;
   desktop_key_material: X25519KeyMaterial;
-  ios_public_key: string;
+  peer_public_key: string;
   desktop_sender_sequence: number;
   last_inbound_sequence?: number;
   seen_inbound_nonces?: string[];

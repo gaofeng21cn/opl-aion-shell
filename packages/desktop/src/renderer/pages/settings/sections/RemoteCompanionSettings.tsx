@@ -429,7 +429,9 @@ const RemotePairRow: React.FC<{
   return (
     <div className='opl-settings-row items-start' data-testid={`remote-companion-pair-${pair.pair_id}`}>
       <div className='opl-settings-row__main min-w-0'>
-        <Typography.Text className='block break-words font-600 text-t-primary'>{pair.ios_label}</Typography.Text>
+        <Typography.Text className='block break-words font-600 text-t-primary'>
+          {pair.peer_device_label}
+        </Typography.Text>
         <Typography.Text className='block break-words text-12px text-t-secondary'>
           {pair.desktop_label} · {pairingStateLabel(pair.state, t)}
         </Typography.Text>
