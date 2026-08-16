@@ -78,6 +78,61 @@ describe('remoteCompanionBridge projections', () => {
     });
   });
 
+  it.each(['request_user_input', 'mcp_elicitation'] as const)(
+    'keeps %s approvals desktop-only when their interaction needs extra content',
+    (interactionKind) => {
+      const approval = response({
+        type: 'acp_permission',
+        data: {
+          options: [
+            { option_id: 'accept', name: 'Allow once' },
+            { option_id: 'decline', name: 'Deny' },
+          ],
+          tool_call: {
+            tool_call_id: `approval-${interactionKind}`,
+            title: 'Additional input required',
+            kind: 'fetch',
+            raw_input: { codex_interaction: { kind: interactionKind } },
+          },
+        },
+      });
+
+      expect(__remoteCompanionBridgeTest.approvalProjection(approval)).toEqual({
+        id: `approval-${interactionKind}`,
+        summary: 'Additional input required',
+        impact: 'high',
+        allowed_decisions: [],
+      });
+      expect(__remoteCompanionBridgeTest.responseToRemoteEvent(approval)).toMatchObject({
+        event_type: 'approval.requested',
+        payload: {
+          approval: { impact: 'high' },
+        },
+      });
+    }
+  );
+
+  it('does not expose remote decisions when owner lacks either one-shot choice', () => {
+    const approval = response({
+      type: 'acp_permission',
+      data: {
+        options: [{ option_id: 'accept', name: 'Allow once' }],
+        tool_call: {
+          tool_call_id: 'approval-one-sided',
+          title: 'One-sided approval',
+          kind: 'fetch',
+        },
+      },
+    });
+
+    expect(__remoteCompanionBridgeTest.approvalProjection(approval)).toEqual({
+      id: 'approval-one-sided',
+      summary: 'One-sided approval',
+      impact: 'low',
+      allowed_decisions: [],
+    });
+  });
+
   it('projects stopped and completed turns with the wire event names', () => {
     expect(__remoteCompanionBridgeTest.turnCompletedToRemoteEvent(completed({ state: 'stopped' }))).toEqual({
       event_type: 'turn.stopped',

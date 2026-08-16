@@ -23,7 +23,7 @@ export type RemoteCredentialRecord = {
   device_credential: string;
   provider_user_id: string;
   peer_provider_user_id: string;
-  sdk_app_id: string;
+  sdk_app_id: number;
   usersig_expires_at: string | null;
 };
 

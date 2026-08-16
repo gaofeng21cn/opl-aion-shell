@@ -1,5 +1,9 @@
 import TencentCloudChat from '@tencentcloud/chat';
-import type { RemoteProviderCredentialProjection, RemoteTransportEnvelope } from '@/common/types/remoteCompanion';
+import {
+  isValidRemoteSdkAppId,
+  type RemoteProviderCredentialProjection,
+  type RemoteTransportEnvelope,
+} from '@/common/types/remoteCompanion';
 
 export type RemoteTransportMessageListener = (input: {
   pair_id: string;
@@ -88,10 +92,10 @@ export class TencentCloudImSdkGateway implements TencentCloudImGateway {
 
   async connect(input: RemoteProviderCredentialProjection & { pair_id: string }): Promise<void> {
     if (input.provider !== 'tencent_cloud_im') throw new TencentCloudImUnavailableError('Unsupported IM provider.');
-    const sdkAppId = Number.parseInt(input.sdk_app_id, 10);
-    if (!Number.isSafeInteger(sdkAppId) || sdkAppId <= 0) {
+    if (!isValidRemoteSdkAppId(input.sdk_app_id)) {
       throw new TencentCloudImUnavailableError('Tencent Cloud SDKAppID is invalid.');
     }
+    const sdkAppId = input.sdk_app_id;
     if (!input.provider_user_id.trim() || !input.peer_provider_user_id.trim() || !input.usersig.trim()) {
       throw new TencentCloudImUnavailableError('Tencent Cloud pair credentials are incomplete.');
     }

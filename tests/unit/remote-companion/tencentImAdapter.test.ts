@@ -12,7 +12,7 @@ const PEER_DEVICE_ID = 'ios-test-device';
 function credentials(overrides: Partial<RemoteProviderCredentialProjection> = {}): RemoteProviderCredentialProjection {
   return {
     provider: 'tencent_cloud_im',
-    sdk_app_id: '100001',
+    sdk_app_id: 100001,
     provider_user_id: 'desktop-user-001',
     peer_provider_user_id: 'ios-user-001',
     usersig: 'usersig-001',
@@ -137,5 +137,18 @@ describe('TencentCloudImAdapter', () => {
       gateway.connect({ pair_id: 'pair-test-002', ...credentials({ provider_user_id: 'desktop-user-002' }) })
     ).rejects.toThrow('one active SDK session per SDKAppID');
     expect(fake.chat.login).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a string SDKAppID instead of coercing it at the provider boundary', async () => {
+    const fake = fakeSdk();
+    const gateway = new TencentCloudImSdkGateway(fake.sdk);
+    const invalid = {
+      pair_id: PAIR_ID,
+      ...credentials(),
+      sdk_app_id: '100001',
+    } as unknown as Parameters<typeof gateway.connect>[0];
+
+    await expect(gateway.connect(invalid)).rejects.toThrow('SDKAppID is invalid');
+    expect(fake.sdk.create).not.toHaveBeenCalled();
   });
 });

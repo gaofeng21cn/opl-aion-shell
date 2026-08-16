@@ -12,6 +12,7 @@ import {
   type RemoteRevokePairingRequest,
   type RemoteStartPairingRequest,
   type RemoteTransportEnvelope,
+  isValidRemoteSdkAppId,
 } from '@/common/types/remoteCompanion';
 import {
   decryptPayload,
@@ -469,7 +470,7 @@ export class RemoteCompanionService {
       !providerUserId ||
       !peerProviderUserId ||
       !peerPublicKey ||
-      !sdkAppId ||
+      !isValidRemoteSdkAppId(sdkAppId) ||
       !usersig ||
       !activation.usersig_expires_at
     )
@@ -668,7 +669,7 @@ export class RemoteCompanionService {
   private assertProviderCredentials(value: RemoteProviderCredentialProjection): void {
     if (
       value.provider !== 'tencent_cloud_im' ||
-      !value.sdk_app_id ||
+      !isValidRemoteSdkAppId(value.sdk_app_id) ||
       !value.provider_user_id ||
       !value.peer_provider_user_id ||
       !value.usersig ||

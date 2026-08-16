@@ -42,7 +42,7 @@ export type BrokerReadPairingResponse = {
     provider_user_id?: string;
     peer_provider_user_id?: string;
     peer_public_key?: string;
-    sdk_app_id?: string;
+    sdk_app_id?: number;
     usersig?: string;
     usersig_expires_at?: string;
   };

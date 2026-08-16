@@ -24,7 +24,7 @@ export type RemoteBrokerPort = {
     deviceId: string
   ): Promise<{
     provider: 'tencent_cloud_im';
-    sdk_app_id: string;
+    sdk_app_id: number;
     provider_user_id: string;
     peer_provider_user_id: string;
     usersig: string;

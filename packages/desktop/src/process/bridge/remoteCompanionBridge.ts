@@ -38,8 +38,18 @@ function approvalProjection(message: IResponseMessage): RemoteApprovalProjection
   const id = text(toolCall.tool_call_id) ?? message.msg_id;
   const summary = text(toolCall.title) ?? 'Approval required';
   const kind = text(toolCall.kind);
-  const impact: RemoteApprovalImpact = kind === 'fetch' ? 'low' : kind === 'edit' ? 'medium' : 'high';
-  const allowedDecisions = Array.isArray(data?.options)
+  const rawInput = record(toolCall.raw_input);
+  const interaction = record(rawInput?.codex_interaction);
+  const requiresAdditionalContent =
+    interaction?.kind === 'request_user_input' || interaction?.kind === 'mcp_elicitation';
+  const impact: RemoteApprovalImpact = requiresAdditionalContent
+    ? 'high'
+    : kind === 'fetch'
+      ? 'low'
+      : kind === 'edit'
+        ? 'medium'
+        : 'high';
+  const ownerDecisions = Array.isArray(data?.options)
     ? data.options.flatMap((option) => {
         const optionRecord = record(option);
         const optionId = text(optionRecord?.option_id);
@@ -47,6 +57,8 @@ function approvalProjection(message: IResponseMessage): RemoteApprovalProjection
         return decision ? [decision] : [];
       })
     : [];
+  const hasSimpleCanonicalDecisions = ownerDecisions.includes('approve') && ownerDecisions.includes('reject');
+  const allowedDecisions = !requiresAdditionalContent && hasSimpleCanonicalDecisions ? ['approve', 'reject'] : [];
   return { id, summary, impact, allowed_decisions: allowedDecisions };
 }
 

@@ -28,7 +28,7 @@ function deviceActivation(
     provider_user_id: 'desktop-user-activation',
     peer_provider_user_id: 'ios-user-activation',
     peer_public_key: peer.public_key,
-    sdk_app_id: 'sdk-from-activation',
+    sdk_app_id: 100001,
     usersig: 'usersig-activation',
     usersig_expires_at: '2026-08-17T13:00:00.000Z',
     ...overrides,
@@ -92,7 +92,7 @@ function activeRecord(): RemoteCredentialRecord {
     device_credential: 'device-credential-001',
     provider_user_id: 'desktop-user-001',
     peer_provider_user_id: 'ios-user-001',
-    sdk_app_id: 'sdk-001',
+    sdk_app_id: 100001,
     usersig_expires_at: '2026-08-17T13:00:00.000Z',
   };
 }
@@ -128,7 +128,7 @@ function broker(overrides: Partial<RemoteBrokerPort> = {}): RemoteBrokerPort {
     }),
     refreshProviderCredentials: vi.fn().mockResolvedValue({
       provider: 'tencent_cloud_im',
-      sdk_app_id: 'sdk-001',
+      sdk_app_id: 100001,
       provider_user_id: 'desktop-user-001',
       peer_provider_user_id: 'ios-user-001',
       usersig: 'usersig-001',
@@ -198,12 +198,12 @@ describe('RemoteCompanionService', () => {
       device_credential: 'desktop-pair-token-001',
       peer_device_id: IOS_DEVICE_ID,
       peer_device_label: 'Broker iPhone label',
-      sdk_app_id: 'sdk-from-activation',
+      sdk_app_id: 100001,
     });
     expect(remoteTransport.connect).toHaveBeenCalledWith(
       PAIR_ID,
       expect.objectContaining({
-        sdk_app_id: 'sdk-from-activation',
+        sdk_app_id: 100001,
         provider_user_id: 'desktop-user-activation',
         peer_provider_user_id: 'ios-user-activation',
       })
@@ -222,6 +222,43 @@ describe('RemoteCompanionService', () => {
 
     expect(state.pairs).toEqual([]);
     expect(state.pairing).toMatchObject({ pair_id: PAIR_ID, state: 'active' });
+    expect(remoteTransport.connect).not.toHaveBeenCalled();
+  });
+
+  it('does not activate when broker JSON supplies sdk_app_id as a string', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue(activePairingResponse({ sdk_app_id: '100001' as unknown as number })),
+    });
+    const remoteTransport = transport();
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, remoteTransport);
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    const state = await target.pollPairing(PAIR_ID);
+
+    expect(state.pairs).toEqual([]);
+    expect(remoteTransport.connect).not.toHaveBeenCalled();
+  });
+
+  it('rejects string sdk_app_id values returned by provider credential refresh', async () => {
+    const remoteBroker = broker({
+      refreshProviderCredentials: vi.fn().mockResolvedValue({
+        provider: 'tencent_cloud_im',
+        sdk_app_id: '100001' as unknown as number,
+        provider_user_id: 'desktop-user-001',
+        peer_provider_user_id: 'ios-user-001',
+        usersig: 'usersig-001',
+        usersig_expires_at: '2026-08-17T13:00:00.000Z',
+      }),
+    });
+    const remoteTransport = transport();
+    const target = service(
+      new InMemoryRemoteCredentialStore([activeRecord()]),
+      canonicalPort(),
+      remoteBroker,
+      remoteTransport
+    );
+
+    await expect(target.refreshPair(PAIR_ID)).rejects.toThrow('invalid provider credentials');
     expect(remoteTransport.connect).not.toHaveBeenCalled();
   });
 
