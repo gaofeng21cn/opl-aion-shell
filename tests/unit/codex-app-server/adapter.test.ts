@@ -1,5 +1,8 @@
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -7,6 +10,7 @@ import {
   createProductionCodexAppServerAdapter,
   type CodexAppServerRpc,
 } from '@/process/services/codexAppServer/adapter';
+import { FileChannelBindingStore, type ChannelBindingStore } from '@/process/services/codexAppServer/channelBindings';
 import type { WindowsWslRuntimeExecution } from '@/process/services/runtime-execution';
 
 const processMocks = vi.hoisted(() => ({ spawn: vi.fn() }));
@@ -173,7 +177,19 @@ describe('CodexAppServerAdapter', () => {
       },
       dispose: vi.fn(),
     };
-    adapter = new CodexAppServerAdapter({ rpc, host: 'local-host', channelWorkspace: '/workspace/channel' });
+    const bindingStore = {
+      getOrCreate: vi.fn(async (identity, create) => ({
+        binding: { ...identity, ...(await create()) },
+        created: true,
+      })),
+      assertKnownThread: vi.fn(async () => undefined),
+    } satisfies ChannelBindingStore;
+    adapter = new CodexAppServerAdapter({
+      rpc,
+      host: 'local-host',
+      channelWorkspace: '/workspace/channel',
+      channelBindingStore: bindingStore,
+    });
     request.mockImplementation(async (method: string) => {
       if (method === 'thread/start') return { thread: rawThread('channel-thread', { cwd: '/workspace/channel' }) };
       if (method === 'thread/read') return { thread: rawThread('channel-thread', { cwd: '/workspace/channel' }) };
@@ -195,6 +211,7 @@ describe('CodexAppServerAdapter', () => {
       canonical_thread_host: 'local-host',
       canonical_thread_id: 'channel-thread',
     });
+    expect(bindingStore.getOrCreate).toHaveBeenCalledOnce();
 
     await callback.resumeThread(thread);
     const turn = await callback.startTurn({ ...thread, text: 'Hello from WeChat' });
@@ -225,6 +242,76 @@ describe('CodexAppServerAdapter', () => {
     await expect(
       callback.startTurn({ ...thread, canonical_thread_host: 'other-host', text: 'blocked' })
     ).rejects.toThrow(/different Codex app-server host/);
+  });
+
+  it('recovers an exact persisted channel binding before starting another thread', async () => {
+    const binding = {
+      provider_id: 'opl-channel-weixin',
+      account_id: 'account-1',
+      channel_session_id: 'session-1',
+      canonical_thread_host: 'local-host',
+      canonical_thread_id: 'existing-thread',
+    };
+    const bindingStore = {
+      getOrCreate: vi.fn(async () => ({ binding, created: false })),
+      assertKnownThread: vi.fn(async () => undefined),
+    } satisfies ChannelBindingStore;
+    adapter = new CodexAppServerAdapter({
+      rpc,
+      host: 'local-host',
+      channelWorkspace: '/workspace/channel',
+      channelBindingStore: bindingStore,
+    });
+    request.mockImplementation(async (method: string) => {
+      if (method === 'thread/read') return { thread: rawThread('existing-thread') };
+      if (method === 'thread/resume') return resumedThread(rawThread('existing-thread'));
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'model/list') return { data: [] };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+
+    await expect(adapter.createChannelTurnCallback().startThread(binding)).resolves.toEqual({
+      canonical_thread_host: 'local-host',
+      canonical_thread_id: 'existing-thread',
+    });
+    expect(request.mock.calls.map(([method]) => method)).not.toContain('thread/start');
+    expect(request.mock.calls.map(([method]) => method)).toContain('thread/resume');
+    expect(bindingStore.getOrCreate).toHaveBeenCalledOnce();
+  });
+
+  it('serializes exact channel binding creation and fails closed on damaged state', async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'opl-channel-bindings-'));
+    const file = path.join(directory, 'bindings.json');
+    const identity = {
+      provider_id: 'opl-channel-weixin',
+      account_id: 'account-1',
+      channel_session_id: 'session-1',
+    };
+    try {
+      const firstProcess = new FileChannelBindingStore(file);
+      const create = vi.fn(async () => ({
+        canonical_thread_host: 'local-host',
+        canonical_thread_id: 'thread-1',
+      }));
+      const [first, concurrent] = await Promise.all([
+        firstProcess.getOrCreate(identity, create),
+        firstProcess.getOrCreate(identity, create),
+      ]);
+      expect(create).toHaveBeenCalledOnce();
+      expect([first.created, concurrent.created].toSorted()).toEqual([false, true]);
+      const restartedProcess = new FileChannelBindingStore(file);
+      await expect(restartedProcess.assertKnownThread(first.binding)).resolves.toBeUndefined();
+      await expect(restartedProcess.getOrCreate({ ...identity, account_id: ' account-1' }, create)).rejects.toThrow(
+        /Invalid channel binding account_id/
+      );
+      if (process.platform !== 'win32') {
+        expect((await fs.stat(file)).mode & 0o777).toBe(0o600);
+      }
+      await fs.writeFile(file, '{broken', 'utf8');
+      await expect(restartedProcess.assertKnownThread(first.binding)).rejects.toThrow();
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true });
+    }
   });
 
   it('uses thread/list fields without hydrating every active thread', async () => {

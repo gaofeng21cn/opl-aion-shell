@@ -1396,6 +1396,10 @@ function resolveOplFrameworkCarrier(env: NodeJS.ProcessEnv, spec?: RuntimeComman
   throw new Error('The Framework-managed OPL base carrier is missing.');
 }
 
+export function resolveActiveOplFrameworkPackageRoot(env: NodeJS.ProcessEnv = process.env): string {
+  return resolveOplFrameworkCarrier(env).packageRoot;
+}
+
 function resolveOplCli(spec: RuntimeCommandSpec, env: NodeJS.ProcessEnv): ResolvedOplCli | null {
   const selection = resolveOplFrameworkCarrier(env, spec);
   if (!packageSupportsCommand(selection.packageRoot, spec)) {

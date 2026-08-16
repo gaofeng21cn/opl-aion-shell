@@ -9,6 +9,7 @@ const bridgeMocks = vi.hoisted(() => {
   return {
     handlers,
     appOn: vi.fn(),
+    appWhenReady: vi.fn(async () => undefined),
     createProductionAdapter: vi.fn(),
     providers: {
       list: provider('list'),
@@ -37,6 +38,8 @@ const bridgeMocks = vi.hoisted(() => {
 vi.mock('electron', () => ({
   app: {
     on: bridgeMocks.appOn,
+    whenReady: bridgeMocks.appWhenReady,
+    getPath: vi.fn(() => '/app/user-data'),
   },
 }));
 
@@ -55,33 +58,34 @@ vi.mock('@/process/services/codexAppServer/adapter', () => ({
 import { disposeCodexAppServerBridge, initCodexAppServerBridge } from '@/process/bridge/codexAppServerBridge';
 
 describe('codexAppServerBridge', () => {
-  afterEach(() => {
-    disposeCodexAppServerBridge();
+  afterEach(async () => {
+    await disposeCodexAppServerBridge();
     bridgeMocks.handlers.clear();
     bridgeMocks.createProductionAdapter.mockReset();
   });
 
-  it('defers the production adapter until the first IPC request', async () => {
+  it('starts an available adapter and channel-provider Host immediately', async () => {
     const adapter = {
       listThreads: vi.fn(async () => ({ schema: 'opl_codex_thread_directory.v1', threads: [] })),
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
-    bridgeMocks.createProductionAdapter.mockReturnValue(adapter);
+    const host = { dispose: vi.fn(async () => undefined) };
+    const startChannelProviderHost = vi.fn(async () => host);
+    initCodexAppServerBridge(adapter as never, { startChannelProviderHost });
 
-    initCodexAppServerBridge();
-
-    expect(bridgeMocks.createProductionAdapter).not.toHaveBeenCalled();
+    expect(startChannelProviderHost).toHaveBeenCalledWith(adapter);
     const list = bridgeMocks.handlers.get('list');
     expect(list).toBeTypeOf('function');
     await expect(list?.({ includeArchived: false })).resolves.toMatchObject({
       schema: 'opl_codex_thread_directory.v1',
       threads: [],
     });
-    expect(bridgeMocks.createProductionAdapter).toHaveBeenCalledOnce();
-
-    disposeCodexAppServerBridge();
+    await disposeCodexAppServerBridge();
+    expect(bridgeMocks.createProductionAdapter).not.toHaveBeenCalled();
+    expect(host.dispose).toHaveBeenCalledOnce();
     expect(adapter.dispose).toHaveBeenCalledOnce();
+    expect(host.dispose.mock.invocationCallOrder[0]).toBeLessThan(adapter.dispose.mock.invocationCallOrder[0]);
   });
 
   it('routes explicit affinity assignment to the adapter', async () => {
@@ -91,8 +95,11 @@ describe('codexAppServerBridge', () => {
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
+    const host = { dispose: vi.fn(async () => undefined) };
     bridgeMocks.createProductionAdapter.mockReturnValue(adapter);
-    initCodexAppServerBridge();
+    initCodexAppServerBridge(adapter as never, {
+      startChannelProviderHost: vi.fn(async () => host),
+    });
 
     const assign = bridgeMocks.handlers.get('assignProjectAffinity');
     await expect(assign?.({ threadId: 'thread-1', projectId: '/projects/selected' })).resolves.toBe(assigned);

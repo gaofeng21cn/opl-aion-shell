@@ -29,6 +29,7 @@ import type {
 } from '@/common/types/codex/appServerThreads';
 import { getWindowsWslRuntime } from '../runtime-execution';
 import type { WindowsWslRuntimeExecution } from '../runtime-execution';
+import type { ChannelBindingStore } from './channelBindings';
 import { resolveCodexCliPath } from './codexCliResolver';
 
 type JsonRecord = Record<string, unknown>;
@@ -118,6 +119,7 @@ type AdapterOptions = {
   rpc: CodexAppServerRpc;
   host?: string;
   channelWorkspace?: string;
+  channelBindingStore?: ChannelBindingStore;
   pageSize?: number;
   maxPages?: number;
 };
@@ -1035,6 +1037,7 @@ export class CodexAppServerAdapter {
   private readonly pageSize: number;
   private readonly maxPages: number;
   private readonly channelWorkspace: string;
+  private readonly channelBindingStore: ChannelBindingStore | null;
   private readonly assignedProjectAffinities = new Map<string, string>();
   private readonly activeConversations = new Map<string, ActiveConversation>();
   private readonly startingThreads = new Set<string>();
@@ -1050,6 +1053,7 @@ export class CodexAppServerAdapter {
     this.rpc = options.rpc;
     this.host = options.host ?? os.hostname();
     this.channelWorkspace = options.channelWorkspace?.trim() ?? '';
+    this.channelBindingStore = options.channelBindingStore ?? null;
     this.pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
     this.maxPages = options.maxPages ?? DEFAULT_MAX_PAGES;
     this.disposeNotification = this.rpc.onNotification?.((method, params) => this.handleNotification(method, params));
@@ -1074,15 +1078,34 @@ export class CodexAppServerAdapter {
   private async startChannelThread(
     input: CodexAppServerChannelConversationIdentity
   ): Promise<CodexAppServerChannelThreadRef> {
-    requiredString(input.provider_id, 'channel provider id');
-    requiredString(input.account_id, 'channel account id');
-    requiredString(input.channel_session_id, 'channel session id');
-    const started = await this.startThread({ workspace: requiredString(this.channelWorkspace, 'channel workspace') });
-    const readback = await this.readThread(started.id);
-    if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
-      throw new Error('Channel thread start readback did not match the active Codex app-server.');
+    if (!this.channelBindingStore) {
+      throw new Error('Channel callback requires an exact binding store.');
     }
-    return { canonical_thread_host: this.host, canonical_thread_id: started.id };
+    const identity = {
+      provider_id: requiredString(input.provider_id, 'channel provider id'),
+      account_id: requiredString(input.account_id, 'channel account id'),
+      channel_session_id: requiredString(input.channel_session_id, 'channel session id'),
+    };
+    if (Object.values(identity).some((value) => value !== value.trim())) {
+      throw new Error('Channel binding identity fields must use exact non-whitespace-padded values.');
+    }
+    if (/\s/.test(identity.provider_id)) {
+      throw new Error('Channel provider id must not contain whitespace.');
+    }
+    const result = await this.channelBindingStore.getOrCreate(identity, async () => {
+      const started = await this.startThread({ workspace: requiredString(this.channelWorkspace, 'channel workspace') });
+      const readback = await this.readThread(started.id);
+      if (readback.thread.id !== started.id || readback.thread.host !== this.host) {
+        throw new Error('Channel thread start readback did not match the active Codex app-server.');
+      }
+      return { canonical_thread_host: this.host, canonical_thread_id: started.id };
+    });
+    const thread = {
+      canonical_thread_host: result.binding.canonical_thread_host,
+      canonical_thread_id: result.binding.canonical_thread_id,
+    };
+    if (!result.created) await this.resumeChannelThread(thread);
+    return thread;
   }
 
   private async resumeChannelThread(input: CodexAppServerChannelThreadRef): Promise<void> {
@@ -1091,6 +1114,11 @@ export class CodexAppServerAdapter {
       throw new Error('Channel binding targeted a different Codex app-server host.');
     }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
+    if (!this.channelBindingStore) throw new Error('Channel callback requires an exact binding store.');
+    await this.channelBindingStore.assertKnownThread({
+      canonical_thread_host: canonicalThreadHost,
+      canonical_thread_id: canonicalThreadId,
+    });
     const readback = await this.readThread(canonicalThreadId);
     if (readback.thread.id !== canonicalThreadId || readback.thread.host !== this.host) {
       throw new Error('Channel binding readback did not match the active Codex app-server thread.');
@@ -1110,6 +1138,11 @@ export class CodexAppServerAdapter {
     }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
     const text = requiredString(input.text, 'channel turn text');
+    if (!this.channelBindingStore) throw new Error('Channel callback requires an exact binding store.');
+    await this.channelBindingStore.assertKnownThread({
+      canonical_thread_host: canonicalThreadHost,
+      canonical_thread_id: canonicalThreadId,
+    });
     const turn = await this.startTurn({
       threadId: canonicalThreadId,
       conversationId: canonicalThreadId,
@@ -1134,6 +1167,9 @@ export class CodexAppServerAdapter {
     }
     const canonicalThreadId = requiredString(input.canonical_thread_id, 'channel canonical thread id');
     const canonicalTurnId = requiredString(input.canonical_turn_id, 'channel canonical turn id');
+    if (this.channelTurnText.get(canonicalThreadId)?.canonicalTurnId !== canonicalTurnId) {
+      throw new Error('Channel subscription targeted a turn outside the exact channel binding.');
+    }
     const subscription: ChannelTurnSubscription = {
       onTerminal: (event) => observer.onTerminal(event),
     };
@@ -1937,6 +1973,8 @@ export function createProductionCodexAppServerAdapter(
   options: {
     platform?: NodeJS.Platform;
     windowsRuntime?: WindowsWslRuntimeExecution | null;
+    channelWorkspace?: string;
+    channelBindingStore?: ChannelBindingStore;
   } = {}
 ): CodexAppServerAdapter {
   const platform = options.platform ?? process.platform;
@@ -1962,7 +2000,13 @@ export function createProductionCodexAppServerAdapter(
         spawnProcess,
         stopProcess
       ),
+      channelWorkspace: options.channelWorkspace,
+      channelBindingStore: options.channelBindingStore,
     });
   }
-  return new CodexAppServerAdapter({ rpc: new StdioCodexAppServerTransport(resolveCodexCliPath) });
+  return new CodexAppServerAdapter({
+    rpc: new StdioCodexAppServerTransport(resolveCodexCliPath),
+    channelWorkspace: options.channelWorkspace,
+    channelBindingStore: options.channelBindingStore,
+  });
 }

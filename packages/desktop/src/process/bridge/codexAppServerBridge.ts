@@ -4,17 +4,57 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { app } from 'electron';
 import { ipcBridge } from '@/common';
 import { type CodexAppServerAdapter, createProductionCodexAppServerAdapter } from '../services/codexAppServer/adapter';
+import { FileChannelBindingStore } from '../services/codexAppServer/channelBindings';
+import {
+  startChannelProviderHost,
+  type ChannelProviderHostDisposable,
+} from '../services/codexAppServer/channelProviderHost';
+import { resolveActiveOplFrameworkPackageRoot } from './oplRuntimeBridge';
 
 let activeAdapter: CodexAppServerAdapter | null = null;
-let activeAdapterFactory: () => CodexAppServerAdapter = createProductionCodexAppServerAdapter;
+let activeAdapterFactory: () => CodexAppServerAdapter = createDefaultAdapter;
+let activeChannelProviderHost: Promise<ChannelProviderHostDisposable | null> | null = null;
+let channelProviderHostStarter: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostDisposable> =
+  startDefaultChannelProviderHost;
 let quitHandlerInstalled = false;
 
-export function disposeCodexAppServerBridge(): void {
-  activeAdapter?.dispose();
+function createDefaultAdapter(): CodexAppServerAdapter {
+  const userDataPath = app.getPath('userData');
+  const channelWorkspace = process.platform === 'win32' ? '/home/opl' : path.join(userDataPath, 'channel-workspace');
+  if (process.platform !== 'win32') fs.mkdirSync(channelWorkspace, { recursive: true });
+  return createProductionCodexAppServerAdapter({
+    channelWorkspace,
+    channelBindingStore: new FileChannelBindingStore(path.join(userDataPath, 'channel-bindings.json')),
+  });
+}
+
+async function startDefaultChannelProviderHost(adapter: CodexAppServerAdapter): Promise<ChannelProviderHostDisposable> {
+  return await startChannelProviderHost({
+    frameworkPackageRoot: resolveActiveOplFrameworkPackageRoot(),
+    callback: adapter.createChannelTurnCallback(),
+  });
+}
+
+function ensureChannelProviderHost(adapter: CodexAppServerAdapter): void {
+  activeChannelProviderHost ??= channelProviderHostStarter(adapter).catch((error): null => {
+    console.warn('[OPL] Channel-provider Host is unavailable:', error);
+    return null;
+  });
+}
+
+export async function disposeCodexAppServerBridge(): Promise<void> {
+  const adapter = activeAdapter;
+  const channelProviderHost = activeChannelProviderHost;
   activeAdapter = null;
+  activeChannelProviderHost = null;
+  const host = await channelProviderHost;
+  await host?.dispose();
+  adapter?.dispose();
 }
 
 function getActiveAdapter(): CodexAppServerAdapter {
@@ -24,13 +64,20 @@ function getActiveAdapter(): CodexAppServerAdapter {
       response: (message) => ipcBridge.codexThreads.responseStream.emit(message),
       turnCompleted: (event) => ipcBridge.codexThreads.turnCompleted.emit(event),
     });
+    ensureChannelProviderHost(activeAdapter);
   }
   return activeAdapter;
 }
 
-export function initCodexAppServerBridge(adapter?: CodexAppServerAdapter): void {
-  disposeCodexAppServerBridge();
-  activeAdapterFactory = adapter ? () => adapter : createProductionCodexAppServerAdapter;
+export function initCodexAppServerBridge(
+  adapter?: CodexAppServerAdapter,
+  options: {
+    startChannelProviderHost?: (adapter: CodexAppServerAdapter) => Promise<ChannelProviderHostDisposable>;
+  } = {}
+): void {
+  void disposeCodexAppServerBridge();
+  activeAdapterFactory = adapter ? () => adapter : createDefaultAdapter;
+  channelProviderHostStarter = options.startChannelProviderHost ?? startDefaultChannelProviderHost;
 
   ipcBridge.codexThreads.list.provider((request) => getActiveAdapter().listThreads(request));
   ipcBridge.codexThreads.read.provider(({ threadId, conversationId }) =>
@@ -60,6 +107,17 @@ export function initCodexAppServerBridge(adapter?: CodexAppServerAdapter): void 
 
   if (!quitHandlerInstalled) {
     quitHandlerInstalled = true;
-    app.on('before-quit', disposeCodexAppServerBridge);
+    app.on('before-quit', () => {
+      void disposeCodexAppServerBridge();
+    });
+  }
+
+  if (adapter) {
+    getActiveAdapter();
+  } else {
+    void app
+      .whenReady()
+      .then(() => getActiveAdapter())
+      .catch((error) => console.warn('[OPL] Codex App Server channel callback is unavailable:', error));
   }
 }
