@@ -182,6 +182,16 @@ function opaqueId(value: unknown): string | null {
   return normalized && normalized.length <= 512 ? normalized : null;
 }
 
+function exactOpaqueId(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 && value.length <= 512 ? value : null;
+}
+
+function exactStableId(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/.test(value) && value.length <= 128
+    ? value
+    : null;
+}
+
 function localizedText(value: unknown): OplUiLocalizedText {
   const record = asRecord(value);
   if (!record) return {};
@@ -320,12 +330,12 @@ export function readOplTransportBindingsProjection(state: unknown): OplTransport
   }
   const bindings = projection.bindings.flatMap((value): OplTransportBinding[] => {
     const binding = asRecord(value);
-    const bindingId = opaqueId(binding?.binding_id);
-    const providerId = stableId(binding?.provider_id);
-    const accountId = opaqueId(binding?.account_id);
-    const channelSessionId = opaqueId(binding?.channel_session_id);
-    const canonicalThreadHost = opaqueId(binding?.canonical_thread_host);
-    const canonicalThreadId = opaqueId(binding?.canonical_thread_id);
+    const bindingId = exactOpaqueId(binding?.binding_id);
+    const providerId = exactStableId(binding?.provider_id);
+    const accountId = exactOpaqueId(binding?.account_id);
+    const channelSessionId = exactOpaqueId(binding?.channel_session_id);
+    const canonicalThreadHost = exactOpaqueId(binding?.canonical_thread_host);
+    const canonicalThreadId = exactOpaqueId(binding?.canonical_thread_id);
     if (
       !binding ||
       !hasOnlyKeys(binding, [

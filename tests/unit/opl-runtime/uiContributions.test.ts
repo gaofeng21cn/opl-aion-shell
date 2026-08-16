@@ -148,6 +148,17 @@ describe('OPL UI contribution projection', () => {
         },
       }).status
     ).toBe('unavailable');
+
+    expect(
+      readOplTransportBindingsProjection({
+        transport_bindings: {
+          surface_kind: 'opl_app_transport_bindings_projection.v1',
+          status: 'available',
+          bindings: [{ ...binding, provider_id: ' opl-weixin' }],
+          authority_boundary: {},
+        },
+      }).status
+    ).toBe('unavailable');
   });
 
   it('validates channel_access result actions and their exact scoped input', () => {
