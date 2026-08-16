@@ -314,10 +314,7 @@ describe('CodexAppServerAdapter', () => {
         file,
         `${JSON.stringify({
           schema: 'opl_app_transport_bindings_adapter_state.v1',
-          bindings: [
-            first.binding,
-            { ...first.binding, account_id: 'account-2', channel_session_id: 'session-2' },
-          ],
+          bindings: [first.binding, { ...first.binding, account_id: 'account-2', channel_session_id: 'session-2' }],
         })}\n`,
         'utf8'
       );
