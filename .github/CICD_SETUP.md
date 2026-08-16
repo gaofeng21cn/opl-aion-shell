@@ -8,7 +8,8 @@ distribution 的 owner 已迁到 `gaofeng21cn/one-person-lab-app`。
 
 本仓库只保留 shell 自身仍需要的 GitHub Actions：
 
-- `pr-checks.yml`：PR 质量检查、测试、覆盖率、i18n 与 release 脚本 smoke。
+- `pr-checks.yml`：PR 源码质量、单元测试、格式和 i18n 检查。
+- `qualification.yml`：维护者手动运行的覆盖率、桌面打包/安装 smoke 和 release 脚本验证。
 - `pr-checks-docs.yml`：文档类 PR 的轻量检查。
 - `_build-reusable.yml`：被手动 build / pack workflow 复用的 shell build 片段。
 - `build-manual.yml`：维护者手动构建 shell 包。
