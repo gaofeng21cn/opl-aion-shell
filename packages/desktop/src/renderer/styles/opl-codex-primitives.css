@@ -19,6 +19,18 @@
   --opl-codex-settings-row-padding-block: 12px;
 }
 
+/* IconParkHOC adds upstream cursor styling to every icon. OPL-owned icons use
+   this small adapter class so their optical box follows the surrounding
+   control instead of becoming an independent interactive target. */
+.opl-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: inherit;
+  line-height: 0;
+  vertical-align: middle;
+}
+
 .opl-codex-composer {
   border: 1px solid var(--opl-codex-composer-border);
   border-radius: var(--opl-codex-composer-radius);

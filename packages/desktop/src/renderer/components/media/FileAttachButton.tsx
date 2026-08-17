@@ -11,9 +11,9 @@ import ComposerCapabilityPalette, {
   type ComposerCapabilityPaletteGroup,
   type ComposerCapabilityPaletteItem,
 } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useConversationContextSafe } from '@/renderer/hooks/context/ConversationContext';
 import { FileService, type FileMetadata } from '@/renderer/services/FileService';
-import { iconColors } from '@/renderer/styles/colors';
 import { emitter } from '@/renderer/utils/emitter';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Button, Message } from '@arco-design/web-react';
@@ -104,7 +104,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         id: 'attach-file',
         label: t('common.fileAttach.addFiles', { defaultValue: 'Add files' }),
         description: t('common.fileAttach.addFilesDescription'),
-        icon: <Paperclip theme='outline' size='16' />,
+        icon: <OplIcon icon={Paperclip} size={16} />,
         onSelect: openFileSelector,
       },
     ];
@@ -113,7 +113,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         id: 'attach-directory',
         label: t('common.fileAttach.addFolder', { defaultValue: 'Add folder' }),
         description: t('common.fileAttach.addFolderDescription'),
-        icon: <FolderOpen theme='outline' size='16' />,
+        icon: <OplIcon icon={FolderOpen} size={16} />,
         onSelect: openDirectorySelector,
       });
     }
@@ -122,7 +122,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         id: 'attach-device',
         label: t('common.fileAttach.myDevice', { defaultValue: 'Upload from device' }),
         description: t('common.fileAttach.myDeviceDescription'),
-        icon: <FolderOpen theme='outline' size='16' />,
+        icon: <OplIcon icon={FolderOpen} size={16} />,
         disabled: !onLocalFilesAdded,
         onSelect: () => fileInputRef.current?.click(),
       });
@@ -132,7 +132,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
       label: name,
       description: descriptionByName.get(name),
       keywords: ['skill'],
-      icon: <Lightning theme='outline' size='16' />,
+      icon: <OplIcon icon={Lightning} size={16} />,
       onSelect: () => emitter.emit('sendbox.fill', `/${name} `),
     }));
     if (skillItems.length === 0) {
@@ -140,7 +140,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         id: 'manage-skills',
         label: t('conversation.skills.manage'),
         description: t('conversation.skills.empty'),
-        icon: <Lightning theme='outline' size='16' />,
+        icon: <OplIcon icon={Lightning} size={16} />,
         onSelect: () => void navigate('/settings/capabilities?tab=skills'),
       });
     }
@@ -152,7 +152,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         label: status.name,
         description: status.reason,
         keywords: ['connection', 'app'],
-        icon: <Link theme='outline' size='16' />,
+        icon: <OplIcon icon={Link} size={16} />,
         meta: t(`conversation.mcp.status.${status.status}` as const),
         disabled: true,
         onSelect: () => undefined,
@@ -163,7 +163,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
         id: 'manage-connections',
         label: t('conversation.mcp.manage'),
         description: t('conversation.mcp.empty'),
-        icon: <Link theme='outline' size='16' />,
+        icon: <OplIcon icon={Link} size={16} />,
         onSelect: () => void navigate('/settings/capabilities?tab=tools'),
       });
     }
@@ -198,7 +198,7 @@ const FileAttachButton: React.FC<FileAttachButtonProps> = ({
     <Button
       type='secondary'
       shape='circle'
-      icon={<Plus theme='outline' size='14' strokeWidth={2} fill={iconColors.primary} />}
+      icon={<OplIcon icon={Plus} size={14} />}
       loading={uploading}
       disabled={uploading}
       data-testid='aionrs-attach-folder-btn'

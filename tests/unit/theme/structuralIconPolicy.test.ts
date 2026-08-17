@@ -152,6 +152,7 @@ describe('structural icon policy', () => {
 
   it('defines one Codex-aligned optical contract without changing the upstream-wide IconPark wrapper', () => {
     const source = read('packages/desktop/src/renderer/components/opl/oplChromeIcon.ts');
+    const visualAdapter = read('packages/desktop/src/renderer/components/opl/OplVisualProvider.tsx');
     const upstreamWrapper = read('packages/desktop/src/renderer/components/IconParkHOC.tsx');
 
     expect(source).toMatch(/export const OPL_CHROME_ICON_SIZE\s*=\s*16\b/);
@@ -160,6 +161,10 @@ describe('structural icon policy', () => {
     expect(source).toMatch(/strokeWidth:\s*OPL_CHROME_ICON_STROKE_WIDTH\b/);
     expect(source).toMatch(/theme:\s*['"]outline['"]/);
     expect(source).toMatch(/fill:\s*['"]currentColor['"]/);
+    expect(visualAdapter).toContain('OplVisualProvider');
+    expect(visualAdapter).toContain('OplIcon');
+    expect(visualAdapter).not.toContain('useOplAppState');
+    expect(visualAdapter).not.toContain('ipcBridge');
     expect(upstreamWrapper).not.toContain('OPL_CHROME_ICON_PROPS');
   });
 

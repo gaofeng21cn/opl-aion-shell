@@ -90,6 +90,7 @@ import BackendStartupGate from './components/layout/BackendStartupGate';
 import Layout from './components/layout/Layout';
 import Router from './components/layout/Router';
 import Sider from './components/layout/Sider';
+import OplVisualProvider from './components/opl/OplVisualProvider';
 import { useAuth } from './hooks/context/AuthContext';
 import { ConversationHistoryProvider } from './hooks/context/ConversationHistoryContext';
 import HOC from './utils/ui/HOC';
@@ -211,12 +212,16 @@ const AppProviders: React.FC<PropsWithChildren> = ({ children }) =>
       ThemeProvider,
       null,
       React.createElement(
-        PreviewProvider,
+        OplVisualProvider,
         null,
         React.createElement(
-          FeedbackProvider,
+          PreviewProvider,
           null,
-          React.createElement(React.Fragment, null, React.createElement(RuntimeFailureDialogs, null), children)
+          React.createElement(
+            FeedbackProvider,
+            null,
+            React.createElement(React.Fragment, null, React.createElement(RuntimeFailureDialogs, null), children)
+          )
         )
       )
     )

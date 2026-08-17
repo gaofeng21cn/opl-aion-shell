@@ -34,6 +34,7 @@ import type { ConversationExportFormat } from '@/renderer/utils/chat/conversatio
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/ui/focus';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Button, Input, Message, Radio, Tag } from '@arco-design/web-react';
 import { ArrowUp, CloseSmall, FolderOpen, Plus, Quote } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
@@ -160,7 +161,7 @@ export const ConversationExportFilePanel = ({
           <Button
             size='small'
             type='secondary'
-            icon={<FolderOpen size={14} />}
+            icon={<OplIcon icon={FolderOpen} size={14} />}
             disabled={loading}
             onClick={() => void onSelectDirectory()}
           >
@@ -1404,7 +1405,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='secondary'
       className='sendbox-mobile-plus-btn'
-      icon={<Plus theme='outline' size='16' />}
+      icon={<OplIcon icon={Plus} size={16} />}
       onClick={onMobilePlusClick}
       data-testid='sendbox-mobile-plus-btn'
       aria-label={t('common.more', { defaultValue: 'More' })}
@@ -1570,7 +1571,7 @@ const SendBox: React.FC<{
           {replyQuote && (
             <div className='flex items-start gap-10px mb-8px px-12px py-10px rd-10px bg-fill-1 b-1 b-solid b-border-2'>
               <div className='flex-shrink-0 mt-2px' style={{ lineHeight: 0 }}>
-                <Quote theme='filled' size='16' fill='rgb(var(--primary-6))' />
+                <OplIcon icon={Quote} size={16} />
               </div>
               <div className='flex-1 min-w-0 text-13px text-t-primary line-clamp-3 lh-20px whitespace-pre-wrap break-all'>
                 {replyQuote.content}
@@ -1580,7 +1581,7 @@ const SendBox: React.FC<{
                 onClick={() => setReplyQuote(null)}
                 style={{ lineHeight: 0 }}
               >
-                <CloseSmall theme='outline' size='14' />
+                <OplIcon icon={CloseSmall} size={14} />
               </div>
             </div>
           )}
@@ -1591,7 +1592,7 @@ const SendBox: React.FC<{
                 <Tag
                   key={snippet.id}
                   closable
-                  closeIcon={<CloseSmall theme='outline' size='12' />}
+                  closeIcon={<OplIcon icon={CloseSmall} size={12} />}
                   onClose={() => removeDomSnippet(snippet.id)}
                   className='text-12px bg-fill-2 b-1 b-solid b-border-2 rd-4px'
                 >
@@ -1606,7 +1607,7 @@ const SendBox: React.FC<{
                 <Tag
                   key={typeof item === 'string' ? item : item.path}
                   closable
-                  closeIcon={<CloseSmall theme='outline' size='12' />}
+                  closeIcon={<OplIcon icon={CloseSmall} size={12} />}
                   onClose={() => {
                     const path = getSelectedItemPath(item);
                     if (!path) {

@@ -21,6 +21,7 @@ import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import ConversationComposerContextStrip from '@/renderer/components/chat/composer/ConversationComposerContextStrip';
 import type { ComposerCapabilityPaletteItem } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
 import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
   type MobileActionSheetOption,
@@ -62,7 +63,6 @@ import {
 } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
-import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
 import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
 import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
@@ -639,7 +639,7 @@ Please check your local CLI tool authentication status`,
         id: `mode-${mode.value}`,
         label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
         description: mode.description,
-        icon: <Compass theme='outline' size='16' />,
+        icon: <OplIcon icon={Compass} size={16} />,
         active: currentMode === mode.value,
         closeOnSelect: false,
         onSelect: () => void handlePaletteModeChange(mode.value),
@@ -658,7 +658,7 @@ Please check your local CLI tool authentication status`,
     if (loadedSkills.length > 0) {
       entries.push({
         key: 'skills',
-        icon: <Lightning theme='outline' size='16' />,
+        icon: <OplIcon icon={Lightning} size={16} />,
         label: t('guid.context.skillsGroup'),
         meta: loadedSkills.length,
         submenu: {
@@ -671,7 +671,7 @@ Please check your local CLI tool authentication status`,
     } else {
       entries.push({
         key: 'manage-skills',
-        icon: <Lightning theme='outline' size='16' />,
+        icon: <OplIcon icon={Lightning} size={16} />,
         label: t('conversation.skills.manage'),
         description: t('conversation.skills.empty'),
         onClick: () => void navigate('/settings/capabilities?tab=skills'),
@@ -681,7 +681,7 @@ Please check your local CLI tool authentication status`,
     if (sessionModeItems.length > 0) {
       entries.push({
         key: 'session-modes',
-        icon: <Compass theme='outline' size='16' />,
+        icon: <OplIcon icon={Compass} size={16} />,
         label: t('guid.context.sessionModesGroup'),
         meta: sessionModeItems.find((item) => item.active)?.label,
         submenu: {
@@ -700,7 +700,7 @@ Please check your local CLI tool authentication status`,
     if (loadedMcpStatuses.length > 0) {
       entries.push({
         key: 'connections',
-        icon: <Link theme='outline' size='16' />,
+        icon: <OplIcon icon={Link} size={16} />,
         label: t('guid.context.appsAndConnectionsGroup'),
         meta: loadedMcpStatuses.length,
         submenu: {
@@ -718,7 +718,7 @@ Please check your local CLI tool authentication status`,
     } else {
       entries.push({
         key: 'manage-connections',
-        icon: <Link theme='outline' size='16' />,
+        icon: <OplIcon icon={Link} size={16} />,
         label: t('conversation.mcp.manage'),
         description: t('conversation.mcp.empty'),
         onClick: () => void navigate('/settings/capabilities?tab=tools'),
@@ -738,7 +738,7 @@ Please check your local CLI tool authentication status`,
     if (permissionOptions.length > 0) {
       entries.push({
         key: 'permission',
-        icon: <Shield theme='outline' size='16' />,
+        icon: <OplIcon icon={Shield} size={16} />,
         label: t('agentMode.permission', { defaultValue: 'Permission' }),
         meta: permissionOptions.find((option) => option.active)?.label,
         submenu: {
@@ -874,7 +874,7 @@ Please check your local CLI tool authentication status`,
     if (activeCapabilityLabel) {
       entries.push({
         key: 'active-capability',
-        icon: <MagicHat theme='outline' size='16' />,
+        icon: <OplIcon icon={MagicHat} size={16} />,
         label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
         variant: 'muted',
         dividerBefore: entries.length > 0,
@@ -1024,7 +1024,7 @@ Please check your local CLI tool authentication status`,
                           }
                         : undefined
                     }
-                    compactLeadingIcon={<Shield theme='outline' size='14' fill={iconColors.secondary} />}
+                    compactLeadingIcon={<OplIcon icon={Shield} size={14} />}
                     modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
                     compactLabelPrefix={t('agentMode.permission')}
                     onModeChanged={isLeaderInTeam ? teamPermission?.propagateMode : undefined}
