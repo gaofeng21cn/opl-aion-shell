@@ -163,11 +163,19 @@ body[data-ds-dark-theme] {
   border-radius: 8px;
 }
 
-/* Conversation timeline is deferred from the DSH cohort. Keep its vertical
- * scroll behavior without letting the global DSH scrollbar expose an
- * unintended horizontal track around the Virtuoso padding breakout. */
+/* Conversation timeline is deferred from the DSH cohort. Let the Virtuoso
+ * scroller break out to the window edge, but keep the content inset inside
+ * its measured viewport so narrow layouts cannot clip the final 20px. */
 [data-testid='message-list-scroller'] {
+  padding-left: 0;
+  padding-right: 0;
   overflow-x: hidden;
+}
+
+[data-testid='message-list-content'] {
+  box-sizing: border-box;
+  padding-left: 20px;
+  padding-right: 20px;
 }
 
 ::selection {

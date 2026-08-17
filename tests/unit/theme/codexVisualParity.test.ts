@@ -158,7 +158,12 @@ describe('Codex visual parity overlay', () => {
     );
     expect(baseline).toContain('body[data-ds-dark-theme]');
     expect(baseline).not.toContain("[data-color-scheme='default'][data-theme='dark']");
-    expect(baseline).toMatch(/\[data-testid='message-list-scroller'\]\s*{[^}]*overflow-x:\s*hidden;/);
+    expect(baseline).toMatch(
+      /\[data-testid='message-list-scroller'\]\s*{[^}]*padding-left:\s*0;[^}]*padding-right:\s*0;[^}]*overflow-x:\s*hidden;/
+    );
+    expect(baseline).toMatch(
+      /\[data-testid='message-list-content'\]\s*{[^}]*box-sizing:\s*border-box;[^}]*padding-left:\s*20px;[^}]*padding-right:\s*20px;/
+    );
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-bg')).toBe('var(--opl-sidebar-bg)');
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-active')).toBe('var(--opl-sidebar-active)');
     expect(codexPreset).not.toContain('rgba(246, 246, 244, 0.84)');

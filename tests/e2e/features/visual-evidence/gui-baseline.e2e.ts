@@ -406,16 +406,52 @@ async function horizontalOverflowPolicyCheck(
     .first()
     .evaluate((element) => {
       const html = element as HTMLElement;
+      const viewport = { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+      const isVisible = (rect: DOMRect) =>
+        rect.width > 0 &&
+        rect.height > 0 &&
+        rect.bottom > viewport.top &&
+        rect.top < viewport.bottom &&
+        rect.right > viewport.left &&
+        rect.left < viewport.right;
+      const outsideViewport = (rect: DOMRect) => rect.left < viewport.left - 1 || rect.right > viewport.right + 1;
+      const serializeRect = (rect: DOMRect) => ({
+        left: Number(rect.left.toFixed(2)),
+        right: Number(rect.right.toFixed(2)),
+        top: Number(rect.top.toFixed(2)),
+        bottom: Number(rect.bottom.toFixed(2)),
+      });
+      const bubbleViolations = Array.from(html.querySelectorAll<HTMLElement>('[data-testid="message-text-bubble"]'))
+        .map((bubble) => bubble.getBoundingClientRect())
+        .filter((rect) => isVisible(rect) && outsideViewport(rect))
+        .map(serializeRect);
+      const textRangeViolations = Array.from(
+        html.querySelectorAll<HTMLElement>('[data-testid="message-text-content"]')
+      ).flatMap((content) => {
+        const range = document.createRange();
+        range.selectNodeContents(content);
+        return Array.from(range.getClientRects())
+          .filter((rect) => isVisible(rect) && outsideViewport(rect))
+          .map(serializeRect);
+      });
       return {
         overflowX: window.getComputedStyle(html).overflowX,
         clientWidth: html.clientWidth,
         scrollWidth: html.scrollWidth,
         scrollLeft: html.scrollLeft,
+        viewportWidth: window.innerWidth,
+        bubbleViolations,
+        textRangeViolations,
       };
     });
   return {
     id,
-    passed: details.overflowX === 'hidden' && details.scrollLeft === 0,
+    passed:
+      details.overflowX === 'hidden' &&
+      details.scrollWidth <= details.clientWidth + 1 &&
+      details.scrollLeft === 0 &&
+      details.bubbleViolations.length === 0 &&
+      details.textRangeViolations.length === 0,
     details: JSON.stringify(details),
   };
 }
