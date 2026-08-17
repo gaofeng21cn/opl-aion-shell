@@ -396,6 +396,30 @@ async function viewportCheck(page: Page, id: string, selector: string): Promise<
   };
 }
 
+async function horizontalOverflowPolicyCheck(
+  page: Page,
+  id: string,
+  selector: string
+): Promise<GuiBaselineLayoutCheck> {
+  const details = await page
+    .locator(selector)
+    .first()
+    .evaluate((element) => {
+      const html = element as HTMLElement;
+      return {
+        overflowX: window.getComputedStyle(html).overflowX,
+        clientWidth: html.clientWidth,
+        scrollWidth: html.scrollWidth,
+        scrollLeft: html.scrollLeft,
+      };
+    });
+  return {
+    id,
+    passed: details.overflowX === 'hidden' && details.scrollLeft === 0,
+    details: JSON.stringify(details),
+  };
+}
+
 async function viewportWidthCoverageCheck(
   page: Page,
   id: string,
@@ -995,6 +1019,11 @@ function buildTargets(conversationId: string): VisualTargetDefinition[] {
       'timeline_does_not_cover_composer',
       '[data-testid="message-list-scroller"]',
       '[data-testid="conversation-composer"]'
+    ),
+    await horizontalOverflowPolicyCheck(
+      page,
+      'conversation_timeline_does_not_expose_horizontal_scrollbar',
+      '[data-testid="message-list-scroller"]'
     ),
     await textOverflowCheck(page, 'conversation_text_does_not_overflow', '[data-testid="conversation-main-column"]'),
     await conversationTypographyCheck(page),

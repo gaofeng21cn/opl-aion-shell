@@ -163,6 +163,13 @@ body[data-ds-dark-theme] {
   border-radius: 8px;
 }
 
+/* Conversation timeline is deferred from the DSH cohort. Keep its vertical
+ * scroll behavior without letting the global DSH scrollbar expose an
+ * unintended horizontal track around the Virtuoso padding breakout. */
+[data-testid='message-list-scroller'] {
+  overflow-x: hidden;
+}
+
 ::selection {
   background: var(--opl-focus-ring);
 }
