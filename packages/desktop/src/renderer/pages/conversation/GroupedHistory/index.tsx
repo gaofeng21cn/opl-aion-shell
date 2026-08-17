@@ -11,11 +11,11 @@ import { useCronJobsMap } from '@/renderer/pages/cron';
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { Button, Input, Modal, Tooltip } from '@arco-design/web-react';
-import { Export, FolderOpen, MessageOne, Plus, Right, Tips } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 import WorkspaceCollapse from '../components/WorkspaceCollapse';
 import ConversationRow from './ConversationRow';
@@ -87,8 +87,8 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
             {label}
           </span>
           <span className='ml-2px flex items-center justify-center opacity-0 group-hover/label:opacity-100 transition-opacity text-t-tertiary shrink-0'>
-            <Right
-              theme='outline'
+            <OplIcon
+              name='chevronRight'
               size={12}
               className={classNames('transition-transform duration-150', { 'rotate-90': !isCollapsed })}
             />
@@ -350,7 +350,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
           data-testid='conversation-history-empty'
         >
           <span className='flex h-20px w-20px items-center justify-center leading-none' aria-hidden='true'>
-            <MessageOne theme='outline' size='20' fill='currentColor' />
+            <OplIcon name='message' size={20} />
           </span>
           <span className='text-13px leading-18px'>
             {t(archived ? 'conversation.history.noArchived' : 'conversation.history.noHistory')}
@@ -429,12 +429,12 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
               >
                 {exportTargetPath || t('conversation.history.exportSelectFolder')}
               </span>
-              <FolderOpen theme='outline' size='18' fill='var(--color-text-3)' />
+              <OplIcon name='folderOpen' size={18} className='text-t-tertiary' />
             </div>
           </div>
 
           <div className='flex items-center gap-8px mb-20px text-14px text-t-secondary'>
-            <Tips theme='outline' size='16' fill='currentColor' aria-hidden='true' />
+            <OplIcon name='tips' size={16} aria-hidden='true' />
             <span>{t('conversation.history.exportDialogHint')}</span>
           </div>
 
@@ -518,7 +518,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                 className='!w-full !justify-center !min-w-0 !h-30px !px-8px !text-12px whitespace-nowrap'
                 size='mini'
                 type='secondary'
-                icon={<Export theme='outline' size='14' />}
+                icon={<OplIcon name='export' size={14} />}
                 onClick={handleBatchExport}
               >
                 {t('conversation.history.batchExport')}
@@ -639,7 +639,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                   }
                                 }}
                               >
-                                <Plus theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                                <OplIcon name='plus' size={14} className='block leading-none' />
                               </span>
                             </Tooltip>
                           </span>

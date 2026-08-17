@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Left, Right } from '@icon-park/react';
 import React, { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import styles from './MobileActionSheet.module.css';
 import type { MobileActionSheetEntry, MobileActionSheetProps, MobileActionSheetSubMenu } from './types';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 const TRANSITION_MS = 260;
 const FOCUSABLE_SELECTOR = [
@@ -333,7 +333,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
                       <div className={styles.meta}>
                         {entry.meta && <span className={styles.metaText}>{entry.meta}</span>}
                         {entry.submenu && (
-                          <Right theme='outline' size='14' className={styles.chevron} aria-hidden='true' />
+                          <OplIcon name='chevronRight' size={14} className={styles.chevron} aria-hidden='true' />
                         )}
                         {entry.trailingIcon && <span className={styles.chevron}>{entry.trailingIcon}</span>}
                       </div>
@@ -353,7 +353,7 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({ open, onClose, ti
             >
               <div className={styles.subbar}>
                 <button className={styles.back} onClick={handleBack} type='button'>
-                  <Left theme='outline' size='16' aria-hidden='true' />
+                  <OplIcon name='chevronLeft' aria-hidden='true' />
                   <span>{t('conversation.navigation.back')}</span>
                 </button>
                 <div className={styles.subtitle} id={`${titleId}-submenu-title`}>

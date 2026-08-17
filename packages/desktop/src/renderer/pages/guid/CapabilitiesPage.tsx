@@ -5,7 +5,7 @@
  */
 
 import { Button } from '@arco-design/web-react';
-import { ArrowLeft, Right } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -26,7 +26,7 @@ const CapabilitiesPage: React.FC = () => {
             type='text'
             shape='circle'
             aria-label={t('common.back')}
-            icon={<ArrowLeft theme='outline' size='16' fill='currentColor' />}
+            icon={<OplIcon name='chevronLeft' />}
             onClick={() => void navigate('/guid')}
           />
           <div className='min-w-0'>
@@ -60,7 +60,7 @@ const CapabilitiesPage: React.FC = () => {
                     {description}
                   </span>
                 </span>
-                <Right theme='outline' size='14' fill='currentColor' className='shrink-0 text-t-tertiary' />
+                <OplIcon name='chevronRight' size={14} className='shrink-0 text-t-tertiary' />
               </Button>
             );
           })}

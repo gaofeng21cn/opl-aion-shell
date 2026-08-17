@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "schema": "opl_aionui_dsh_visual_source_manifest.v1",
+  "upstream": {
+    "repository": "https://github.com/deepseek-ai/deepseek-harness.git",
+    "commit": "47f943859bef60e4160492346772ded9b24f765a",
+    "default_branch_at_intake": "master",
+    "license": "MIT"
+  },
+  "source_policy": {
+    "app_contract": "contracts/app-gui-visual-source-cohort.json",
+    "reuse_mode": "bounded_vendored_visual_source_with_opl_adapters",
+    "vendored_files_byte_identical": false,
+    "import_path_normalizations": [],
+    "toolchain_compatibility_normalizations": [
+      {
+        "path": "packages/client/ui-primitives/src/icons/index.tsx",
+        "kind": "classic_react_jsx_runtime_import",
+        "change": "add import React from 'react' without changing glyph markup",
+        "reason": "AionUI compiles TSX with jsx=react while the pinned DSH package uses the automatic JSX runtime"
+      }
+    ],
+    "runtime_authority_imported": false
+  },
+  "vendored_files": [
+    {
+      "path": "LICENSE",
+      "sha256": "ebb4f09972aee8608be255debaf78451a68e95c290f55c240dec2ecfa16ea6be",
+      "role": "license_notice"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/icons/index.tsx",
+      "upstream_sha256": "b3b988bc9b2089c44d762be3d87ccf80021cadbafde11b6923ebb30cbf65da9b",
+      "sha256": "57c63d9f82784419ab40e5671be245844ac1c6c416a5c63368fad989155867f7",
+      "normalization": "classic_react_jsx_runtime_import",
+      "role": "runtime_icon_source"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/icons/props.ts",
+      "sha256": "98d350861746bca58f07d5301a0caff7270035c9331ed5b605e702d7f590f1fb",
+      "role": "runtime_icon_source"
+    },
+    {
+      "path": "packages/client/ui-theme/src/styles/base.css",
+      "sha256": "85f8970d2650108ad47d66da1db3ba00ebbe3f26aaec00551cfa69dd029347a3",
+      "role": "runtime_theme_source"
+    },
+    {
+      "path": "packages/client/ui-theme/src/styles/design-platform.css",
+      "sha256": "7fbb81d2b7879c75c9fb6a9a5ec15435df9f916036fa925a70ca197a78bee42c",
+      "role": "runtime_theme_source"
+    },
+    {
+      "path": "packages/client/ui-theme/src/styles/gradient-shadow-text.css",
+      "sha256": "4f06e45acf54d416802fc35391f233199a0ff0da731d75f3c489384d8a9b7ebc",
+      "role": "runtime_theme_source"
+    },
+    {
+      "path": "packages/client/ui-theme/src/styles/scrollbar.css",
+      "sha256": "1364c2c2ac058427ec820bc3583927924f0119d5fea41088dddff7cd71990235",
+      "role": "runtime_theme_source"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Button.module.css",
+      "sha256": "4666bf191abc8b6bcfd4e22355bab0c2f04391b85c2e918bd882a37ff68ef2b9",
+      "role": "runtime_primitive_geometry"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Input.module.css",
+      "sha256": "790195c01e1416a590e0b0353c5beeab1ae510151b2bd580fdea4ddbd4dca399",
+      "role": "runtime_primitive_geometry"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Pill.module.css",
+      "sha256": "c1c39eb6adc0e40326f7a33598a32195b388cb9db2627a9c723c009b44a94dab",
+      "role": "runtime_primitive_geometry"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/StateDot.module.css",
+      "sha256": "44b426f2016989477e5e7702f817057f328f6f46428c07ce0deae10dd8fad3b9",
+      "role": "runtime_primitive_geometry"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Tooltip.module.css",
+      "sha256": "9286defa4a20872df113af062b9b78d2ec465f857ffada668dbe32f9d55e41c5",
+      "role": "runtime_primitive_geometry"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Menu.module.css",
+      "sha256": "1eee2a9fc186c7f872c466781ffda894d14a3f514cbb3cabd1777397e33405b8",
+      "role": "runtime_primitive_geometry"
+    }
+  ],
+  "reference_files": [
+    {
+      "path": "packages/client/ui-layout/src/client/AppFrame.module.css",
+      "sha256": "329ad2e094a26fb4ffe3a33eb2d4bdf21262af37ec01da386bd14ef10ba64670",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-sidebar/src/client/SidebarRoot.module.css",
+      "sha256": "c5c84e0eeef0d6d9862a6acea7b1e414bbd746cfa6e061fdc60b92d703d842ea",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-conversation/src/client/skeleton/InputBar.module.css",
+      "sha256": "c06ae1f782b500631cffb776b770c36437729b93c9dbf438117db1eafd0d6535",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-settings-general/src/client/chrome.module.css",
+      "sha256": "b358ca8429afe83e3a025a770f10884c9eb270b1de3ed52c9754e8b2061baeea",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Button.tsx",
+      "sha256": "5f1db06042fa372c45d777feffaab3b1d0c9395a89fa00b735bd9cbc8a389371",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Input.tsx",
+      "sha256": "dcb73dad681f3f37975c08ed3aa97922a1f5337548b406806324877a5d398c51",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Pill.tsx",
+      "sha256": "7acf38a1d501cddcdbfcf14b07e9d4d04b45abb25367d596a2f7406c13f6391f",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/StateDot.tsx",
+      "sha256": "0e30ac9c250626eeea02da547275e7779562234a847267ec11805b1ec9b594b9",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Tooltip.tsx",
+      "sha256": "9e2c238d1c940df71910ffe1cefc7cd8a9e400216296f537108029b3b4c71409",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/Menu.tsx",
+      "sha256": "28500b6e8e3b4e24ea292ee30cf2a11e3eb92b7b027cbacde16f779c69849ca7",
+      "status": "adapter_reference_only"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/markdown/MessageText.tsx",
+      "sha256": "3170d64381baaf3f253476beb07b1f783fa49bb32d086969f5dda1515075caea",
+      "status": "deferred"
+    },
+    {
+      "path": "packages/client/ui-primitives/src/markdown/MessageText.module.css",
+      "sha256": "95d227acaec1b949140345184a127bd53a72621af78c39af818bade0ec99e0a0",
+      "status": "deferred"
+    }
+  ]
+}

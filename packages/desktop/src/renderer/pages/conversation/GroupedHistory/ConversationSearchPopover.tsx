@@ -11,12 +11,12 @@ import { usePresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistan
 import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import { blockMobileInputFocus, blurActiveElement } from '@/renderer/utils/ui/focus';
 import { Empty, Spin, Typography } from '@arco-design/web-react';
-import { Close, CloseSmall, MessageOne, Search } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { isConversationArchived } from './utils/groupingHelpers';
 import './ConversationSearchPopover.css';
@@ -134,7 +134,7 @@ const ConversationAgentMark: React.FC<{ conversation: IMessageSearchItem['conver
     );
   }
 
-  return <MessageOne theme='outline' size='18' className='line-height-0 flex-shrink-0 text-t-secondary' />;
+  return <OplIcon name='message' size={18} className='text-t-secondary' />;
 };
 
 const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
@@ -479,22 +479,10 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
         >
           {fullWidth ? (
             <span className='size-22px flex items-center justify-center shrink-0 text-t-primary'>
-              <Search
-                theme='outline'
-                size='16'
-                fill='currentColor'
-                className='block leading-none'
-                style={{ lineHeight: 0 }}
-              />
+              <OplIcon name='search' size={16} />
             </span>
           ) : (
-            <Search
-              theme='outline'
-              size='16'
-              fill='currentColor'
-              className='block leading-none shrink-0'
-              style={{ lineHeight: 0 }}
-            />
+            <OplIcon name='search' size={16} />
           )}
           {fullWidth && label ? (
             <span className='collapsed-hidden text-t-primary text-14px font-[500] leading-24px'>{label}</span>
@@ -548,13 +536,13 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
               onClick={handleClose}
               aria-label='Close'
             >
-              <Close size={16} />
+              <OplIcon name='close' size={16} />
             </button>
           </div>
 
           <div className='mb-14px conversation-search-modal__input-wrap'>
             <div className='conversation-search-modal__searchbar'>
-              <Search theme='outline' size='16' className='conversation-search-modal__search-icon' />
+              <OplIcon name='search' size={16} className='conversation-search-modal__search-icon' />
               <input
                 autoFocus={visible}
                 value={keyword}
@@ -569,7 +557,7 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
                   onClick={handleClearKeyword}
                   aria-label='Clear search'
                 >
-                  <CloseSmall theme='outline' size='14' />
+                  <OplIcon name='closeFill' size={14} />
                 </button>
               ) : null}
             </div>

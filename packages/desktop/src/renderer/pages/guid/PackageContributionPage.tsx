@@ -1,5 +1,5 @@
 import { Alert, Button, Modal, Spin, Tag, Typography } from '@arco-design/web-react';
-import { Back, Refresh } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { ipcBridge } from '@/common';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import { resolveLocaleKey } from '@/common/utils';
@@ -163,7 +163,7 @@ const PackageContributionPage: React.FC = () => {
       <header className={styles.packageContributionHeader}>
         <Button
           type='text'
-          icon={<Back theme='outline' />}
+          icon={<OplIcon name='chevronLeft' />}
           aria-label={t('common.back')}
           onClick={() => void navigate('/guid')}
           data-testid='opl-package-contribution-back'
@@ -175,7 +175,7 @@ const PackageContributionPage: React.FC = () => {
         {!unavailable && (
           <Button
             type='text'
-            icon={<Refresh theme='outline' />}
+            icon={<OplIcon name='refresh' />}
             loading={loading}
             aria-label={t('common.refresh')}
             onClick={() => void load()}

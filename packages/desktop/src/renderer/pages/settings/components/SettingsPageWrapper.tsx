@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
-import { ArrowLeft, Right, Search } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
   SettingsActiveAnchorProvider,
@@ -13,7 +13,6 @@ import { useExtensionSettingsTabs } from '@/renderer/hooks/system/useExtensionSe
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useExtI18n } from '@/renderer/hooks/system/useExtI18n';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import {
   buildSettingsNavItems,
   BUILTIN_TAB_IDS,
@@ -157,7 +156,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         value={searchQuery}
         onChange={setSearchQuery}
         allowClear
-        prefix={<Search {...OPL_CHROME_ICON_PROPS} />}
+        prefix={<OplIcon name='search' aria-hidden='true' />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         data-testid='settings-search-input'
         onKeyDown={(event) => {
@@ -237,7 +236,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                       <Button
                         type='text'
                         htmlType='button'
-                        icon={<ArrowLeft {...OPL_CHROME_ICON_PROPS} />}
+                        icon={<OplIcon name='chevronLeft' aria-hidden='true' />}
                         aria-label={t('settings.uiOptimization.navigation.mobileBack')}
                         className='settings-mobile-navigation__back'
                         onClick={() => setMobileGroupId(null)}
@@ -261,7 +260,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                           >
                             <span className='settings-mobile-navigation__row-icon'>{destination.icon}</span>
                             <span className='settings-mobile-navigation__row-label'>{destination.label}</span>
-                            <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
+                            <OplIcon name='chevronRight' size={14} aria-hidden='true' />
                           </Button>
                         );
                       })}
@@ -285,7 +284,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                         >
                           <span className='settings-mobile-navigation__row-icon'>{group.icon}</span>
                           <span className='settings-mobile-navigation__row-label'>{group.label}</span>
-                          <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
+                          <OplIcon name='chevronRight' size={14} aria-hidden='true' />
                         </Button>
                       );
                     })}
@@ -299,7 +298,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                       >
                         <span className='settings-mobile-navigation__row-icon'>{aboutItem.icon}</span>
                         <span className='settings-mobile-navigation__row-label'>{aboutItem.label}</span>
-                        <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' />
+                        <OplIcon name='chevronRight' size={14} aria-hidden='true' />
                       </Button>
                     ) : null}
                   </div>

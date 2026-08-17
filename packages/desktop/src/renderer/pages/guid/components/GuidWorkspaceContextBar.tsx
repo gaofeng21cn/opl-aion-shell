@@ -2,7 +2,6 @@ import { ipcBridge } from '@/common';
 import { addRecentWorkspace, getRecentWorkspaces } from '@/renderer/components/workspace';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { CloseSmall, FolderOpen, SettingTwo } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
@@ -54,7 +53,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
         aria-disabled={workspaceAccessDisabled}
       >
         <span className={styles.workspaceContextLabel}>
-          <OplIcon icon={FolderOpen} size={16} aria-hidden='true' />
+          <OplIcon name='folderOpen' size={16} aria-hidden='true' />
           <span>{t('guid.context.workingDirectory')}</span>
         </span>
         {workspaceDir ? (
@@ -89,7 +88,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
                 type='text'
                 shape='circle'
                 size='mini'
-                icon={<OplIcon icon={SettingTwo} size={13} />}
+                icon={<OplIcon name='settingsSmall' size={13} />}
                 disabled={workspaceAccessDisabled}
                 onClick={() => setManagementOpen(true)}
                 aria-label={t('guid.workspace.manageRegistered')}
@@ -103,7 +102,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
                 type='text'
                 shape='circle'
                 size='mini'
-                icon={<OplIcon icon={CloseSmall} size={13} strokeWidth={3} />}
+                icon={<OplIcon name='closeFill' size={13} />}
                 disabled={workspaceAccessDisabled}
                 onClick={onClearWorkspace}
                 aria-label={t('guid.context.clearWorkingDirectoryNamed', { name: workspaceName })}

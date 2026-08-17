@@ -6,7 +6,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Right } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import classNames from 'classnames';
 import type { ICronJob } from '@/common/adapter/ipcBridge';
 import type { TChatConversation } from '@/common/config/storage';
@@ -93,8 +93,8 @@ const CronJobSiderSection: React.FC<CronJobSiderSectionProps> = ({ jobs, pathnam
           {t('cron.scheduledTasks')}
         </span>
         <span className='ml-2px flex items-center justify-center opacity-0 group-hover/label:opacity-100 transition-opacity text-t-tertiary'>
-          <Right
-            theme='outline'
+          <OplIcon
+            name='chevronRight'
             size={12}
             className={classNames('transition-transform duration-150', { 'rotate-90': expanded })}
           />

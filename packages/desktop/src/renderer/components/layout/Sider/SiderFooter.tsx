@@ -7,10 +7,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { Download, SettingTwo } from '@icon-park/react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 export type SiderFooterAccount = {
   displayName: string | null;
@@ -70,7 +69,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
                 </span>
               ) : (
                 <span className='size-22px flex-center shrink-0 text-t-secondary'>
-                  <SettingTwo {...OPL_CHROME_ICON_PROPS} className='block leading-none' style={{ lineHeight: 0 }} />
+                  <OplIcon name='settings' className='block leading-none' />
                 </span>
               )}
               {!collapsed && (
@@ -96,7 +95,7 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
               data-update-available='true'
             >
               <span className='flex size-20px items-center justify-center rounded-full bg-[var(--opl-accent-blue)] shadow-sm'>
-                <Download {...OPL_CHROME_ICON_PROPS} size={collapsed ? 11 : 12} className='block leading-none' />
+                <OplIcon name='download' size={collapsed ? 11 : 12} className='block leading-none' />
               </span>
             </Button>
           </Tooltip>

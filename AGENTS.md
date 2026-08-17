@@ -6,7 +6,7 @@
 - GUI 产品 authority 在 `one-person-lab-app`；产品行为、页面状态、模型/引导策略、截图、发布与用户文档由 App contracts 定义，本仓只实现并验证这些边界。
 - Upstream fork body 默认只读；OPL-owned adapter/overlay 变更必须以 App contract 为依据。不得把 upstream 默认值、候选取舍或产品 truth 下沉到 Shell。
 - Shell 只渲染 Framework/App projection 并提交已授权 action；不得维护固定 Package/Agent/Skill/Tool 清单、依赖图、版本解析、lock、payload、receipt 或 currentness 镜像。
-- 新建模块前读取 `docs/contributing/file-structure.md` 和 `.claude/skills/architecture/SKILL.md`。组件使用 Arco，图标使用 IconPark，样式优先 UnoCSS；TypeScript 保持 strict，用户可见文本必须使用 i18n keys。
+- 新建模块前读取 `docs/contributing/file-structure.md` 和 `.claude/skills/architecture/SKILL.md`。组件使用 Arco；已迁移的 OPL Titlebar、navigation rail、Home、composer 与 Settings navigation 图标统一使用 pinned DSH cohort 的 `OplIcon`，DSH 缺失的语义 glyph 只能登记在 `OplVisualProvider` 兼容表，未迁移 upstream surface 才继续直接使用 IconPark。样式优先 UnoCSS；TypeScript 保持 strict，用户可见文本必须使用 i18n keys。
 - Main process 不使用 DOM API，Renderer 不使用 Node.js API，跨进程只走 preload IPC bridge。
 - 默认验证入口是 `bun run test`；按影响补 DOM/integration/full、i18n、lint、format 或 `bunx tsc --noEmit`。测试通过不等于 App release-ready。
 

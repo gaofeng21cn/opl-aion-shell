@@ -11,22 +11,10 @@ import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { Checkbox, Dropdown, Menu, Spin, Tooltip } from '@arco-design/web-react';
-import {
-  BranchOne,
-  DeleteOne,
-  EditOne,
-  Export,
-  FolderOpen,
-  Inbox,
-  MessageOne,
-  MoreOne,
-  Pushpin,
-  Refresh,
-  Undo,
-} from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 import type { ConversationRowProps } from './types';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
@@ -110,13 +98,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       );
     }
 
-    return (
-      <MessageOne
-        theme='outline'
-        size='16'
-        className={classNames('line-height-0 flex-shrink-0 text-t-secondary', composedClass)}
-      />
-    );
+    return <OplIcon name='message' size={16} className={classNames('text-t-secondary', composedClass)} />;
   };
 
   const handleRowClick = () => {
@@ -192,7 +174,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               className='absolute inset-0 flex-center text-t-secondary pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity'
               style={{ lineHeight: 0 }}
             >
-              <Pushpin theme='outline' size='14' />
+              <OplIcon name='pin' size={14} />
             </span>
           )}
         </span>
@@ -219,7 +201,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                 data-opl-worktree-indicator='true'
                 className='flex-shrink-0 flex items-center justify-center text-[rgb(var(--primary-6))]'
               >
-                <BranchOne theme='outline' size='15' aria-hidden='true' />
+                <OplIcon name='branch' size={15} aria-hidden='true' />
               </span>
             )}
           </div>
@@ -280,21 +262,21 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {!archivedView && (
                     <Menu.Item key='pin'>
                       <div className='flex items-center gap-8px'>
-                        <Pushpin theme='outline' size='14' />
+                        <OplIcon name='pin' size={14} />
                         <span>{isPinned ? t('conversation.history.unpin') : t('conversation.history.pin')}</span>
                       </div>
                     </Menu.Item>
                   )}
                   <Menu.Item key='rename'>
                     <div className='flex items-center gap-8px'>
-                      <EditOne theme='outline' size='14' />
+                      <OplIcon name='edit' size={14} />
                       <span>{t('conversation.history.rename')}</span>
                     </div>
                   </Menu.Item>
                   {onMoveToProject && (
                     <Menu.Item key='move-to-project'>
                       <div className='flex items-center gap-8px'>
-                        <FolderOpen theme='outline' size='14' />
+                        <OplIcon name='folderOpen' size={14} />
                         <span>{t('conversation.history.moveToProject')}</span>
                       </div>
                     </Menu.Item>
@@ -302,7 +284,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {onExport && (
                     <Menu.Item key='export'>
                       <div className='flex items-center gap-8px'>
-                        <Export theme='outline' size='14' />
+                        <OplIcon name='export' size={14} />
                         <span>{t('conversation.history.export')}</span>
                       </div>
                     </Menu.Item>
@@ -310,27 +292,27 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   {archivedView ? (
                     <Menu.Item key='restore'>
                       <div className='flex items-center gap-8px'>
-                        <Undo theme='outline' size='14' />
+                        <OplIcon name='undo' size={14} />
                         <span>{t('conversation.history.restore')}</span>
                       </div>
                     </Menu.Item>
                   ) : (
                     <Menu.Item key='archive'>
                       <div className='flex items-center gap-8px'>
-                        <Inbox theme='outline' size='14' />
+                        <OplIcon name='archive' size={14} />
                         <span>{t('conversation.history.archive')}</span>
                       </div>
                     </Menu.Item>
                   )}
                   <Menu.Item key='reset'>
                     <div className='flex items-center gap-8px'>
-                      <Refresh theme='outline' size='14' />
+                      <OplIcon name='refresh' size={14} />
                       <span>{t('conversation.history.resetTitle')}</span>
                     </div>
                   </Menu.Item>
                   <Menu.Item key='delete'>
                     <div className='flex items-center gap-8px text-[rgb(var(--warning-6))]'>
-                      <DeleteOne theme='outline' size='14' />
+                      <OplIcon name='trash' size={14} />
                       <span>{t('conversation.history.deleteTitle')}</span>
                     </div>
                   </Menu.Item>
@@ -353,7 +335,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
                   onOpenMenu(conversation);
                 }}
               >
-                <MoreOne theme='outline' size='14' fill='currentColor' className='block leading-none' />
+                <OplIcon name='more' size={14} className='block leading-none' />
               </span>
             </Dropdown>
           </div>

@@ -17,8 +17,7 @@ import { getAgentModes, supportsModeSwitch, type AgentModeOption } from '@/rende
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { AgentLogoIcon } from './AgentBadge';
 import { Button, Dropdown, Menu, Message } from '@arco-design/web-react';
-import { Down } from '@icon-park/react';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
@@ -326,7 +325,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
             {compactLeadingIcon && <span className='shrink-0 inline-flex items-center'>{compactLeadingIcon}</span>}
             {showLogoInCompact && <span className='shrink-0 inline-flex items-center'>{renderLogo()}</span>}
             <MarqueePillLabel>{compactLabel}</MarqueePillLabel>
-            {canInteract && <Down {...OPL_CHROME_ICON_PROPS} size={12} className='text-t-tertiary shrink-0' />}
+            {canInteract && <OplIcon name='chevronDown' size={12} className='text-t-tertiary shrink-0' />}
           </span>
         </Button>
       </span>
@@ -359,7 +358,7 @@ const AgentModeSelector: React.FC<AgentModeSelectorProps> = ({
       {can_switchMode && (
         <>
           {current_mode !== defaultMode && <span className='text-xs text-t-tertiary'>({getCurrentModeLabel()})</span>}
-          <Down size={12} className='text-t-tertiary' />
+          <OplIcon name='chevronDown' size={12} className='text-t-tertiary' />
         </>
       )}
     </div>

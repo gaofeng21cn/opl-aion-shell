@@ -1,5 +1,5 @@
 import { Button } from '@arco-design/web-react';
-import { Info, Right } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
@@ -16,7 +16,7 @@ const GuidSetupNotice: React.FC<GuidSetupNoticeProps> = ({ kind, onOpenSetup }) 
 
   return (
     <div className={styles.guidSetupNotice} data-testid='opl-guid-setup-notice' role='status' aria-live='polite'>
-      <Info theme='outline' size='16' fill='currentColor' className={styles.guidSetupNoticeIcon} />
+      <OplIcon name='info' className={styles.guidSetupNoticeIcon} />
       <div className={styles.guidSetupNoticeCopy}>
         <strong>{t(`common.firstRunRecovery.notice.${kind}.title`)}</strong>
         <span>{t(`common.firstRunRecovery.notice.${kind}.description`)}</span>
@@ -24,7 +24,7 @@ const GuidSetupNotice: React.FC<GuidSetupNoticeProps> = ({ kind, onOpenSetup }) 
       <Button
         type='text'
         size='small'
-        icon={<Right theme='outline' size='14' fill='currentColor' />}
+        icon={<OplIcon name='chevronRight' size={14} />}
         onClick={onOpenSetup}
         data-testid='opl-guid-setup-notice-action'
       >

@@ -4,20 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeleteOne, EditOne, Peoples, Plus, Pushpin, Right } from '@icon-park/react';
 import { Input, Message, Modal, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useSWRConfig } from 'swr';
-import { iconColors } from '@renderer/styles/colors';
 import { cleanupSiderTooltips } from '@renderer/utils/ui/siderTooltip';
 import { blurActiveElement } from '@renderer/utils/ui/focus';
 import { useTeamList } from '@renderer/pages/team/hooks/useTeamList';
 import { useSiderTeamBadges } from '@renderer/pages/team/hooks/useSiderTeamBadges';
 import TeamCreateModal from '@renderer/pages/team/components/TeamCreateModal';
 import { ipcBridge } from '@/common';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import SiderItem from './SiderItem';
 import type { SiderMenuItem } from './SiderItem';
 
@@ -123,14 +122,7 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
                     )}
                     onClick={() => handleTeamClick(team.id)}
                   >
-                    <Peoples
-                      data-testid={`collapsed-team-icon-${team.id}`}
-                      data-icon-fill={iconColors.primary}
-                      theme='outline'
-                      size='16'
-                      fill={iconColors.primary}
-                      style={{ lineHeight: 0 }}
-                    />
+                    <OplIcon name='team' data-testid={`collapsed-team-icon-${team.id}`} size={16} />
                     {(teamBadgeCounts.get(team.id) ?? 0) > 0 && (
                       <span
                         className='absolute top-4px right-4px w-18px h-18px rounded-full text-10px font-bold flex items-center justify-center leading-none bg-danger-6 text-white'
@@ -156,8 +148,8 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
               {t('team.sider.title')}
             </span>
             <span className='ml-2px flex items-center justify-center opacity-0 group-hover/label:opacity-100 transition-opacity text-t-tertiary shrink-0'>
-              <Right
-                theme='outline'
+              <OplIcon
+                name='chevronRight'
                 size={12}
                 className={classNames('transition-transform duration-150', { 'rotate-90': expanded })}
               />
@@ -172,13 +164,7 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
                   setCreateTeamVisible(true);
                 }}
               >
-                <Plus
-                  theme='outline'
-                  size='14'
-                  fill='currentColor'
-                  className='block leading-none'
-                  style={{ lineHeight: 0 }}
-                />
+                <OplIcon name='plus' size={14} className='block leading-none' />
               </div>
             </Tooltip>
           </div>
@@ -189,17 +175,17 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
               const menuItems: SiderMenuItem[] = [
                 {
                   key: 'pin',
-                  icon: <Pushpin theme='outline' size='14' />,
+                  icon: <OplIcon name='pin' size={14} />,
                   label: isPinned ? t('team.sider.unpin') : t('team.sider.pin'),
                 },
                 {
                   key: 'rename',
-                  icon: <EditOne theme='outline' size='14' />,
+                  icon: <OplIcon name='edit' size={14} />,
                   label: t('team.sider.rename'),
                 },
                 {
                   key: 'delete',
-                  icon: <DeleteOne theme='outline' size='14' />,
+                  icon: <OplIcon name='trash' size={14} />,
                   label: t('team.sider.delete'),
                   danger: true,
                 },
@@ -208,7 +194,7 @@ const TeamSiderSection: React.FC<TeamSiderSectionProps> = ({
               return (
                 <div key={team.id} className='relative group'>
                   <SiderItem
-                    icon={<Peoples theme='outline' size='16' fill='currentColor' style={{ lineHeight: 0 }} />}
+                    icon={<OplIcon name='team' />}
                     name={team.name}
                     selected={pathname.startsWith(`/team/${team.id}`)}
                     pinned={isPinned}

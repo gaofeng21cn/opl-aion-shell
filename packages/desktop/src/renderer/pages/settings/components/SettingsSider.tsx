@@ -1,10 +1,9 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { ArrowLeft, Down, Right } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -83,7 +82,7 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               onClick={() => void navigate(resolveSettingsReturnPath())}
             >
               <span className='settings-sider__icon-slot'>
-                <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+                <OplIcon name='chevronLeft' aria-hidden='true' />
               </span>
               {!collapsed ? (
                 <FlexFullContainer className='h-24px'>
@@ -129,9 +128,9 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
                       </FlexFullContainer>
                       {expandable ? (
                         active ? (
-                          <Down aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+                          <OplIcon name='chevronDown' aria-hidden='true' />
                         ) : (
-                          <Right aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+                          <OplIcon name='chevronRight' aria-hidden='true' />
                         )
                       ) : null}
                     </>

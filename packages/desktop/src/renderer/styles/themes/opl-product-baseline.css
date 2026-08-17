@@ -1,172 +1,86 @@
-/* One Person Lab product baseline, aligned with the quiet Codex macOS visual language. */
-
-:root,
-[data-color-scheme='default'] {
-  --opl-sidebar-bg: #fcfcfc;
-  --opl-sidebar-hover: rgba(0, 0, 0, 0.045);
-  --opl-sidebar-active: #f0f0f0;
-  --opl-main-bg: #ffffff;
-  --opl-focus-ring: #2563eb;
-  --opl-composer-border: rgba(0, 0, 0, 0.14);
-  --opl-composer-border-focus: rgba(32, 33, 36, 0.24);
-  --opl-composer-context-bg: #f6f6f5;
-  --opl-composer-context-border: rgba(0, 0, 0, 0.08);
-  --opl-composer-placeholder: rgba(32, 33, 36, 0.42);
-  --opl-composer-send-disabled: #94979b;
-  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
-  --opl-composer-focus-shadow:
-    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05);
-  --opl-accent-blue: #3478f6;
-  --opl-accent-purple: #8b5cf6;
-  --opl-accent-green: #20a451;
-  --opl-accent-orange: #c2410c;
-
-  --bg-base: var(--opl-main-bg);
-  --bg-1: var(--opl-main-bg);
-  --bg-2: #f4f4f2;
-  --bg-3: #e8e8e6;
-  --bg-4: #d9d9d7;
-  --bg-hover: #ececea;
-  --bg-active: #e3e3e1;
-  --color-text-1: #202124;
-  --text-primary: var(--color-text-1);
-  --text-secondary: #5f6368;
-  --color-text-2: #5f6368;
-  --color-text-3: #70757a;
-  --text-disabled: #a7aaae;
-  --color-text-4: #a7aaae;
-  --border-base: rgba(22, 24, 28, 0.12);
-  --border-light: rgba(22, 24, 28, 0.08);
-  --border-special: rgba(22, 24, 28, 0.17);
-  --color-border-1: rgba(22, 24, 28, 0.12);
-  --color-border-2: rgba(22, 24, 28, 0.08);
-  --color-border-3: rgba(22, 24, 28, 0.14);
-  --color-border-4: rgba(22, 24, 28, 0.2);
-  --color-fill-1: #f7f7f6;
-  --color-fill-2: #eeeeec;
-  --color-fill-3: rgba(229, 229, 227, 0.76);
-  --color-fill-4: rgba(219, 219, 217, 0.88);
-  --fill-0: #ffffff;
-  --dialog-fill-0: #ffffff;
-  --workspace-btn-bg: #efefed;
-  --message-user-bg: #f3f3f1;
-  --message-tips-bg: #f7f7f6;
-  --primary: #202124;
-  --color-primary: #202124;
-  --primary-1: 247, 247, 246;
-  --primary-2: 238, 238, 236;
-  --primary-3: 223, 223, 221;
-  --primary-4: 207, 207, 205;
-  --primary-5: 95, 99, 104;
-  --primary-6: 32, 33, 36;
-  --color-primary-1: #f7f7f6;
-  --color-primary-2: #eeeeec;
-  --color-primary-3: #dfdfdd;
-  --color-primary-4: #cfcfcd;
-  --color-primary-5: #5f6368;
-  --color-primary-6: #202124;
-}
-
-[data-color-scheme='default'][data-theme='dark'] {
-  --opl-sidebar-bg: #1b1c1e;
-  --opl-sidebar-hover: rgba(255, 255, 255, 0.06);
-  --opl-sidebar-active: rgba(255, 255, 255, 0.09);
-  --opl-main-bg: #171819;
-  --opl-focus-ring: #60a5fa;
-  --opl-composer-border: rgba(255, 255, 255, 0.15);
-  --opl-composer-border-focus: rgba(255, 255, 255, 0.26);
-  --opl-composer-context-bg: #242629;
-  --opl-composer-context-border: rgba(255, 255, 255, 0.1);
-  --opl-composer-placeholder: rgba(244, 245, 246, 0.52);
-  --opl-composer-send-disabled: #666a70;
-  --opl-composer-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18);
-  --opl-composer-focus-shadow:
-    0 0 0 2px var(--opl-focus-ring), 0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18);
-  --opl-accent-blue: #6da3ff;
-  --opl-accent-purple: #ab86ff;
-  --opl-accent-green: #55bc78;
-  --opl-accent-orange: #f18b59;
-
-  --bg-base: var(--opl-main-bg);
-  --bg-1: var(--opl-main-bg);
-  --bg-2: #202224;
-  --bg-3: #2d2f34;
-  --bg-4: #3b3e44;
-  --bg-hover: #292b30;
-  --bg-active: #36393f;
-  --color-text-1: #f4f5f6;
-  --text-primary: var(--color-text-1);
-  --text-secondary: #aeb4bc;
-  --color-text-2: #aeb4bc;
-  --color-text-3: #9298a1;
-  --text-disabled: #737983;
-  --color-text-4: #737983;
-  --border-base: rgba(255, 255, 255, 0.13);
-  --border-light: rgba(255, 255, 255, 0.08);
-  --border-special: rgba(255, 255, 255, 0.19);
-  --color-border-1: rgba(255, 255, 255, 0.13);
-  --color-border-2: rgba(255, 255, 255, 0.08);
-  --color-border-3: rgba(255, 255, 255, 0.16);
-  --color-border-4: rgba(255, 255, 255, 0.22);
-  --color-fill-1: #202125;
-  --color-fill-2: #292b30;
-  --color-fill-3: #34363c;
-  --color-fill-4: #41444b;
-  --fill-0: rgba(255, 255, 255, 0.08);
-  --dialog-fill-0: #202224;
-  --workspace-btn-bg: #27292e;
-  --message-user-bg: #292c32;
-  --message-tips-bg: #202329;
-  --primary: #f2f3f5;
-  --color-primary: #f2f3f5;
-  --primary-1: 36, 38, 43;
-  --primary-2: 48, 51, 57;
-  --primary-3: 64, 68, 76;
-  --primary-4: 83, 88, 98;
-  --primary-5: 194, 198, 205;
-  --primary-6: 242, 243, 245;
-  --color-primary-1: #24262b;
-  --color-primary-2: #303339;
-  --color-primary-3: #40444c;
-  --color-primary-4: #535862;
-  --color-primary-5: #c2c6cd;
-  --color-primary-6: #f2f3f5;
-}
+/* OPL keeps the existing component ABI while DeepSeek Harness owns the visual tokens. */
 
 body {
-  /* Arco redeclares these semantic tokens on body, so bridge the governed
-     product values at the same cascade level instead of relying on inheritance. */
-  --color-text-1: #202124;
-  --color-text-2: #5f6368;
-  --color-text-3: #70757a;
-  --color-text-4: #a7aaae;
-  --color-border-1: rgba(22, 24, 28, 0.12);
-  --color-border-2: rgba(22, 24, 28, 0.08);
-  --color-border-3: rgba(22, 24, 28, 0.14);
-  --color-border-4: rgba(22, 24, 28, 0.2);
-  --color-fill-1: #f7f7f6;
-  --color-fill-2: #eeeeec;
-  --color-fill-3: rgba(229, 229, 227, 0.76);
-  --color-fill-4: rgba(219, 219, 217, 0.88);
+  --opl-sidebar-bg: var(--dsw-specific-sidebar-fill);
+  --opl-sidebar-hover: var(--dsw-specific-sidebar-nav-item-hover);
+  --opl-sidebar-active: var(--dsw-specific-sidebar-nav-item-active);
+  --opl-main-bg: var(--dsw-alias-bg-base);
+  --opl-focus-ring: var(--dsw-alias-state-business-primary);
+  --opl-composer-border: var(--dsw-alias-border-l2);
+  --opl-composer-border-focus: var(--dsw-alias-state-business-primary);
+  --opl-composer-context-bg: var(--dsw-alias-bg-layer-1);
+  --opl-composer-context-border: var(--dsw-alias-border-l1);
+  --opl-composer-placeholder: var(--dsw-alias-label-secondary);
+  --opl-composer-send-disabled: var(--dsw-alias-label-dimmed);
+  --opl-composer-shadow: var(--dsw-shadow-lv2);
+  --opl-composer-focus-shadow: 0 0 0 2px var(--opl-focus-ring), var(--dsw-shadow-lv2);
+  --opl-accent-blue: var(--dsw-alias-state-business-primary);
+  --opl-accent-purple: var(--dsw-static-deepseek-600);
+  --opl-accent-green: var(--dsw-alias-state-success-primary);
+  --opl-accent-orange: var(--dsw-static-amber-900);
+
+  --bg-base: var(--dsw-alias-bg-base);
+  --bg-1: var(--dsw-alias-bg-base);
+  --bg-2: var(--dsw-alias-bg-layer-1);
+  --bg-3: var(--dsw-alias-bg-layer-2);
+  --bg-4: var(--dsw-alias-bg-layer-3);
+  --bg-hover: var(--dsw-alias-interactive-bg-hover);
+  --bg-active: var(--dsw-alias-interactive-bg-active);
+  --color-text-1: var(--dsw-alias-label-primary);
+  --text-primary: var(--dsw-alias-label-primary);
+  --text-secondary: var(--dsw-alias-label-secondary);
+  --color-text-2: var(--dsw-alias-label-secondary);
+  --color-text-3: var(--dsw-alias-label-secondary);
+  --text-disabled: var(--dsw-alias-label-dimmed);
+  --color-text-4: var(--dsw-alias-label-dimmed);
+  --border-base: var(--dsw-alias-border-l2);
+  --border-light: var(--dsw-alias-border-l1);
+  --border-special: var(--dsw-alias-border-l3);
+  --color-border-1: var(--dsw-alias-border-l2);
+  --color-border-2: var(--dsw-alias-border-l1);
+  --color-border-3: var(--dsw-alias-border-l3);
+  --color-border-4: var(--dsw-alias-border-l4);
+  --color-fill-1: var(--dsw-alias-bg-layer-1);
+  --color-fill-2: var(--dsw-specific-selector);
+  --color-fill-3: var(--dsw-alias-interactive-bg-hover-solid);
+  --color-fill-4: var(--dsw-alias-interactive-bg-active);
+  --fill-0: var(--dsw-alias-bg-layer-1);
+  --dialog-fill-0: var(--dsw-alias-bg-layer-2);
+  --workspace-btn-bg: var(--dsw-specific-selector);
+  --message-user-bg: var(--dsw-specific-bubble);
+  --message-tips-bg: var(--dsw-specific-tip);
+  --primary: var(--dsw-alias-brand-primary);
+  --color-primary: var(--dsw-alias-brand-primary);
+  --color-primary-1: var(--dsw-alias-bg-layer-1);
+  --color-primary-2: var(--dsw-specific-selector);
+  --color-primary-3: var(--dsw-specific-sidebar-nav-item-active);
+  --color-primary-4: var(--dsw-alias-border-l4);
+  --color-primary-5: var(--dsw-alias-label-secondary);
+  --color-primary-6: var(--dsw-alias-brand-primary);
+
   background: var(--opl-main-bg);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--dsw-font-family);
   letter-spacing: 0;
 }
 
-body[arco-theme='dark'] {
-  --color-text-1: #f4f5f6;
-  --color-text-2: #aeb4bc;
-  --color-text-3: #9298a1;
-  --color-text-4: #737983;
-  --color-border-1: rgba(255, 255, 255, 0.13);
-  --color-border-2: rgba(255, 255, 255, 0.08);
-  --color-border-3: rgba(255, 255, 255, 0.16);
-  --color-border-4: rgba(255, 255, 255, 0.22);
-  --color-fill-1: #202125;
-  --color-fill-2: #292b30;
-  --color-fill-3: #34363c;
-  --color-fill-4: #41444b;
+body:not([data-ds-dark-theme]) {
+  --primary-1: 249, 250, 251;
+  --primary-2: 241, 243, 245;
+  --primary-3: 225, 229, 238;
+  --primary-4: 207, 211, 214;
+  --primary-5: 97, 102, 107;
+  --primary-6: 15, 17, 21;
+}
+
+body[data-ds-dark-theme] {
+  --opl-accent-orange: var(--dsw-static-amber-100);
+  --primary-1: 35, 35, 36;
+  --primary-2: 44, 44, 46;
+  --primary-3: 53, 54, 56;
+  --primary-4: 67, 69, 74;
+  --primary-5: 207, 211, 214;
+  --primary-6: 249, 250, 251;
 }
 
 .app-shell,
@@ -182,6 +96,20 @@ body[arco-theme='dark'] {
   box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
+}
+
+.opl-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.opl-icon > svg {
+  display: block;
 }
 
 .layout-sider-header,

@@ -6,7 +6,7 @@
 
 import { getRecentWorkspaces, removeRecentWorkspace } from '@/renderer/components/workspace';
 import { Button, Modal, Typography } from '@arco-design/web-react';
-import { FolderOpen } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -40,7 +40,7 @@ const GuidWorkspaceManagementModal: React.FC<GuidWorkspaceManagementModalProps> 
           const name = path.split(/[\\/]/).pop() || path;
           return (
             <div key={path} className='flex min-w-0 items-center gap-10px py-10px'>
-              <FolderOpen theme='outline' size='14' fill='currentColor' className='shrink-0 text-t-secondary' />
+              <OplIcon name='folderOpen' size={14} className='shrink-0 text-t-secondary' />
               <div className='min-w-0 flex-1'>
                 <Typography.Text className='block font-500 text-t-primary'>{name}</Typography.Text>
                 <Typography.Text className='block break-all text-12px text-t-secondary'>{path}</Typography.Text>

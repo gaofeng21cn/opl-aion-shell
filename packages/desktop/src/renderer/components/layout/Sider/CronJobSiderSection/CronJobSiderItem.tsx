@@ -10,7 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { DndContext } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import classNames from 'classnames';
-import { Down } from '@icon-park/react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Input, Message, Modal } from '@arco-design/web-react';
 import type { ICronJob } from '@/common/adapter/ipcBridge';
 import type { TChatConversation } from '@/common/config/storage';
@@ -308,7 +308,8 @@ const CronJobSiderItem: React.FC<CronJobSiderItemProps> = ({
         {/* Expand/collapse arrow — 22px slot to align with sibling rows' icons */}
         <span className='size-22px flex items-center justify-center shrink-0 line-height-0 text-t-secondary'>
           {hasChildren && (
-            <Down
+            <OplIcon
+              name='chevronDown'
               size={16}
               className={classNames(
                 'line-height-0 transition-transform duration-200 cursor-pointer',

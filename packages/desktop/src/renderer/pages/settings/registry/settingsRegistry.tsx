@@ -1,19 +1,5 @@
-import {
-  CloudStorage,
-  DashboardOne,
-  FolderOpen,
-  HardDisk,
-  Info,
-  Key,
-  Link,
-  Puzzle,
-  Robot,
-  SettingConfig,
-  Theme,
-  Toolkit,
-} from '@icon-park/react';
 import React from 'react';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon, type OplIconName } from '@/renderer/components/opl/OplVisualProvider';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
 import {
   getOplGuiSettingsControlPlane,
@@ -264,24 +250,22 @@ export type SettingsNavigationSelection = {
 
 export type SettingsIconSlot = 'modal' | 'siderDesktop' | 'siderMobile';
 
-type SettingsIconFactory = (size: number) => React.ReactElement;
-
-const SETTINGS_ICON_PARK_ICONS: Record<string, SettingsIconFactory> = {
-  dashboard: (size) => <DashboardOne {...OPL_CHROME_ICON_PROPS} size={size} />,
-  general: (size) => <DashboardOne {...OPL_CHROME_ICON_PROPS} size={size} />,
-  gateway: (size) => <CloudStorage {...OPL_CHROME_ICON_PROPS} size={size} />,
-  access: (size) => <Key {...OPL_CHROME_ICON_PROPS} size={size} />,
-  workspace: (size) => <FolderOpen {...OPL_CHROME_ICON_PROPS} size={size} />,
-  agents: (size) => <Robot {...OPL_CHROME_ICON_PROPS} size={size} />,
-  capabilities: (size) => <Puzzle {...OPL_CHROME_ICON_PROPS} size={size} />,
-  resources: (size) => <Link {...OPL_CHROME_ICON_PROPS} size={size} />,
-  maintenance: (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
-  'local-services': (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
-  environment: (size) => <Toolkit {...OPL_CHROME_ICON_PROPS} size={size} />,
-  storage: (size) => <HardDisk {...OPL_CHROME_ICON_PROPS} size={size} />,
-  appearance: (size) => <Theme {...OPL_CHROME_ICON_PROPS} size={size} />,
-  advanced: (size) => <SettingConfig {...OPL_CHROME_ICON_PROPS} size={size} />,
-  about: (size) => <Info {...OPL_CHROME_ICON_PROPS} size={size} />,
+const SETTINGS_ICONS: Record<string, OplIconName> = {
+  dashboard: 'data',
+  general: 'data',
+  gateway: 'globe',
+  access: 'key',
+  workspace: 'folderOpen',
+  agents: 'agent',
+  capabilities: 'skill',
+  resources: 'link',
+  maintenance: 'settings',
+  'local-services': 'settings',
+  environment: 'settings',
+  storage: 'data',
+  appearance: 'personalization',
+  advanced: 'settings',
+  about: 'info',
 };
 
 const SETTINGS_GROUP_ICON_KEYS: Record<OplSettingsPrimaryGroupId, string> = {
@@ -335,11 +319,10 @@ export function getSettingsTabSearchText(tabId: string, label: string): string {
 
 export function getSettingsTabIcon(tabId: string, _slot: SettingsIconSlot): React.ReactElement {
   const iconToken = ordinaryRoutesById.get(tabId)?.icon_token ?? tabId;
-  const icon =
-    SETTINGS_ICON_PARK_ICONS[iconToken] ?? SETTINGS_ICON_PARK_ICONS[tabId] ?? SETTINGS_ICON_PARK_ICONS.gateway;
+  const iconName = SETTINGS_ICONS[iconToken] ?? SETTINGS_ICONS[tabId] ?? SETTINGS_ICONS.gateway;
   return (
     <span className='inline-flex text-t-secondary' aria-hidden='true'>
-      {icon(16)}
+      <OplIcon name={iconName} size={16} />
     </span>
   );
 }
@@ -630,7 +613,7 @@ export function buildSettingsNavItems({
       return {
         id: tab.id,
         label,
-        icon: <Puzzle {...OPL_CHROME_ICON_PROPS} />,
+        icon: <OplIcon name='plugin' />,
         isImageIcon: false,
         path: `ext/${tab.id}`,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
@@ -689,7 +672,7 @@ export function buildSettingsModalMenuItems({
       return {
         id: tab.id,
         label,
-        icon: <Puzzle {...OPL_CHROME_ICON_PROPS} />,
+        icon: <OplIcon name='plugin' />,
         searchText: normalizeSearchText([tab.id, label, tab.extensionName ?? ''].join(' ')),
       };
     },

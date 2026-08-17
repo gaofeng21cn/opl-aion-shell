@@ -21,11 +21,54 @@ function customPropertyInBlock(css: string, selector: string, property: string):
   return match[1].trim();
 }
 
-function relativeLuminance(hex: string): number {
-  const channels = /^#([0-9a-f]{6})$/i.exec(hex)?.[1]?.match(/.{2}/g);
-  if (!channels) throw new Error(`Expected a six-digit hex color, received ${hex}`);
-  const [red, green, blue] = channels.map((channel) => {
-    const value = Number.parseInt(channel, 16) / 255;
+type ThemeMode = 'light' | 'dark';
+
+function lastCustomPropertyInBlocks(css: string, selector: string, property: string): string | undefined {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const blockPattern = new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`, 'g');
+  const propertyPattern = new RegExp(`${property}:\\s*([^;]+);`);
+  let value: string | undefined;
+  for (const block of css.matchAll(blockPattern)) {
+    const match = block[1]?.match(propertyPattern);
+    if (match?.[1]) value = match[1].trim();
+  }
+  return value;
+}
+
+function resolveThemeProperty(
+  cssSources: string[],
+  property: string,
+  mode: ThemeMode,
+  seen = new Set<string>()
+): string {
+  if (seen.has(property)) throw new Error(`Circular custom property reference at ${property}`);
+  seen.add(property);
+
+  const modeSelector = mode === 'dark' ? 'body[data-ds-dark-theme]' : 'body:not([data-ds-dark-theme])';
+  let value: string | undefined;
+  for (let index = cssSources.length - 1; index >= 0 && !value; index -= 1) {
+    value = lastCustomPropertyInBlocks(cssSources[index], modeSelector, property);
+  }
+  for (let index = cssSources.length - 1; index >= 0 && !value; index -= 1) {
+    value = lastCustomPropertyInBlocks(cssSources[index], 'body', property);
+  }
+  if (!value) throw new Error(`Missing ${property} for ${mode} mode`);
+
+  const reference = /^var\((--[^),\s]+)\)$/.exec(value)?.[1];
+  return reference ? resolveThemeProperty(cssSources, reference, mode, seen) : value;
+}
+
+function colorChannels(color: string): number[] {
+  const hexChannels = /^#([0-9a-f]{6})$/i.exec(color)?.[1]?.match(/.{2}/g);
+  if (hexChannels) return hexChannels.map((channel) => Number.parseInt(channel, 16));
+  const rgbChannels = /^rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i.exec(color);
+  if (rgbChannels) return rgbChannels.slice(1).map(Number);
+  throw new Error(`Expected a six-digit hex or rgb color, received ${color}`);
+}
+
+function relativeLuminance(color: string): number {
+  const [red, green, blue] = colorChannels(color).map((channel) => {
+    const value = channel / 255;
     return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
@@ -97,45 +140,37 @@ describe('Codex visual parity overlay', () => {
     const guidActionRow = read('packages/desktop/src/renderer/pages/guid/components/GuidActionRow.tsx');
     const sessionMenuStyles = read('packages/desktop/src/renderer/components/agent/OplCodexSessionMenu.module.css');
 
-    expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('#fcfcfc');
-    expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('rgba(0, 0, 0, 0.045)');
-    expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('#f0f0f0');
-    expect(firstCustomProperty(baseline, '--text-primary')).toBe('var(--color-text-1)');
-    expect(firstCustomProperty(baseline, '--text-secondary')).toBe('#5f6368');
-    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('#70757a');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('var(--dsw-specific-sidebar-fill)');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-hover')).toBe('var(--dsw-specific-sidebar-nav-item-hover)');
+    expect(firstCustomProperty(baseline, '--opl-sidebar-active')).toBe('var(--dsw-specific-sidebar-nav-item-active)');
+    expect(firstCustomProperty(baseline, '--text-primary')).toBe('var(--dsw-alias-label-primary)');
+    expect(firstCustomProperty(baseline, '--text-secondary')).toBe('var(--dsw-alias-label-secondary)');
+    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('var(--dsw-alias-label-secondary)');
     expect(layout).toContain("classNames('layout-sider'");
     expect(layout).not.toMatch(/classNames\(['"][^'"]*!bg-2[^'"]*layout-sider/);
     expect(layoutStyles).toMatch(/\.sider-section-label\s*{[^}]*background-color:\s*var\(--opl-sidebar-bg\);/);
     expect(unoConfig).toContain("'t-tertiary': 'var(--color-text-3)'");
-    expect(customPropertyInBlock(baseline, 'body {', '--color-text-1')).toBe('#202124');
-    expect(customPropertyInBlock(baseline, 'body {', '--color-text-3')).toBe('#70757a');
-    expect(customPropertyInBlock(baseline, 'body {', '--color-border-2')).toBe('rgba(22, 24, 28, 0.08)');
-    expect(customPropertyInBlock(baseline, 'body {', '--color-fill-3')).toBe('rgba(229, 229, 227, 0.76)');
-    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-text-1')).toBe('#f4f5f6');
-    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-text-3')).toBe('#9298a1');
-    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-border-2')).toBe(
-      'rgba(255, 255, 255, 0.08)'
+    expect(customPropertyInBlock(baseline, 'body {', '--color-text-1')).toBe('var(--dsw-alias-label-primary)');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-text-3')).toBe('var(--dsw-alias-label-secondary)');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-border-2')).toBe('var(--dsw-alias-border-l1)');
+    expect(customPropertyInBlock(baseline, 'body {', '--color-fill-3')).toBe(
+      'var(--dsw-alias-interactive-bg-hover-solid)'
     );
-    expect(customPropertyInBlock(baseline, "body[arco-theme='dark']", '--color-fill-3')).toBe('#34363c');
-    expect(baseline).toMatch(
-      /\[data-color-scheme='default'\]\[data-theme='dark'\]\s*{[\s\S]*?--bg-2:\s*#202224;[\s\S]*?--text-primary:\s*var\(--color-text-1\);[\s\S]*?--text-secondary:\s*#aeb4bc;[\s\S]*?--dialog-fill-0:\s*#202224;/
-    );
+    expect(baseline).toContain('body[data-ds-dark-theme]');
+    expect(baseline).not.toContain("[data-color-scheme='default'][data-theme='dark']");
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-bg')).toBe('var(--opl-sidebar-bg)');
     expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-active')).toBe('var(--opl-sidebar-active)');
     expect(codexPreset).not.toContain('rgba(246, 246, 244, 0.84)');
     expect(codexPreset).toMatch(/\.layout-sider\s*{[^}]*background:\s*var\(--opl-codex-sidebar-bg\)\s*!important;/);
     expect(baseline).toContain('--opl-composer-shadow:');
     expect(baseline).toContain('--opl-composer-focus-shadow:');
-    expect(firstCustomProperty(baseline, '--opl-composer-border-focus')).toBe('rgba(32, 33, 36, 0.24)');
-    expect(firstCustomProperty(baseline, '--opl-composer-shadow')).toBe(
-      '0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.05)'
+    expect(firstCustomProperty(baseline, '--opl-composer-border-focus')).toBe(
+      'var(--dsw-alias-state-business-primary)'
     );
-    expect(
-      customPropertyInBlock(baseline, "[data-color-scheme='default'][data-theme='dark']", '--opl-composer-shadow')
-    ).toBe('0 1px 2px rgba(0, 0, 0, 0.28), 0 4px 12px rgba(0, 0, 0, 0.18)');
-    expect(firstCustomProperty(baseline, '--opl-composer-context-bg')).toBe('#f6f6f5');
-    expect(firstCustomProperty(baseline, '--opl-composer-placeholder')).toBe('rgba(32, 33, 36, 0.42)');
-    expect(firstCustomProperty(baseline, '--opl-composer-send-disabled')).toBe('#94979b');
+    expect(firstCustomProperty(baseline, '--opl-composer-shadow')).toBe('var(--dsw-shadow-lv2)');
+    expect(firstCustomProperty(baseline, '--opl-composer-context-bg')).toBe('var(--dsw-alias-bg-layer-1)');
+    expect(firstCustomProperty(baseline, '--opl-composer-placeholder')).toBe('var(--dsw-alias-label-secondary)');
+    expect(firstCustomProperty(baseline, '--opl-composer-send-disabled')).toBe('var(--dsw-alias-label-dimmed)');
     expect(focusRing).toContain("activeShadow: 'var(--opl-composer-focus-shadow)'");
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
@@ -156,9 +191,9 @@ describe('Codex visual parity overlay', () => {
       /\.actionConfigGroup :global\(\.sendbox-model-btn span\)\s*{[^}]*line-height:\s*18px\s*!important;/
     );
     expect(guidActionRow).toContain('data-permission-mode={selectedMode}');
-    expect(guidActionRow).toContain('compactLeadingIcon={<Shield {...OPL_CHROME_ICON_PROPS} size={14} />}');
-    expect(guidActionRow).toContain('icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} />}');
-    expect(sendBox).toContain("icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />}");
+    expect(guidActionRow).toContain("compactLeadingIcon={<OplIcon name='permission' size={14} />}");
+    expect(guidActionRow).toContain("icon={<OplIcon name='send' />}");
+    expect(sendBox).toContain("icon={<OplIcon name='send' aria-hidden='true' />}");
     expect(sessionMenuStyles).toMatch(
       /\.menuItem:global\(\.arco-dropdown-popup-visible\):focus-visible\s*{[^}]*outline:\s*none;/
     );
@@ -196,38 +231,24 @@ describe('Codex visual parity overlay', () => {
 
   it('keeps muted text and focus indicators above the governed WCAG contrast floors', () => {
     const baseline = read('packages/desktop/src/renderer/styles/themes/opl-product-baseline.css');
-    const codexPreset = read('packages/desktop/src/renderer/pages/settings/AppearanceSettings/presets/opl-codex.css');
-    const baselineDarkSelector = "[data-color-scheme='default'][data-theme='dark']";
-    const codexDarkSelector = "[data-theme='dark']";
-
-    const lightMuted = firstCustomProperty(baseline, '--color-text-3');
-    const lightFocus = firstCustomProperty(baseline, '--opl-focus-ring');
-    const darkMuted = customPropertyInBlock(baseline, baselineDarkSelector, '--color-text-3');
-    const darkFocus = customPropertyInBlock(baseline, baselineDarkSelector, '--opl-focus-ring');
-
-    expect(lightMuted).toBe('#70757a');
-    expect(lightFocus).toBe('#2563eb');
-    expect(darkMuted).toBe('#9298a1');
-    expect(darkFocus).toBe('#60a5fa');
-    expect(firstCustomProperty(codexPreset, '--color-text-3')).toBe(lightMuted);
-    expect(firstCustomProperty(codexPreset, '--opl-codex-sidebar-muted-text')).toBe(lightMuted);
-    expect(firstCustomProperty(codexPreset, '--opl-codex-focus-ring')).toBe(lightFocus);
-    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--color-text-3')).toBe(darkMuted);
-    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--opl-codex-sidebar-muted-text')).toBe(darkMuted);
-    expect(customPropertyInBlock(codexPreset, codexDarkSelector, '--opl-codex-focus-ring')).toBe(darkFocus);
-    expect(firstCustomProperty(baseline, '--opl-composer-focus-shadow')).toContain('var(--opl-focus-ring)');
-    expect(customPropertyInBlock(baseline, baselineDarkSelector, '--opl-composer-focus-shadow')).toContain(
-      'var(--opl-focus-ring)'
+    const dshTokens = read(
+      'packages/desktop/src/renderer/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css'
     );
+    const cssSources = [dshTokens, baseline];
+    const lightMuted = resolveThemeProperty(cssSources, '--color-text-3', 'light');
+    const lightFocus = resolveThemeProperty(cssSources, '--opl-focus-ring', 'light');
+    const darkMuted = resolveThemeProperty(cssSources, '--color-text-3', 'dark');
+    const darkFocus = resolveThemeProperty(cssSources, '--opl-focus-ring', 'dark');
+    const lightBackground = resolveThemeProperty(cssSources, '--dsw-alias-bg-base', 'light');
+    const darkBackground = resolveThemeProperty(cssSources, '--dsw-alias-bg-base', 'dark');
 
-    for (const background of ['#ffffff', '#fcfcfc']) {
-      expect(contrastRatio(lightMuted, background)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(lightFocus, background)).toBeGreaterThanOrEqual(3);
-    }
-    for (const background of ['#171819', '#202224', '#1b1c1e']) {
-      expect(contrastRatio(darkMuted, background)).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(darkFocus, background)).toBeGreaterThanOrEqual(3);
-    }
+    expect(firstCustomProperty(baseline, '--color-text-3')).toBe('var(--dsw-alias-label-secondary)');
+    expect(firstCustomProperty(baseline, '--opl-focus-ring')).toBe('var(--dsw-alias-state-business-primary)');
+    expect(firstCustomProperty(baseline, '--opl-composer-focus-shadow')).toContain('var(--opl-focus-ring)');
+    expect(contrastRatio(lightMuted, lightBackground)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(lightFocus, lightBackground)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(darkMuted, darkBackground)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(darkFocus, darkBackground)).toBeGreaterThanOrEqual(3);
   });
 
   it('keeps normal text on Home, conversation, and Settings controls above the WCAG floor', () => {
@@ -237,13 +258,20 @@ describe('Codex visual parity overlay', () => {
       'packages/desktop/src/renderer/pages/conversation/components/ChatLayout/chat-layout.css'
     );
     const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
-    const baselineDarkSelector = "[data-color-scheme='default'][data-theme='dark']";
+    const dshTokens = read(
+      'packages/desktop/src/renderer/vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css'
+    );
+    const cssSources = [dshTokens, baseline];
+    const lightFullAccess = resolveThemeProperty(cssSources, '--opl-accent-orange', 'light');
+    const darkFullAccess = resolveThemeProperty(cssSources, '--opl-accent-orange', 'dark');
+    const darkSecondary = resolveThemeProperty(cssSources, '--text-secondary', 'dark');
+    const lightBackground = resolveThemeProperty(cssSources, '--dsw-alias-bg-base', 'light');
+    const darkBackground = resolveThemeProperty(cssSources, '--dsw-alias-bg-base', 'dark');
 
-    const lightFullAccess = firstCustomProperty(baseline, '--opl-accent-orange');
-    const darkSecondary = customPropertyInBlock(baseline, baselineDarkSelector, '--text-secondary');
-
-    expect(lightFullAccess).toBe('#c2410c');
-    expect(darkSecondary).toBe('#aeb4bc');
+    expect(firstCustomProperty(baseline, '--opl-accent-orange')).toBe('var(--dsw-static-amber-900)');
+    expect(customPropertyInBlock(baseline, 'body[data-ds-dark-theme]', '--opl-accent-orange')).toBe(
+      'var(--dsw-static-amber-100)'
+    );
     expect(guidStyles).toMatch(
       /\.actionConfigGroup\[data-permission-mode='full-access'\][^{]*\{[^}]*color:\s*var\(--opl-accent-orange\)\s*!important;/
     );
@@ -266,12 +294,9 @@ describe('Codex visual parity overlay', () => {
       /\.settings-mobile-navigation__row:hover,[\s\S]*?\.settings-mobile-navigation__row--active\s*\{[^}]*color:\s*var\(--text-primary\)\s*!important;/
     );
 
-    for (const background of ['#ffffff', '#fcfcfc']) {
-      expect(contrastRatio(lightFullAccess, background)).toBeGreaterThanOrEqual(4.5);
-    }
-    for (const background of ['#171819', '#1b1c1e', '#202224']) {
-      expect(contrastRatio(darkSecondary, background)).toBeGreaterThanOrEqual(4.5);
-    }
+    expect(contrastRatio(lightFullAccess, lightBackground)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(darkFullAccess, darkBackground)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(darkSecondary, darkBackground)).toBeGreaterThanOrEqual(4.5);
   });
 
   it('keeps Settings navigation and grouped surfaces neutral', () => {
@@ -323,10 +348,11 @@ describe('Codex visual parity overlay', () => {
     expect(localServices).not.toMatch(/\bCard\b|<Card/);
     expect(settingsStyles).not.toContain('inset 3px 0 0');
     expect(settingsRegistry).not.toContain('SETTINGS_ICON_COLORS');
-    expect(settingsRegistry).toContain("from '@icon-park/react'");
+    expect(settingsRegistry).toContain("from '@/renderer/components/opl/OplVisualProvider'");
     expect(settingsRegistry).toContain("<span className='inline-flex text-t-secondary'");
-    expect(settingsRegistry).toContain('{icon(16)}');
-    expect(settingsRegistry).toContain('<Puzzle {...OPL_CHROME_ICON_PROPS} size={size} />');
+    expect(settingsRegistry).toContain('<OplIcon name={iconName} size={16} />');
+    expect(settingsRegistry).toContain("icon: <OplIcon name='plugin' />");
+    expect(settingsRegistry).not.toContain("from '@icon-park/react'");
     expect(settingsRegistry).not.toContain('@fortawesome');
     expect(directoryPicker).toContain("from '@icon-park/react'");
     expect(directoryPicker).not.toContain('@arco-design/web-react/icon');
@@ -433,11 +459,12 @@ describe('Codex visual parity overlay', () => {
 
     expect(starters).not.toContain('CheckOne');
     expect(starters).toContain('aria-pressed={active}');
-    expect(presetAgent).toContain("<CheckOne theme='outline'");
-    expect(presetAgent).toContain("<CloseSmall theme='outline'");
+    expect(presetAgent).toContain("<OplIcon name='checkSmall' size={14}");
+    expect(presetAgent).toContain("<OplIcon name='closeFill' size={14}");
     expect(presetAgent).not.toContain('<span>✓</span>');
-    expect(mentionDropdown).toContain("import { CloseSmall, Down, Robot } from '@icon-park/react';");
-    expect(mentionDropdown).toContain("<CloseSmall theme='outline' size={12} fill='currentColor' />");
+    expect(mentionDropdown).toContain("from '@/renderer/components/opl/OplVisualProvider'");
+    expect(mentionDropdown).toContain("<OplIcon name='closeFill' size={12} />");
+    expect(mentionDropdown).not.toContain("from '@icon-park/react'");
     expect(mentionDropdown).not.toContain('@arco-design/web-react/icon');
     expect(guidStyles).toMatch(/\.presetAgentTag\s*{[^}]*border:\s*0;[^}]*border-radius:\s*6px;/);
     expect(guidStyles).toMatch(

@@ -7,7 +7,6 @@
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { MoreOne, Pushpin } from '@icon-park/react';
 import classNames from 'classnames';
 import React, { useState } from 'react';
 
@@ -80,7 +79,7 @@ const SiderItem: React.FC<SiderItemProps> = ({
               className='absolute inset-0 flex-center text-t-secondary pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity'
               style={{ lineHeight: 0 }}
             >
-              <OplIcon icon={Pushpin} size={14} />
+              <OplIcon name='pin' size={14} />
             </span>
           )}
         </span>
@@ -144,7 +143,7 @@ const SiderItem: React.FC<SiderItemProps> = ({
                   setMenuVisible(true);
                 }}
               >
-                <OplIcon icon={MoreOne} size={14} className='block leading-none' />
+                <OplIcon name='more' size={14} className='block leading-none' />
               </span>
             </Dropdown>
           </div>

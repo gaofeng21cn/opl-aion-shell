@@ -6,10 +6,9 @@
 
 import { configService } from '@/common/config/configService';
 import { Message, Button, Tooltip } from '@arco-design/web-react';
-import { Microphone } from '@icon-park/react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { SPEECH_TO_TEXT_CONFIG_CHANGED_EVENT } from '@/renderer/services/SpeechToTextService';
 import {
   getSpeechInputErrorMessageKey,
@@ -185,7 +184,7 @@ const SpeechInputButton: React.FC<SpeechInputButtonProps> = ({ disabled, onLiveT
   ) : isProcessing ? (
     <SpeechLoaderIcon />
   ) : (
-    <Microphone {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />
+    <OplIcon name='microphone' aria-hidden='true' />
   );
 
   return (

@@ -8,10 +8,10 @@ import { useConversationContextSafe } from '@/renderer/hooks/context/Conversatio
 import { FileService, type FileMetadata } from '@/renderer/services/FileService';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Message } from '@arco-design/web-react';
-import { FolderOpen, FolderUpload, Paperclip } from '@icon-park/react';
 import React, { useCallback, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MobileActionSheetEntry } from './types';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 interface UseAttachEntryOptions {
   /** Open the host-side file picker (paths from disk via IPC). */
@@ -75,7 +75,7 @@ export const useAttachEntry = ({
       const desktopEntries: MobileActionSheetEntry[] = [
         {
           key: 'attach',
-          icon: <Paperclip theme='outline' size='16' />,
+          icon: <OplIcon name='paperclip' />,
           label: t('common.fileAttach.addFiles', { defaultValue: 'Add files' }),
           variant: 'muted',
           dividerBefore,
@@ -85,7 +85,7 @@ export const useAttachEntry = ({
       if (openDirectorySelector) {
         desktopEntries.push({
           key: 'attach-directory',
-          icon: <FolderOpen theme='outline' size='16' />,
+          icon: <OplIcon name='folderOpen' />,
           label: directoryLabel,
           variant: 'muted',
           onClick: () => openDirectorySelector(),
@@ -97,7 +97,7 @@ export const useAttachEntry = ({
     const webEntries: MobileActionSheetEntry[] = [
       {
         key: 'attach-host-files',
-        icon: <Paperclip theme='outline' size='16' />,
+        icon: <OplIcon name='paperclip' />,
         label: t('common.fileAttach.addFiles', { defaultValue: 'Add files' }),
         variant: 'muted',
         dividerBefore,
@@ -107,7 +107,7 @@ export const useAttachEntry = ({
     if (openDirectorySelector) {
       webEntries.push({
         key: 'attach-host-directory',
-        icon: <FolderOpen theme='outline' size='16' />,
+        icon: <OplIcon name='folderOpen' />,
         label: directoryLabel,
         variant: 'muted',
         onClick: () => openDirectorySelector(),
@@ -115,7 +115,7 @@ export const useAttachEntry = ({
     }
     webEntries.push({
       key: 'attach-my-device',
-      icon: <FolderUpload theme='outline' size='16' />,
+      icon: <OplIcon name='folderUpload' />,
       label: t('common.fileAttach.myDevice', { defaultValue: 'Upload from device' }),
       variant: 'muted',
       onClick: () => triggerLocalUpload(),

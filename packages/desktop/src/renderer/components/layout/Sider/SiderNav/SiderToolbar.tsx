@@ -7,10 +7,9 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
-import { Plus } from '@icon-park/react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import styles from '../Sider.module.css';
 
 interface SiderToolbarProps {
@@ -36,11 +35,7 @@ const SiderToolbar: React.FC<SiderToolbarProps> = ({ isMobile, collapsed, siderT
             onClick={onNewChat}
             aria-label={t('conversation.welcome.newTask')}
           >
-            <Plus
-              {...OPL_CHROME_ICON_PROPS}
-              className={classNames('block leading-none', styles.newChatIcon)}
-              style={{ lineHeight: 0 }}
-            />
+            <OplIcon name='newChat' className={classNames('block leading-none', styles.newChatIcon)} />
           </Button>
         </Tooltip>
       </div>
@@ -60,11 +55,7 @@ const SiderToolbar: React.FC<SiderToolbarProps> = ({ isMobile, collapsed, siderT
           onClick={onNewChat}
         >
           <span className='size-22px flex items-center justify-center shrink-0'>
-            <Plus
-              {...OPL_CHROME_ICON_PROPS}
-              className={classNames('block leading-none', styles.newChatIcon)}
-              style={{ lineHeight: 0 }}
-            />
+            <OplIcon name='newChat' className={classNames('block leading-none', styles.newChatIcon)} />
           </span>
           <span className='collapsed-hidden text-t-primary text-14px font-[500] leading-24px'>
             {t('conversation.welcome.newTask')}

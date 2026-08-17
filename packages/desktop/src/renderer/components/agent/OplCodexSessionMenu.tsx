@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Button, Dropdown } from '@arco-design/web-react';
-import { Check, Refresh, Right } from '@icon-park/react';
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './OplCodexSessionMenu.module.css';
@@ -65,7 +64,7 @@ const SummaryRow: React.FC<{ label: string; value: string }> = ({ label, value }
     <span className={styles.summaryLabel}>{label}</span>
     <span className={styles.summaryMeta}>
       <span className={styles.summaryValue}>{value}</span>
-      <Right {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' className={styles.chevron} />
+      <OplIcon name='chevronRight' size={14} aria-hidden='true' className={styles.chevron} />
     </span>
   </span>
 );
@@ -76,9 +75,7 @@ const ChoiceRow: React.FC<{ choice: OplCodexSessionMenuChoice }> = ({ choice }) 
       <span className={styles.choiceLabel}>{choice.label}</span>
       {choice.description && <span className={styles.choiceDescription}>{choice.description}</span>}
     </span>
-    {choice.selected && (
-      <Check {...OPL_CHROME_ICON_PROPS} size={14} aria-hidden='true' className={styles.choiceCheck} />
-    )}
+    {choice.selected && <OplIcon name='checkSmall' size={14} aria-hidden='true' className={styles.choiceCheck} />}
   </span>
 );
 
@@ -267,7 +264,7 @@ const OplCodexSessionMenu: React.FC<OplCodexSessionMenuProps> = ({
       >
         <span className={styles.resetRow}>
           <span>{t('agent.sessionConfiguration.resetDefaults')}</span>
-          <Refresh {...OPL_CHROME_ICON_PROPS} size={16} aria-hidden='true' />
+          <OplIcon name='refresh' aria-hidden='true' />
         </span>
       </Button>
     </div>

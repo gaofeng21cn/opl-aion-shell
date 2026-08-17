@@ -1,41 +1,73 @@
-import type { IIconBase } from '@icon-park/react/es/runtime';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
-import { describe, expect, it } from 'vitest';
-import { OplIcon, OplVisualProvider } from '@/renderer/components/opl/OplVisualProvider';
-
-const FakeIcon: React.FC<IIconBase> = (props) => (
-  <span
-    data-testid='fake-icon'
-    data-size={String(props.size)}
-    data-stroke-width={String(props.strokeWidth)}
-    data-theme={props.theme}
-    data-fill={String(props.fill)}
-    aria-hidden={(props as IIconBase & { 'aria-hidden'?: string })['aria-hidden']}
-    className={props.className}
-  />
-);
+import { beforeEach, describe, expect, it } from 'vitest';
+import { OplIcon, OplVisualProvider, syncOplVisualTheme } from '@/renderer/components/opl/OplVisualProvider';
 
 describe('OPL visual adapter', () => {
-  it('applies the shared optical contract while preserving call-site sizing and accessibility props', () => {
+  beforeEach(() => {
+    document.documentElement.removeAttribute('data-theme');
+    document.body.removeAttribute('arco-theme');
+    document.body.removeAttribute('data-ds-dark-theme');
+  });
+
+  it('renders a DSH glyph through the name adapter while preserving sizing and accessibility props', () => {
     render(
       <OplVisualProvider>
-        <OplIcon icon={FakeIcon} size={14} aria-hidden='true' className='utility-icon' />
+        <OplIcon name='send' size={14} aria-hidden='true' className='utility-icon' data-testid='dsh-icon' />
       </OplVisualProvider>
     );
 
-    const icon = screen.getByTestId('fake-icon');
-    expect(icon).toHaveAttribute('data-size', '14');
-    expect(icon).toHaveAttribute('data-stroke-width', '4.5');
-    expect(icon).toHaveAttribute('data-theme', 'outline');
-    expect(icon).toHaveAttribute('data-fill', 'currentColor');
+    const icon = screen.getByTestId('dsh-icon');
+    expect(icon).toHaveAttribute('data-opl-icon', 'send');
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+    expect(icon).not.toHaveAttribute('data-opl-icon-compatibility');
     expect(icon).toHaveAttribute('aria-hidden', 'true');
-    expect(icon).toHaveClass('utility-icon');
+    expect(icon).toHaveClass('opl-icon', 'utility-icon');
+    expect(icon).toHaveStyle({ width: '14px', height: '14px' });
+
+    const svg = icon.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg).toHaveAttribute('width', '14');
+    expect(svg).toHaveAttribute('height', '14');
   });
 
-  it('keeps the adapter display-only and usable with the provider omitted', () => {
-    render(<OplIcon icon={FakeIcon} />);
+  it('marks a semantic gap as IconPark compatibility instead of pretending it is a DSH glyph', () => {
+    render(<OplIcon name='microphone' size={14} data-testid='compatibility-icon' />);
 
-    expect(screen.getByTestId('fake-icon')).toHaveAttribute('data-size', '16');
+    const icon = screen.getByTestId('compatibility-icon');
+    expect(icon).toHaveAttribute('data-opl-icon', 'microphone');
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'icon-park-compatibility');
+    expect(icon).toHaveAttribute('data-opl-icon-compatibility', 'dsh-glyph-unavailable');
+    expect(icon.querySelector('svg')).not.toBeNull();
+  });
+
+  it('bridges current AionUI light and dark state to the DSH body attribute', async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    render(
+      <OplVisualProvider>
+        <OplIcon name='send' />
+      </OplVisualProvider>
+    );
+
+    await waitFor(() => expect(document.body).toHaveAttribute('data-ds-dark-theme'));
+
+    document.documentElement.setAttribute('data-theme', 'light');
+    await waitFor(() => expect(document.body).not.toHaveAttribute('data-ds-dark-theme'));
+
+    document.body.setAttribute('arco-theme', 'dark');
+    await waitFor(() => expect(document.body).toHaveAttribute('data-ds-dark-theme'));
+
+    document.body.setAttribute('arco-theme', 'light');
+    await waitFor(() => expect(document.body).not.toHaveAttribute('data-ds-dark-theme'));
+  });
+
+  it('keeps theme synchronization callable without a provider and uses the 16px default', () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    syncOplVisualTheme(document);
+
+    render(<OplIcon name='send' data-testid='default-icon' />);
+
+    expect(screen.getByTestId('default-icon')).toHaveStyle({ width: '16px', height: '16px' });
+    expect(document.body).toHaveAttribute('data-ds-dark-theme');
   });
 });

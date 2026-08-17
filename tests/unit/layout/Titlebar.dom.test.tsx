@@ -80,7 +80,7 @@ describe('Titlebar OPL App feedback', () => {
     mocks.openExternalUrl.mockResolvedValue(undefined);
   });
 
-  it('uses the IconPark outline help icon', () => {
+  it('uses the pinned DSH help icon through OplIcon', () => {
     render(
       <MemoryRouter initialEntries={['/guid']}>
         <Titlebar workspaceAvailable={false} />
@@ -88,7 +88,10 @@ describe('Titlebar OPL App feedback', () => {
     );
 
     const icon = screen.getByTestId('app-titlebar-help-icon');
-    expect(icon).toHaveClass('i-icon-help');
+    expect(icon).toHaveClass('opl-icon');
+    expect(icon).toHaveAttribute('data-opl-icon', 'help');
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+    expect(icon).not.toHaveAttribute('data-opl-icon-compatibility');
     expect(icon.querySelector('svg')).not.toBeNull();
     expect(icon).not.toHaveAttribute('data-prefix');
     expect(icon).not.toHaveAttribute('data-icon');

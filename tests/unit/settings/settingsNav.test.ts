@@ -263,13 +263,31 @@ describe('settingsNav App-owned tabs', () => {
     expect(getBuiltinSettingsNavItems(true, t, 'zh-CN').find((item) => item.id === 'agents')?.label).toBe('智能体');
   });
 
-  it('uses uniform monochrome IconPark glyphs for App-owned Settings navigation icons', () => {
+  it('uses the shared OplIcon adapter for App-owned Settings navigation icons', () => {
+    const expectedNames: Record<string, string> = {
+      general: 'data',
+      access: 'key',
+      workspace: 'folderOpen',
+      agents: 'agent',
+      capabilities: 'skill',
+      resources: 'link',
+      environment: 'settings',
+      storage: 'data',
+      appearance: 'personalization',
+      advanced: 'settings',
+      about: 'info',
+    };
+
     for (const tabId of [...BUILTIN_TAB_IDS, 'advanced', 'about']) {
       const icon = getSettingsTabIcon(tabId, 'modal');
-      const props = icon.props as { className?: string; children?: { props?: { theme?: string; size?: number } } };
+      const props = icon.props as {
+        className?: string;
+        children?: { props?: { name?: string; size?: number; theme?: string } };
+      };
       expect(icon.type).toBe('span');
       expect(props.className).toContain('text-t-secondary');
-      expect(props.children?.props).toMatchObject({ theme: 'outline', size: 16 });
+      expect(props.children?.props).toMatchObject({ name: expectedNames[tabId], size: 16 });
+      expect(props.children?.props).not.toHaveProperty('theme');
     }
   });
 
@@ -423,8 +441,7 @@ describe('settingsNav App-owned tabs', () => {
 
     expect(navItems.find((item) => item.id === 'skills-extension')).toMatchObject({ isImageIcon: false });
     expect(navItems.find((item) => item.id === 'skills-extension')?.icon.props).toMatchObject({
-      theme: 'outline',
-      size: 16,
+      name: 'plugin',
     });
 
     expect(items).toEqual([

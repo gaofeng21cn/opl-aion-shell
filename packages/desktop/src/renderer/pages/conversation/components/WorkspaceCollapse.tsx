@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FolderClose, FolderOpen } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 interface WorkspaceCollapseProps {
   /** 是否展开 */
@@ -49,11 +49,7 @@ const WorkspaceCollapse: React.FC<WorkspaceCollapseProps> = ({
           onClick={onToggle}
         >
           <span className='size-22px flex items-center justify-center shrink-0 text-t-primary'>
-            {expanded ? (
-              <FolderOpen theme='outline' size={16} fill='currentColor' className='line-height-0' />
-            ) : (
-              <FolderClose theme='outline' size={16} fill='currentColor' className='line-height-0' />
-            )}
+            {expanded ? <OplIcon name='folderOpen' size={16} /> : <OplIcon name='folderClosed' size={16} />}
           </span>
 
           {/* 标题内容 — flex 容器让内部 header span 的 truncate 生效 */}

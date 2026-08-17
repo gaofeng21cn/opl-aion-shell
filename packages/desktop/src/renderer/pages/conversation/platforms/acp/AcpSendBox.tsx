@@ -20,7 +20,6 @@ import AcpModelSelector from '@/renderer/components/agent/AcpModelSelector';
 import CommandQueuePanel from '@/renderer/components/chat/CommandQueuePanel';
 import ConversationComposerContextStrip from '@/renderer/components/chat/composer/ConversationComposerContextStrip';
 import type { ComposerCapabilityPaletteItem } from '@/renderer/components/chat/composer/ComposerCapabilityPalette';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import MobileActionSheet, {
   type MobileActionSheetEntry,
@@ -74,7 +73,6 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Message, Tag } from '@arco-design/web-react';
-import { Compass, Lightning, Link, MagicHat, Refresh, Shield } from '@icon-park/react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -639,7 +637,7 @@ Please check your local CLI tool authentication status`,
         id: `mode-${mode.value}`,
         label: t(`agentMode.${mode.value}`, { defaultValue: mode.label }),
         description: mode.description,
-        icon: <OplIcon icon={Compass} size={16} />,
+        icon: <OplIcon name='goal' size={16} />,
         active: currentMode === mode.value,
         closeOnSelect: false,
         onSelect: () => void handlePaletteModeChange(mode.value),
@@ -658,7 +656,7 @@ Please check your local CLI tool authentication status`,
     if (loadedSkills.length > 0) {
       entries.push({
         key: 'skills',
-        icon: <OplIcon icon={Lightning} size={16} />,
+        icon: <OplIcon name='skill' size={16} />,
         label: t('guid.context.skillsGroup'),
         meta: loadedSkills.length,
         submenu: {
@@ -671,7 +669,7 @@ Please check your local CLI tool authentication status`,
     } else {
       entries.push({
         key: 'manage-skills',
-        icon: <OplIcon icon={Lightning} size={16} />,
+        icon: <OplIcon name='skill' size={16} />,
         label: t('conversation.skills.manage'),
         description: t('conversation.skills.empty'),
         onClick: () => void navigate('/settings/capabilities?tab=skills'),
@@ -681,7 +679,7 @@ Please check your local CLI tool authentication status`,
     if (sessionModeItems.length > 0) {
       entries.push({
         key: 'session-modes',
-        icon: <OplIcon icon={Compass} size={16} />,
+        icon: <OplIcon name='goal' size={16} />,
         label: t('guid.context.sessionModesGroup'),
         meta: sessionModeItems.find((item) => item.active)?.label,
         submenu: {
@@ -700,7 +698,7 @@ Please check your local CLI tool authentication status`,
     if (loadedMcpStatuses.length > 0) {
       entries.push({
         key: 'connections',
-        icon: <OplIcon icon={Link} size={16} />,
+        icon: <OplIcon name='link' size={16} />,
         label: t('guid.context.appsAndConnectionsGroup'),
         meta: loadedMcpStatuses.length,
         submenu: {
@@ -718,7 +716,7 @@ Please check your local CLI tool authentication status`,
     } else {
       entries.push({
         key: 'manage-connections',
-        icon: <OplIcon icon={Link} size={16} />,
+        icon: <OplIcon name='link' size={16} />,
         label: t('conversation.mcp.manage'),
         description: t('conversation.mcp.empty'),
         onClick: () => void navigate('/settings/capabilities?tab=tools'),
@@ -738,7 +736,7 @@ Please check your local CLI tool authentication status`,
     if (permissionOptions.length > 0) {
       entries.push({
         key: 'permission',
-        icon: <OplIcon icon={Shield} size={16} />,
+        icon: <OplIcon name='permission' size={16} />,
         label: t('agentMode.permission', { defaultValue: 'Permission' }),
         meta: permissionOptions.find((option) => option.active)?.label,
         submenu: {
@@ -860,7 +858,7 @@ Please check your local CLI tool authentication status`,
         entries.push({
           key: 'reset-session-defaults',
           label: t('agent.sessionConfiguration.resetDefaults'),
-          trailingIcon: <Refresh {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />,
+          trailingIcon: <OplIcon name='refresh' aria-hidden='true' />,
           dividerBefore: true,
           disabled: isSettingConfig,
           onClick: handleSheetAutoSelect,
@@ -874,7 +872,7 @@ Please check your local CLI tool authentication status`,
     if (activeCapabilityLabel) {
       entries.push({
         key: 'active-capability',
-        icon: <OplIcon icon={MagicHat} size={16} />,
+        icon: <OplIcon name='sparkle' size={16} />,
         label: t('guid.home.activeCapability', { capability: activeCapabilityLabel }),
         variant: 'muted',
         dividerBefore: entries.length > 0,
@@ -1024,7 +1022,7 @@ Please check your local CLI tool authentication status`,
                           }
                         : undefined
                     }
-                    compactLeadingIcon={<OplIcon icon={Shield} size={14} />}
+                    compactLeadingIcon={<OplIcon name='permission' size={14} />}
                     modeLabelFormatter={(mode) => t(`agentMode.${mode.value}`, { defaultValue: mode.label })}
                     compactLabelPrefix={t('agentMode.permission')}
                     onModeChanged={isLeaderInTeam ? teamPermission?.propagateMode : undefined}

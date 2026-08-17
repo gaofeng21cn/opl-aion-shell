@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
-import { ArrowLeft, ArrowRight, Help, LeftBar, Peoples } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -17,7 +16,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { isElectronDesktop, isMacOS, openExternalUrl } from '@/renderer/utils/platform';
 import { rememberSettingsReturnPath, resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import './titlebar.css';
 
 interface TitlebarProps {
@@ -202,7 +201,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             title={backToAppTooltip}
             data-testid='settings-titlebar-back-to-app'
           >
-            <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+            <OplIcon name='chevronLeft' aria-hidden='true' />
           </button>
         )}
         {showSiderToggle && (
@@ -214,7 +213,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             title={siderTooltip}
             data-testid='app-navigation-rail-toggle'
           >
-            <LeftBar aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+            <OplIcon name='panelLeft' aria-hidden='true' />
           </button>
         )}
         {showHistoryNav && (
@@ -227,7 +226,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               aria-label={historyBackTooltip}
               title={historyBackTooltip}
             >
-              <ArrowLeft aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+              <OplIcon name='chevronLeft' aria-hidden='true' />
             </button>
             <button
               type='button'
@@ -237,7 +236,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               aria-label={historyForwardTooltip}
               title={historyForwardTooltip}
             >
-              <ArrowRight aria-hidden='true' {...OPL_CHROME_ICON_PROPS} />
+              <OplIcon name='chevronRight' aria-hidden='true' />
             </button>
           </>
         )}
@@ -261,7 +260,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
               <span className='app-titlebar__brand-mobile'>
                 {isTeamRoute && (
                   <span className='app-titlebar__brand-icon' aria-hidden='true'>
-                    <Peoples {...OPL_CHROME_ICON_PROPS} />
+                    <OplIcon name='team' />
                   </span>
                 )}
                 <span className='app-titlebar__brand-text'>{mobileCenterTitle}</span>
@@ -278,7 +277,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           aria-label={feedbackTooltip}
           title={feedbackTooltip}
         >
-          <Help {...OPL_CHROME_ICON_PROPS} data-testid='app-titlebar-help-icon' aria-hidden='true' />
+          <OplIcon name='help' data-testid='app-titlebar-help-icon' aria-hidden='true' />
         </button>
         {showWindowControls && <WindowControls />}
       </div>

@@ -12,9 +12,8 @@ import {
 } from '@/common/config/oplProductProfile';
 import { resolveOplCodexAutoSelection } from '@/common/types/codex/codexModels';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import OplCodexSessionMenu, { type OplCodexSessionMenuChoice } from '@/renderer/components/agent/OplCodexSessionMenu';
-import { iconColors } from '@/renderer/styles/colors';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
 import {
   buildOplCodexAutoModelOption,
@@ -26,7 +25,6 @@ import {
 import type { AcpModelInfo } from '../types';
 import { getAvailableModels } from '../utils/modelUtils';
 import { Button, Dropdown, Menu, Tooltip } from '@arco-design/web-react';
-import { Check, Down, Plus } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -206,7 +204,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     className='text-12px text-t-secondary'
                     onClick={() => navigate(modelSettingsRoute)}
                   >
-                    <Plus theme='outline' size='12' />
+                    <OplIcon name='plus' size={12} />
                     {t('settings.addModel')}
                   </Menu.Item>,
                 ]
@@ -256,7 +254,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                     className='text-12px text-t-secondary'
                     onClick={() => navigate(modelSettingsRoute)}
                   >
-                    <Plus theme='outline' size='12' />
+                    <OplIcon name='plus' size={12} />
                     {t('settings.addModel')}
                   </Menu.Item>,
                 ]}
@@ -271,7 +269,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         >
           <span className='flex items-center gap-6px min-w-0'>
             <span>{geminiButtonLabel}</span>
-            <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
+            <OplIcon name='chevronDown' size={12} className='shrink-0' />
           </span>
         </Button>
       </Dropdown>
@@ -418,7 +416,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
                             <span>{model.label}</span>
                           </div>
                           {model.id === selectedAcpModel && (
-                            <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+                            <OplIcon name='checkSmall' size={14} className='shrink-0 text-t-secondary' />
                           )}
                         </div>
                       </Menu.Item>
@@ -444,7 +442,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
           >
             <span className='flex items-center gap-6px min-w-0'>
               <span>{acpButtonLabel}</span>
-              <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
+              <OplIcon name='chevronDown' size={12} className='shrink-0' />
             </span>
           </Button>
         </Dropdown>

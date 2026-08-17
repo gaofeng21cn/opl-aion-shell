@@ -7,9 +7,9 @@
 import type { MentionOption } from '../types';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { Button, Dropdown, Menu } from '@arco-design/web-react';
-import { CloseSmall, Down, Robot } from '@icon-park/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 type MentionDropdownProps = {
   menuRef: React.RefObject<HTMLDivElement>;
@@ -49,7 +49,7 @@ const MentionDropdown: React.FC<MentionDropdownProps> = ({ menuRef, options, sel
                 ) : option.logo ? (
                   <img src={option.logo} alt={option.label} width={16} height={16} style={{ objectFit: 'contain' }} />
                 ) : (
-                  <Robot theme='outline' size={16} />
+                  <OplIcon name='agent' />
                 )}
                 <span>{option.label}</span>
               </div>
@@ -98,7 +98,7 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
       className={`flex items-center gap-6px bg-fill-2 px-10px py-4px rd-16px select-none ${dropdownEnabled ? 'cursor-pointer' : ''}`}
     >
       <span className='text-14px font-medium text-t-primary'>@{agentLabel}</span>
-      {dropdownEnabled ? <Down theme='outline' size={12} /> : null}
+      {dropdownEnabled ? <OplIcon name='chevronDown' size={12} /> : null}
     </div>
   );
 
@@ -133,7 +133,7 @@ export const MentionSelectorBadge: React.FC<MentionSelectorBadgeProps> = ({
           }}
           aria-label={t('common.clear')}
         >
-          <CloseSmall theme='outline' size={12} fill='currentColor' />
+          <OplIcon name='closeFill' size={12} />
         </Button>
       ) : null}
     </div>

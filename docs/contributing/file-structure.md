@@ -180,7 +180,7 @@ A single directory must not contain more than **10** direct children (files + su
 ## UI Library & Icon Standards
 
 - **Component library**: `@arco-design/web-react`. All new UI must use Arco components first.
-- **Icon library**: `@icon-park/react`. All icons must come from this library.
+- **Icon source**: OPL-migrated Titlebar, navigation rail, Home, composer, and Settings navigation use `OplIcon`, backed by the pinned DeepSeek Harness visual cohort. If that cohort lacks an exact semantic glyph, add one named compatibility entry in `OplVisualProvider`; do not substitute a misleading DSH glyph. Unmigrated upstream surfaces continue to use `@icon-park/react` directly.
 - **No raw HTML for interactive elements**: Do not use native `<button>`, `<input>`, `<select>`, `<textarea>`, `<modal>`, etc. Use the corresponding Arco component (`Button`, `Input`, `Select`, `Modal`, etc.).
 - **Layout tags are fine**: `<div>`, `<span>`, `<section>`, `<nav>`, `<main>`, and other pure layout/semantic tags may be used freely.
 

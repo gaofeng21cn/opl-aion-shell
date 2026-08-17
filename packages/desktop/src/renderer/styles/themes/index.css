@@ -6,5 +6,11 @@
 /* Color Schemes */
 @import './default-color-scheme.css';
 
+/* Pinned DeepSeek Harness visual source. Keep these imports on the vendored byte-identical files. */
+@import '../../vendor/deepseek-harness/packages/client/ui-theme/src/styles/base.css';
+@import '../../vendor/deepseek-harness/packages/client/ui-theme/src/styles/design-platform.css';
+@import '../../vendor/deepseek-harness/packages/client/ui-theme/src/styles/gradient-shadow-text.css';
+@import '../../vendor/deepseek-harness/packages/client/ui-theme/src/styles/scrollbar.css';
+
 /* OPL product baseline is always active; appearance only selects light or dark. */
 @import './opl-product-baseline.css';

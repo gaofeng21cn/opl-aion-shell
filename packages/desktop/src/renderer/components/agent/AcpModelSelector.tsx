@@ -8,9 +8,8 @@ import { useAcpModelInfo, type UseAcpModelInfoResult } from '@/renderer/hooks/ag
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { warmupConversation } from '@/renderer/pages/conversation/utils/warmupConversation';
 import { getModelDisplayLabel } from '@/renderer/utils/model/agentLogo';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import OplCodexSessionMenu, { type OplCodexSessionMenuChoice } from './OplCodexSessionMenu';
-import { iconColors } from '@/renderer/styles/colors';
 import {
   getOplCodexModelDisplayOptions,
   getOplDefaultCodexReasoningEffort,
@@ -27,7 +26,6 @@ import {
   type OplModelDisplayLocale,
 } from '@/renderer/utils/model/oplCodexModelDisplay';
 import { Button, Dropdown, Menu, Message, Tooltip } from '@arco-design/web-react';
-import { Check, Down } from '@icon-park/react';
 import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import MarqueePillLabel from './MarqueePillLabel';
@@ -189,7 +187,7 @@ const AcpModelSelector: React.FC<{
                   <span>{label}</span>
                   {option.description && <span className='text-12px text-t-secondary'>{option.description}</span>}
                 </div>
-                {selected && <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />}
+                {selected && <OplIcon name='checkSmall' size={14} className='shrink-0 text-t-secondary' />}
               </div>
             </Menu.Item>
           );
@@ -337,7 +335,7 @@ const AcpModelSelector: React.FC<{
                   <div className='flex items-center justify-between gap-16px w-full'>
                     <span>{model.label || model.id}</span>
                     {model.id === model_info.current_model_id && (
-                      <Check theme='outline' size='14' fill={iconColors.secondary} className='shrink-0' />
+                      <OplIcon name='checkSmall' size={14} className='shrink-0 text-t-secondary' />
                     )}
                   </div>
                 </Menu.Item>
@@ -361,7 +359,7 @@ const AcpModelSelector: React.FC<{
       >
         <span className='flex items-center gap-6px min-w-0 leading-none'>
           <MarqueePillLabel>{display_label}</MarqueePillLabel>
-          <Down {...OPL_CHROME_ICON_PROPS} size={12} className='shrink-0' />
+          <OplIcon name='chevronDown' size={12} className='shrink-0' />
         </span>
       </Button>
     </Dropdown>

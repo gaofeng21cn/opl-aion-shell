@@ -7,12 +7,12 @@
 import { CUSTOM_AVATAR_IMAGE_MAP } from '../constants';
 import type { AvailableAgent } from '../types';
 import type { Assistant } from '@/common/types/agent/assistantTypes';
-import { CheckOne, CloseSmall, Down, Robot } from '@icon-park/react';
 import React from 'react';
 import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { Dropdown, Menu } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import styles from '../index.module.css';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 export type AgentSwitcherItem = {
   key: string;
@@ -66,7 +66,7 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({
         <Menu.Item key={item.key}>
           <div className='flex items-center justify-between gap-12px min-w-120px'>
             <span>{item.label}</span>
-            {item.isCurrent ? <CheckOne theme='outline' size='14' fill='currentColor' aria-hidden='true' /> : null}
+            {item.isCurrent ? <OplIcon name='checkSmall' size={14} aria-hidden='true' /> : null}
           </div>
         </Menu.Item>
       ))}
@@ -80,13 +80,13 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({
           <img src={agentLogo} alt='' width={15} height={15} className={styles.presetAgentTagAgentLogo} />
           {hasSwitcher ? (
             <span className={styles.presetAgentTagChevron} aria-hidden='true'>
-              <Down theme='outline' size={12} fill='currentColor' />
+              <OplIcon name='chevronDown' size={12} />
             </span>
           ) : null}
         </>
       ) : hasSwitcher ? (
         <span className={styles.presetAgentTagChevron} aria-hidden='true'>
-          <Down theme='outline' size={12} fill='currentColor' />
+          <OplIcon name='chevronDown' size={12} />
         </span>
       ) : null}
       <span className={styles.presetAgentTagAt} aria-hidden='true'>
@@ -97,7 +97,7 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({
       ) : avatarValue ? (
         <span style={{ fontSize: 14, lineHeight: '15px', flexShrink: 0 }}>{avatarValue}</span>
       ) : (
-        <Robot theme='outline' size={15} style={{ flexShrink: 0 }} />
+        <OplIcon name='agent' size={15} className='shrink-0' />
       )}
       <span className={styles.presetAgentTagName}>{name}</span>
     </>
@@ -144,7 +144,7 @@ const PresetAgentTag: React.FC<PresetAgentTagProps> = ({
           onClose();
         }}
       >
-        <CloseSmall theme='outline' size='14' fill='currentColor' />
+        <OplIcon name='closeFill' size={14} />
       </button>
     </div>
   );

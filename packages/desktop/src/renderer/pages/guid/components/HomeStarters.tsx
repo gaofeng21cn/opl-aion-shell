@@ -5,11 +5,10 @@
  */
 
 import { Button } from '@arco-design/web-react';
-import { Microscope } from '@icon-park/react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { resolveOplPackageLaunchGate, type OplHomeAssistant } from '../utils/oplHomeAssistants';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import styles from '../index.module.css';
@@ -24,7 +23,7 @@ type HomeStartersProps = {
 };
 
 function starterIcon(): React.ReactNode {
-  return <Microscope {...OPL_CHROME_ICON_PROPS} />;
+  return <OplIcon name='research' />;
 }
 
 const HomeStarters: React.FC<HomeStartersProps> = ({

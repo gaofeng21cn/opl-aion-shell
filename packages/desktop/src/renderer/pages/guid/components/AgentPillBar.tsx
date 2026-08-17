@@ -9,12 +9,12 @@ import { resolveExtensionAssetUrl } from '@/renderer/utils/platform';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import type { AgentSource } from '@/renderer/utils/model/agentTypes';
 import type { AvailableAgent } from '../types';
-import { Plus, Robot } from '@icon-park/react';
 import { Tooltip } from '@arco-design/web-react';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { resolveLegacySettingsRoute } from '@/renderer/pages/settings/registry/settingsRegistry';
+import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import styles from '../index.module.css';
 
 type AgentPillBarProps = {
@@ -121,7 +121,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
                     style={{ objectFit: 'contain', flexShrink: 0 }}
                   />
                 ) : (
-                  <Robot theme='outline' size={20} fill='currentColor' style={{ flexShrink: 0 }} />
+                  <OplIcon name='agent' size={20} className='shrink-0' />
                 )}
                 <span
                   className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-8px'}`}
@@ -148,7 +148,7 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
             style={{ transition: 'opacity 0.2s ease', flexShrink: 0, marginTop: 4 }}
             onClick={() => navigate(agentSettingsRoute)}
           >
-            <Plus theme='outline' size={20} fill='currentColor' style={{ flexShrink: 0 }} />
+            <OplIcon name='plus' size={20} className='shrink-0' />
           </div>
         </Tooltip>
       </div>

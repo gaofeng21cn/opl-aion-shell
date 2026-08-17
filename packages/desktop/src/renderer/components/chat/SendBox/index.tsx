@@ -33,10 +33,8 @@ import { filterWorkspaceMentionItems } from '@/renderer/utils/file/workspaceMent
 import type { ConversationExportFormat } from '@/renderer/utils/chat/conversationExport';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/ui/focus';
-import { OPL_CHROME_ICON_PROPS } from '@/renderer/components/opl/oplChromeIcon';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Button, Input, Message, Radio, Tag } from '@arco-design/web-react';
-import { ArrowUp, CloseSmall, FolderOpen, Plus, Quote } from '@icon-park/react';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import { theme } from '@office-ai/platform';
 import React, {
@@ -161,7 +159,7 @@ export const ConversationExportFilePanel = ({
           <Button
             size='small'
             type='secondary'
-            icon={<OplIcon icon={FolderOpen} size={14} />}
+            icon={<OplIcon name='folderOpen' size={14} />}
             disabled={loading}
             onClick={() => void onSelectDirectory()}
           >
@@ -1360,7 +1358,7 @@ const SendBox: React.FC<{
       type='primary'
       disabled={isButtonDisabled}
       className='send-button-custom'
-      icon={<ArrowUp {...OPL_CHROME_ICON_PROPS} aria-hidden='true' />}
+      icon={<OplIcon name='send' aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
       }}
@@ -1405,7 +1403,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='secondary'
       className='sendbox-mobile-plus-btn'
-      icon={<OplIcon icon={Plus} size={16} />}
+      icon={<OplIcon name='plus' size={16} />}
       onClick={onMobilePlusClick}
       data-testid='sendbox-mobile-plus-btn'
       aria-label={t('common.more', { defaultValue: 'More' })}
@@ -1571,7 +1569,7 @@ const SendBox: React.FC<{
           {replyQuote && (
             <div className='flex items-start gap-10px mb-8px px-12px py-10px rd-10px bg-fill-1 b-1 b-solid b-border-2'>
               <div className='flex-shrink-0 mt-2px' style={{ lineHeight: 0 }}>
-                <OplIcon icon={Quote} size={16} />
+                <OplIcon name='quote' size={16} />
               </div>
               <div className='flex-1 min-w-0 text-13px text-t-primary line-clamp-3 lh-20px whitespace-pre-wrap break-all'>
                 {replyQuote.content}
@@ -1581,7 +1579,7 @@ const SendBox: React.FC<{
                 onClick={() => setReplyQuote(null)}
                 style={{ lineHeight: 0 }}
               >
-                <OplIcon icon={CloseSmall} size={14} />
+                <OplIcon name='closeFill' size={14} />
               </div>
             </div>
           )}
@@ -1592,7 +1590,7 @@ const SendBox: React.FC<{
                 <Tag
                   key={snippet.id}
                   closable
-                  closeIcon={<OplIcon icon={CloseSmall} size={12} />}
+                  closeIcon={<OplIcon name='closeFill' size={12} />}
                   onClose={() => removeDomSnippet(snippet.id)}
                   className='text-12px bg-fill-2 b-1 b-solid b-border-2 rd-4px'
                 >
@@ -1607,7 +1605,7 @@ const SendBox: React.FC<{
                 <Tag
                   key={typeof item === 'string' ? item : item.path}
                   closable
-                  closeIcon={<OplIcon icon={CloseSmall} size={12} />}
+                  closeIcon={<OplIcon name='closeFill' size={12} />}
                   onClose={() => {
                     const path = getSelectedItemPath(item);
                     if (!path) {
