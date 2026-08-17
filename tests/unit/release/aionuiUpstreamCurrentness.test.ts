@@ -36,7 +36,7 @@ describe('AionUI upstream currentness', () => {
     expect(validateAionuiIntakeReceipt(receipt)).toBe(receipt);
     expect(validateReceiptAgainstCheckout(receipt, repoRoot)).toBe(receipt);
     expect(receipt.schema).toBe('opl_aionui_upstream_intake.v2');
-    expect(receipt.reviewed_release.tag).toBe('v2.1.46');
+    expect(receipt.reviewed_release.tag).toBe('v2.1.56');
     expect(receipt.reviewed_release.disposition).toBe('reviewed_deferred');
     expect(receipt.absorbed_release.tag).toBe('v2.1.39');
     expect(receipt.absorbed_release.commit).toBe('1b215f2fcb9d220bc66bf3b4961835ded07d5797');
@@ -183,17 +183,17 @@ describe('AionUI upstream currentness', () => {
 
   it('turns a newer stable release into a review event without mutation', () => {
     const result = evaluateAionuiCurrentness(receipt, {
-      tag: 'v2.1.47',
+      tag: 'v2.1.57',
       commit: 'c'.repeat(40),
-      published_at: '2026-08-04T01:00:00Z',
+      published_at: '2026-08-18T01:00:00Z',
       draft: false,
       prerelease: false,
-      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.47',
+      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.57',
     });
     expect(result).toMatchObject({
       status: 'review_required',
       release_mutation_performed: false,
-      observed_release: { tag: 'v2.1.47' },
+      observed_release: { tag: 'v2.1.57' },
     });
   });
 

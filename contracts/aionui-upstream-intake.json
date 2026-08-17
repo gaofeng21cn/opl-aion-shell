@@ -3,12 +3,12 @@
   "upstream_repository": "https://github.com/iOfficeAI/AionUi.git",
   "channel": "stable_tags_only",
   "reviewed_release": {
-    "tag": "v2.1.46",
-    "commit": "0f7635b2f8a62e0a757eff60aea210e502726f92",
-    "published_at": "2026-08-03T14:36:44Z",
+    "tag": "v2.1.56",
+    "commit": "36d632de5275fdb4354d5b74e137182c4d47b0e0",
+    "published_at": "2026-08-14T12:46:50Z",
     "draft": false,
     "prerelease": false,
-    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.46",
+    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.56",
     "disposition": "reviewed_deferred"
   },
   "absorbed_release": {

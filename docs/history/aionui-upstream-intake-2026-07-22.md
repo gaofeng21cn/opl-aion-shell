@@ -4,6 +4,68 @@ Machine receipt: `contracts/aionui-upstream-intake.json`. The receipt is the
 offline currentness and managed-runtime projection boundary; this document
 retains the human classification rationale.
 
+## Review update - 2026-08-17
+
+Official stable `v2.1.56`
+(`36d632de5275fdb4354d5b74e137182c4d47b0e0`) was published at
+`2026-08-14T12:46:50Z` and reviewed through the stable-only intake path. The
+range from `v2.1.46` contains 82 commits and changes 550 files. Its broad
+product surface remains `reviewed_deferred`; the absorbed release remains
+`v2.1.39`.
+
+The review is deliberately separate from the DSH visual foundation. It first
+accounts for the current upstream renderer and runtime boundary, then permits
+only owner-traced narrow replays. It does not merge upstream history, change
+OPL product behavior, or turn a release tag into App authority.
+
+### AionCore v0.1.67 incompatibility
+
+Upstream `v2.1.56` pins official AionCore `v0.1.67`
+(`48a8b9bf542fa8d17f7a75a10c5c7a8f1b8ea7d5`). All six official release
+assets were checked against their GitHub release digests. The darwin-arm64
+archive was also downloaded and reproduced through
+`prepare-managed-resources --bundle-out`:
+
+- darwin-arm64 archive SHA-256: `ec73c564f354e68b98ae7e9474d4bf1ea266641b3cbbfbaebfd6bf3af38bc862`
+- darwin-x64 archive SHA-256: `3014a714d8f9b7a880f4722be0523a7abc2ea2c95538bf5c878c3aea7d1f09ec`
+- linux-arm64 archive SHA-256: `3a7f1250324660ede14136fdaf494aa26fdfdce617c43a96789b7a77a0b3916a`
+- linux-x64 archive SHA-256: `efb8dd551b57672b794f3a695397397fd219a81c8d02c1b72ad550f38bab0761`
+- win32-arm64 archive SHA-256: `4305d5bc621351ab1e9f813a6e5de9246dedcd2184555a913fa61883008362b4`
+- win32-x64 archive SHA-256: `16ad97851d6e9ef40c3357c5c92f66d98792f383a9ed15ef306da0fe82f6d433`
+
+The reproduced darwin-arm64 schema-v2 manifest has SHA-256
+`6c5b1ce464119a49d78377c91a99372997576343f10ed83019c2f457d015dd91`,
+retains Node `24.11.0` with binary SHA-256
+`8d66cad090d087ed8fac66d8f7248c8a9a55454680232a6d109f609aa2decf89`,
+and emits `clis: []`. The official source explicitly states that Claude and
+Codex now run from the user's own installation. This conflicts with the OPL
+Codex-only managed-resource projection, whose package verifier and runtime
+resolver require the AionCore-produced `@openai/codex@0.144.6` identity.
+
+Therefore the AionCore/package bump is rejected by this intake. Shell keeps
+official AionCore `v0.1.57`, the current six-platform receipt, and the existing
+Codex-only projection. `package.json` and `bun.lock` remain byte-identical.
+
+### Stable commit disposition
+
+Every commit in `v2.1.46..v2.1.56` is accounted for exactly once below.
+`Required narrow replay` means the behavior must be traced against the OPL
+overlay before the visual foundation is admitted; it does not claim that the
+upstream commit was merged. `Rejected` means the commit is not an OPL Shell
+intake input, not a judgment on upstream quality.
+
+| Disposition            | Count | Upstream commits                                                                                                                                                                                                                                                                                                                                                                                                               | OPL reason                                                                                                                                                                                                                                                                     |
+| ---------------------- | ----: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Required narrow replay |     6 | `4cd8132e6`, `e272af8e2`, `f09229c7b`, `9195dfa74`, `6156f8b11`, `019400b03`                                                                                                                                                                                                                                                                                                                                                   | Trace and replay only the Spin baseline, startup classification, web-host registry integrity, image-generation path boundary, early theme-attribute convergence, and React vendor-chunk white-screen fix where the current OPL path still needs them.                          |
+| Redirected             |    20 | `322ecfd20`, `0675a3c6d`, `13fc809a1`, `61245a247`, `844709fe0`, `17527fbc8`, `a0c936f92`, `9e2ba2d61`, `f50fd0f9b`, `1ee603158`, `687fc40a2`, `b1e31a5c0`, `c7b034d25`, `c66d5bef4`, `af3a352aa`, `0864694ef`, `ae2d2f53e`, `b9c673530`, `4b0025897`, `d84c3fb02`                                                                                                                                                             | GPU/startup recovery, titles/fork/unread/turn state, workspace/titlebar, updater, platform shortcuts, managed-agent search, backend resolution, and deferred mode state belong to their current App, Framework, updater, workspace, conversation, or platform owner.           |
+| Deferred               |    32 | `829569d00`, `bacf41816`, `0c8712c3b`, `cb9d8f19b`, `6bfd36939`, `2a41a934f`, `0eab93757`, `8fb2a2c28`, `6400246c8`, `c2d41b4de`, `f0bce4c22`, `49d745e10`, `28a2a9f57`, `5440d66ef`, `cc57afcea`, `f98d9f719`, `1e49e704d`, `31ec26a90`, `3e61ed431`, `85627c804`, `12d86f646`, `29659c629`, `800a7ffdd`, `a50f7433a`, `74ba01a5c`, `eeeb63b0f`, `e7b6bb314`, `114f97de5`, `b678d839e`, `3fcdadc6b`, `93bac465f`, `71c466a7e` | Preview/browser/SCM, Team, cron, channel, SendBox media/voice/folder, structured questions/terminal cards, explorer and assistant behavior are outside the no-function-change visual foundation.                                                                               |
+| Rejected or superseded |    24 | `bf9846805`, `42be46dbf`, `2db2e7dbc`, `13a15c147`, `f641c3ef0`, `e4a570454`, `413a7af16`, `176e14d6e`, `d75edb44b`, `278ae4646`, `27f42e29b`, `7ebae30aa`, `5de292e9f`, `cb7fcb313`, `12e824dd4`, `9f19e03db`, `410114001`, `3321b7d17`, `a78ecd27c`, `ecf1d2e8c`, `982a6013c`, `31cc95c8b`, `e187ac746`, `36d632de5`                                                                                                         | Release/package/CI/docs churn is not product input; the sidebar series is reverted within the range; legacy/community-theme and custom-CSS changes are superseded by the governed OPL baseline; the no-bundled-CLI packaging change conflicts with the managed Codex contract. |
+
+The required narrow-replay items must be implemented and verified in a
+separate scoped Shell change before the DSH visual cohort is introduced.
+Redirected and deferred items remain outside this review and cannot be pulled
+in by the visual work.
+
 ## Review update - 2026-08-04
 
 Official stable `v2.1.46`
