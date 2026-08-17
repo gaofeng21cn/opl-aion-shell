@@ -19,7 +19,8 @@
     "implementation_refs": [
       "a226de8a709698d40d19b038ef736475e135e1b2",
       "bfde9e63179c03b2cdca18f4134f5c28ef78c8e4",
-      "8b8029f3fd0f94a8dcacc2f6f96bc0e4f562c82a"
+      "8b8029f3fd0f94a8dcacc2f6f96bc0e4f562c82a",
+      "d912b54ace25ffc37fdbcd46753fc69edb28cd85"
     ],
     "human_record": "docs/history/aionui-upstream-intake-2026-07-22.md",
     "aioncore_version_source": "package.json#aioncoreVersion"

@@ -40,6 +40,7 @@ describe('AionUI upstream currentness', () => {
     expect(receipt.reviewed_release.disposition).toBe('reviewed_deferred');
     expect(receipt.absorbed_release.tag).toBe('v2.1.39');
     expect(receipt.absorbed_release.commit).toBe('1b215f2fcb9d220bc66bf3b4961835ded07d5797');
+    expect(receipt.shell_projection.implementation_refs).toContain('d912b54ace25ffc37fdbcd46753fc69edb28cd85');
     expect(receipt.managed_runtime).not.toHaveProperty('codex_acp');
     expect(receipt.managed_runtime).toMatchObject({
       aioncore: {
