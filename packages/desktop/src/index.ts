@@ -31,7 +31,11 @@ import { initializeTrayForDesktopMode } from './process/startup/runtime/trayStar
 import { shouldQuitAfterAllWindowsClosed } from './process/startup/runtime/windowAllClosed';
 import { ProcessConfig } from './process/utils/initStorage';
 import type { BackendStartupFailureInfo } from './common/types/platform/electron';
-import { disposeCodexAppServerBridge, registerWindowMaximizeListeners } from '@process/bridge';
+import {
+  disposeCodexAppServerBridge,
+  disposeRemoteCompanionBridge,
+  registerWindowMaximizeListeners,
+} from '@process/bridge';
 import { BackendLifecycleManager } from '@aionui/web-host';
 import { resolveBinaryPath } from '@process/backend';
 import './process/bridge/feedbackBridge';
@@ -1025,10 +1029,14 @@ installQuitCleanup({
   // transitively (no separate frontend workerTaskManager remains).
   stopBackend: async () => {
     try {
-      await disposeCodexAppServerBridge();
+      await disposeRemoteCompanionBridge();
     } finally {
-      await backendManager.stop();
-      await windowsWslRuntime?.terminateAll(5000);
+      try {
+        await disposeCodexAppServerBridge();
+      } finally {
+        await backendManager.stop();
+        await windowsWslRuntime?.terminateAll(5000);
+      }
     }
   },
   destroyPetWindow: async () => {

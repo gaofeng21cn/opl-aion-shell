@@ -183,9 +183,11 @@ export class RemoteCompanionService {
     if (!pairing) throw new Error('Remote pairing is no longer pending.');
     const response = await this.broker.readPairing(pairing.pair_id, pairing.desktop_pair_token);
     this.assertBrokerProtocol(response);
-    pairing.state = response.state;
+    this.assertBrokerPairingIdentity(response, pairing.pair_id);
+    if (response.state === 'active') this.assertActivationIdentity(pairing, response);
     pairing.authentication_string = response.authentication_string;
     if (response.state === 'active') await this.activatePairing(pairing, response);
+    pairing.state = response.state;
     if (response.state === 'expired' || response.state === 'revoked') this.pendingPairings.delete(pairing.pair_id);
     this.emitState();
     return this.publicState();
@@ -207,6 +209,7 @@ export class RemoteCompanionService {
       pairing.confirm_idempotency_key
     );
     this.assertBrokerProtocol(response);
+    this.assertBrokerPairingIdentity(response, pairing.pair_id);
     pairing.state = response.state;
     this.emitState();
     return this.publicState();
@@ -348,12 +351,25 @@ export class RemoteCompanionService {
     await this.enqueueEvents(record, events);
   }
 
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.transportOff?.();
     this.transportOff = null;
     this.canonicalOff?.();
     this.canonicalOff = null;
-    this.listeners.clear();
+    let disconnectError: unknown;
+    try {
+      for (const record of this.credentials.values()) {
+        if (!ACTIVE_STATES.has(record.state)) continue;
+        try {
+          await this.transport.disconnect(record.pair_id);
+        } catch (error) {
+          disconnectError ??= error;
+        }
+      }
+    } finally {
+      this.listeners.clear();
+    }
+    if (disconnectError) throw disconnectError;
   }
 
   private async handleCanonicalEvent(event: RemoteProjectionEvent): Promise<void> {
@@ -534,8 +550,7 @@ export class RemoteCompanionService {
   }
 
   private async activatePairing(pairing: PendingPairing, response: BrokerReadPairingResponse): Promise<void> {
-    const activation = response.device_activation;
-    if (!activation || activation.device_id !== pairing.desktop_device_id) return;
+    const activation = this.assertActivationIdentity(pairing, response);
     const deviceCredential = pairing.desktop_pair_token;
     const deviceLabel = activation.device_label;
     const peerDeviceId = activation.peer_device_id;
@@ -788,6 +803,24 @@ export class RemoteCompanionService {
     if (value.protocol_version !== REMOTE_COMPANION_PROTOCOL_VERSION) {
       throw new Error('Remote broker returned an unsupported protocol version.');
     }
+  }
+
+  private assertBrokerPairingIdentity(value: { pairing_id?: unknown }, pairId: string): void {
+    if (value.pairing_id !== pairId) {
+      throw new Error('Remote broker returned a mismatched pairing identity.');
+    }
+  }
+
+  private assertActivationIdentity(
+    pairing: PendingPairing,
+    response: BrokerReadPairingResponse
+  ): NonNullable<BrokerReadPairingResponse['device_activation']> {
+    const activation = response.device_activation;
+    if (!activation) throw new Error('Remote broker omitted device activation.');
+    if (activation.device_id !== pairing.desktop_device_id) {
+      throw new Error('Remote broker returned a mismatched device activation identity.');
+    }
+    return activation;
   }
 
   private assertProviderCredentials(value: RemoteProviderCredentialProjection): void {

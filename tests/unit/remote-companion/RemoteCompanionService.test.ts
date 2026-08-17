@@ -250,6 +250,72 @@ describe('RemoteCompanionService', () => {
     );
   });
 
+  it('rejects a mismatched pairing identity before mutating the pending session', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue({ ...activePairingResponse(), pairing_id: 'other-pair' }),
+    });
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, transport());
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    await expect(target.pollPairing(PAIR_ID)).rejects.toThrow('mismatched pairing identity');
+    expect(await target.getState()).toMatchObject({
+      pairing: { pair_id: PAIR_ID, state: 'reserved', authentication_string: null },
+    });
+  });
+
+  it('rejects a missing active device activation instead of leaving a fake active pending session', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue({ ...activePairingResponse(), device_activation: undefined }),
+    });
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, transport());
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    await expect(target.pollPairing(PAIR_ID)).rejects.toThrow('omitted device activation');
+    expect(await target.getState()).toMatchObject({
+      pairing: { pair_id: PAIR_ID, state: 'reserved', authentication_string: null },
+    });
+  });
+
+  it('rejects a mismatched active device activation identity before mutating the pending session', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue(activePairingResponse({ device_id: 'other-desktop-device' })),
+    });
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, transport());
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    await expect(target.pollPairing(PAIR_ID)).rejects.toThrow('mismatched device activation identity');
+    expect(await target.getState()).toMatchObject({
+      pairing: { pair_id: PAIR_ID, state: 'reserved', authentication_string: null },
+    });
+  });
+
+  it('rejects a mismatched pairing identity from confirm before mutating the pending session', async () => {
+    const remoteBroker = broker({
+      readPairing: vi.fn().mockResolvedValue({
+        protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+        pairing_id: PAIR_ID,
+        state: 'reserved',
+        authentication_string: '867 604',
+        expires_at: '2026-08-17T13:00:00.000Z',
+      }),
+      confirmPairing: vi.fn().mockResolvedValue({
+        protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+        pairing_id: 'other-pair',
+        state: 'active',
+      }),
+    });
+    const target = service(new InMemoryRemoteCredentialStore(), canonicalPort(), remoteBroker, transport());
+
+    await target.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    await target.pollPairing(PAIR_ID);
+    await expect(target.confirmPairing({ pair_id: PAIR_ID, authentication_string: '867 604' })).rejects.toThrow(
+      'mismatched pairing identity'
+    );
+    expect(await target.getState()).toMatchObject({
+      pairing: { pair_id: PAIR_ID, state: 'reserved', authentication_string: '867 604' },
+    });
+  });
+
   it('does not activate or connect when the broker omits the peer public key', async () => {
     const remoteBroker = broker({
       readPairing: vi.fn().mockResolvedValue(activePairingResponse({ peer_public_key: undefined })),
@@ -474,6 +540,29 @@ describe('RemoteCompanionService', () => {
     ]);
   });
 
+  it('awaits transport disconnect for every active pair during disposal', async () => {
+    const remoteTransport = transport();
+    let resolveDisconnect: (() => void) | null = null;
+    remoteTransport.disconnect = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveDisconnect = resolve;
+        })
+    );
+    const target = service(
+      new InMemoryRemoteCredentialStore([activeRecord()]),
+      canonicalPort(),
+      broker(),
+      remoteTransport
+    );
+
+    await target.getState();
+    const disposal = target.dispose();
+    await vi.waitFor(() => expect(remoteTransport.disconnect).toHaveBeenCalledWith(PAIR_ID));
+    resolveDisconnect?.();
+    await disposal;
+  });
+
   it('resumes a persisted revocation receipt during cold start without issuing a second revoke', async () => {
     const store = new InMemoryRemoteCredentialStore([activeRecord()]);
     const firstBroker = broker({
@@ -488,7 +577,7 @@ describe('RemoteCompanionService', () => {
     });
     const first = service(store, canonicalPort(), firstBroker, transport());
     await expect(first.revokePair({ pair_id: PAIR_ID })).rejects.toThrow('provider-absence terminal state');
-    first.dispose();
+    await first.dispose();
 
     const secondBroker = broker();
     const secondTransport = transport();

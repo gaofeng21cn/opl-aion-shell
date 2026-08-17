@@ -155,11 +155,12 @@ export function initRemoteCompanionBridge(): void {
   ipcBridge.remoteCompanion.refreshPair.provider((request) => getActiveService().refreshPair(request.pair_id));
 }
 
-export function disposeRemoteCompanionBridge(): void {
+export async function disposeRemoteCompanionBridge(): Promise<void> {
   disposeStateListener?.();
   disposeStateListener = null;
-  activeService?.dispose();
+  const service = activeService;
   activeService = null;
+  await service?.dispose();
 }
 
 export const __remoteCompanionBridgeTest = {
