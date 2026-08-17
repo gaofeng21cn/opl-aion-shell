@@ -123,7 +123,7 @@ const oplVisualIconTargets = [
   },
   {
     relativePath: 'packages/desktop/src/renderer/pages/guid/components/GuidModelSelector.tsx',
-    ownedCallsites: ["<OplIcon name='chevronDown' size={12} className='shrink-0' />"],
+    ownedCallsites: ["<OplIcon name='chevronDown' size={16} className='shrink-0' />"],
   },
   {
     relativePath: 'packages/desktop/src/renderer/components/agent/AcpModelSelector.tsx',

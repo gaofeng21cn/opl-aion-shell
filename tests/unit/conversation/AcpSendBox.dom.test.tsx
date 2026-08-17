@@ -464,7 +464,7 @@ describe('AcpSendBox OPL fixed Codex mode surface', () => {
     expect(
       screen
         .getByTestId('mobile-action-sheet-reset-session-defaults-trailing-icon')
-        .querySelector('[data-icon="refresh"], .i-icon-refresh')
+        .querySelector('[data-opl-icon="refresh"]')
     ).not.toBeNull();
   });
 

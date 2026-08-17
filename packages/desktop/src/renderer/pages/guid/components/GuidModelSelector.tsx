@@ -269,7 +269,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         >
           <span className='flex items-center gap-6px min-w-0'>
             <span>{geminiButtonLabel}</span>
-            <OplIcon name='chevronDown' size={12} className='shrink-0' />
+            <OplIcon name='chevronDown' size={16} className='shrink-0' />
           </span>
         </Button>
       </Dropdown>
@@ -442,7 +442,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
           >
             <span className='flex items-center gap-6px min-w-0'>
               <span>{acpButtonLabel}</span>
-              <OplIcon name='chevronDown' size={12} className='shrink-0' />
+              <OplIcon name='chevronDown' size={16} className='shrink-0' />
             </span>
           </Button>
         </Dropdown>

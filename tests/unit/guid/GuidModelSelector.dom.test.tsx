@@ -70,6 +70,10 @@ describe('GuidModelSelector Codex display', () => {
     const selector = screen.getByTestId('guid-model-selector');
     expect(selector).toHaveTextContent('5.6 Sol 最高');
     expect(selector).not.toHaveTextContent('自动（推荐）');
+    expect(selector.querySelector('[data-opl-icon="chevronDown"]')).toHaveStyle({
+      width: '16px',
+      height: '16px',
+    });
     expect(selector.querySelector('[data-icon="brain"], .i-icon-brain')).toBeNull();
     expect(screen.queryByTestId('guid-reasoning-effort-selector')).not.toBeInTheDocument();
 
@@ -207,7 +211,7 @@ describe('GuidModelSelector Codex display', () => {
     const selector = screen.getByTestId('guid-model-selector');
     await userEvent.click(selector);
     const resetItem = await screen.findByTestId('opl-codex-session-menu-reset');
-    expect(resetItem.querySelector('[data-icon="refresh"], .i-icon-refresh')).not.toBeNull();
+    expect(resetItem.querySelector('[data-opl-icon="refresh"]')).not.toBeNull();
     fireEvent.click(resetItem);
 
     expect(setCodexModelSelection).toHaveBeenCalledWith(null, null);

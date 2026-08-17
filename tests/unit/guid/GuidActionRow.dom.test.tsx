@@ -476,7 +476,7 @@ describe('GuidActionRow composer controls', () => {
     expect(
       screen
         .getByTestId('mobile-action-sheet-reset-session-defaults-trailing-icon')
-        .querySelector('[data-icon="refresh"], .i-icon-refresh')
+        .querySelector('[data-opl-icon="refresh"]')
     ).not.toBeNull();
     expect(screen.getByTestId('mobile-action-sheet-active-capability')).toHaveTextContent('Capability: Research');
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument();

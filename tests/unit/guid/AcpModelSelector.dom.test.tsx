@@ -393,7 +393,7 @@ describe('AcpModelSelector Codex model switching', () => {
     const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 高/ });
     await userEvent.click(autoButton);
     const resetItem = await screen.findByTestId('opl-codex-session-menu-reset');
-    expect(resetItem.querySelector('[data-icon="refresh"], .i-icon-refresh')).not.toBeNull();
+    expect(resetItem.querySelector('[data-opl-icon="refresh"]')).not.toBeNull();
     fireEvent.click(resetItem);
 
     await waitFor(() => {

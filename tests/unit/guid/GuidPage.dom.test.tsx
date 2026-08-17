@@ -704,7 +704,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     expect(screen.queryByTestId('mobile-action-sheet-auto')).not.toBeInTheDocument();
     expect(resetEntry.previousElementSibling).not.toBe(reasoningEntry);
     expect(resetEntry.previousElementSibling?.previousElementSibling).toBe(reasoningEntry);
-    expect(resetEntry.querySelector('[data-icon="refresh"], .i-icon-refresh')).not.toBeNull();
+    expect(resetEntry.querySelector('[data-opl-icon="refresh"]')).not.toBeNull();
     expect(screen.queryByTestId('mobile-action-sheet-workspace')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-agent_packages')).toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-capability-skills')).toBeInTheDocument();
