@@ -11,6 +11,188 @@ export type GuiBaselineAccessibilityOptions = {
 const CONTROL_SELECTOR =
   'button,a,input,textarea,select,[role="button"],[role="link"],[role="tab"],[role="option"],[role="menuitem"],[role="combobox"]';
 
+type RenderedContrastOptions = {
+  root: string;
+  minimum: number;
+  controlSelector: string;
+};
+
+export function evaluateRenderedControlContrast({
+  root,
+  minimum,
+  controlSelector,
+}: RenderedContrastOptions): GuiBaselineAccessibilityEvidence['rendered_contrast']['checks'] {
+  type Rgba = [number, number, number, number];
+  type ContrastSample = {
+    ratio: number;
+    foreground: Rgba;
+    background: Rgba;
+    kind: string;
+  };
+
+  const parseColor = (value: string): Rgba | null => {
+    const trimmed = value.trim();
+    const rgb = trimmed.match(/^rgba?\(([^)]+)\)$/i);
+    if (rgb) {
+      const parts = rgb[1].split(',').map((part) => Number.parseFloat(part.trim()));
+      if (parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)) {
+        return [parts[0], parts[1], parts[2], parts.length > 3 && Number.isFinite(parts[3]) ? parts[3] : 1];
+      }
+    }
+    const hex = trimmed.match(/^#([0-9a-f]{3,8})$/i)?.[1];
+    if (hex) {
+      const expanded =
+        hex.length <= 4
+          ? hex
+              .split('')
+              .map((part) => `${part}${part}`)
+              .join('')
+          : hex;
+      const numbers = [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16));
+      const alpha = expanded.length >= 8 ? Number.parseInt(expanded.slice(6, 8), 16) / 255 : 1;
+      return [...numbers, alpha] as Rgba;
+    }
+    return null;
+  };
+  const luminance = (value: Rgba): number => {
+    const channels = value
+      .slice(0, 3)
+      .map((channel) => channel / 255)
+      .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
+    return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+  };
+  const ratio = (foreground: Rgba, background: Rgba): number => {
+    const foregroundLum = luminance(foreground);
+    const backgroundLum = luminance(background);
+    return (Math.max(foregroundLum, backgroundLum) + 0.05) / (Math.min(foregroundLum, backgroundLum) + 0.05);
+  };
+  const composite = (foreground: Rgba, background: Rgba): Rgba => {
+    const alpha = foreground[3] + background[3] * (1 - foreground[3]);
+    if (alpha <= 0) return [0, 0, 0, 0];
+    return [
+      (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
+      (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
+      (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
+      alpha,
+    ];
+  };
+  const backgroundFor = (element: HTMLElement | null): Rgba => {
+    let current = element;
+    const layers: Rgba[] = [];
+    while (current) {
+      const parsed = parseColor(window.getComputedStyle(current).backgroundColor);
+      if (parsed && parsed[3] > 0) layers.push(parsed);
+      current = current.parentElement;
+    }
+    return layers.reverse().reduce((background, layer) => composite(layer, background), [255, 255, 255, 1]);
+  };
+  const formatColor = (color: Rgba): string =>
+    `rgb(${color
+      .slice(0, 3)
+      .map((channel) => Math.round(channel))
+      .join(', ')})`;
+  const paintSample = (paint: Rgba | null, background: Rgba, kind: string): ContrastSample | null => {
+    if (!paint || paint[3] <= 0) return null;
+    const foreground = composite(paint, background);
+    return { ratio: ratio(foreground, background), foreground, background, kind };
+  };
+  const accessibleNameFor = (element: HTMLElement): string =>
+    element.getAttribute('aria-label') ||
+    (element.getAttribute('aria-labelledby')
+      ? (element
+          .getAttribute('aria-labelledby')
+          ?.split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+          .join(' ')
+          .trim() ?? '')
+      : '') ||
+    element.getAttribute('title') ||
+    '';
+
+  const host = document.querySelector<HTMLElement>(root);
+  if (!host) return [];
+  return Array.from(host.querySelectorAll<HTMLElement>(controlSelector))
+    .filter((element) => {
+      const style = window.getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      return (
+        style.display !== 'none' &&
+        style.visibility !== 'hidden' &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        !element.matches(':disabled') &&
+        element.getAttribute('aria-disabled') !== 'true' &&
+        !element.closest('[aria-hidden="true"], [inert], [hidden]')
+      );
+    })
+    .map((element, index) => {
+      const style = window.getComputedStyle(element);
+      const role = element.getAttribute('role') || element.tagName.toLowerCase();
+      const accessibleName = accessibleNameFor(element);
+      const contextLabel =
+        element
+          .closest<HTMLElement>('.opl-settings-row')
+          ?.querySelector<HTMLElement>('.opl-settings-row__main')
+          ?.textContent?.trim() ?? '';
+      const id =
+        element.dataset.testid ||
+        accessibleName ||
+        element.closest<HTMLElement>('[data-testid]')?.dataset.testid ||
+        contextLabel ||
+        `${role}-${index}`;
+      const renderedText = (element.innerText || element.textContent || '').trim();
+      const minimumRequired = renderedText ? minimum : 3;
+      let sample: ContrastSample | null = null;
+
+      if (role === 'switch' && !renderedText) {
+        const samples: ContrastSample[] = [];
+        const backdrop = backgroundFor(element.parentElement);
+        const track = paintSample(parseColor(style.backgroundColor), backdrop, 'control_background_against_backdrop');
+        if (track) samples.push(track);
+
+        for (const descendant of Array.from(element.querySelectorAll<HTMLElement>('*'))) {
+          const descendantStyle = window.getComputedStyle(descendant);
+          const descendantRect = descendant.getBoundingClientRect();
+          if (
+            descendantStyle.display === 'none' ||
+            descendantStyle.visibility === 'hidden' ||
+            descendantRect.width <= 0 ||
+            descendantRect.height <= 0
+          ) {
+            continue;
+          }
+          const descendantSample = paintSample(
+            parseColor(descendantStyle.backgroundColor),
+            backgroundFor(descendant.parentElement),
+            'descendant_background_against_backdrop'
+          );
+          if (descendantSample) samples.push(descendantSample);
+        }
+        sample = samples.sort((left, right) => right.ratio - left.ratio)[0] ?? null;
+      }
+
+      if (!sample) {
+        const background = backgroundFor(element);
+        sample = paintSample(parseColor(style.color), background, 'text_or_current_color');
+      }
+
+      return {
+        id,
+        role,
+        class_name: typeof element.className === 'string' ? element.className : '',
+        accessible_name: accessibleName,
+        context_label: contextLabel,
+        sample_kind: sample?.kind ?? 'unresolved',
+        ratio: sample?.ratio ?? null,
+        minimum_required: minimumRequired,
+        passed: sample !== null && sample.ratio >= minimumRequired,
+        foreground: sample ? formatColor(sample.foreground) : style.color,
+        background: sample ? formatColor(sample.background) : formatColor(backgroundFor(element)),
+      };
+    })
+    .slice(0, 24);
+}
+
 function activeDescription(page: Page): Promise<string> {
   return page.evaluate(() => {
     const active = document.activeElement;
@@ -178,107 +360,11 @@ export async function collectGuiBaselineAccessibility(
     { root: rootSelector, controlSelector: CONTROL_SELECTOR }
   );
 
-  const contrastChecks = await page.evaluate(
-    ({ root, minimum, controlSelector }) => {
-      const parseColor = (value: string): [number, number, number, number] | null => {
-        const trimmed = value.trim();
-        const rgb = trimmed.match(/^rgba?\(([^)]+)\)$/i);
-        if (rgb) {
-          const parts = rgb[1].split(',').map((part) => Number.parseFloat(part.trim()));
-          if (parts.length >= 3 && parts.slice(0, 3).every(Number.isFinite)) {
-            return [parts[0], parts[1], parts[2], parts.length > 3 && Number.isFinite(parts[3]) ? parts[3] : 1];
-          }
-        }
-        const hex = trimmed.match(/^#([0-9a-f]{3,8})$/i)?.[1];
-        if (hex) {
-          const expanded =
-            hex.length <= 4
-              ? hex
-                  .split('')
-                  .map((part) => `${part}${part}`)
-                  .join('')
-              : hex;
-          const numbers = [0, 2, 4].map((offset) => Number.parseInt(expanded.slice(offset, offset + 2), 16));
-          const alpha = expanded.length >= 8 ? Number.parseInt(expanded.slice(6, 8), 16) / 255 : 1;
-          return [...numbers, alpha] as [number, number, number, number];
-        }
-        return null;
-      };
-      const luminance = (value: [number, number, number, number]): number => {
-        const channels = value
-          .slice(0, 3)
-          .map((channel) => channel / 255)
-          .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
-        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-      };
-      const ratio = (foreground: [number, number, number, number], background: [number, number, number, number]) => {
-        const foregroundLum = luminance(foreground);
-        const backgroundLum = luminance(background);
-        return (Math.max(foregroundLum, backgroundLum) + 0.05) / (Math.min(foregroundLum, backgroundLum) + 0.05);
-      };
-      const composite = (
-        foreground: [number, number, number, number],
-        background: [number, number, number, number]
-      ): [number, number, number, number] => {
-        const alpha = foreground[3] + background[3] * (1 - foreground[3]);
-        if (alpha <= 0) return [0, 0, 0, 0];
-        return [
-          (foreground[0] * foreground[3] + background[0] * background[3] * (1 - foreground[3])) / alpha,
-          (foreground[1] * foreground[3] + background[1] * background[3] * (1 - foreground[3])) / alpha,
-          (foreground[2] * foreground[3] + background[2] * background[3] * (1 - foreground[3])) / alpha,
-          alpha,
-        ];
-      };
-      const backgroundFor = (element: HTMLElement): [number, number, number, number] => {
-        let current: HTMLElement | null = element;
-        const layers: Array<[number, number, number, number]> = [];
-        while (current) {
-          const color = window.getComputedStyle(current).backgroundColor;
-          const parsed = parseColor(color);
-          if (parsed && parsed[3] > 0) layers.push(parsed);
-          current = current.parentElement;
-        }
-        return layers.toReversed().reduce((background, layer) => composite(layer, background), [255, 255, 255, 1]);
-      };
-      const host = document.querySelector<HTMLElement>(root);
-      if (!host) return [];
-      return Array.from(host.querySelectorAll<HTMLElement>(controlSelector))
-        .filter((element) => {
-          const style = window.getComputedStyle(element);
-          const rect = element.getBoundingClientRect();
-          return (
-            style.display !== 'none' &&
-            style.visibility !== 'hidden' &&
-            rect.width > 0 &&
-            rect.height > 0 &&
-            !element.matches(':disabled') &&
-            element.getAttribute('aria-disabled') !== 'true' &&
-            !element.closest('[aria-hidden="true"], [inert], [hidden]')
-          );
-        })
-        .map((element, index) => {
-          const foreground = window.getComputedStyle(element).color;
-          const background = backgroundFor(element);
-          const parsedForeground = parseColor(foreground);
-          const compositedForeground = parsedForeground ? composite(parsedForeground, background) : null;
-          const value = compositedForeground ? ratio(compositedForeground, background) : null;
-          const minimumRequired = element.innerText.trim() ? minimum : 3;
-          return {
-            id: element.dataset.testid || element.getAttribute('aria-label') || `control-${index}`,
-            ratio: value,
-            minimum_required: minimumRequired,
-            passed: value !== null && value >= minimumRequired,
-            foreground,
-            background: `rgb(${background
-              .slice(0, 3)
-              .map((channel) => Math.round(channel))
-              .join(', ')})`,
-          };
-        })
-        .slice(0, 24);
-    },
-    { root: rootSelector, minimum: minimumTextContrast, controlSelector: CONTROL_SELECTOR }
-  );
+  const contrastChecks = await page.evaluate(evaluateRenderedControlContrast, {
+    root: rootSelector,
+    minimum: minimumTextContrast,
+    controlSelector: CONTROL_SELECTOR,
+  });
 
   return {
     named_controls: controls,

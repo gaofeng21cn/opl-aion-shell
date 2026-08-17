@@ -52,6 +52,11 @@ export type GuiBaselineAccessibilityEvidence = {
     minimum_ratio: number;
     checks: Array<{
       id: string;
+      role: string;
+      class_name: string;
+      accessible_name: string;
+      context_label: string;
+      sample_kind: string;
       ratio: number | null;
       minimum_required: number;
       passed: boolean;
