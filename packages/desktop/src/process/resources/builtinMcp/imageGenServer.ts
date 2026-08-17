@@ -85,16 +85,10 @@ IMPORTANT: When user provides multiple images, ALWAYS pass ALL images to the ima
         .array(z.string())
         .optional()
         .describe(
-          'Optional: Array of paths to existing local image files or HTTP/HTTPS URLs to edit/modify. Examples: ["test.jpg", "https://example.com/img.png"]. For single image, use array format: ["test.jpg"].'
-        ),
-      workspace_dir: z
-        .string()
-        .optional()
-        .describe(
-          'Optional: Working directory for resolving relative paths and saving output images. Defaults to current working directory.'
+          'Optional: Array of paths to existing local image files or HTTP/HTTPS URLs to edit/modify. Examples: ["test.jpg", "https://example.com/img.png"]. For single image, use array format: ["test.jpg"]. Relative paths are resolved against the current working directory.'
         ),
     },
-    async ({ prompt, image_uris, workspace_dir }) => {
+    async ({ prompt, image_uris }) => {
       const provider = getProviderFromEnv();
       if (!provider) {
         return {
@@ -109,7 +103,7 @@ IMPORTANT: When user provides multiple images, ALWAYS pass ALL images to the ima
       }
 
       const proxy = process.env.AIONUI_IMG_PROXY || undefined;
-      const workspaceDir = workspace_dir || process.cwd();
+      const workspaceDir = process.cwd();
 
       const result = await executeImageGeneration({ prompt, image_uris }, provider, workspaceDir, proxy);
 

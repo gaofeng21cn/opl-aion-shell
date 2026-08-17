@@ -23,6 +23,30 @@ const API_TIMEOUT_MS = 120000; // 2 minutes for image generation API calls
 
 type ImageExtension = (typeof IMAGE_EXTENSIONS)[number];
 
+const isWithin = (root: string, target: string): boolean => {
+  const relative = path.relative(root, target);
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+};
+
+async function resolveSafePath(workspaceDir: string, candidate: string): Promise<string> {
+  const resolved = path.resolve(workspaceDir, candidate);
+  if (!isWithin(workspaceDir, resolved)) {
+    throw new Error(`Path traversal blocked: "${candidate}" resolves outside workspace`);
+  }
+
+  const realWorkspaceDir = await fs.promises.realpath(workspaceDir);
+  try {
+    const realTarget = await fs.promises.realpath(resolved);
+    if (!isWithin(realWorkspaceDir, realTarget)) {
+      throw new Error(`Path traversal blocked: "${candidate}" resolves outside workspace`);
+    }
+    return realTarget;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return resolved;
+    throw error;
+  }
+}
+
 // ===== Utility Functions =====
 
 export function safeJsonParse<T = unknown>(jsonString: string, fallbackValue: T): T {
@@ -83,7 +107,7 @@ export async function saveGeneratedImage(base64Data: string, workspaceDir: strin
   const timestamp = Date.now();
   const fileExtension = getFileExtensionFromDataUrl(base64Data);
   const file_name = `img-${timestamp}${fileExtension}`;
-  const file_path = path.join(workspaceDir, file_name);
+  const file_path = path.join(path.resolve(workspaceDir), file_name);
 
   const base64WithoutPrefix = base64Data.replace(/^data:image\/[^;]+;base64,/, '');
   const imageBuffer = Buffer.from(base64WithoutPrefix, 'base64');
@@ -122,10 +146,7 @@ export async function processImageUri(imageUri: string, workspaceDir: string): P
     processedUri = imageUri.substring(1);
   }
 
-  let fullPath = processedUri;
-  if (!path.isAbsolute(processedUri)) {
-    fullPath = path.join(workspaceDir, processedUri);
-  }
+  const fullPath = await resolveSafePath(workspaceDir, processedUri);
 
   try {
     await fs.promises.access(fullPath, fs.constants.F_OK);
@@ -141,13 +162,17 @@ export async function processImageUri(imageUri: string, workspaceDir: string): P
       image_url: { url: `data:${mimeType};base64,${base64Data}`, detail: 'auto' },
     };
   } catch (error) {
-    const possiblePaths = [imageUri, path.join(workspaceDir, imageUri)].filter((p, i, arr) => arr.indexOf(p) === i);
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    if (errorMessage.includes('Image file not found') || errorMessage.includes('not a supported image type')) {
+    if (
+      errorMessage.includes('Path traversal blocked') ||
+      errorMessage.includes('Image file not found') ||
+      errorMessage.includes('not a supported image type')
+    ) {
       throw error;
     }
 
+    const possiblePaths = [imageUri, path.resolve(workspaceDir, imageUri)].filter((p, i, arr) => arr.indexOf(p) === i);
     throw new Error(
       `Image file not found. Searched paths:\n${possiblePaths.map((p) => `- ${p}`).join('\n')}\n\nPlease ensure the image file exists and has a valid image extension (.jpg, .png, .gif, .webp, etc.)`,
       { cause: error }
@@ -184,6 +209,19 @@ export async function executeImageGeneration(
     return { success: false, text: 'Image generation was cancelled.', error: 'cancelled' };
   }
 
+  const resolvedWorkspaceDir = path.resolve(workspaceDir);
+  let workspaceStat: fs.Stats;
+  try {
+    workspaceStat = await fs.promises.stat(resolvedWorkspaceDir);
+  } catch {
+    const message = `Workspace directory not found: ${resolvedWorkspaceDir}`;
+    return { success: false, text: message, error: message };
+  }
+  if (!workspaceStat.isDirectory()) {
+    const message = `Workspace path is not a directory: ${resolvedWorkspaceDir}`;
+    return { success: false, text: message, error: message };
+  }
+
   try {
     // Parse image URIs
     let imageUris: string[] = [];
@@ -208,7 +246,7 @@ export async function executeImageGeneration(
 
     // Process image URIs
     if (hasImages) {
-      const imageResults = await Promise.allSettled(imageUris.map((uri) => processImageUri(uri, workspaceDir)));
+      const imageResults = await Promise.allSettled(imageUris.map((uri) => processImageUri(uri, resolvedWorkspaceDir)));
 
       const successful: ImageContent[] = [];
       const errors: string[] = [];
@@ -271,8 +309,8 @@ export async function executeImageGeneration(
           const processedImages: Array<{ type: 'image_url'; image_url: { url: string } }> = [];
           for (const match of file_pathMatches) {
             const file_path = match[1];
-            const fullPath = path.isAbsolute(file_path) ? file_path : path.join(workspaceDir, file_path);
             try {
+              const fullPath = await resolveSafePath(resolvedWorkspaceDir, file_path);
               await fs.promises.access(fullPath);
               const base64Data = await fileToBase64(fullPath);
               const mimeType = getImageMimeType(fullPath);
@@ -298,8 +336,8 @@ export async function executeImageGeneration(
 
     const firstImage = images[0];
     if (firstImage.type === 'image_url' && firstImage.image_url?.url) {
-      const imagePath = await saveGeneratedImage(firstImage.image_url.url, workspaceDir);
-      const relativeImagePath = path.relative(workspaceDir, imagePath);
+      const imagePath = await saveGeneratedImage(firstImage.image_url.url, resolvedWorkspaceDir);
+      const relativeImagePath = path.relative(resolvedWorkspaceDir, imagePath);
 
       // Strip any inline base64 data URLs from the human-readable text before
       // returning. The image is already saved to disk and referenced by path,

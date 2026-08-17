@@ -280,32 +280,30 @@ export default defineConfig(({ mode }) => {
           output: {
             manualChunks(id: string) {
               if (!id.includes('node_modules')) return undefined;
-              if (id.includes('/react-dom/') || id.includes('/react/')) return 'vendor-react';
-              if (id.includes('/@arco-design/')) return 'vendor-arco';
+              // React-coupled UI libraries must share one ESM chunk. Splitting
+              // them creates circular vendor imports that can evaluate Arco
+              // before React is initialized and leave packaged builds blank.
               if (
+                id.includes('/react-dom/') ||
+                id.includes('/react/') ||
+                id.includes('/@arco-design/') ||
                 id.includes('/react-markdown/') ||
                 id.includes('/remark-') ||
                 id.includes('/rehype-') ||
                 id.includes('/unified/') ||
                 id.includes('/mdast-') ||
                 id.includes('/hast-') ||
-                id.includes('/micromark')
-              )
-                return 'vendor-markdown';
-              if (
+                id.includes('/micromark') ||
                 id.includes('/react-syntax-highlighter/') ||
                 id.includes('/refractor/') ||
-                id.includes('/highlight.js/')
-              )
-                return 'vendor-highlight';
-              if (
+                id.includes('/highlight.js/') ||
                 id.includes('/monaco-editor/') ||
                 id.includes('/@monaco-editor/') ||
                 id.includes('/codemirror/') ||
-                id.includes('/@codemirror/')
+                id.includes('/@codemirror/') ||
+                id.includes('/katex/')
               )
-                return 'vendor-editor';
-              if (id.includes('/katex/')) return 'vendor-katex';
+                return 'vendor';
               if (id.includes('/@icon-park/')) return 'vendor-icons';
               if (id.includes('/diff2html/')) return 'vendor-diff';
               return undefined;

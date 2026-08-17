@@ -5,6 +5,17 @@
   --titlebar-height: 36px;
 }
 
+.i-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.i-icon > svg {
+  display: block;
+}
+
 .app-shell {
   min-height: 0;
 }

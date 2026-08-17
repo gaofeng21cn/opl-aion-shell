@@ -1,5 +1,19 @@
 /* Arco Design custom overrides - non-theme related */
 
+/* Keep loading indicators on the same baseline as adjacent static icons. */
+.arco-spin,
+.arco-spin > .arco-spin-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.arco-spin > .arco-spin-icon > .arco-icon {
+  display: block;
+  vertical-align: middle;
+}
+
 /* Centralized font tokens. --font-mono is inherited (custom properties cross
    the shadow DOM boundary), so Markdown rendered in shadow roots can reference it.
    集中的字体 token。--font-mono 会被继承（自定义属性可穿透 Shadow DOM 边界），

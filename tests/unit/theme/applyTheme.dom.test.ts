@@ -43,6 +43,28 @@ describe('applyTheme', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
     expect(document.body.getAttribute('arco-theme')).toBe('dark');
   });
+  it('converges arco-theme after an early boot without a body', () => {
+    const realBody = document.body;
+    let bodyReady = false;
+    Object.defineProperty(document, 'body', {
+      configurable: true,
+      get: () => (bodyReady ? realBody : null),
+    });
+
+    try {
+      applyTheme({ ...base, id: 'dark', name: 'Dark', appearance: 'dark' } as Theme, document);
+
+      expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
+      expect(realBody.getAttribute('arco-theme')).toBeNull();
+
+      bodyReady = true;
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+
+      expect(realBody.getAttribute('arco-theme')).toBe('dark');
+    } finally {
+      Reflect.deleteProperty(document, 'body');
+    }
+  });
   it('removes legacy decoration css instead of applying raw theme overrides', () => {
     const style = document.createElement('style');
     style.id = 'theme-decoration';

@@ -16,10 +16,24 @@ import { isElectronDesktop } from '../platform';
 const TOKENS_STYLE_ID = 'theme-tokens';
 const DECORATION_STYLE_ID = 'theme-decoration';
 
+function applyAppearanceAttributes(root: Document, appearance: Theme['appearance']): void {
+  root.documentElement.setAttribute('data-theme', appearance);
+  if (root.body) {
+    root.body.setAttribute('arco-theme', appearance);
+    return;
+  }
+  root.addEventListener(
+    'DOMContentLoaded',
+    () => {
+      root.body?.setAttribute('arco-theme', appearance);
+    },
+    { once: true }
+  );
+}
+
 /** Apply a resolved theme to a document. Used by every app-chrome surface. */
 export function applyTheme(theme: Theme, root: Document = document): void {
-  root.documentElement.setAttribute('data-theme', theme.appearance);
-  root.body?.setAttribute('arco-theme', theme.appearance);
+  applyAppearanceAttributes(root, theme.appearance);
   root.getElementById(TOKENS_STYLE_ID)?.remove();
   root.getElementById(DECORATION_STYLE_ID)?.remove();
 }
