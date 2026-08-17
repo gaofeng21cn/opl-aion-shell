@@ -44,7 +44,8 @@ vi.mock('@/renderer/components/opl/oplChromeIcon', () => ({
   OPL_CHROME_ICON_PROPS: {},
 }));
 
-vi.mock('@icon-park/react', () => ({
+vi.mock('@icon-park/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@icon-park/react')>()),
   Down: () => <span />,
 }));
 

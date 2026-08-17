@@ -26,7 +26,8 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('@icon-park/react', () => ({
+vi.mock('@icon-park/react', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@icon-park/react')>()),
   Left: () => <span aria-hidden='true'>left</span>,
   Right: () => <span aria-hidden='true'>right</span>,
 }));
