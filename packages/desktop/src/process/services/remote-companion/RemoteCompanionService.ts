@@ -32,11 +32,13 @@ import type {
 import type { RemoteBrokerPort } from './types';
 import type { RemoteCanonicalActionPort, RemoteProjectionEvent } from './canonicalActionBridge';
 import { RemoteActionDispatchError, RemoteCanonicalActionBridge } from './canonicalActionBridge';
-import type { RemoteCredentialRecord, RemoteCredentialStore } from './credentialStore';
+import type { RemoteCredentialRecord, RemoteCredentialStore, RemotePendingPairingRecord } from './credentialStore';
 import type { RemoteProviderCredentialProjection } from '@/common/types/remoteCompanion';
 import type { RemoteTransportAdapter } from './tencentImAdapter';
 
 type PendingPairing = {
+  create_idempotency_key: string;
+  invitation_code: string;
   pair_id: string;
   desktop_device_id: string;
   desktop_label: string;
@@ -50,6 +52,7 @@ type PendingPairing = {
   state: RemotePairingState;
   authentication_string: string | null;
   confirm_idempotency_key?: string;
+  revocation_idempotency_key?: string;
 };
 
 type RemoteCompanionServiceOptions = {
@@ -101,6 +104,11 @@ export class RemoteCompanionService {
   private readonly listeners = new Set<RemoteStateListener>();
   private loaded = false;
   private credentialStoreUnavailable = false;
+  private pendingPairingDocument: RemotePendingPairingRecord | null = null;
+  private pendingPairingCreateReplay: {
+    operation_idempotency_key: string;
+    promise: Promise<void>;
+  } | null = null;
   private pairingQrClaimUsed = new Set<string>();
   private transportOff: (() => void) | null = null;
   private canonicalOff: (() => void) | null = null;
@@ -142,38 +150,43 @@ export class RemoteCompanionService {
   async startPairing(request: RemoteStartPairingRequest): Promise<RemoteCompanionState> {
     await this.ensureLoaded();
     this.assertConfigured();
+    const invitationCode = requiredText(request.invitation_code, 'invitation_code');
+    const desktopLabel = requiredText(request.desktop_label, 'desktop_label').slice(0, 80);
+    const existing = this.pendingPairingDocument;
+    if (existing) {
+      if (
+        existing.request.invitation_code !== invitationCode ||
+        existing.request.desktop_device_label !== desktopLabel
+      ) {
+        throw new Error('A different remote pairing operation is already pending on this desktop.');
+      }
+      if (existing.state === 'creating') await this.replayPendingPairingCreate(existing);
+      return this.publicState();
+    }
     if (this.activePairCount() + this.pendingPairings.size >= REMOTE_COMPANION_MAX_ACTIVE_PAIRS) {
       throw new Error('Remote pairing capacity is full on this desktop.');
     }
-    const invitationCode = requiredText(request.invitation_code, 'invitation_code');
-    const desktopLabel = requiredText(request.desktop_label, 'desktop_label').slice(0, 80);
     const keyMaterial = generateX25519KeyMaterial();
-    const created = await this.broker.createPairing(
-      {
+    const operation: RemotePendingPairingRecord = {
+      operation_idempotency_key: randomUUID(),
+      request: {
         invitation_code: invitationCode,
         desktop_device_id: this.desktopDeviceId,
         desktop_device_label: desktopLabel,
         desktop_public_key: keyMaterial.public_key,
       },
-      randomUUID()
-    );
-    this.assertBrokerProtocol(created);
-    const pairing: PendingPairing = {
-      pair_id: requiredText(created.pairing_id, 'pairing_id'),
-      desktop_device_id: this.desktopDeviceId,
-      desktop_label: desktopLabel,
-      desktop_public_key: keyMaterial.public_key,
       desktop_key_material: keyMaterial,
-      desktop_pair_token: requiredText(created.desktop_pair_token, 'desktop_pair_token'),
-      claim_secret: requiredText(created.claim_secret, 'claim_secret'),
-      manual_code: requiredText(created.manual_code, 'manual_code'),
-      broker_url: requiredText(created.broker_url, 'broker_url'),
-      expires_at: requiredText(created.expires_at, 'expires_at'),
-      state: 'reserved',
+      pairing_id: null,
+      desktop_pair_token: null,
+      claim_secret: null,
+      manual_code: null,
+      broker_url: null,
+      expires_at: null,
+      state: 'creating',
       authentication_string: null,
     };
-    this.pendingPairings.set(pairing.pair_id, pairing);
-    this.emitState();
+    await this.persistPendingPairing(operation);
+    await this.replayPendingPairingCreate(operation);
     return this.publicState();
   }
 
@@ -186,9 +199,13 @@ export class RemoteCompanionService {
     this.assertBrokerPairingIdentity(response, pairing.pair_id);
     if (response.state === 'active') this.assertActivationIdentity(pairing, response);
     pairing.authentication_string = response.authentication_string;
-    if (response.state === 'active') await this.activatePairing(pairing, response);
     pairing.state = response.state;
-    if (response.state === 'expired' || response.state === 'revoked') this.pendingPairings.delete(pairing.pair_id);
+    await this.persistPendingPairing(this.pendingPairingRecord(pairing));
+    if (response.state === 'active') await this.activatePairing(pairing, response);
+    if (response.state === 'expired' || response.state === 'revoked') {
+      this.pendingPairings.delete(pairing.pair_id);
+      await this.clearPendingPairing(pairing.pair_id);
+    }
     this.emitState();
     return this.publicState();
   }
@@ -202,6 +219,7 @@ export class RemoteCompanionService {
       throw new Error('Remote pairing authentication string does not match.');
     }
     pairing.confirm_idempotency_key ??= randomUUID();
+    await this.persistPendingPairing(this.pendingPairingRecord(pairing));
     const response = await this.broker.confirmPairing(
       pairing.pair_id,
       pairing.desktop_pair_token,
@@ -211,6 +229,7 @@ export class RemoteCompanionService {
     this.assertBrokerProtocol(response);
     this.assertBrokerPairingIdentity(response, pairing.pair_id);
     pairing.state = response.state;
+    await this.persistPendingPairing(this.pendingPairingRecord(pairing));
     this.emitState();
     return this.publicState();
   }
@@ -358,14 +377,17 @@ export class RemoteCompanionService {
     this.canonicalOff = null;
     let disconnectError: unknown;
     try {
-      for (const record of this.credentials.values()) {
-        if (!ACTIVE_STATES.has(record.state)) continue;
-        try {
-          await this.transport.disconnect(record.pair_id);
-        } catch (error) {
-          disconnectError ??= error;
-        }
-      }
+      await Promise.all(
+        [...this.credentials.values()]
+          .filter((record) => ACTIVE_STATES.has(record.state))
+          .map(async (record) => {
+            try {
+              await this.transport.disconnect(record.pair_id);
+            } catch (error) {
+              disconnectError ??= error;
+            }
+          })
+      );
     } finally {
       this.listeners.clear();
     }
@@ -485,6 +507,7 @@ export class RemoteCompanionService {
           record.revocation_idempotency_key
         );
         this.assertBrokerProtocol(response);
+        this.assertBrokerPairingIdentity(response, record.pair_id);
         record.state = this.revocationState(response.state);
         record.revocation_receipt_id = requiredText(response.revocation_receipt_id, 'revocation_receipt_id');
         record.revocation_receipt_token = requiredText(response.revocation_receipt_token, 'revocation_receipt_token');
@@ -511,11 +534,14 @@ export class RemoteCompanionService {
 
   private async revokePendingPair(pairing: PendingPairing): Promise<RemoteCompanionState> {
     const bearerToken = pairing.desktop_pair_token;
+    pairing.revocation_idempotency_key ??= randomUUID();
     pairing.state = 'revoking';
+    await this.persistPendingPairing(this.pendingPairingRecord(pairing));
     this.emitState();
     try {
-      const response = await this.broker.revokePair(pairing.pair_id, bearerToken, randomUUID());
+      const response = await this.broker.revokePair(pairing.pair_id, bearerToken, pairing.revocation_idempotency_key);
       this.assertBrokerProtocol(response);
+      this.assertBrokerPairingIdentity(response, pairing.pair_id);
       const terminal = await this.waitForRevocation(response, pairing.pair_id);
       if (
         !terminal ||
@@ -527,6 +553,7 @@ export class RemoteCompanionService {
       }
     } catch (error) {
       pairing.state = 'reserved';
+      await this.persistPendingPairing(this.pendingPairingRecord(pairing));
       this.emitState();
       throw error;
     }
@@ -538,6 +565,7 @@ export class RemoteCompanionService {
     await this.transport.disconnect(pairId);
     this.credentials.delete(pairId);
     this.pendingPairings.delete(pairId);
+    await this.clearPendingPairing(pairId);
     this.refreshRequired.delete(pairId);
     await this.persistCredentials();
     this.emitState();
@@ -547,6 +575,131 @@ export class RemoteCompanionService {
     state: RemotePairingState
   ): Extract<RemotePairingState, 'revoking' | 'provider_reclaim_pending'> {
     return state === 'provider_reclaim_pending' ? state : 'revoking';
+  }
+
+  private replayPendingPairingCreate(operation: RemotePendingPairingRecord): Promise<void> {
+    if (operation.state !== 'creating') return Promise.resolve();
+    const operationIdempotencyKey = requiredText(operation.operation_idempotency_key, 'operation_idempotency_key');
+    const inFlight = this.pendingPairingCreateReplay;
+    if (inFlight?.operation_idempotency_key === operationIdempotencyKey) return inFlight.promise;
+
+    const promise = this.createPendingPairing(operation);
+    this.pendingPairingCreateReplay = { operation_idempotency_key: operationIdempotencyKey, promise };
+    promise.then(
+      () => {
+        if (this.pendingPairingCreateReplay?.promise === promise) this.pendingPairingCreateReplay = null;
+      },
+      () => {
+        if (this.pendingPairingCreateReplay?.promise === promise) this.pendingPairingCreateReplay = null;
+      }
+    );
+    return promise;
+  }
+
+  private async createPendingPairing(operation: RemotePendingPairingRecord): Promise<void> {
+    this.assertPendingPairingKeyIdentity(operation);
+    requiredText(operation.request.invitation_code, 'invitation_code');
+    requiredText(operation.request.desktop_device_id, 'desktop_device_id');
+    requiredText(operation.request.desktop_device_label, 'desktop_device_label');
+    requiredText(operation.request.desktop_public_key, 'desktop_public_key');
+    const created = await this.broker.createPairing(
+      operation.request,
+      requiredText(operation.operation_idempotency_key, 'operation_idempotency_key')
+    );
+    this.assertBrokerProtocol(created);
+    const pairing: PendingPairing = {
+      create_idempotency_key: operation.operation_idempotency_key,
+      invitation_code: operation.request.invitation_code,
+      pair_id: requiredText(created.pairing_id, 'pairing_id'),
+      desktop_device_id: operation.request.desktop_device_id,
+      desktop_label: operation.request.desktop_device_label,
+      desktop_public_key: operation.request.desktop_public_key,
+      desktop_key_material: operation.desktop_key_material,
+      desktop_pair_token: requiredText(created.desktop_pair_token, 'desktop_pair_token'),
+      claim_secret: requiredText(created.claim_secret, 'claim_secret'),
+      manual_code: requiredText(created.manual_code, 'manual_code'),
+      broker_url: requiredText(created.broker_url, 'broker_url'),
+      expires_at: requiredText(created.expires_at, 'expires_at'),
+      state: 'reserved',
+      authentication_string: null,
+    };
+    await this.persistPendingPairing(this.pendingPairingRecord(pairing));
+    this.pendingPairings.set(pairing.pair_id, pairing);
+    this.emitState();
+  }
+
+  private pendingPairingRecord(pairing: PendingPairing): RemotePendingPairingRecord {
+    return {
+      operation_idempotency_key: pairing.create_idempotency_key,
+      request: {
+        invitation_code: pairing.invitation_code,
+        desktop_device_id: pairing.desktop_device_id,
+        desktop_device_label: pairing.desktop_label,
+        desktop_public_key: pairing.desktop_public_key,
+      },
+      desktop_key_material: pairing.desktop_key_material,
+      pairing_id: pairing.pair_id,
+      desktop_pair_token: pairing.desktop_pair_token,
+      claim_secret: pairing.claim_secret,
+      manual_code: pairing.manual_code,
+      broker_url: pairing.broker_url,
+      expires_at: pairing.expires_at,
+      state: pairing.state,
+      authentication_string: pairing.authentication_string,
+      ...(pairing.confirm_idempotency_key ? { confirm_idempotency_key: pairing.confirm_idempotency_key } : {}),
+      ...(pairing.revocation_idempotency_key ? { revocation_idempotency_key: pairing.revocation_idempotency_key } : {}),
+    };
+  }
+
+  private pendingPairingFromRecord(record: RemotePendingPairingRecord): PendingPairing {
+    if (record.state === 'creating' || !record.pairing_id) {
+      throw new Error('Protected OPL Link pending pairing record is incomplete.');
+    }
+    this.assertPendingPairingKeyIdentity(record);
+    return {
+      create_idempotency_key: requiredText(record.operation_idempotency_key, 'operation_idempotency_key'),
+      invitation_code: requiredText(record.request.invitation_code, 'invitation_code'),
+      pair_id: requiredText(record.pairing_id, 'pairing_id'),
+      desktop_device_id: requiredText(record.request.desktop_device_id, 'desktop_device_id'),
+      desktop_label: requiredText(record.request.desktop_device_label, 'desktop_device_label'),
+      desktop_public_key: requiredText(record.request.desktop_public_key, 'desktop_public_key'),
+      desktop_key_material: record.desktop_key_material,
+      desktop_pair_token: requiredText(record.desktop_pair_token, 'desktop_pair_token'),
+      claim_secret: requiredText(record.claim_secret, 'claim_secret'),
+      manual_code: requiredText(record.manual_code, 'manual_code'),
+      broker_url: requiredText(record.broker_url, 'broker_url'),
+      expires_at: requiredText(record.expires_at, 'expires_at'),
+      state: record.state,
+      authentication_string: record.authentication_string,
+      confirm_idempotency_key: record.confirm_idempotency_key,
+      revocation_idempotency_key: record.revocation_idempotency_key,
+    };
+  }
+
+  private assertPendingPairingKeyIdentity(record: RemotePendingPairingRecord): void {
+    if (
+      !record.desktop_key_material?.private_key?.trim() ||
+      !record.desktop_key_material.public_key?.trim() ||
+      record.desktop_key_material.public_key !== record.request.desktop_public_key
+    ) {
+      throw new Error('Protected OPL Link pending pairing key identity is invalid.');
+    }
+  }
+
+  private async persistPendingPairing(record: RemotePendingPairingRecord | null): Promise<void> {
+    try {
+      await this.credentialStore.replacePendingPairing(record);
+      this.pendingPairingDocument = record;
+      this.credentialStoreUnavailable = false;
+    } catch {
+      this.credentialStoreUnavailable = true;
+      throw new Error('Protected OPL Link credential storage is unavailable.');
+    }
+  }
+
+  private async clearPendingPairing(pairId: string): Promise<void> {
+    if (this.pendingPairingDocument?.pairing_id !== pairId) return;
+    await this.persistPendingPairing(null);
   }
 
   private async activatePairing(pairing: PendingPairing, response: BrokerReadPairingResponse): Promise<void> {
@@ -610,6 +763,7 @@ export class RemoteCompanionService {
       // be retried through refreshPair once the SDK boundary is available.
     }
     this.pendingPairings.delete(pairing.pair_id);
+    await this.clearPendingPairing(pairing.pair_id);
   }
 
   private async waitForRevocation(
@@ -670,11 +824,31 @@ export class RemoteCompanionService {
           nonces: record.seen_inbound_nonces,
         });
       }
+      const pending = await this.credentialStore.readPendingPairing();
+      this.pendingPairingDocument = pending;
+      if (pending && pending.state !== 'creating' && pending.pairing_id) {
+        if (this.credentials.has(pending.pairing_id)) {
+          await this.clearPendingPairing(pending.pairing_id);
+        } else if (pending.state !== 'expired' && pending.state !== 'revoked') {
+          const pairing = this.pendingPairingFromRecord(pending);
+          this.pendingPairings.set(pairing.pair_id, pairing);
+        } else {
+          await this.persistPendingPairing(null);
+        }
+      }
     } catch {
       this.credentialStoreUnavailable = true;
       return;
     }
     if (!this.brokerConfig.baseUrl) return;
+
+    if (this.pendingPairingDocument?.state === 'creating') {
+      try {
+        await this.replayPendingPairingCreate(this.pendingPairingDocument);
+      } catch {
+        // Keep the encrypted create intent for an exact retry after the broker recovers.
+      }
+    }
 
     await Promise.all(
       [...this.credentials.values()]

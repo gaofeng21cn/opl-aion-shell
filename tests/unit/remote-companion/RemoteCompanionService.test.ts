@@ -215,6 +215,95 @@ describe('RemoteCompanionService', () => {
     );
   });
 
+  it('persists and replays the exact create intent after a lost broker response and restart', async () => {
+    const store = new InMemoryRemoteCredentialStore();
+    const remoteBroker = broker();
+    const createPairing = vi
+      .fn()
+      .mockImplementationOnce(async (request, idempotencyKey) => {
+        expect(await store.readPendingPairing()).toMatchObject({
+          state: 'creating',
+          operation_idempotency_key: idempotencyKey,
+          request,
+          desktop_key_material: { public_key: request.desktop_public_key },
+        });
+        throw new Error('create response lost');
+      })
+      .mockResolvedValueOnce({
+        protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+        pairing_id: PAIR_ID,
+        desktop_pair_token: 'desktop-pair-token-001',
+        claim_secret: 'claim-secret-001',
+        manual_code: 'manual-code-001',
+        expires_at: '2026-08-17T13:00:00.000Z',
+        broker_url: 'https://broker.example.test',
+      });
+    remoteBroker.createPairing = createPairing;
+    const first = service(store, canonicalPort(), remoteBroker, transport());
+
+    await expect(
+      first.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' })
+    ).rejects.toThrow('create response lost');
+    const creating = await store.readPendingPairing();
+    expect(creating).toMatchObject({
+      state: 'creating',
+      request: {
+        invitation_code: 'invitation-001',
+        desktop_device_id: DESKTOP_DEVICE_ID,
+        desktop_device_label: 'Local label',
+      },
+    });
+    expect(creating?.desktop_key_material.private_key).toBeTruthy();
+    await first.dispose();
+
+    const second = service(store, canonicalPort(), remoteBroker, transport());
+    const state = await second.getState();
+
+    expect(createPairing).toHaveBeenCalledTimes(2);
+    expect(createPairing.mock.calls[1]).toEqual(createPairing.mock.calls[0]);
+    expect(state.pairing).toMatchObject({ pair_id: PAIR_ID, state: 'reserved' });
+    const reserved = await store.readPendingPairing();
+    expect(reserved).toMatchObject({
+      state: 'reserved',
+      pairing_id: PAIR_ID,
+      desktop_key_material: creating?.desktop_key_material,
+    });
+  });
+
+  it('shares an in-flight pending create replay across duplicate start requests', async () => {
+    const store = new InMemoryRemoteCredentialStore();
+    const remoteBroker = broker();
+    let resolveCreate: ((value: Awaited<ReturnType<RemoteBrokerPort['createPairing']>>) => void) | null = null;
+    const createPairing = vi.fn(
+      () =>
+        new Promise<Awaited<ReturnType<RemoteBrokerPort['createPairing']>>>((resolve) => {
+          resolveCreate = resolve;
+        })
+    );
+    remoteBroker.createPairing = createPairing;
+    const target = service(store, canonicalPort(), remoteBroker, transport());
+    const request = { invitation_code: 'invitation-001', desktop_label: 'Local label' };
+
+    const first = target.startPairing(request);
+    await vi.waitFor(() => expect(createPairing).toHaveBeenCalledOnce());
+    const second = target.startPairing(request);
+
+    expect(createPairing).toHaveBeenCalledOnce();
+    resolveCreate?.({
+      protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+      pairing_id: PAIR_ID,
+      desktop_pair_token: 'desktop-pair-token-001',
+      claim_secret: 'claim-secret-001',
+      manual_code: 'manual-code-001',
+      expires_at: '2026-08-17T13:00:00.000Z',
+      broker_url: 'https://broker.example.test',
+    });
+
+    const [firstState, secondState] = await Promise.all([first, second]);
+    expect(firstState.pairing).toMatchObject({ pair_id: PAIR_ID, state: 'reserved' });
+    expect(secondState.pairing).toMatchObject({ pair_id: PAIR_ID, state: 'reserved' });
+  });
+
   it('activates from broker fields and connects with the activation SDKAppID', async () => {
     const remoteBroker = broker({ readPairing: vi.fn().mockResolvedValue(activePairingResponse()) });
     const remoteTransport = transport();
@@ -540,17 +629,48 @@ describe('RemoteCompanionService', () => {
     ]);
   });
 
+  it('reuses a pending revocation idempotency key after a lost response and restart', async () => {
+    const store = new InMemoryRemoteCredentialStore();
+    const remoteBroker = broker();
+    const revokePair = vi.fn().mockRejectedValueOnce(new Error('revoke response lost')).mockResolvedValueOnce({
+      protocol_version: REMOTE_COMPANION_PROTOCOL_VERSION,
+      pairing_id: PAIR_ID,
+      state: 'revoking',
+      revocation_receipt_id: 'receipt-001',
+      revocation_receipt_token: 'receipt-token-001',
+    });
+    remoteBroker.revokePair = revokePair;
+    const first = service(store, canonicalPort(), remoteBroker, transport());
+
+    await first.startPairing({ invitation_code: 'invitation-001', desktop_label: 'Local label' });
+    await expect(first.revokePair({ pair_id: PAIR_ID })).rejects.toThrow('revoke response lost');
+    const idempotencyKey = revokePair.mock.calls[0]?.[2];
+    expect(await store.readPendingPairing()).toMatchObject({
+      state: 'reserved',
+      revocation_idempotency_key: idempotencyKey,
+    });
+    await first.dispose();
+
+    const second = service(store, canonicalPort(), remoteBroker, transport());
+    const state = await second.revokePair({ pair_id: PAIR_ID });
+
+    expect(revokePair).toHaveBeenCalledTimes(2);
+    expect(revokePair.mock.calls[1]?.[2]).toBe(idempotencyKey);
+    expect(state.pairing).toBeNull();
+  });
+
   it('awaits transport disconnect for every active pair during disposal', async () => {
     const remoteTransport = transport();
-    let resolveDisconnect: (() => void) | null = null;
+    const resolveDisconnect = new Map<string, () => void>();
     remoteTransport.disconnect = vi.fn(
-      () =>
+      (pairId) =>
         new Promise<void>((resolve) => {
-          resolveDisconnect = resolve;
+          resolveDisconnect.set(pairId, resolve);
         })
     );
+    const secondPair = { ...activeRecord(), pair_id: 'pair-test-002' };
     const target = service(
-      new InMemoryRemoteCredentialStore([activeRecord()]),
+      new InMemoryRemoteCredentialStore([activeRecord(), secondPair]),
       canonicalPort(),
       broker(),
       remoteTransport
@@ -558,8 +678,10 @@ describe('RemoteCompanionService', () => {
 
     await target.getState();
     const disposal = target.dispose();
-    await vi.waitFor(() => expect(remoteTransport.disconnect).toHaveBeenCalledWith(PAIR_ID));
-    resolveDisconnect?.();
+    await vi.waitFor(() => expect(remoteTransport.disconnect).toHaveBeenCalledTimes(2));
+    expect(remoteTransport.disconnect).toHaveBeenCalledWith(PAIR_ID);
+    expect(remoteTransport.disconnect).toHaveBeenCalledWith('pair-test-002');
+    resolveDisconnect.forEach((resolve) => resolve());
     await disposal;
   });
 
