@@ -706,8 +706,8 @@ type AppProductProfile = {
         selection_persists_into_conversation: true;
       };
       utility_icon_policy: {
-        library: 'icon_park_react_for_opl_owned_utility_icons';
-        opl_owned_settings_navigation_and_overview: 'icon_park_react_outline_16px_monochrome';
+        library: 'pinned_deepseek_harness_icon_cohort_via_opl_icon_adapter';
+        opl_owned_settings_navigation_and_overview: 'dsh_icon_primitives_14_16px_currentcolor';
         settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar';
         icon_text_action_geometry: {
           icon_size_px: 16;
@@ -2039,8 +2039,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     : [];
   if (
     !isRecord(utilityIconPolicy) ||
-    utilityIconPolicy.library !== 'icon_park_react_for_opl_owned_utility_icons' ||
-    utilityIconPolicy.opl_owned_settings_navigation_and_overview !== 'icon_park_react_outline_16px_monochrome' ||
+    utilityIconPolicy.library !== 'pinned_deepseek_harness_icon_cohort_via_opl_icon_adapter' ||
+    utilityIconPolicy.opl_owned_settings_navigation_and_overview !== 'dsh_icon_primitives_14_16px_currentcolor' ||
     utilityIconPolicy.settings_icon_geometry !==
       'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar' ||
     !isRecord(iconTextActionGeometry) ||
@@ -2055,7 +2055,11 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
     utilityIconPolicy.upstream_fork_body_bulk_icon_rewrite !== 'forbidden' ||
     utilityIconPolicy.refresh_actions !== 'icon_only_with_tooltip_and_accessible_name' ||
     utilityIconPolicy.model_reasoning_control !== 'text_and_disclosure_without_brain_icon' ||
-    utilityIconPolicy.scope !== 'opl_owned_overlay_surfaces_not_upstream_fork_body' ||
+    utilityIconPolicy.scope !== 'opl_owned_overlay_surfaces_not_upstream_fork_body'
+  ) {
+    throw new Error('Invalid OPL product profile: utility icons must use the pinned DSH visual cohort');
+  }
+  if (
     !isRecord(accountIdentityAvatar) ||
     accountIdentityAvatar.shape !== 'circle' ||
     accountIdentityAvatar.background !== 'semantic_success_green' ||
@@ -2219,8 +2223,8 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           selection_persists_into_conversation: true,
         },
         utility_icon_policy: {
-          library: 'icon_park_react_for_opl_owned_utility_icons',
-          opl_owned_settings_navigation_and_overview: 'icon_park_react_outline_16px_monochrome',
+          library: 'pinned_deepseek_harness_icon_cohort_via_opl_icon_adapter',
+          opl_owned_settings_navigation_and_overview: 'dsh_icon_primitives_14_16px_currentcolor',
           settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar',
           icon_text_action_geometry: {
             icon_size_px: 16,

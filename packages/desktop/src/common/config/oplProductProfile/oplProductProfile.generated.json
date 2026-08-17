@@ -692,8 +692,8 @@
         ]
       },
       "utility_icon_policy": {
-        "library": "icon_park_react_for_opl_owned_utility_icons",
-        "opl_owned_settings_navigation_and_overview": "icon_park_react_outline_16px_monochrome",
+        "library": "pinned_deepseek_harness_icon_cohort_via_opl_icon_adapter",
+        "opl_owned_settings_navigation_and_overview": "dsh_icon_primitives_14_16px_currentcolor",
         "settings_icon_geometry": "stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar",
         "icon_text_action_geometry": {
           "icon_size_px": 16,
