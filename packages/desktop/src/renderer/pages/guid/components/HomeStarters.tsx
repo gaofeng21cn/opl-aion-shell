@@ -8,7 +8,7 @@ import { Button } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { OplIcon, resolveOplDshIconName } from '@/renderer/components/opl/OplVisualProvider';
 import { resolveOplPackageLaunchGate, type OplHomeAssistant } from '../utils/oplHomeAssistants';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import styles from '../index.module.css';
@@ -22,8 +22,8 @@ type HomeStartersProps = {
   onClear?: () => void;
 };
 
-function starterIcon(): React.ReactNode {
-  return <OplIcon name='research' />;
+function starterIcon(iconId?: string | null): React.ReactNode {
+  return <OplIcon name={resolveOplDshIconName(iconId)} />;
 }
 
 const HomeStarters: React.FC<HomeStartersProps> = ({
@@ -73,7 +73,7 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
                 data-testid={`starter-icon-${assistant.opl_shortcut_id}`}
                 aria-hidden='true'
               >
-                {starterIcon()}
+                {assistant.opl_icon_id === undefined ? starterIcon() : starterIcon(assistant.opl_icon_id)}
               </span>
               <span className={styles.homeStarterLabel}>{label}</span>
             </Button>

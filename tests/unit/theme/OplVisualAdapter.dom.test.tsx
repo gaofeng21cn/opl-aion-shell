@@ -1,13 +1,25 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { OplIcon, OplVisualProvider, syncOplVisualTheme } from '@/renderer/components/opl/OplVisualProvider';
+import {
+  OplIcon,
+  OplVisualProvider,
+  resolveOplDshIconName,
+  syncOplVisualTheme,
+} from '@/renderer/components/opl/OplVisualProvider';
 
 describe('OPL visual adapter', () => {
   beforeEach(() => {
     document.documentElement.removeAttribute('data-theme');
     document.body.removeAttribute('arco-theme');
     document.body.removeAttribute('data-ds-dark-theme');
+  });
+
+  it('resolves only DSH dynamic tokens and uses agent for missing or compatibility-only values', () => {
+    expect(resolveOplDshIconName('send')).toBe('send');
+    expect(resolveOplDshIconName('research')).toBe('agent');
+    expect(resolveOplDshIconName('folderUpload')).toBe('agent');
+    expect(resolveOplDshIconName(undefined)).toBe('agent');
   });
 
   it('renders a DSH glyph through the name adapter while preserving sizing and accessibility props', () => {

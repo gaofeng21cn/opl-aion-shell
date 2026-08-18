@@ -37,9 +37,11 @@ const projectedHomeShortcut = (
   shortcutId: string,
   label: string,
   codexVisibleEntry: string,
-  defaultVisible = true
+  defaultVisible = true,
+  iconId?: string
 ) => ({
   shortcut_id: shortcutId,
+  ...(iconId === undefined ? {} : { icon_id: iconId }),
   label_i18n: { 'zh-CN': label, 'en-US': label },
   default_visible: defaultVisible,
   user_configurable: true,
@@ -136,6 +138,38 @@ const dynamicAppState = () => ({
 });
 
 describe('OPL home assistants', () => {
+  it('preserves owner-declared shortcut icon tokens through the Home projection', () => {
+    const appState = dynamicAppState();
+    appState.agent_packages.directory.entries[0].home_shortcuts[0].icon_id = 'send';
+    appState.agent_packages.directory.entries[1].home_shortcuts[0].icon_id = 'research';
+
+    expect(
+      Object.fromEntries(
+        getOplHomeAgentShortcutsFromAppState(appState).map((shortcut) => [shortcut.package_id, shortcut.icon_id])
+      )
+    ).toEqual({
+      mas: 'send',
+      mag: 'research',
+      rca: null,
+      obf: null,
+      oma: null,
+    });
+    expect(
+      Object.fromEntries(
+        resolveOplHomeAssistants([], appState).map((resolvedAssistant) => [
+          resolvedAssistant.opl_package_id,
+          resolvedAssistant.opl_icon_id,
+        ])
+      )
+    ).toEqual({
+      mas: 'send',
+      mag: 'research',
+      rca: null,
+      obf: null,
+      oma: null,
+    });
+  });
+
   it('uses the Framework directory as membership and excludes workflow packages', () => {
     const appState = dynamicAppState();
     expect(resolveOplHomeAssistants([], appState).map((item) => item.id)).toEqual([

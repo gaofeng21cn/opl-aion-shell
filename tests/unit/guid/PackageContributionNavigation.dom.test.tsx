@@ -9,12 +9,17 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const contribution = (packageId: string, navigationId: string, label: string): OplHomeAppContribution => ({
+const contribution = (
+  packageId: string,
+  navigationId: string,
+  label: string,
+  iconId: string | null = null
+): OplHomeAppContribution => ({
   package_id: packageId,
   navigation_id: navigationId,
   label_i18n: { 'en-US': label },
   view_id: `${navigationId}.view`,
-  icon_id: null,
+  icon_id: iconId,
   installed: true,
   sort_order: null,
   view: {
@@ -28,6 +33,28 @@ const contribution = (packageId: string, navigationId: string, label: string): O
 });
 
 describe('PackageContributionNavigation', () => {
+  it('renders a descriptor DSH icon and falls back to agent for an unavailable glyph', () => {
+    render(
+      <PackageContributionNavigation
+        contributions={[
+          contribution('opl-relay', 'relay.inbox', 'Inbox', 'send'),
+          contribution('future.carrier.package', 'future.activity', 'Future activity', 'research'),
+        ]}
+        localeKey='en-US'
+        onOpen={vi.fn()}
+      />
+    );
+
+    expect(
+      screen.getByTestId('opl-package-contribution-navigation-opl-relay-relay.inbox').querySelector('[data-opl-icon]')
+    ).toHaveAttribute('data-opl-icon', 'send');
+    expect(
+      screen
+        .getByTestId('opl-package-contribution-navigation-future.carrier.package-future.activity')
+        .querySelector('[data-opl-icon]')
+    ).toHaveAttribute('data-opl-icon', 'agent');
+  });
+
   it('renders arbitrary descriptor-projected Packages without a Package id allowlist', async () => {
     const onOpen = vi.fn();
     const future = contribution('future.carrier.package', 'future.activity', 'Future activity');

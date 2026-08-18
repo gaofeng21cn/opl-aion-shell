@@ -49,10 +49,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const assistant = (packageId: string): OplHomeAssistant => ({
+const assistant = (packageId: string, iconId?: string | null): OplHomeAssistant => ({
   id: shortcutByPackage[packageId] ?? packageId,
   opl_package_id: packageId,
   opl_shortcut_id: shortcutByPackage[packageId] ?? packageId,
+  opl_icon_id: iconId,
   source: 'builtin',
   name: packageId.toUpperCase(),
   name_i18n: { 'en-US': packageId.toUpperCase() },
@@ -73,6 +74,24 @@ describe('HomeStarters', () => {
   beforeEach(() => {
     mocks.appState = readyAppState();
   });
+
+  it('renders the descriptor DSH icon and uses the neutral DSH fallback for unknown tokens', () => {
+    render(
+      <HomeStarters
+        assistants={[assistant('mas', 'send'), assistant('mag', 'research')]}
+        localeKey='en-US'
+        onSelect={vi.fn()}
+      />
+    );
+
+    const masIcon = screen.getByTestId('starter-icon-research').querySelector('[data-opl-icon]')!;
+    const magIcon = screen.getByTestId('starter-icon-grant').querySelector('[data-opl-icon]')!;
+    expect(masIcon).toHaveAttribute('data-opl-icon', 'send');
+    expect(masIcon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+    expect(magIcon).toHaveAttribute('data-opl-icon', 'agent');
+    expect(magIcon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+  });
+
   it('shows every user-visible App-owned starter and selects one capability', async () => {
     const onSelect = vi.fn();
     render(<HomeStarters assistants={mocks.packageIds.map(assistant)} localeKey='en-US' onSelect={onSelect} />);

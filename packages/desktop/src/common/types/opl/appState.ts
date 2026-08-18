@@ -81,6 +81,7 @@ export type OplCodexModelRecommendation = {
 
 export type OplStandardAgentHomeShortcut = {
   shortcutId: string;
+  iconId?: string;
   labelI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   defaultVisible: boolean;
   userConfigurable: boolean;
@@ -181,6 +182,7 @@ function parseHomeShortcuts(value: unknown): OplStandardAgentHomeShortcut[] {
   return value.flatMap((entry) => {
     if (!isRecord(entry) || !isRecord(entry.route)) return [];
     const shortcutId = nonBlankString(entry.shortcut_id);
+    const iconId = nonBlankString(entry.icon_id);
     const labelI18n = localizedStrings(entry.label_i18n);
     const codexVisibleEntry = nonBlankString(entry.route.codex_visible_entry);
     if (
@@ -199,6 +201,7 @@ function parseHomeShortcuts(value: unknown): OplStandardAgentHomeShortcut[] {
     return [
       {
         shortcutId,
+        ...(iconId ? { iconId } : {}),
         labelI18n,
         defaultVisible: entry.default_visible,
         userConfigurable: entry.user_configurable,

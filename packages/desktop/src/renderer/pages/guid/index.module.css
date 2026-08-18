@@ -56,6 +56,13 @@
   font-size: 13px;
 }
 
+.packageContributionNavigationIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
 .packageContributionPage {
   width: min(880px, calc(100vw - 32px));
   margin: 0 auto;

@@ -34,6 +34,7 @@ type OplAgentPackageDirectoryEntry = {
 export type OplHomeAssistant = Assistant & {
   opl_package_id: string;
   opl_shortcut_id: string;
+  opl_icon_id?: string | null;
 };
 
 export type OplHomeAppContribution = OplHomeAppNavigationDescriptor & {
@@ -334,6 +335,7 @@ export function resolveOplHomeAssistants(backendAssistants: Assistant[], appStat
           sort_order: index + 1,
           opl_package_id: shortcut.package_id,
           opl_shortcut_id: shortcut.shortcut_id,
+          opl_icon_id: shortcut.icon_id,
         },
       ];
     });

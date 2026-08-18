@@ -1,6 +1,7 @@
 import { Button } from '@arco-design/web-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { OplIcon, resolveOplDshIconName } from '@/renderer/components/opl/OplVisualProvider';
 import type { OplHomeAppContribution } from '../utils/oplHomeAssistants';
 import styles from '../index.module.css';
 
@@ -41,6 +42,9 @@ const PackageContributionNavigation: React.FC<PackageContributionNavigationProps
             data-opl-contribution-view-id={contribution.view.viewId}
             data-testid={`opl-package-contribution-navigation-${contribution.package_id}-${contribution.navigation_id}`}
           >
+            <span className={styles.packageContributionNavigationIcon} aria-hidden='true'>
+              <OplIcon name={resolveOplDshIconName(contribution.icon_id)} />
+            </span>
             {label}
           </Button>
         );

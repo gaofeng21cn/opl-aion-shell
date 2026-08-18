@@ -25,6 +25,7 @@ export type OplHomeShortcutDescriptor = Pick<
   | 'default_visible'
   | 'user_configurable'
 > & {
+  icon_id: string | null;
   primary_label_i18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   route_kind: 'agent_package_shortcut';
   visible: boolean;
@@ -152,6 +153,7 @@ export function getOplHomeAgentShortcutsFromAppState(appState: unknown): OplHome
       descriptors.set(tuple, {
         shortcut_id: shortcutId,
         package_id: packageId,
+        icon_id: nonBlankString(shortcut.icon_id),
         primary_label: primaryLabel,
         primary_label_i18n: primaryLabelI18n,
         package_short_name: packageShortName,

@@ -177,6 +177,14 @@ type OplDshIconName = keyof typeof OPL_DSH_ICONS;
 type OplCompatibilityIconName = keyof typeof OPL_ICON_COMPATIBILITY_GLYPHS;
 export type OplIconName = OplDshIconName | OplCompatibilityIconName;
 
+const OPL_DSH_ICON_NAMES = new Set<string>(Object.keys(OPL_DSH_ICONS));
+
+/** Resolve owner-declared dynamic tokens without exposing the compatibility glyph table. */
+export function resolveOplDshIconName(value: unknown): OplDshIconName {
+  const token = typeof value === 'string' ? value.trim() : '';
+  return OPL_DSH_ICON_NAMES.has(token) ? (token as OplDshIconName) : 'agent';
+}
+
 export type OplVisualContract = {
   iconSize: number;
   sourceCommit: typeof OPL_DSH_VISUAL_SOURCE_COMMIT;
