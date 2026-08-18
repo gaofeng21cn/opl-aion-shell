@@ -1357,9 +1357,7 @@ const SendBox: React.FC<{
       shape='circle'
       type='primary'
       disabled={isButtonDisabled}
-      className='send-button-custom'
-      data-opl-visual-primitive='icon_button'
-      data-opl-visual-source='deepseek-harness'
+      {...getOplVisualPrimitiveProps('icon_button', 'send-button-custom')}
       icon={<OplIcon name='send' aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
@@ -1373,9 +1371,7 @@ const SendBox: React.FC<{
     <Button
       shape='circle'
       type='secondary'
-      className='bg-animate sendbox-stop-button'
-      data-opl-visual-primitive='icon_button'
-      data-opl-visual-source='deepseek-harness'
+      {...getOplVisualPrimitiveProps('icon_button', 'bg-animate sendbox-stop-button')}
       icon={<div className='mx-auto size-12px bg-6' aria-hidden='true'></div>}
       onClick={stopHandler}
       data-testid='sendbox-stop-btn'
@@ -1406,9 +1402,7 @@ const SendBox: React.FC<{
     <Button
       shape='circle'
       type='secondary'
-      className='sendbox-mobile-plus-btn'
-      data-opl-visual-primitive='icon_button'
-      data-opl-visual-source='deepseek-harness'
+      {...getOplVisualPrimitiveProps('icon_button', 'sendbox-mobile-plus-btn')}
       icon={<OplIcon name='plus' size={16} />}
       onClick={onMobilePlusClick}
       data-testid='sendbox-mobile-plus-btn'

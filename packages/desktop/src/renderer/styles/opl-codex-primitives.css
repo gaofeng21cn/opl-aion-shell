@@ -20,6 +20,7 @@
   --opl-codex-rail-row-height: 36px;
   --opl-codex-rail-row-radius: 10px;
   --opl-codex-icon-button-size: 28px;
+  --opl-codex-settings-row-height: 34px;
   --opl-codex-settings-row-gap: 20px;
   --opl-codex-settings-row-padding-block: 12px;
 }
@@ -109,6 +110,14 @@
   background: var(--dsw-specific-sidebar-nav-item-active) !important;
 }
 
+.layout-sider.collapsed .opl-codex-rail-row,
+.layout-sider.arco-layout-sider-collapsed .opl-codex-rail-row {
+  width: var(--opl-codex-rail-row-height) !important;
+  min-width: var(--opl-codex-rail-row-height) !important;
+  margin-inline: auto;
+  padding-inline: 0 !important;
+}
+
 .opl-codex-icon-button {
   display: inline-flex;
   width: var(--opl-codex-icon-button-size);
@@ -117,7 +126,7 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 50%;
+  border-radius: var(--opl-codex-control-radius);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   line-height: 0;
@@ -139,16 +148,16 @@
 .opl-codex-menu {
   box-sizing: border-box;
   padding: 4px;
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: 1px solid var(--dsw-alias-border-inverted, var(--border-base));
   border-radius: var(--opl-codex-menu-radius);
-  background: var(--dsw-specific-menu);
+  background: var(--dsw-specific-menu, var(--bg-1));
   box-shadow: var(--opl-codex-menu-shadow);
 }
 
 .opl-codex-menu.arco-menu,
 .opl-codex-menu .arco-menu {
   padding: 4px;
-  background: var(--dsw-specific-menu);
+  background: var(--dsw-specific-menu, var(--bg-1));
 }
 
 .opl-codex-menu .arco-menu-item,
@@ -169,9 +178,9 @@
 
 .opl-codex-menu > .rounded-14px {
   box-sizing: border-box;
-  border-color: var(--dsw-alias-border-inverted) !important;
+  border-color: var(--dsw-alias-border-inverted, var(--border-base)) !important;
   border-radius: var(--opl-codex-menu-radius) !important;
-  background: var(--dsw-specific-menu) !important;
+  background: var(--dsw-specific-menu, var(--bg-1)) !important;
   box-shadow: var(--opl-codex-menu-shadow) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
@@ -191,7 +200,7 @@
 }
 
 .opl-codex-settings-row {
-  min-height: 40px;
+  min-height: var(--opl-codex-settings-row-height);
   border-radius: 10px;
   color: var(--dsw-alias-label-primary);
 }

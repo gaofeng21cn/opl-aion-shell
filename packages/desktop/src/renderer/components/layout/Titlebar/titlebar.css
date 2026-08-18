@@ -147,12 +147,12 @@
 
 .app-titlebar__button {
   -webkit-app-region: no-drag;
-  width: 28px;
-  height: 28px;
-  flex: 0 0 28px;
+  width: var(--opl-codex-control-height, 28px);
+  height: var(--opl-codex-control-height, 28px);
+  flex: 0 0 var(--opl-codex-control-height, 28px);
   padding: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--opl-codex-control-radius, 8px);
   background-color: transparent;
   color: var(--dsw-alias-label-secondary);
   display: inline-flex;
@@ -195,7 +195,7 @@
   width: 32px;
   height: 32px;
   flex-basis: 32px;
-  border-radius: 50%;
+  border-radius: 8px;
 }
 
 .app-titlebar__button--mobile svg {

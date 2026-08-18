@@ -13,13 +13,15 @@
 .send-button-custom,
 .send-button-custom.arco-btn,
 .send-button-custom.arco-btn-primary {
-  width: 34px !important;
-  min-width: 34px !important;
-  height: 34px !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px !important;
   padding: 0 !important;
-  border: 0 !important;
+  border: 2px solid transparent !important;
   border-radius: 50% !important;
   background: var(--dsw-alias-button-primary-fill) !important;
+  background-clip: padding-box !important;
   color: var(--dsw-alias-label-primary-foreground) !important;
   box-shadow: none !important;
 }
@@ -41,19 +43,21 @@
 .sendbox-stop-button,
 .sendbox-stop-button.arco-btn,
 .sendbox-stop-button.arco-btn-secondary {
-  width: 34px !important;
-  min-width: 34px !important;
-  height: 34px !important;
+  width: 32px !important;
+  min-width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px !important;
   padding: 0 !important;
   border-radius: 50% !important;
-  border: none !important;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
   box-shadow: none !important;
 }
 
 [data-theme='dark'] .sendbox-stop-button,
 [data-theme='dark'] .sendbox-stop-button.arco-btn,
 [data-theme='dark'] .sendbox-stop-button.arco-btn-secondary {
-  border: 1px solid color-mix(in srgb, var(--color-fill-4) 94%, var(--color-bg-2)) !important;
+  border: 2px solid color-mix(in srgb, var(--color-fill-4) 94%, var(--color-bg-2)) !important;
 }
 
 .sendbox-stop-button.bg-animate,

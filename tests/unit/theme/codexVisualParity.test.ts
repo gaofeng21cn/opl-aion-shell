@@ -140,6 +140,7 @@ describe('Codex visual parity overlay', () => {
     const titlebarStyles = read('packages/desktop/src/renderer/components/layout/Titlebar/titlebar.css');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
     const guidActionRow = read('packages/desktop/src/renderer/pages/guid/components/GuidActionRow.tsx');
+    const settingsStyles = read('packages/desktop/src/renderer/pages/settings/components/settings.css');
     const sessionMenuStyles = read('packages/desktop/src/renderer/components/agent/OplCodexSessionMenu.module.css');
 
     expect(firstCustomProperty(baseline, '--opl-sidebar-bg')).toBe('var(--dsw-specific-sidebar-fill)');
@@ -184,12 +185,13 @@ describe('Codex visual parity overlay', () => {
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
     expect(primitives).toContain('--opl-codex-control-height: 28px;');
     expect(primitives).toContain('--opl-codex-pill-height: 24px;');
+    expect(primitives).toContain('--opl-codex-settings-row-height: 34px;');
     expect(primitives).toContain('--opl-codex-menu-item-min-height: 40px;');
     expect(primitives).toMatch(
       /\.opl-codex-rail-row\s*{[^}]*height:\s*var\(--opl-codex-rail-row-height\)\s*!important;[^}]*border-radius:\s*var\(--opl-codex-rail-row-radius\)\s*!important;/
     );
     expect(titlebarStyles).toMatch(
-      /\.app-titlebar__button\s*{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border-radius:\s*50%;/
+      /\.app-titlebar__button\s*{[^}]*width:\s*var\(--opl-codex-control-height, 28px\);[^}]*height:\s*var\(--opl-codex-control-height, 28px\);[^}]*border-radius:\s*var\(--opl-codex-control-radius, 8px\);/
     );
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
     expect(guidStyles).toMatch(/\.guidInputInner\s*{[^}]*min-height:\s*98px;[^}]*padding:\s*10px 8px 6px;/);
@@ -210,12 +212,28 @@ describe('Codex visual parity overlay', () => {
     expect(guidActionRow).toContain('data-permission-mode={selectedMode}');
     expect(guidActionRow).toContain("compactLeadingIcon={<OplIcon name='permission' size={14} />}");
     expect(guidActionRow).toContain("icon={<OplIcon name='send' />}");
+    expect(guidActionRow).toContain("getOplVisualPrimitiveProps('icon_button', 'send-button-custom')");
     expect(sendBox).toContain("icon={<OplIcon name='send' aria-hidden='true' />}");
+    expect(sendBox).toContain("getOplVisualPrimitiveProps('icon_button', 'send-button-custom')");
+    expect(sendBox).toContain("getOplVisualPrimitiveProps('icon_button', 'bg-animate sendbox-stop-button')");
+    expect(sendBox).toContain("getOplVisualPrimitiveProps('icon_button', 'sendbox-mobile-plus-btn')");
     expect(sessionMenuStyles).toMatch(
       /\.menuItem:global\(\.arco-dropdown-popup-visible\):focus-visible\s*{[^}]*outline:\s*none;/
     );
     expect(sendBoxStyles).toMatch(
-      /\.send-button-custom,[\s\S]*?width:\s*34px\s*!important;[\s\S]*?height:\s*34px\s*!important;[\s\S]*?border-radius:\s*50%\s*!important;/
+      /\.send-button-custom,[\s\S]*?width:\s*32px\s*!important;[\s\S]*?height:\s*32px\s*!important;[\s\S]*?border:\s*2px solid transparent\s*!important;[\s\S]*?border-radius:\s*50%\s*!important;[\s\S]*?background-clip:\s*padding-box\s*!important;/
+    );
+    expect(guidStyles).toMatch(
+      /\.homeStarter:global\(\.arco-btn\)\s*{[^}]*height:\s*var\(--opl-codex-pill-height\)\s*!important;[^}]*padding:\s*0 8px\s*!important;[^}]*border-radius:\s*var\(--opl-codex-pill-radius\)\s*!important;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__item\s*{[^}]*height:\s*var\(--opl-codex-settings-row-height\);[^}]*flex:\s*0 0 var\(--opl-codex-settings-row-height\);/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__destination-rail\s*{[^}]*width:\s*2px;[^}]*height:\s*14px;[^}]*background:\s*transparent;/
+    );
+    expect(settingsStyles).toMatch(
+      /\.settings-sider__destination--active \.settings-sider__destination-rail\s*{[^}]*background:\s*var\(--dsw-alias-state-business-primary\);/
     );
     expect(sendBoxStyles).toMatch(/\.sendbox-panel\.opl-codex-composer--conversation\s*{[^}]*padding:\s*10px 8px 6px;/);
     expect(sendBoxStyles).toMatch(/\.sendbox-panel textarea,[\s\S]*line-height:\s*20px;/);

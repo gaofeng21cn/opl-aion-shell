@@ -677,9 +677,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             type='primary'
             loading={loading}
             disabled={isButtonDisabled}
-            className='send-button-custom'
-            data-opl-visual-primitive='icon_button'
-            data-opl-visual-source='deepseek-harness'
+            {...getOplVisualPrimitiveProps('icon_button', 'send-button-custom')}
             icon={<OplIcon name='send' />}
             onClick={onSend}
             data-testid='guid-send-btn'

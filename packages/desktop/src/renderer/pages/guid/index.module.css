@@ -174,13 +174,13 @@
   box-sizing: border-box;
   flex: 0 0 auto;
   width: auto !important;
-  height: 34px !important;
+  height: var(--opl-codex-pill-height) !important;
   min-width: 0 !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0 12px !important;
+  padding: 0 8px !important;
   border: 1px solid transparent !important;
-  border-radius: 16px !important;
+  border-radius: var(--opl-codex-pill-radius) !important;
   background: var(--dsw-alias-bg-layer-2) !important;
   color: var(--dsw-alias-label-secondary) !important;
   font-size: 12px !important;
@@ -210,7 +210,7 @@
   min-width: 0;
   align-items: center;
   justify-content: flex-start;
-  gap: 7px;
+  gap: 4px;
   line-height: 18px;
 }
 
