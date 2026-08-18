@@ -240,9 +240,7 @@ export const mergeCanonicalThreadDirectory = (
   if (!directory) return localConversations;
 
   const projectedBindingByConversationId = uniqueProjectedTransportBindings(projectedTransportBindings);
-  const projectedBindingConversationIds = new Set(
-    projectedTransportBindings.map((binding) => binding.conversationId)
-  );
+  const projectedBindingConversationIds = new Set(projectedTransportBindings.map((binding) => binding.conversationId));
   const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
   const temporaryTransportThreadIds = new Set<string>();
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
@@ -253,8 +251,7 @@ export const mergeCanonicalThreadDirectory = (
       projectedBinding?.canonicalThreadHost === directory.host ? projectedBinding : null;
     const isTransport = hasProjectedBinding || isLegacyWeixinTransportConversation(conversation);
     const threadId =
-      applicableProjectedBinding?.threadId ??
-      (!isTransport ? canonicalCodexThreadId(conversation) : null);
+      applicableProjectedBinding?.threadId ?? (!isTransport ? canonicalCodexThreadId(conversation) : null);
     if (threadId && returnedThreadIds.has(threadId)) {
       if (isTransport) {
         const legacyTemporary = (conversation.extra as { is_temporary_workspace?: boolean }).is_temporary_workspace;

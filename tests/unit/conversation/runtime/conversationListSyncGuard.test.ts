@@ -702,7 +702,10 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged).toHaveLength(2);
     expect(merged).toContain(transport);
     expect(merged).toContainEqual(
-      expect.objectContaining({ source: 'codex-app-server', extra: expect.objectContaining({ canonical_thread_id: 'thread-1' }) })
+      expect.objectContaining({
+        source: 'codex-app-server',
+        extra: expect.objectContaining({ canonical_thread_id: 'thread-1' }),
+      })
     );
   });
 
