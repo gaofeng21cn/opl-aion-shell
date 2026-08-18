@@ -593,6 +593,51 @@ describe('GuidPage selected purpose assistant surface', () => {
     });
   });
 
+  it('keeps Home limited to visible OPL standard-Agent shortcuts', () => {
+    const agentPackages = mocks.appState.value.agent_packages as {
+      directory: { entries: Array<Record<string, unknown>> };
+      status_index: { home_shortcut_preferences: Array<Record<string, unknown>> };
+    };
+    agentPackages.directory.entries.push({
+      package_id: 'opl-relay',
+      package_role: 'capability_package',
+      installed: true,
+      app_contributions: {
+        schema_version: 'opl-app-contributions.v1',
+        navigation: [
+          {
+            navigation_id: 'relay.inbox',
+            label_i18n: { 'zh-CN': '收件箱', 'en-US': 'Inbox' },
+            view_id: 'relay.inbox',
+          },
+        ],
+        views: [
+          {
+            view_id: 'relay.inbox',
+            view_type: 'list_detail',
+            title_i18n: { 'zh-CN': '收件箱', 'en-US': 'Inbox' },
+            data_ref: 'communications.mail.v1#recent',
+          },
+        ],
+      },
+    });
+    agentPackages.status_index.home_shortcut_preferences.push({
+      package_id: 'mas',
+      shortcut_id: 'research',
+      visible: false,
+      sort_order: 0,
+      source: 'user_preference',
+      installed: true,
+    });
+
+    render(<GuidPage />);
+
+    expect(screen.queryByTestId('opl-package-contribution-navigation')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('home-starter-research')).not.toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-grant')).toBeInTheDocument();
+    expect(screen.getByTestId('home-starter-ppt')).toBeInTheDocument();
+  });
+
   it('keeps plain-text Agent references inert while following the explicit @ selection policy', () => {
     render(<GuidPage />);
     mocks.setSelectedAgentKey.mockClear();
