@@ -88,6 +88,29 @@ html body .arco-popconfirm-arrow.arco-trigger-arrow {
   border: 1px solid var(--aion-overlay-border) !important;
 }
 
+/* Keep Arco's trigger and positioning behavior while projecting the pinned
+   DSH Tooltip surface. */
+html body .arco-tooltip-content {
+  box-sizing: border-box;
+  min-height: 26px;
+  padding: 3px 7px !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--dsw-alias-tooltip-bg) !important;
+  color: var(--dsw-static-neutral-bluish-00) !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+html body .arco-tooltip-content-inner {
+  color: var(--dsw-static-neutral-bluish-00) !important;
+}
+
+html body .arco-trigger-arrow.arco-tooltip-arrow {
+  display: none;
+}
+
 /* Override Arco Design component backgrounds to white in light mode */
 /* 覆盖 Arco Design 组件背景色为白色（浅色模式） */
 /* .arco-input,

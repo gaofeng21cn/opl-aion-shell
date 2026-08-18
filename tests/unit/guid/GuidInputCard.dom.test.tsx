@@ -118,6 +118,9 @@ describe('GuidInputCard compact home composer', () => {
 
     expect(shell).toHaveClass('overflow-visible');
     expect(shell).not.toHaveClass('overflow-hidden');
+    expect(inner).toHaveClass('opl-codex-composer');
+    expect(inner).toHaveAttribute('data-opl-visual-primitive', 'composer');
+    expect(inner).toHaveAttribute('data-opl-visual-source', 'deepseek-harness');
     expect(inner).toHaveStyle({ overflow: 'hidden' });
     expect(inner).toHaveStyle({ boxShadow: 'var(--opl-home-composer-shadow)' });
     expect(inner.getAttribute('style')).toContain('box-shadow 160ms ease');
@@ -154,7 +157,9 @@ describe('GuidInputCard compact home composer', () => {
     renderCard({ slashCommandMenu: <div data-testid='guid-slash-menu'>Commands</div> });
 
     expect(screen.getByTestId('guid-input-card-inner')).toHaveStyle({ overflow: 'visible' });
-    expect(screen.getByTestId('guid-slash-menu')).toBeInTheDocument();
+    const menu = screen.getByTestId('guid-slash-menu').parentElement;
+    expect(menu).toHaveAttribute('data-opl-visual-primitive', 'menu');
+    expect(menu).toHaveAttribute('data-opl-visual-source', 'deepseek-harness');
   });
 
   it('allows mention overlays to escape the rounded content clip', () => {

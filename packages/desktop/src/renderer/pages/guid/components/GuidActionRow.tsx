@@ -30,7 +30,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useOpenFileSelector } from '@/renderer/hooks/file/useOpenFileSelector';
 import { useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { getCleanFileNames, FileService } from '@/renderer/services/FileService';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import {
   buildOplCodexAutoModelOption,
@@ -552,7 +552,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
       <Button
         type='secondary'
         shape='circle'
-        className={isPaletteOpen ? styles.plusButtonRotate : ''}
+        {...getOplVisualPrimitiveProps('icon_button', isPaletteOpen ? styles.plusButtonRotate : '')}
         icon={<OplIcon name='plus' />}
         data-testid='file-upload-btn'
         aria-label={t('guid.context.addContext')}
@@ -579,6 +579,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
                 <Button
                   type='secondary'
                   shape='circle'
+                  {...getOplVisualPrimitiveProps('icon_button')}
                   icon={<OplIcon name='plus' />}
                   data-testid='file-upload-btn'
                   aria-label={t('guid.context.addContext')}
@@ -677,6 +678,8 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
             loading={loading}
             disabled={isButtonDisabled}
             className='send-button-custom'
+            data-opl-visual-primitive='icon_button'
+            data-opl-visual-source='deepseek-harness'
             icon={<OplIcon name='send' />}
             onClick={onSend}
             data-testid='guid-send-btn'

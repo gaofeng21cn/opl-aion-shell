@@ -66,6 +66,8 @@ const HomeStarters: React.FC<HomeStartersProps> = ({
               data-opl-active={String(active)}
               data-opl-launch-ready={String(launchReady)}
               data-opl-package-id={assistant.opl_package_id}
+              data-opl-visual-source='deepseek-harness'
+              data-opl-visual-pattern='pill'
               data-testid={`home-starter-${assistant.opl_shortcut_id}`}
             >
               <span

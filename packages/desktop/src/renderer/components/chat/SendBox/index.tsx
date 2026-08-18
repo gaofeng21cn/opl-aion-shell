@@ -33,7 +33,7 @@ import { filterWorkspaceMentionItems } from '@/renderer/utils/file/workspaceMent
 import type { ConversationExportFormat } from '@/renderer/utils/chat/conversationExport';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import { blurActiveElement, shouldBlockMobileInputFocus } from '@/renderer/utils/ui/focus';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Button, Input, Message, Radio, Tag } from '@arco-design/web-react';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import { theme } from '@office-ai/platform';
@@ -1358,6 +1358,8 @@ const SendBox: React.FC<{
       type='primary'
       disabled={isButtonDisabled}
       className='send-button-custom'
+      data-opl-visual-primitive='icon_button'
+      data-opl-visual-source='deepseek-harness'
       icon={<OplIcon name='send' aria-hidden='true' />}
       onClick={() => {
         sendMessageHandler();
@@ -1372,6 +1374,8 @@ const SendBox: React.FC<{
       shape='circle'
       type='secondary'
       className='bg-animate sendbox-stop-button'
+      data-opl-visual-primitive='icon_button'
+      data-opl-visual-source='deepseek-harness'
       icon={<div className='mx-auto size-12px bg-6' aria-hidden='true'></div>}
       onClick={stopHandler}
       data-testid='sendbox-stop-btn'
@@ -1403,6 +1407,8 @@ const SendBox: React.FC<{
       shape='circle'
       type='secondary'
       className='sendbox-mobile-plus-btn'
+      data-opl-visual-primitive='icon_button'
+      data-opl-visual-source='deepseek-harness'
       icon={<OplIcon name='plus' size={16} />}
       onClick={onMobilePlusClick}
       data-testid='sendbox-mobile-plus-btn'
@@ -1465,7 +1471,10 @@ const SendBox: React.FC<{
     <div className={className}>
       <div
         ref={containerRef}
-        className={`sendbox-panel opl-codex-composer ${isInputActive ? 'opl-codex-composer--focused' : ''} ${isFileDragging ? 'opl-codex-composer--dragging sendbox-panel--dragging' : ''} relative p-16px flex flex-col ${isOverlayOpen ? 'overflow-visible' : 'overflow-hidden'}`}
+        {...getOplVisualPrimitiveProps(
+          'composer',
+          `sendbox-panel opl-codex-composer--conversation ${isInputActive ? 'opl-codex-composer--focused' : ''} ${isFileDragging ? 'opl-codex-composer--dragging sendbox-panel--dragging' : ''} relative flex flex-col ${isOverlayOpen ? 'overflow-visible' : 'overflow-hidden'}`
+        )}
         data-testid='conversation-composer'
         data-composer-palette-boundary='true'
         style={{
@@ -1491,7 +1500,7 @@ const SendBox: React.FC<{
           question={btwCommand.question}
         />
         {isAtFileMenuOpen && (
-          <div className='opl-codex-menu absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+          <div {...getOplVisualPrimitiveProps('menu', 'absolute left-12px right-12px bottom-[calc(100%+8px)] z-70')}>
             <AtFileMenu
               activeIndex={atFileMenuActiveIndex}
               emptyText={
@@ -1509,7 +1518,7 @@ const SendBox: React.FC<{
           </div>
         )}
         {isCommandMenuOpen && (
-          <div className='opl-codex-menu absolute left-12px right-12px bottom-[calc(100%+8px)] z-70'>
+          <div {...getOplVisualPrimitiveProps('menu', 'absolute left-12px right-12px bottom-[calc(100%+8px)] z-70')}>
             {conversationExport.step === 'menu' ? (
               <SlashCommandMenu
                 listboxId={commandListboxId}

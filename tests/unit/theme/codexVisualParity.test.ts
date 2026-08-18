@@ -120,7 +120,7 @@ describe('Codex visual parity overlay', () => {
     expect(sider).toContain('projectDesktopAutoUpdateStatus');
     expect(sider).toContain('updateAvailable={desktopAutoUpdate.updateAvailable}');
     expect(sider).not.toContain('isManagedAppUpdateAvailable');
-    expect(searchEntry).toContain("'!w-32px !h-32px'");
+    expect(searchEntry).toContain(": '!w-28px !h-28px'");
     expect(searchEntry).not.toMatch(/\sfullWidth(?:\s|=)/);
     expect(layoutStyles).toMatch(
       /\.sider-action-icon-btn-mobile\s*{[^}]*width:\s*32px\s*!important;[^}]*height:\s*32px\s*!important;/
@@ -136,6 +136,8 @@ describe('Codex visual parity overlay', () => {
     const focusRing = read('packages/desktop/src/renderer/hooks/chat/useInputFocusRing.ts');
     const sendBox = read('packages/desktop/src/renderer/components/chat/SendBox/index.tsx');
     const sendBoxStyles = read('packages/desktop/src/renderer/components/chat/SendBox/sendbox.css');
+    const primitives = read('packages/desktop/src/renderer/styles/opl-codex-primitives.css');
+    const titlebarStyles = read('packages/desktop/src/renderer/components/layout/Titlebar/titlebar.css');
     const guidStyles = read('packages/desktop/src/renderer/pages/guid/index.module.css');
     const guidActionRow = read('packages/desktop/src/renderer/pages/guid/components/GuidActionRow.tsx');
     const sessionMenuStyles = read('packages/desktop/src/renderer/components/agent/OplCodexSessionMenu.module.css');
@@ -180,9 +182,18 @@ describe('Codex visual parity overlay', () => {
     expect(focusRing).toContain("activeShadow: 'var(--opl-composer-focus-shadow)'");
     expect(focusRing).not.toMatch(/#E1E0FF|#4D4B87|rgba\(77, 75, 135/);
     expect(sendBox).toContain("boxShadow: isInputActive ? activeShadow : 'var(--opl-composer-shadow)'");
+    expect(primitives).toContain('--opl-codex-control-height: 28px;');
+    expect(primitives).toContain('--opl-codex-pill-height: 24px;');
+    expect(primitives).toContain('--opl-codex-menu-item-min-height: 40px;');
+    expect(primitives).toMatch(
+      /\.opl-codex-rail-row\s*{[^}]*height:\s*var\(--opl-codex-rail-row-height\)\s*!important;[^}]*border-radius:\s*var\(--opl-codex-rail-row-radius\)\s*!important;/
+    );
+    expect(titlebarStyles).toMatch(
+      /\.app-titlebar__button\s*{[^}]*width:\s*28px;[^}]*height:\s*28px;[^}]*border-radius:\s*50%;/
+    );
     expect(guidStyles).toContain('--opl-home-composer-shadow: var(--opl-composer-shadow);');
-    expect(guidStyles).toContain('background: var(--dialog-fill-0);');
-    expect(guidStyles).toContain('border: 1px solid var(--opl-composer-border);');
+    expect(guidStyles).toMatch(/\.guidInputInner\s*{[^}]*min-height:\s*98px;[^}]*padding:\s*10px 8px 6px;/);
+    expect(guidStyles).not.toMatch(/\.guidInputInner\s*{[^}]*border:\s*1px solid var\(--opl-composer-border\);/);
     expect(guidStyles).toContain('background: var(--opl-composer-context-bg);');
     expect(guidStyles).toContain('border: 1px solid var(--opl-composer-context-border);');
     expect(guidStyles).toContain('color: var(--opl-composer-placeholder) !important;');
@@ -203,13 +214,11 @@ describe('Codex visual parity overlay', () => {
     expect(sessionMenuStyles).toMatch(
       /\.menuItem:global\(\.arco-dropdown-popup-visible\):focus-visible\s*{[^}]*outline:\s*none;/
     );
-    const sendButtonBaseline = baseline.match(
-      /\[data-color-scheme='default'\] \.send-button-custom\.arco-btn\s*{[^}]*}/
-    )?.[0];
-    expect(sendButtonBaseline).toMatch(
-      /width:\s*32px;[^}]*min-width:\s*32px;[^}]*height:\s*32px;[^}]*border-width:\s*2px;[^}]*border-color:\s*transparent;[^}]*background-clip:\s*padding-box;/
+    expect(sendBoxStyles).toMatch(
+      /\.send-button-custom,[\s\S]*?width:\s*34px\s*!important;[\s\S]*?height:\s*34px\s*!important;[\s\S]*?border-radius:\s*50%\s*!important;/
     );
-    expect(sendButtonBaseline).not.toContain('!important');
+    expect(sendBoxStyles).toMatch(/\.sendbox-panel\.opl-codex-composer--conversation\s*{[^}]*padding:\s*10px 8px 6px;/);
+    expect(sendBoxStyles).toMatch(/\.sendbox-panel textarea,[\s\S]*line-height:\s*20px;/);
     expect(sendBoxStyles).toMatch(
       /\.sendbox-tools \.sendbox-model-btn,[\s\S]*?font-family:\s*inherit\s*!important;[\s\S]*?font-size:\s*12px\s*!important;[\s\S]*?font-weight:\s*400\s*!important;[\s\S]*?line-height:\s*18px\s*!important;/
     );
@@ -474,7 +483,7 @@ describe('Codex visual parity overlay', () => {
     expect(mentionDropdown).not.toContain('@arco-design/web-react/icon');
     expect(guidStyles).toMatch(/\.presetAgentTag\s*{[^}]*border:\s*0;[^}]*border-radius:\s*6px;/);
     expect(guidStyles).toMatch(
-      /\.homeStarterActive:global\(\.arco-btn\)\s*{[^}]*border-color:\s*transparent\s*!important;[^}]*box-shadow:\s*none\s*!important;/
+      /\.homeStarterActive:global\(\.arco-btn\)\s*{[^}]*border-color:\s*transparent\s*!important;[^}]*box-shadow:\s*inset 0 0 0 1px var\(--dsw-alias-button-ghost-active-border\)\s*!important;/
     );
     expect(skills).toContain("type='secondary'");
     expect(skills).toContain("data-testid='btn-manual-import'");

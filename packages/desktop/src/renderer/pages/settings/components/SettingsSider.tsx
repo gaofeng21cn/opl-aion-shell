@@ -1,5 +1,5 @@
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
 import { getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
@@ -47,9 +47,13 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
         aria-current={active ? 'page' : undefined}
         data-settings-destination-id={destination.id}
         data-settings-path={destination.path}
-        className={classNames('settings-sider__destination', {
-          'settings-sider__destination--active': active,
-        })}
+        {...getOplVisualPrimitiveProps(
+          'settings_row',
+          classNames('settings-sider__destination', {
+            'settings-sider__destination--active': active,
+          })
+        )}
+        data-selected={String(active)}
         onClick={() => selectPath(destination.path)}
       >
         <span className='settings-sider__destination-rail' aria-hidden='true' />
@@ -75,9 +79,9 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               htmlType='button'
               aria-label={t('settings.backToApp')}
               data-testid='settings-back-to-app'
-              className={classNames(
-                'settings-sider__item',
-                collapsed ? 'justify-center px-0' : 'justify-start px-10px'
+              {...getOplVisualPrimitiveProps(
+                'settings_row',
+                classNames('settings-sider__item', collapsed ? 'justify-center px-0' : 'justify-start px-10px')
               )}
               onClick={() => void navigate(resolveSettingsReturnPath())}
             >
@@ -111,13 +115,13 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
                   aria-current={active && !expandable ? 'page' : undefined}
                   aria-expanded={expandable ? active : undefined}
                   data-settings-group-id={group.id}
-                  className={classNames(
-                    'settings-sider__item',
-                    collapsed ? 'justify-center px-0' : 'justify-start px-10px',
-                    {
+                  {...getOplVisualPrimitiveProps(
+                    'settings_row',
+                    classNames('settings-sider__item', collapsed ? 'justify-center px-0' : 'justify-start px-10px', {
                       'settings-sider__item--active': active,
-                    }
+                    })
                   )}
+                  data-selected={String(active)}
                   onClick={() => defaultDestination && selectPath(defaultDestination.path)}
                 >
                   <span className='settings-sider__icon-slot'>{group.icon}</span>
@@ -160,9 +164,9 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               htmlType='button'
               aria-current={pathname.includes(`/settings/${aboutItem.path}`) ? 'page' : undefined}
               data-settings-id={aboutItem.id}
-              className={classNames(
-                'settings-sider__item',
-                collapsed ? 'justify-center px-0' : 'justify-start px-10px'
+              {...getOplVisualPrimitiveProps(
+                'settings_row',
+                classNames('settings-sider__item', collapsed ? 'justify-center px-0' : 'justify-start px-10px')
               )}
               onClick={() => selectPath(aboutItem.path)}
             >

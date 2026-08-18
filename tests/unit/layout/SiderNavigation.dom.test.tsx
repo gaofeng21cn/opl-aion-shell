@@ -58,7 +58,7 @@ describe('Sider navigation hierarchy', () => {
 
     const search = screen.getByRole('button', { name: 'Search conversations' });
     expect(search).toHaveAttribute('data-full-width', 'false');
-    expect(search).toHaveClass('!w-32px', '!h-32px');
+    expect(search).toHaveClass('!w-28px', '!h-28px');
     expect(search).toHaveTextContent('');
   });
 
@@ -143,7 +143,10 @@ describe('Sider navigation hierarchy', () => {
       );
 
       const runtime = screen.getByRole('button', { name: 'Runtime' });
-      expect(runtime).toHaveClass('!bg-fill-3');
+      expect(runtime).toHaveAttribute('aria-current', 'page');
+      expect(runtime).toHaveAttribute('data-selected', 'true');
+      expect(runtime).toHaveAttribute('data-opl-visual-primitive', 'rail_row');
+      expect(runtime).toHaveAttribute('data-opl-visual-source', 'deepseek-harness');
       runtime.focus();
       fireEvent.keyDown(runtime, { key: 'Enter', code: 'Enter' });
       fireEvent.click(runtime);

@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Input } from '@arco-design/web-react';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import {
   SettingsActiveAnchorProvider,
@@ -159,6 +159,8 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         prefix={<OplIcon name='search' aria-hidden='true' />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         data-testid='settings-search-input'
+        data-opl-visual-source='deepseek-harness'
+        data-opl-visual-pattern='input'
         onKeyDown={(event) => {
           if (event.key !== 'Enter' || searchResults.length === 0) return;
           event.preventDefault();
@@ -238,7 +240,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                         htmlType='button'
                         icon={<OplIcon name='chevronLeft' aria-hidden='true' />}
                         aria-label={t('settings.uiOptimization.navigation.mobileBack')}
-                        className='settings-mobile-navigation__back'
+                        {...getOplVisualPrimitiveProps('icon_button', 'settings-mobile-navigation__back')}
                         onClick={() => setMobileGroupId(null)}
                       />
                       <span className='settings-mobile-navigation__title'>{mobileGroup.label}</span>
@@ -253,9 +255,13 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                             htmlType='button'
                             aria-current={active ? 'page' : undefined}
                             data-settings-destination-id={destination.id}
-                            className={classNames('settings-mobile-navigation__row', {
-                              'settings-mobile-navigation__row--active': active,
-                            })}
+                            {...getOplVisualPrimitiveProps(
+                              'settings_row',
+                              classNames('settings-mobile-navigation__row', {
+                                'settings-mobile-navigation__row--active': active,
+                              })
+                            )}
+                            data-selected={String(active)}
                             onClick={() => void navigate(`/settings/${destination.path}`, { replace: true })}
                           >
                             <span className='settings-mobile-navigation__row-icon'>{destination.icon}</span>
@@ -277,9 +283,13 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                           htmlType='button'
                           aria-current={active ? 'page' : undefined}
                           data-settings-group-id={group.id}
-                          className={classNames('settings-mobile-navigation__row', {
-                            'settings-mobile-navigation__row--active': active,
-                          })}
+                          {...getOplVisualPrimitiveProps(
+                            'settings_row',
+                            classNames('settings-mobile-navigation__row', {
+                              'settings-mobile-navigation__row--active': active,
+                            })
+                          )}
+                          data-selected={String(active)}
                           onClick={() => setMobileGroupId(group.id)}
                         >
                           <span className='settings-mobile-navigation__row-icon'>{group.icon}</span>
@@ -293,7 +303,10 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
                         type='text'
                         htmlType='button'
                         data-settings-id='about'
-                        className='settings-mobile-navigation__row settings-mobile-navigation__row--auxiliary'
+                        {...getOplVisualPrimitiveProps(
+                          'settings_row',
+                          'settings-mobile-navigation__row settings-mobile-navigation__row--auxiliary'
+                        )}
                         onClick={() => void navigate(`/settings/${aboutItem.path}`, { replace: true })}
                       >
                         <span className='settings-mobile-navigation__row-icon'>{aboutItem.icon}</span>

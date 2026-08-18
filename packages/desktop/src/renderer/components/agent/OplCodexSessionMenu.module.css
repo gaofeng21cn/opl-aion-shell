@@ -5,12 +5,12 @@
   max-width: calc(100vw - 24px);
   max-height: min(420px, calc(100dvh - 24px));
   flex-direction: column;
-  padding: 6px;
+  padding: 4px;
   overflow-y: auto;
-  border: 1px solid var(--aion-overlay-border);
-  border-radius: 12px;
-  background: var(--aion-overlay-bg);
-  box-shadow: var(--aion-overlay-shadow);
+  border: 1px solid var(--dsw-alias-border-inverted);
+  border-radius: var(--opl-codex-menu-radius, 12px);
+  background: var(--dsw-specific-menu);
+  box-shadow: var(--dsw-shadow-lv3);
   color: var(--aion-overlay-text);
   box-sizing: border-box;
 }
@@ -23,7 +23,7 @@
   justify-content: flex-start;
   padding: 8px 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--opl-codex-menu-item-radius, 10px);
   background: transparent;
   color: var(--color-text-1);
   font-family: inherit;
@@ -35,7 +35,7 @@
 
 .menuItem:global(.arco-btn):hover,
 .menuItem:global(.arco-dropdown-popup-visible) {
-  background: var(--color-fill-1);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .menuItem:global(.arco-btn):focus-visible {

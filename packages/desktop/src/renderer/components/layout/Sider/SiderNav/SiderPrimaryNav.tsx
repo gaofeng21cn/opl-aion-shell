@@ -8,7 +8,7 @@ import { Button, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
 
 type SiderPrimaryNavProps = {
@@ -61,12 +61,16 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
         <Tooltip key={entry.key} {...siderTooltipProps} content={entry.label} position='right'>
           <Button
             type='text'
-            className={classNames(
-              '!h-34px !w-full !flex !items-center !gap-8px !rd-8px !text-t-primary !justify-start !px-10px !border-0',
-              isMobile && 'sider-action-btn-mobile',
-              collapsed && '!justify-center !px-0',
-              entry.active ? '!bg-fill-3' : '!bg-transparent hover:!bg-fill-3 active:!bg-fill-4'
+            {...getOplVisualPrimitiveProps(
+              'rail_row',
+              classNames(
+                '!h-34px !w-full !flex !items-center !gap-8px !rd-10px !justify-start !px-10px',
+                isMobile && 'sider-action-btn-mobile',
+                collapsed && '!justify-center !px-0'
+              )
             )}
+            aria-current={entry.active ? 'page' : undefined}
+            data-selected={String(entry.active)}
             aria-label={entry.label}
             onClick={entry.onClick}
             data-testid={`sider-nav-${entry.key}`}

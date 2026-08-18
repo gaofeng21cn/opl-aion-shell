@@ -35,7 +35,7 @@ const SiderSearchEntry: React.FC<SiderSearchEntryProps> = ({
             onSessionClick={onSessionClick}
             onConversationSelect={onConversationSelect}
             label={t('conversation.historySearch.shortTitle')}
-            buttonClassName='!w-full !h-32px !py-0 !px-0 !justify-center !rd-8px !hover:bg-fill-3 !active:bg-fill-4'
+            buttonClassName='!w-full !h-34px !py-0 !px-0 !justify-center !rd-10px'
           />
         </div>
       </Tooltip>
@@ -49,7 +49,7 @@ const SiderSearchEntry: React.FC<SiderSearchEntryProps> = ({
           onSessionClick={onSessionClick}
           onConversationSelect={onConversationSelect}
           label={t('conversation.historySearch.shortTitle')}
-          buttonClassName={isMobile ? 'sider-action-icon-btn-mobile !w-32px !h-32px' : '!w-32px !h-32px'}
+          buttonClassName={isMobile ? 'sider-action-icon-btn-mobile !w-32px !h-32px' : '!w-28px !h-28px'}
         />
       </div>
     </Tooltip>

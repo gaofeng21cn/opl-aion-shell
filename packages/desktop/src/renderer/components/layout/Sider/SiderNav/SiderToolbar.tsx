@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import styles from '../Sider.module.css';
 
 interface SiderToolbarProps {
@@ -28,9 +28,12 @@ const SiderToolbar: React.FC<SiderToolbarProps> = ({ isMobile, collapsed, siderT
         <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newTask')} position='right'>
           <Button
             type='text'
-            className={classNames(
-              '!w-full !h-34px !flex !items-center !justify-center !text-t-primary !rd-8px !bg-transparent hover:!bg-fill-3 active:!bg-fill-4',
-              styles.newChatTrigger
+            {...getOplVisualPrimitiveProps(
+              'rail_row',
+              classNames(
+                '!w-full !h-36px !flex !items-center !justify-center !text-t-primary !rd-10px',
+                styles.newChatTrigger
+              )
             )}
             onClick={onNewChat}
             aria-label={t('conversation.welcome.newTask')}
@@ -47,10 +50,13 @@ const SiderToolbar: React.FC<SiderToolbarProps> = ({ isMobile, collapsed, siderT
       <Tooltip {...siderTooltipProps} content={t('conversation.welcome.newTask')} position='right'>
         <Button
           type='text'
-          className={classNames(
-            styles.newChatTrigger,
-            '!h-34px !flex-1 !flex !items-center !justify-start !gap-8px !pl-10px !pr-8px !rd-8px !bg-transparent !text-t-primary hover:!bg-fill-3 active:!bg-fill-4',
-            isMobile && 'sider-action-btn-mobile'
+          {...getOplVisualPrimitiveProps(
+            'rail_row',
+            classNames(
+              styles.newChatTrigger,
+              '!h-38px !flex-1 !flex !items-center !justify-start !gap-8px !pl-10px !pr-8px !rd-12px !text-t-primary',
+              isMobile && 'sider-action-btn-mobile'
+            )
           )}
           onClick={onNewChat}
         >

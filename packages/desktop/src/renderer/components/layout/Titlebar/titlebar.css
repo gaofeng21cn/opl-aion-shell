@@ -122,6 +122,7 @@
   -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
+  gap: 2px;
 }
 
 .app-titlebar__toolbar {
@@ -146,39 +147,36 @@
 
 .app-titlebar__button {
   -webkit-app-region: no-drag;
-  width: var(--titlebar-height);
-  height: var(--titlebar-height);
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 50%;
   background-color: transparent;
-  color: var(--text-primary);
+  color: var(--dsw-alias-label-secondary);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  transition:
+    background-color 140ms var(--ds-ease-in-out),
+    color 140ms var(--ds-ease-in-out);
 }
 
 .app-titlebar__button:hover {
-  background-color: rgba(0, 0, 0, 0.08);
+  background-color: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
 }
 
 .app-titlebar__button:active {
-  background-color: rgba(0, 0, 0, 0.14);
+  background-color: var(--dsw-alias-interactive-bg-active);
 }
 
 .app-titlebar__button:focus-visible,
 .app-window-controls__button:focus-visible {
   outline: 2px solid var(--opl-focus-ring);
   outline-offset: -2px;
-}
-
-[data-theme='dark'] .app-titlebar__button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-[data-theme='dark'] .app-titlebar__button:active {
-  background-color: rgba(255, 255, 255, 0.16);
 }
 
 .app-titlebar__button:disabled,
@@ -196,7 +194,8 @@
 .app-titlebar__button--mobile {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  flex-basis: 32px;
+  border-radius: 50%;
 }
 
 .app-titlebar__button--mobile svg {

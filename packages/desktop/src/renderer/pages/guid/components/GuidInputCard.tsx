@@ -6,6 +6,7 @@
 
 import FilePreview from '@/renderer/components/media/FilePreview';
 import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
+import { getOplVisualPrimitiveProps } from '@/renderer/components/opl/OplVisualProvider';
 import UploadProgressBar from '@/renderer/components/media/UploadProgressBar';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useCompositionInput } from '@/renderer/hooks/chat/useCompositionInput';
@@ -110,7 +111,10 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
       {...(fileAccessEnabled ? dragHandlers : {})}
     >
       <div
-        className={`${styles.guidInputInner} opl-codex-composer ${isInputActive ? 'opl-codex-composer--focused' : ''} ${fileDraggingActive ? 'opl-codex-composer--dragging' : ''} relative z-1 flex flex-col`}
+        {...getOplVisualPrimitiveProps(
+          'composer',
+          `${styles.guidInputInner} ${isInputActive ? 'opl-codex-composer--focused' : ''} ${fileDraggingActive ? 'opl-codex-composer--dragging' : ''} relative z-1 flex flex-col`
+        )}
         data-testid='guid-input-card-inner'
         data-composer-palette-boundary='true'
         style={{
@@ -156,7 +160,9 @@ const GuidInputCard: React.FC<GuidInputCardProps> = ({
         <OplUiContributionSlot slot='composer.palette' />
         {actionRow}
         {slashCommandMenu && (
-          <div className='absolute left-0 right-0 top-[calc(100%+4px)] z-70'>{slashCommandMenu}</div>
+          <div {...getOplVisualPrimitiveProps('menu', 'absolute left-0 right-0 top-[calc(100%+4px)] z-70')}>
+            {slashCommandMenu}
+          </div>
         )}
       </div>
     </div>

@@ -10,6 +10,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import type { AgentSource } from '@/renderer/utils/model/agentTypes';
 import type { AvailableAgent } from '../types';
 import { Tooltip } from '@arco-design/web-react';
+import classNames from 'classnames';
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -52,24 +53,11 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
   return (
     <div className='w-full flex justify-center'>
       <div
-        className='flex items-center justify-center'
-        style={{
-          marginBottom: 20,
-          padding: '6px',
-          borderRadius: '30px',
-          backgroundColor: 'var(--color-guid-agent-bar, var(--aou-2))',
-          transition: 'background-color 0.35s ease',
-          width: isMobile ? 'calc(100% + 28px)' : 'fit-content',
-          maxWidth: isMobile ? 'none' : '100%',
-          marginLeft: isMobile ? -14 : 0,
-          marginRight: isMobile ? -14 : 0,
-          overflow: isMobile ? 'visible' : 'hidden',
-          gap: isMobile ? 6 : 4,
-          flexWrap: isMobile ? 'wrap' : 'nowrap',
-          color: 'var(--text-primary)',
-        }}
+        className={classNames(styles.agentPillBar, isMobile && styles.agentPillBarMobile)}
+        data-opl-visual-source='deepseek-harness'
+        data-opl-visual-pattern='pill'
       >
-        {visibleAgents.map((agent, index) => {
+        {visibleAgents.map((agent) => {
           const isSelected = selectedAgentKey === getAgentKey(agent);
           const extensionAvatar = resolveExtensionAssetUrl(agent.isExtension ? agent.avatar : undefined);
           // Remote and user-defined custom agents store emoji strings in
@@ -91,64 +79,46 @@ const AgentPillBar: React.FC<AgentPillBarProps> = ({
               : undefined);
 
           return (
-            <React.Fragment key={getAgentKey(agent)}>
-              {!isMobile && index > 0 && <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>}
-              <div
-                data-testid={`agent-pill-${agent.backend}`}
-                data-agent-pill='true'
-                data-agent-key={getAgentKey(agent)}
-                data-agent-type={agent.agent_type}
-                data-agent-selected={isSelected ? 'true' : 'false'}
-                className={`group relative flex items-center cursor-pointer whitespace-nowrap overflow-hidden ${isSelected ? `opacity-100 px-12px py-8px rd-20px mx-2px ${styles.agentItemSelected}` : isMobile ? 'opacity-70 p-4px' : 'opacity-60 p-4px hover:opacity-100'}`}
-                style={
-                  isSelected
-                    ? {
-                        ...(isMobile ? { transition: 'opacity 0.2s ease, background-color 0.2s ease' } : undefined),
-                        ...(isMobile || suppressSelectionAnimation ? { animation: 'none' } : undefined),
-                      }
-                    : { transition: 'opacity 0.2s ease' }
-                }
-                onClick={() => onSelectAgent(getAgentKey(agent))}
-              >
-                {emojiAvatar ? (
-                  <span style={{ fontSize: 20, lineHeight: 1, flexShrink: 0 }}>{emojiAvatar}</span>
-                ) : logoSrc ? (
-                  <img
-                    src={logoSrc}
-                    alt={`${agent.backend || agent.agent_type} logo`}
-                    width={20}
-                    height={20}
-                    style={{ objectFit: 'contain', flexShrink: 0 }}
-                  />
-                ) : (
-                  <OplIcon name='agent' size={20} className='shrink-0' />
-                )}
-                <span
-                  className={`font-medium text-14px ${isSelected ? 'font-semibold ml-4px' : isMobile ? 'max-w-0 opacity-0 overflow-hidden' : 'max-w-0 opacity-0 overflow-hidden group-hover:max-w-100px group-hover:opacity-100 group-hover:ml-8px'}`}
-                  style={{
-                    color: 'var(--text-primary)',
-                    transition: isSelected
-                      ? 'color 0.2s ease, font-weight 0.2s ease'
-                      : isMobile
-                        ? 'none'
-                        : 'max-width 0.6s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) 0.05s, margin 0.6s cubic-bezier(0.2, 0.8, 0.3, 1)',
-                  }}
-                >
-                  {agent.name}
-                </span>
-              </div>
-            </React.Fragment>
+            <div
+              key={getAgentKey(agent)}
+              data-testid={`agent-pill-${agent.backend}`}
+              data-agent-pill='true'
+              data-agent-key={getAgentKey(agent)}
+              data-agent-type={agent.agent_type}
+              data-agent-selected={isSelected ? 'true' : 'false'}
+              className={classNames(
+                styles.agentPill,
+                isSelected ? [styles.agentPillSelected, styles.agentItemSelected] : styles.agentPillIdle
+              )}
+              style={isSelected && (isMobile || suppressSelectionAnimation) ? { animation: 'none' } : undefined}
+              onClick={() => onSelectAgent(getAgentKey(agent))}
+            >
+              {emojiAvatar ? (
+                <span className={styles.agentPillAvatar}>{emojiAvatar}</span>
+              ) : logoSrc ? (
+                <img
+                  src={logoSrc}
+                  alt={`${agent.backend || agent.agent_type} logo`}
+                  width={16}
+                  height={16}
+                  className={styles.agentPillAvatar}
+                />
+              ) : (
+                <OplIcon name='agent' size={16} className={styles.agentPillAvatar} />
+              )}
+              <span className={classNames(styles.agentPillLabel, isSelected && styles.agentPillLabelSelected)}>
+                {agent.name}
+              </span>
+            </div>
           );
         })}
-        {!isMobile && <div className='text-16px lh-1 p-2px select-none opacity-30'>|</div>}
         <Tooltip content={t('settings.agentManagement.discoverMoreAgents', { defaultValue: '发现更多 Agent' })}>
           <div
             data-testid='guid-agent-settings-shortcut'
-            className='flex items-center justify-center cursor-pointer p-4px opacity-60 hover:opacity-100 self-center'
-            style={{ transition: 'opacity 0.2s ease', flexShrink: 0, marginTop: 4 }}
+            className={styles.agentPillSettings}
             onClick={() => navigate(agentSettingsRoute)}
           >
-            <OplIcon name='plus' size={20} className='shrink-0' />
+            <OplIcon name='plus' size={16} className='shrink-0' />
           </div>
         </Tooltip>
       </div>

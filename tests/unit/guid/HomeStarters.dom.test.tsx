@@ -112,7 +112,10 @@ describe('HomeStarters', () => {
       'OBF',
       'OMA',
     ]);
-    expect(screen.getByTestId('starter-icon-research').querySelector('svg')).not.toBeNull();
+    const starterIcon = screen.getByTestId('starter-icon-research').querySelector('[data-opl-icon]');
+    expect(starterIcon).toHaveAttribute('data-opl-icon', 'agent');
+    expect(starterIcon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+    expect(screen.getByTestId('home-starter-research')).toHaveAttribute('data-opl-visual-source', 'deepseek-harness');
     expect(screen.queryByTestId('starter-next-grant')).not.toBeInTheDocument();
     expect(screen.getByTestId('home-starter-grant')).toHaveAttribute('data-opl-launch-ready', 'true');
 

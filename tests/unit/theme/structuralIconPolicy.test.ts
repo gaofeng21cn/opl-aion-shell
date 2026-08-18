@@ -135,7 +135,7 @@ const oplVisualIconTargets = [
   },
   {
     relativePath: 'packages/desktop/src/renderer/pages/guid/components/HomeStarters.tsx',
-    ownedCallsites: ["return <OplIcon name='research' />"],
+    ownedCallsites: ["return <OplIcon name='agent' />"],
   },
   {
     relativePath: 'packages/desktop/src/renderer/components/chat/composer/SpeechInputButton.tsx',

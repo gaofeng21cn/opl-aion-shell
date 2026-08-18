@@ -185,6 +185,30 @@ export function resolveOplDshIconName(value: unknown): OplDshIconName {
   return OPL_DSH_ICON_NAMES.has(token) ? (token as OplDshIconName) : 'agent';
 }
 
+export const OPL_VISUAL_PRIMITIVE_CLASSES = Object.freeze({
+  composer: 'opl-codex-composer',
+  rail_row: 'opl-codex-rail-row',
+  icon_button: 'opl-codex-icon-button',
+  menu: 'opl-codex-menu',
+  settings_row: 'opl-codex-settings-row',
+} as const);
+
+export type OplVisualPrimitiveName = keyof typeof OPL_VISUAL_PRIMITIVE_CLASSES;
+
+export type OplVisualPrimitiveProps = {
+  className: string;
+  'data-opl-visual-primitive': OplVisualPrimitiveName;
+  'data-opl-visual-source': 'deepseek-harness';
+};
+
+export function getOplVisualPrimitiveProps(name: OplVisualPrimitiveName, className?: string): OplVisualPrimitiveProps {
+  return {
+    className: [OPL_VISUAL_PRIMITIVE_CLASSES[name], className].filter(Boolean).join(' '),
+    'data-opl-visual-primitive': name,
+    'data-opl-visual-source': 'deepseek-harness',
+  };
+}
+
 export type OplVisualContract = {
   iconSize: number;
   sourceCommit: typeof OPL_DSH_VISUAL_SOURCE_COMMIT;

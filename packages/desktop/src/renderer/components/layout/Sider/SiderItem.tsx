@@ -5,7 +5,7 @@
  */
 
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { Dropdown, Menu, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import React, { useState } from 'react';
@@ -55,13 +55,11 @@ const SiderItem: React.FC<SiderItemProps> = ({
       position='top'
     >
       <div
-        className={classNames(
-          'h-34px rd-8px flex items-center gap-8px pl-10px pr-8px cursor-pointer relative overflow-hidden shrink-0 group min-w-0 transition-colors',
-          {
-            'hover:bg-fill-3': !selected,
-            '!bg-fill-3': selected,
-          }
+        {...getOplVisualPrimitiveProps(
+          'rail_row',
+          'h-34px rd-10px flex items-center gap-8px pl-10px pr-8px cursor-pointer relative overflow-hidden shrink-0 group min-w-0'
         )}
+        data-selected={String(Boolean(selected))}
         onClick={onClick}
         onContextMenu={onContextMenu}
       >
@@ -103,6 +101,7 @@ const SiderItem: React.FC<SiderItemProps> = ({
             <Dropdown
               droplist={
                 <Menu
+                  {...getOplVisualPrimitiveProps('menu')}
                   onClickMenuItem={(key) => {
                     setMenuVisible(false);
                     onMenuAction?.(key);
@@ -131,19 +130,19 @@ const SiderItem: React.FC<SiderItemProps> = ({
             >
               <span
                 data-testid='sider-item-menu-trigger'
-                className={classNames(
-                  'flex-center cursor-pointer transition-colors text-t-secondary hover:text-t-primary size-20px rd-4px sider-action-btn',
-                  {
+                {...getOplVisualPrimitiveProps(
+                  'icon_button',
+                  classNames('cursor-pointer sider-action-btn', {
                     flex: isMobile || menuVisible,
                     'hidden group-hover:flex': !isMobile && !menuVisible,
-                  }
+                  })
                 )}
                 onClick={(e) => {
                   e.stopPropagation();
                   setMenuVisible(true);
                 }}
               >
-                <OplIcon name='more' size={14} className='block leading-none' />
+                <OplIcon name='more' size={16} className='block leading-none' />
               </span>
             </Dropdown>
           </div>

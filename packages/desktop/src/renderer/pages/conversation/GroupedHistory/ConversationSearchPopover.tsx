@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { isConversationArchived } from './utils/groupingHelpers';
 import './ConversationSearchPopover.css';
@@ -464,15 +464,16 @@ const ConversationSearchPopover: React.FC<ConversationSearchPopoverProps> = ({
         <button
           type='button'
           aria-label={triggerAriaLabel}
-          className={classNames(
-            triggerClassName,
-            {
-              'hover:bg-fill-3 active:bg-fill-4': !disabled && fullWidth,
-              'hover:bg-fill-2 hover:border-[color:var(--color-border-2)]': !disabled && !fullWidth,
-              'opacity-50 cursor-not-allowed': disabled,
-              'bg-aou-2 text-primary border-[color:var(--color-primary-light-3)]': visible && !disabled && !fullWidth,
-            },
-            buttonClassName
+          {...getOplVisualPrimitiveProps(
+            fullWidth ? 'rail_row' : 'icon_button',
+            classNames(
+              triggerClassName,
+              {
+                'opacity-50 cursor-not-allowed': disabled,
+                'bg-aou-2 text-primary border-[color:var(--color-primary-light-3)]': visible && !disabled && !fullWidth,
+              },
+              buttonClassName
+            )
           )}
           onClick={handleOpen}
           disabled={disabled}

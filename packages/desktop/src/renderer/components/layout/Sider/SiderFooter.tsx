@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Tooltip } from '@arco-design/web-react';
 import classNames from 'classnames';
 import type { SiderTooltipProps } from '@renderer/utils/ui/siderTooltip';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 export type SiderFooterAccount = {
   displayName: string | null;
@@ -49,10 +49,13 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
         <Tooltip {...siderTooltipProps} content={accountSecondary || accountLabel} position='right'>
           <Button
             type='text'
-            className={classNames(
-              '!h-32px !min-w-0 !flex !items-center !overflow-hidden !rd-8px !text-t-primary !border-0 !bg-transparent hover:!bg-fill-3',
-              collapsed ? '!w-26px !justify-center !px-0' : '!flex-1 !justify-start !px-8px',
-              isMobile && 'sider-footer-btn-mobile !h-44px'
+            {...getOplVisualPrimitiveProps(
+              'rail_row',
+              classNames(
+                '!h-34px !min-w-0 !flex !items-center !overflow-hidden !rd-10px',
+                collapsed ? '!w-28px !justify-center !px-0' : '!flex-1 !justify-start !px-8px',
+                isMobile && 'sider-footer-btn-mobile !h-44px'
+              )
             )}
             onClick={() => onSettingsClick(account ? 'gateway' : 'general')}
             data-testid={account ? 'sider-footer-account' : 'sider-footer-settings'}
@@ -85,10 +88,13 @@ const SiderFooter: React.FC<SiderFooterProps> = ({
             <Button
               type='text'
               onClick={onUpdateClick}
-              className={classNames(
-                '!h-28px !w-28px !min-w-28px !shrink-0 !rd-7px !p-0 !text-white !bg-transparent hover:!bg-fill-2',
-                collapsed && '!h-22px !w-20px !min-w-20px',
-                isMobile && 'sider-footer-btn-mobile !h-40px !w-40px !min-w-40px'
+              {...getOplVisualPrimitiveProps(
+                'icon_button',
+                classNames(
+                  '!shrink-0 !p-0 !text-white',
+                  collapsed && '!h-24px !w-24px !min-w-24px',
+                  isMobile && 'sider-footer-btn-mobile !h-40px !w-40px !min-w-40px'
+                )
               )}
               aria-label={updateLabel}
               data-testid='sider-footer-update'

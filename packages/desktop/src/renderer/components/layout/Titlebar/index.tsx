@@ -16,7 +16,7 @@ import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { useNavigationHistory } from '@/renderer/hooks/context/NavigationHistoryContext';
 import { isElectronDesktop, isMacOS, openExternalUrl } from '@/renderer/utils/platform';
 import { rememberSettingsReturnPath, resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
-import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import './titlebar.css';
 
 interface TitlebarProps {
@@ -195,7 +195,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         {showBackToChatButton && (
           <button
             type='button'
-            className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
+            {...getOplVisualPrimitiveProps(
+              'icon_button',
+              classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')
+            )}
             onClick={handleBackToChat}
             aria-label={backToAppTooltip}
             title={backToAppTooltip}
@@ -207,7 +210,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         {showSiderToggle && (
           <button
             type='button'
-            className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
+            {...getOplVisualPrimitiveProps(
+              'icon_button',
+              classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')
+            )}
             onClick={handleSiderToggle}
             aria-label={siderTooltip}
             title={siderTooltip}
@@ -220,7 +226,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
           <>
             <button
               type='button'
-              className='app-titlebar__button app-titlebar__button--nav'
+              {...getOplVisualPrimitiveProps('icon_button', 'app-titlebar__button app-titlebar__button--nav')}
               onClick={() => navigationHistory?.back()}
               disabled={!navigationHistory?.canBack}
               aria-label={historyBackTooltip}
@@ -230,7 +236,7 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
             </button>
             <button
               type='button'
-              className='app-titlebar__button app-titlebar__button--nav'
+              {...getOplVisualPrimitiveProps('icon_button', 'app-titlebar__button app-titlebar__button--nav')}
               onClick={() => navigationHistory?.forward()}
               disabled={!navigationHistory?.canForward}
               aria-label={historyForwardTooltip}
@@ -272,7 +278,10 @@ const Titlebar: React.FC<TitlebarProps> = ({ workspaceAvailable }) => {
         {layout?.isMobile && <div id='app-titlebar-actions-slot' className='app-titlebar__actions-slot' />}
         <button
           type='button'
-          className={classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')}
+          {...getOplVisualPrimitiveProps(
+            'icon_button',
+            classNames('app-titlebar__button', layout?.isMobile && 'app-titlebar__button--mobile')
+          )}
           onClick={handleFeedback}
           aria-label={feedbackTooltip}
           title={feedbackTooltip}

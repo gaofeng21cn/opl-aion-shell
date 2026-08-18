@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  getOplVisualPrimitiveProps,
   OplIcon,
   OplVisualProvider,
   resolveOplDshIconName,
@@ -81,5 +82,14 @@ describe('OPL visual adapter', () => {
 
     expect(screen.getByTestId('default-icon')).toHaveStyle({ width: '16px', height: '16px' });
     expect(document.body).toHaveAttribute('data-ds-dark-theme');
+  });
+
+  it('binds phase-one primitive classes to the pinned visual source', () => {
+    render(<button {...getOplVisualPrimitiveProps('icon_button', 'custom-control')}>Open</button>);
+
+    const button = screen.getByRole('button', { name: 'Open' });
+    expect(button).toHaveClass('opl-codex-icon-button', 'custom-control');
+    expect(button).toHaveAttribute('data-opl-visual-primitive', 'icon_button');
+    expect(button).toHaveAttribute('data-opl-visual-source', 'deepseek-harness');
   });
 });

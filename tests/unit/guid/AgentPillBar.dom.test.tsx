@@ -46,6 +46,11 @@ describe('AgentPillBar Settings route', () => {
 
     await userEvent.click(screen.getByTestId('guid-agent-settings-shortcut'));
 
+    expect(screen.getByTestId('agent-pill-codex').parentElement).toHaveAttribute(
+      'data-opl-visual-source',
+      'deepseek-harness'
+    );
+    expect(screen.getByTestId('agent-pill-codex').parentElement).toHaveAttribute('data-opl-visual-pattern', 'pill');
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/agents');
     expect(mocks.navigate).not.toHaveBeenCalledWith('/settings/agent?tab=local');
   });

@@ -64,29 +64,29 @@
 [data-testid='settings-host'] .arco-input-wrapper,
 .settings-global-search .arco-input-wrapper {
   height: 34px;
-  border-color: transparent;
-  border-radius: 7px;
-  background: var(--fill-1);
+  border-color: var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
   box-shadow: none;
 }
 
 .settings-sider .arco-input-wrapper:focus-within,
 [data-testid='settings-host'] .arco-input-wrapper:focus-within,
 .settings-global-search .arco-input-wrapper:focus-within {
-  border-color: var(--border-base);
-  background: var(--bg-1);
+  border-color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-layer-1);
 }
 
 .settings-sider__item {
   display: flex;
   width: 100%;
-  height: 36px;
-  flex: 0 0 36px;
+  height: 40px;
+  flex: 0 0 40px;
   align-items: center;
   gap: 8px;
   overflow: hidden;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 10px;
   color: var(--text-primary);
   font-size: 13px;
   font-weight: 500;
@@ -96,7 +96,7 @@
 
 .settings-sider__item:hover {
   border-color: transparent;
-  background: var(--fill-3);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .settings-sider__item:focus-visible {
@@ -107,7 +107,7 @@
 
 .settings-sider__item--active {
   border-color: transparent;
-  background: var(--opl-sidebar-active) !important;
+  background: var(--dsw-specific-sidebar-nav-item-active) !important;
 }
 
 .settings-sider__icon-slot {
@@ -117,7 +117,7 @@
   flex: 0 0 22px;
   align-items: center;
   justify-content: center;
-  color: var(--text-secondary);
+  color: var(--dsw-alias-label-tertiary);
   line-height: 0;
 }
 
@@ -152,19 +152,19 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 2px 0 4px 32px;
+  padding: 2px 0 6px 32px;
 }
 
 .settings-sider__destination {
   display: flex;
   width: 100%;
   min-width: 0;
-  height: 32px;
+  height: 34px;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
   overflow: hidden;
-  border-radius: 7px;
+  border-radius: 8px;
   padding: 0 8px;
   color: var(--text-secondary) !important;
   font-size: 12px;
@@ -174,7 +174,7 @@
 
 .settings-sider__destination:hover,
 .settings-sider__destination--active {
-  background: var(--fill-2);
+  background: var(--dsw-alias-interactive-bg-hover);
   color: var(--text-primary) !important;
 }
 
@@ -184,15 +184,11 @@
 }
 
 .settings-sider__destination-rail {
-  width: 2px;
-  height: 14px;
-  flex: 0 0 2px;
-  border-radius: 1px;
-  background: transparent;
+  display: none;
 }
 
 .settings-sider__destination--active .settings-sider__destination-rail {
-  background: var(--color-primary-6);
+  background: transparent;
 }
 
 .settings-sider__destination-label {

@@ -9,32 +9,43 @@
   letter-spacing: 0;
 }
 
-/* Send button disabled state - override Arco Design default disabled styles */
+/* DSH InputBar primary action geometry, mapped onto the existing Arco button behavior. */
+.send-button-custom,
+.send-button-custom.arco-btn,
+.send-button-custom.arco-btn-primary {
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 50% !important;
+  background: var(--dsw-alias-button-primary-fill) !important;
+  color: var(--dsw-alias-label-primary-foreground) !important;
+  box-shadow: none !important;
+}
+
+.send-button-custom:hover:not(:disabled),
+.send-button-custom.arco-btn:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover) !important;
+}
+
 .send-button-custom:disabled,
 .send-button-custom.arco-btn:disabled,
 .send-button-custom.arco-btn-primary:disabled {
-  background-color: #d3d4d9 !important;
+  background: var(--dsw-alias-button-primary-dimmed) !important;
   border-color: transparent !important;
-  color: var(--text-white) !important;
+  color: var(--dsw-alias-label-dimmed) !important;
   opacity: 1 !important;
-}
-
-/* Dark mode: adjust send button brightness */
-[data-theme='dark'] .send-button-custom:not(:disabled) {
-  background-color: var(--aou-4) !important;
-  border-color: transparent !important;
-}
-
-[data-theme='dark'] .send-button-custom:disabled,
-[data-theme='dark'] .send-button-custom.arco-btn:disabled,
-[data-theme='dark'] .send-button-custom.arco-btn-primary:disabled {
-  background-color: color-mix(in srgb, var(--color-fill-4) 82%, var(--color-bg-2)) !important;
-  border-color: transparent !important;
 }
 
 .sendbox-stop-button,
 .sendbox-stop-button.arco-btn,
 .sendbox-stop-button.arco-btn-secondary {
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
   border: none !important;
   box-shadow: none !important;
 }
@@ -103,6 +114,28 @@
   opacity: 1;
 }
 
+.sendbox-panel.opl-codex-composer--conversation {
+  box-sizing: border-box;
+  padding: 10px 8px 6px;
+}
+
+.sendbox-context-stack {
+  min-width: 0;
+}
+
+.sendbox-input-row {
+  gap: 12px !important;
+}
+
+.sendbox-tools {
+  gap: 16px;
+}
+
+.sendbox-trailing-actions,
+.sendbox-action-row {
+  gap: 12px !important;
+}
+
 /* Sendbox tools buttons - prevent layout jitter from theme hover transforms (#1075) */
 .sendbox-tools .arco-btn,
 .sendbox-tools .arco-btn:hover,
@@ -122,7 +155,10 @@
 .sendbox-actions .sendbox-model-btn:active,
 .sendbox-actions .sendbox-model-btn:focus,
 .sendbox-actions .sendbox-model-btn:focus-visible {
-  background: transparent !important;
+  min-height: 28px !important;
+  padding: 0 8px !important;
+  border-radius: 14px !important;
+  background: var(--dsw-alias-bg-layer-2) !important;
   border: none !important;
   box-shadow: none !important;
   color: var(--text-secondary) !important;
@@ -148,6 +184,7 @@
 .sendbox-actions .sendbox-model-btn:active,
 .sendbox-actions .sendbox-model-btn:focus,
 .sendbox-actions .sendbox-model-btn:focus-visible {
+  background: var(--dsw-alias-interactive-bg-hover) !important;
   color: var(--text-primary) !important;
 }
 
@@ -542,6 +579,10 @@
   /* Tighter mobile sendbox: reduce outer padding so the bottom input takes
      less vertical space on narrow screens. */
   .sendbox-panel {
+    padding: 8px 10px !important;
+  }
+
+  .sendbox-panel.opl-codex-composer--conversation {
     padding: 8px 10px !important;
   }
 
