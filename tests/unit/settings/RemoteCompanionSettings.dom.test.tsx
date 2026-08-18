@@ -31,7 +31,7 @@ const pendingState = (authenticationString: string | null = null): RemoteCompani
     pair_id: 'pair-test-001',
     desktop_label: 'This desktop',
     state: authenticationString ? 'awaiting_desktop_confirmation' : 'reserved',
-    manual_code: 'manual-code-001',
+    manual_code: '01ABCDEFGHJK',
     qr_url: authenticationString ? '' : 'opllink://pair?protocol_version=opl_remote_transport.v1',
     authentication_string: authenticationString,
     expires_at: '2026-08-17T13:00:00.000Z',
@@ -89,6 +89,8 @@ vi.mock('react-i18next', () => ({
         'settings.resourcesPage.remoteCompanion.pairing.qr': 'Scan with OPL Link',
         'settings.resourcesPage.remoteCompanion.pairing.qrAlt': 'Pairing QR',
         'settings.resourcesPage.remoteCompanion.pairing.copyQr': 'Copy pairing link',
+        'settings.resourcesPage.remoteCompanion.pairing.manualCode': 'Pairing code',
+        'settings.resourcesPage.remoteCompanion.pairing.copyManualCode': 'Copy pairing code',
         'settings.resourcesPage.remoteCompanion.pairing.authentication': 'Authentication string',
         'settings.resourcesPage.remoteCompanion.pairing.confirm': 'Confirm pairing',
         'settings.resourcesPage.remoteCompanion.invitationCode': 'Invitation code',
@@ -208,7 +210,7 @@ describe('RemoteCompanionSettings', () => {
 
   afterEach(() => cleanup());
 
-  it('starts pairing, renders the copyable full pairing link, and confirms the SAS explicitly', async () => {
+  it('starts pairing, renders copyable QR and short-code paths, and confirms the SAS explicitly', async () => {
     const view = render(<RemoteCompanionSettings />);
     await waitFor(() => expect(view.getByTestId('remote-companion-start')).toBeTruthy());
 
@@ -220,10 +222,13 @@ describe('RemoteCompanionSettings', () => {
     );
     expect(view.getByTestId('remote-companion-qr')).toBeTruthy();
     expect(view.getByTestId('remote-companion-copy-qr')).toBeTruthy();
-    expect(view.queryByText('manual-code-001')).toBeNull();
+    expect(view.getByTestId('remote-companion-manual-code')).toHaveTextContent('01AB CDEF GHJK');
+    fireEvent.click(view.getByTestId('remote-companion-copy-manual-code'));
+    await waitFor(() => expect(mocks.copyText).toHaveBeenCalledWith('01ABCDEFGHJK'));
 
     fireEvent.click(view.getByTestId('remote-companion-poll'));
     await waitFor(() => expect(mocks.pollPairing).toHaveBeenCalledWith({ pair_id: 'pair-test-001' }));
+    expect(view.queryByTestId('remote-companion-manual-code')).toBeNull();
     expect(view.getByTestId('remote-companion-authentication')).toBeTruthy();
     fireEvent.click(view.getByTestId('remote-companion-confirm'));
     await waitFor(() =>

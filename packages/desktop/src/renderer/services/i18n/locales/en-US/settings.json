@@ -2257,6 +2257,8 @@
         "qr": "Scan with OPL Link",
         "qrAlt": "OPL Link pairing QR code",
         "copyQr": "Copy pairing link",
+        "manualCode": "Pairing code",
+        "copyManualCode": "Copy pairing code",
         "authentication": "Authentication string",
         "confirm": "Confirm pairing",
         "refresh": "Refresh status"

@@ -901,7 +901,7 @@ export class RemoteCompanionService {
           pair_id: pairing.pair_id,
           desktop_label: pairing.desktop_label,
           state: pairing.state,
-          manual_code: pairing.manual_code,
+          manual_code: pairing.state === 'reserved' ? pairing.manual_code : '',
           qr_url: this.qrUrl(pairing),
           authentication_string: pairing.authentication_string,
           expires_at: pairing.expires_at,

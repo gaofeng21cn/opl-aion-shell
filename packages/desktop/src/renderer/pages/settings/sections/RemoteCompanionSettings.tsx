@@ -54,6 +54,12 @@ function expiryLabel(value: string, t: (key: string, options?: Record<string, un
   });
 }
 
+function formatManualCode(value: string): string {
+  const compact = value.replace(/[\s-]/gu, '').toUpperCase();
+  if (compact.length !== 12) return value;
+  return compact.replace(/(.{4})(.{4})(.{4})/u, '$1 $2 $3');
+}
+
 const RemoteCompanionSettings: React.FC = () => {
   const { t } = useTranslation();
   const bridge = remoteCompanionBridge();
@@ -271,6 +277,27 @@ const RemoteCompanionSettings: React.FC = () => {
               </div>
             )}
             <div className='flex min-w-200px flex-1 flex-col gap-8px'>
+              {pending.state === 'reserved' && pending.manual_code && (
+                <div className='flex flex-col gap-6px' data-testid='remote-companion-manual-code'>
+                  <Typography.Text className='text-12px text-t-secondary'>
+                    {t('settings.resourcesPage.remoteCompanion.pairing.manualCode')}
+                  </Typography.Text>
+                  <div className='flex flex-wrap items-center gap-4px'>
+                    <Typography.Text className='font-600 tracking-2px text-t-primary'>
+                      {formatManualCode(pending.manual_code)}
+                    </Typography.Text>
+                    <Button
+                      size='mini'
+                      type='text'
+                      icon={<Copy theme='outline' size='14' fill='currentColor' />}
+                      aria-label={t('settings.resourcesPage.remoteCompanion.pairing.copyManualCode')}
+                      title={t('settings.resourcesPage.remoteCompanion.pairing.copyManualCode')}
+                      onClick={() => void copyValue(pending.manual_code)}
+                      data-testid='remote-companion-copy-manual-code'
+                    />
+                  </div>
+                </div>
+              )}
               {pending.authentication_string && (
                 <div className='flex flex-col gap-6px' data-testid='remote-companion-authentication'>
                   <Typography.Text className='text-12px text-t-secondary'>
