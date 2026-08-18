@@ -3336,9 +3336,7 @@
       },
       "substatuses": {
         "dependency_status": "依赖状态",
-        "integration_status": "集成状态",
-        "projection_status": "Codex 投影",
-        "profile_migration_status": "Profile 迁移"
+        "integration_status": "集成状态"
       },
       "actions": {
         "refreshStatus": "刷新状态",

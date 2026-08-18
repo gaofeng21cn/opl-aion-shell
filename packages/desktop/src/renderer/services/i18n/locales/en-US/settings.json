@@ -3335,9 +3335,7 @@
       },
       "substatuses": {
         "dependency_status": "Dependencies",
-        "integration_status": "Integrations",
-        "projection_status": "Codex projection",
-        "profile_migration_status": "Profile migration"
+        "integration_status": "Integrations"
       },
       "actions": {
         "refreshStatus": "Refresh status",

@@ -17,7 +17,7 @@ export type ManagedUpdateCondition = {
 };
 
 export type ManagedUpdateSubstatus = {
-  id: 'dependency_status' | 'integration_status' | 'projection_status' | 'profile_migration_status';
+  id: 'dependency_status' | 'integration_status';
   state: string;
   summary?: string;
   conditions: ManagedUpdateCondition[];
@@ -128,7 +128,7 @@ const APPLY_ALLOWED_COMPONENT_IDS = new Set<ManagedUpdateComponentId>(['opl_base
 const MANAGED_UPDATE_SUBSTATUS_IDS: Record<ManagedUpdateComponentId, ManagedUpdateSubstatus['id'][]> = {
   opl_base: ['dependency_status', 'integration_status'],
   opl_app: [],
-  opl_packages: ['projection_status', 'profile_migration_status'],
+  opl_packages: [],
 };
 
 const DEVELOPER_CHECKOUT_SOURCES = new Set([

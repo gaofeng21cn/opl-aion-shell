@@ -365,6 +365,12 @@ const managedUpdateStatusResult = {
               reason: 'SyncFailed',
               message: 'Skill sync needs repair',
             },
+            {
+              type: 'PackageCurrentness',
+              status: 'False',
+              reason: 'SyncFailed',
+              message: 'Skill sync needs repair',
+            },
           ],
           receipt: {
             last_receipt_ref: 'receipt://opl_packages/failed-sync',
@@ -372,14 +378,13 @@ const managedUpdateStatusResult = {
           },
           needs_reload: true,
           reload_guidance: 'Reload Codex plugin cache after repair.',
-          projection_status: {
-            state: 'needs_reload',
-            summary: 'Codex projection cache is stale.',
+          current: {
+            currentness_authority: 'installed_owner_descriptor_and_native_carrier',
+            projection_source: 'installed_owner_descriptor',
+            installed_package_count: 1,
           },
-          profile_migration_status: {
-            state: 'manual_required',
-            summary: 'Existing Codex profile files require semantic merge.',
-          },
+          owner_route: { route_kind: 'clean_managed_package_executor' },
+          status_detail: { manual_required_targets_count: 1 },
         },
       ],
       repair_actions: [

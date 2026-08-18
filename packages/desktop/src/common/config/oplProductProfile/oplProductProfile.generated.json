@@ -277,6 +277,9 @@
       "implementation_owner": "opl-link",
       "source_repository": "https://github.com/gaofeng21cn/opl-link",
       "companion_policy_ref": "contracts/app-remote-companion.json",
+      "primary_user_object": "canonical_codex_conversation",
+      "default_surface": "conversation_directory",
+      "task_management_surface": false,
       "transport": "tencent_cloud_im_outbound_tls_with_short_lived_usersig",
       "optional_web_fallback": "desktop_webui_remains_available_but_is_not_the_ios_product",
       "separate_product_renderer_allowed": false,
@@ -302,7 +305,9 @@
       "target_feature_inventory_owner": false,
       "target_runtime_dependency": false,
       "aioncore_target_runtime_dependency": false,
-      "source_reuse_requires_separate_decision": true,
+      "source_reuse_requires_separate_decision": false,
+      "source_reuse_policy": "bounded_pinned_dsh_visual_cohort_only_through_opl_visual_provider_and_icon_adapter",
+      "source_reuse_cohort_ref": "contracts/app-gui-visual-source-cohort.json",
       "active_release_shell_source_ref": "contract_refs.active_shell"
     },
     "minimum_complete_product": {
@@ -492,6 +497,7 @@
       "default_css_theme_id": "default-theme",
       "default_css_theme_name": "Default",
       "codex_theme_default_enabled": false,
+      "visual_source_cohort_ref": "contracts/app-gui-visual-source-cohort.json",
       "visual_reference_cohort_ref": "contracts/app-gui-visual-reference-cohort.json",
       "shared_visual_primitives": [
         "composer",
@@ -2198,6 +2204,14 @@
             "agent_home_visibility_and_order",
             "agent_launch_and_dependency_readiness"
           ],
+          "visible_package_roles": ["standard_agent", "workflow_profile"],
+          "catalog_partition_policy": {
+            "standard_agents": "Framework directory entries with package_role=standard_agent; the Official Profile summary is a separate first-install requirement and never defines membership",
+            "agent_workflows": "Framework directory entries with package_role=workflow_profile",
+            "capability_packages": "route to Capabilities using the Framework-projected package role and capability identities",
+            "unknown_roles": "do not guess from package_id, display name, local checkout, or App metadata; use only an owner-projected destination when available",
+            "app_owned_package_id_allowlist_allowed": false
+          },
           "must_not_own": ["skill_or_plugin_catalog", "opl_flow_recommendation_policy", "cli_currentness"]
         },
         "capabilities": {
@@ -2205,7 +2219,8 @@
           "path": "/settings/capabilities",
           "slot_id": "settings_capabilities",
           "component_key": "CapabilitiesSettingsContent",
-          "entity_kinds": ["skill", "plugin", "mcp_server", "image_generation", "voice_input"],
+          "entity_kinds": ["capability_package", "skill", "plugin", "mcp_server", "connection_application", "image_generation", "voice_input"],
+          "presentation_scope_policy": "show Package-backed capabilities, Skills, Plugins, connection applications and managed companions from their canonical owner projections; credential connections and deployment resources remain under Resources & Connections",
           "groups": {
             "opl_flow_managed": {
               "label_zh": "OPL Flow 推荐",
@@ -3668,7 +3683,7 @@
             "state_source": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies + Codex and shell skill/plugin registries",
             "ownership_ref": "contracts/app-settings-control-plane.json#agents_capabilities_ownership.capabilities",
             "groups": ["opl_flow_managed", "opl_managed_companion", "manual_and_third_party"],
-            "entity_kinds": ["skill", "plugin", "mcp_server", "image_generation", "voice_input"],
+            "entity_kinds": ["capability_package", "skill", "plugin", "mcp_server", "connection_application", "image_generation", "voice_input"],
             "local_configuration_source": "AionUI local configuration#MCP servers + image generation + voice input",
             "flow_projection_policy": {
               "source_ref": "opl update status --json#managed_update.components[component_id=opl_base].current.dependency_catalog.flow_dependencies",
@@ -3718,7 +3733,10 @@
               "home_shortcut_integration": "inline_visibility_and_order_controls_on_package_rows",
               "canonical_projection": "opl app state --profile fast --json#app_state.agent_packages.directory.entries + app_state.agent_packages.status_index + app_state.runtime_source_carriers.items[]",
               "directory_collection_source": "app_state.agent_packages.directory.entries",
-              "directory_collection_policy": "render every canonical entry without an App-owned Package id allowlist or starter metadata catalog",
+              "directory_collection_policy": "render canonical entries whose Framework-projected package_role is standard_agent or workflow_profile without an App-owned Package id allowlist or starter metadata catalog; capability_package entries belong to Capabilities",
+              "visible_package_roles": ["standard_agent", "workflow_profile"],
+              "other_package_role_destination": "capabilities",
+              "app_owned_package_id_allowlist_allowed": false,
               "display_metadata_source": "app_state.agent_packages.directory.entries",
               "display_metadata_policy": "use owner-projected display metadata with a package-id fallback; App profile metadata must not define catalog membership, ordering, status, readiness, or actions",
               "runtime_source_projection": "opl app state --profile fast --json#app_state.runtime_source_carriers.items[]",
@@ -4531,7 +4549,7 @@
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Agents renders every Framework directory entry, keeps static professional package data as metadata only, and owns package search, role/status/source filters, dynamic directory reload from fresh App state, projected lifecycle actions, Developer Mode, and Home visibility.",
+                "normal_summary": "Agents renders Framework-projected standard Agent and workflow Package entries, keeps static professional package data as metadata only, and owns package search, role/status/source filters, dynamic directory reload from fresh App state, projected lifecycle actions, Developer Mode, and Home visibility.",
                 "next_action": "search or filter the directory, reload its fresh App-state projection, or execute the package row action projected by Framework",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_agents",
                 "editable_reason": "Framework owns directory and action truth; the App only renders canonical payloads and routes missing workspace activation to Workspace",
@@ -4547,7 +4565,7 @@
                 "scope": "user",
                 "owner": "one-person-lab-app",
                 "risk": "reversible",
-                "normal_summary": "Capabilities groups OPL Flow managed and local Skills or Plugins by canonical owner without duplicating Agent package or Home shortcut lifecycle.",
+                "normal_summary": "Capabilities groups capability Packages, OPL Flow, OPL-managed companions, connection applications, and local Skills or Plugins by canonical owner without duplicating Agent or workflow Package lifecycle.",
                 "next_action": "open capability details or Maintenance for owner-routed updates and repairs",
                 "details_ref": "contracts/app-gui-product-contract.json#pages.settings_capabilities",
                 "editable_reason": "manual and third-party capability mutations require explicit user action while OPL Flow reconciliation remains package-owned",
@@ -6821,7 +6839,7 @@
     "internal_detail_fields": {
       "opl_base": ["dependency_status", "integration_status"],
       "opl_app": ["host_update_route", "host_executor_required"],
-      "opl_packages": ["projection_status", "profile_migration_status"]
+      "opl_packages": ["current", "conditions", "owner_route", "status_detail"]
     }
   }
 }

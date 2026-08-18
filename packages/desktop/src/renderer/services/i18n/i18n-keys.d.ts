@@ -3672,8 +3672,6 @@ export type I18nKey =
   | 'settings.oplEnvironmentPage.updates.rollbackRef'
   | 'settings.oplEnvironmentPage.updates.substatuses.dependency_status'
   | 'settings.oplEnvironmentPage.updates.substatuses.integration_status'
-  | 'settings.oplEnvironmentPage.updates.substatuses.profile_migration_status'
-  | 'settings.oplEnvironmentPage.updates.substatuses.projection_status'
   | 'settings.oplEnvironmentPage.updates.title'
   | 'settings.oplEnvironmentPage.updates.userSummaries.canApply'
   | 'settings.oplEnvironmentPage.updates.userSummaries.canRepair'

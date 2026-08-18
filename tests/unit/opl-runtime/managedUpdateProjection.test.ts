@@ -102,7 +102,7 @@ describe('managed update projection public lifecycle ids', () => {
     expect(plane.components.some((component) => component.safeToApply)).toBe(false);
   });
 
-  it('keeps internal integration and migration state diagnostic-only', () => {
+  it('keeps internal integration and package currentness state diagnostic-only', () => {
     const plane = readManagedUpdatePlane(
       {
         managed_update: {
@@ -133,8 +133,21 @@ describe('managed update projection public lifecycle ids', () => {
                   action_ref: 'repair://opl_packages/sync',
                 },
               ],
-              projection_status: { state: 'needs_reload', summary: 'Refresh Codex plugin cache.' },
-              profile_migration_status: 'manual_required',
+              current: {
+                currentness_authority: 'installed_owner_descriptor_and_native_carrier',
+                projection_source: 'installed_owner_descriptor',
+                installed_package_count: 1,
+              },
+              conditions: [
+                {
+                  type: 'PackageCurrentness',
+                  status: 'False',
+                  reason: 'NeedsReload',
+                  message: 'Refresh Codex plugin cache.',
+                },
+              ],
+              owner_route: { route_kind: 'clean_managed_package_executor' },
+              status_detail: { manual_required_targets_count: 1 },
             },
           ],
         },
@@ -156,10 +169,15 @@ describe('managed update projection public lifecycle ids', () => {
       safeToApply: false,
       repairAllowed: false,
       rollbackAllowed: false,
-      substatuses: [
-        { id: 'projection_status', state: 'needs_reload' },
-        { id: 'profile_migration_status', state: 'manual_required' },
+      conditions: [
+        {
+          type: 'PackageCurrentness',
+          status: 'False',
+          reason: 'NeedsReload',
+          message: 'Refresh Codex plugin cache.',
+        },
       ],
+      substatuses: [],
     });
     expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('receiptRef');
     expect(plane.components.find((component) => component.id === 'opl_packages')).not.toHaveProperty('repairAction');

@@ -92,8 +92,12 @@ const managedUpdatePlanResult = {
           package_id: 'oma',
           state: 'update_available',
           safe_to_apply: true,
-          projection_status: 'needs_reload',
-          profile_migration_status: 'manual_required',
+          current: {
+            currentness_authority: 'installed_owner_descriptor_and_native_carrier',
+            projection_source: 'installed_owner_descriptor',
+            installed_package_count: 1,
+          },
+          conditions: [{ type: 'PackageCurrentness', status: 'False', reason: 'NeedsReload' }],
           auto_apply: {
             eligible: true,
             app_background_safe: true,
@@ -315,7 +319,7 @@ describe('managed update background maintenance scheduler', () => {
     expect(snapshot.lastAction).toBeNull();
     expect(snapshot.lastSkipReason).toContain('opl_app: host_executor_required');
     expect(snapshot.lastSkipReason).not.toContain('opl_packages: refresh_only');
-    expect(snapshot.lastSkipReason).not.toContain('profile_migration_status');
+    expect(snapshot.lastSkipReason).not.toContain('opl_packages:');
     expect(snapshot.reloadGuidance).toBe('Reload visible OPL capabilities after background maintenance.');
     expect(snapshot.restartRequired).toBe(true);
   });
@@ -424,7 +428,7 @@ describe('managed update background maintenance scheduler', () => {
     });
   });
 
-  it('does not turn package profile migration diagnostics into a separate maintenance target', async () => {
+  it('does not turn package currentness diagnostics into a separate maintenance target', async () => {
     bridgeMocks.getUpdatePlanInvoke.mockResolvedValueOnce({
       ...managedUpdatePlanResult,
       parsed: {
@@ -435,7 +439,12 @@ describe('managed update background maintenance scheduler', () => {
             {
               component_id: 'opl_packages',
               state: 'current',
-              profile_migration_status: 'manual_required',
+              current: {
+                currentness_authority: 'installed_owner_descriptor_and_native_carrier',
+                projection_source: 'installed_owner_descriptor',
+                installed_package_count: 1,
+              },
+              conditions: [{ type: 'PackageCurrentness', status: 'False', reason: 'ManualReview' }],
             },
           ],
         },

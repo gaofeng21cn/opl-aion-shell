@@ -241,8 +241,14 @@ const updateStatus = {
         display_group: 'OPL Packages',
         package_id: 'oma',
         state: 'current',
-        projection_status: 'current',
-        profile_migration_status: 'current',
+        current: {
+          currentness_authority: 'installed_owner_descriptor_and_native_carrier',
+          projection_source: 'installed_owner_descriptor',
+          installed_package_count: 1,
+        },
+        conditions: [{ type: 'PackageCurrentness', status: 'True' }],
+        owner_route: { route_kind: 'clean_managed_package_executor' },
+        status_detail: { manual_required_targets_count: 0 },
       },
     ],
   },
@@ -1663,8 +1669,8 @@ describe('RuntimeSettings maintenance structure', () => {
       .getByTestId('opl-managed-update-opl_packages')
       .querySelector('.arco-collapse-item-header') as HTMLElement;
     fireEvent.click(packageDiagnostics);
-    expect(screen.getByTestId('opl-managed-update-substatus-projection_status')).toBeVisible();
-    expect(screen.getByTestId('opl-managed-update-substatus-profile_migration_status')).toBeVisible();
+    expect(screen.getByText('PackageCurrentness')).toBeVisible();
+    expect(screen.queryAllByTestId(/^opl-managed-update-substatus-/)).toHaveLength(0);
   });
 
   it('keeps Logs & Diagnostics raw evidence collapsed until explicitly opened', async () => {
