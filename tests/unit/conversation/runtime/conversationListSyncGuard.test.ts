@@ -670,7 +670,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged).toContain(transport);
   });
 
-  it('keeps a transport row visible when no projected or legacy binding is available', () => {
+  it('keeps a legacy transport row visible without inferring a canonical binding', () => {
     const transport = {
       id: 'unbound-weixin',
       name: 'WeChat transport',
@@ -683,7 +683,7 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(mergeCanonicalThreadDirectory([transport], directory([thread()]))).toContain(transport);
   });
 
-  it('keeps read compatibility for an existing canonical_thread_id without writing a new binding', () => {
+  it('does not infer a transport binding from a cached canonical_thread_id', () => {
     const transport = {
       id: 'legacy-weixin',
       name: 'Legacy WeChat transport',
@@ -699,8 +699,11 @@ describe('mergeCanonicalThreadDirectory', () => {
     } as TChatConversation;
 
     const merged = mergeCanonicalThreadDirectory([transport], directory([thread()]));
-    expect(merged).toHaveLength(1);
-    expect(merged[0]).toMatchObject({ source: 'codex-app-server', extra: { canonical_thread_id: 'thread-1' } });
+    expect(merged).toHaveLength(2);
+    expect(merged).toContain(transport);
+    expect(merged).toContainEqual(
+      expect.objectContaining({ source: 'codex-app-server', extra: expect.objectContaining({ canonical_thread_id: 'thread-1' }) })
+    );
   });
 
   it('falls back to shell cache when the canonical directory is unavailable', () => {

@@ -127,7 +127,7 @@ export const projectTransportBinding = (
   temporaryWorkspace: binding.projectAffinity === 'projectless',
 });
 
-const isWeixinCodexTransportConversation = (conversation: TChatConversation): boolean => {
+const isLegacyWeixinTransportConversation = (conversation: TChatConversation): boolean => {
   return conversation.source === 'weixin' && conversation.type === 'acp' && conversation.extra.backend === 'codex';
 };
 
@@ -240,22 +240,20 @@ export const mergeCanonicalThreadDirectory = (
   if (!directory) return localConversations;
 
   const projectedBindingByConversationId = uniqueProjectedTransportBindings(projectedTransportBindings);
+  const projectedBindingConversationIds = new Set(
+    projectedTransportBindings.map((binding) => binding.conversationId)
+  );
   const returnedThreadIds = new Set(directory.threads.map((thread) => thread.id));
   const temporaryTransportThreadIds = new Set<string>();
   const cachedByThreadId = new Map<string, Extract<TChatConversation, { type: 'acp' }>>();
   const unmatchedLocal = localConversations.filter((conversation) => {
     const projectedBinding = projectedBindingByConversationId.get(conversation.id);
-    const hasProjectedBinding = projectedBindingByConversationId.has(conversation.id);
+    const hasProjectedBinding = projectedBindingConversationIds.has(conversation.id);
     const applicableProjectedBinding =
       projectedBinding?.canonicalThreadHost === directory.host ? projectedBinding : null;
-    const legacyTransportThreadId =
-      !hasProjectedBinding && isWeixinCodexTransportConversation(conversation)
-        ? canonicalCodexThreadId(conversation)
-        : null;
-    const isTransport = hasProjectedBinding || Boolean(legacyTransportThreadId);
+    const isTransport = hasProjectedBinding || isLegacyWeixinTransportConversation(conversation);
     const threadId =
       applicableProjectedBinding?.threadId ??
-      legacyTransportThreadId ??
       (!isTransport ? canonicalCodexThreadId(conversation) : null);
     if (threadId && returnedThreadIds.has(threadId)) {
       if (isTransport) {
@@ -269,7 +267,7 @@ export const mergeCanonicalThreadDirectory = (
       return false;
     }
 
-    if (isWeixinCodexTransportConversation(conversation) || hasProjectedBinding) return true;
+    if (isTransport) return true;
 
     // Only a complete overview may retire unmatched Codex cache rows. A bounded
     // recent directory remains useful without turning older local rows into ghosts.
