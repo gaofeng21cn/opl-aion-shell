@@ -3485,6 +3485,21 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(command).toContain('xattr -dr com.apple.quarantine "/Applications/One Person Lab.app"');
   });
 
+  it('bootstraps Homebrew inside a transient clone when the single no-CLT base does not provide it', () => {
+    const command = tartSmoke.guestHomebrewBootstrapCommand();
+
+    expect(command).toContain('brew_ready=1');
+    expect(command).toContain('if ! xcode-select -p >/dev/null 2>&1 || ! /usr/bin/git --version');
+    expect(command).toContain('softwareupdate --list');
+    expect(command).toContain('Command Line Tools for Xcode');
+    expect(command).toContain('sudo -n softwareupdate --install "$clt_label" --verbose');
+    expect(command).toContain('sudo -n xcode-select --switch /Library/Developer/CommandLineTools');
+    expect(command).toContain('https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh');
+    expect(command).toContain('NONINTERACTIVE=1 HOMEBREW_NO_ANALYTICS=1 /bin/bash "$installer"');
+    expect(command).toContain('test -x /opt/homebrew/bin/brew -o -x /usr/local/bin/brew');
+    expect(command.indexOf('/usr/bin/git --version')).toBeLessThan(command.indexOf('if [ "$brew_ready" -eq 1 ]'));
+  });
+
   it('defines a Full Homebrew Cask profile that preserves quarantine and consumes embedded Base', () => {
     const options = tartSmoke.parseArgs([
       '--source-vm',

@@ -2180,6 +2180,48 @@ fi
 `;
 }
 
+function guestHomebrewBootstrapCommand() {
+  return `
+set -euo pipefail
+brew_ready=0
+if command -v brew >/dev/null 2>&1 || [ -x /opt/homebrew/bin/brew ] || [ -x /usr/local/bin/brew ]; then
+  brew_ready=1
+fi
+
+if ! xcode-select -p >/dev/null 2>&1 || ! /usr/bin/git --version >/dev/null 2>&1; then
+  update_list="$(softwareupdate --list 2>&1 || true)"
+  clt_label="$(printf '%s\n' "$update_list" | sed -n 's/^\\* Label: \\(Command Line Tools for Xcode.*\\)$/\\1/p' | tail -n 1)"
+  if [ -z "$clt_label" ]; then
+    echo "No Command Line Tools update is available for the clean Tart guest." >&2
+    printf '%s\n' "$update_list" >&2
+    exit 86
+  fi
+  sudo -n softwareupdate --install "$clt_label" --verbose
+fi
+
+if ! xcode-select -p >/dev/null 2>&1 && [ -d /Library/Developer/CommandLineTools ]; then
+  sudo -n xcode-select --switch /Library/Developer/CommandLineTools
+fi
+
+if ! xcode-select -p >/dev/null 2>&1 || ! /usr/bin/git --version >/dev/null 2>&1; then
+  echo "Command Line Tools installation completed without an active developer directory and Git." >&2
+  exit 87
+fi
+
+if [ "$brew_ready" -eq 1 ]; then
+  exit 0
+fi
+
+installer="$(mktemp -t opl-homebrew-install)"
+trap 'rm -f "$installer"' EXIT
+curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 \
+  https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh \
+  -o "$installer"
+NONINTERACTIVE=1 HOMEBREW_NO_ANALYTICS=1 /bin/bash "$installer"
+test -x /opt/homebrew/bin/brew -o -x /usr/local/bin/brew
+`;
+}
+
 function guestHomebrewInstallCommand(options) {
   const caskToken = homebrewCaskToken(options.homebrewCask);
   const caskProfile = matchingHomebrewCaskCandidateProfile(options);
@@ -2202,7 +2244,7 @@ elif [ -x /usr/local/bin/brew ]; then
   BREW_BIN="/usr/local/bin/brew"
 fi
 if [ -z "$BREW_BIN" ]; then
-  echo "Homebrew is required for the Homebrew cask first-run smoke VM image." >&2
+  echo "Homebrew bootstrap did not produce a usable brew binary in the transient VM." >&2
   exit 85
 fi
 eval "$("$BREW_BIN" shellenv)"
@@ -2824,6 +2866,11 @@ async function main() {
     if (options.installMode === 'homebrew-cask') {
       setStage('assert_clean_state_before_homebrew_install');
       await ssh(options, ip, guestCleanStateProbeCommand());
+      setStage('prepare_homebrew_toolchain');
+      await sshWithRunOptions(options, ip, guestHomebrewBootstrapCommand(), {
+        label: `ssh prepare_homebrew_toolchain ${options.guestUser}@${ip}`,
+        timeoutMs: options.timeoutMs,
+      });
       setStage('homebrew_cask_install');
       await installHomebrewCaskWithRetry(options, ip);
     }
@@ -2906,6 +2953,7 @@ export const __test =
         guestCodexPlatformPackageTarballPath,
         guestCodexPackageTarballPath,
         guestFrameworkSourceArchivePath,
+        guestHomebrewBootstrapCommand,
         guestHomebrewInstallCommand,
         guestNodeStagingPlan,
         guestSmokeHostDeadlineEpochMs,
