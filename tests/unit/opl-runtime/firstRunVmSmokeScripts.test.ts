@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -25,13 +26,79 @@ function fullMasProvisioningTransportArgs(guestWorkdir = '/tmp/opl-first-run-smo
   ];
 }
 
-function runStableInstallerFixture(options: { args?: string[]; fullHttpCode?: string } = {}) {
+function runStableInstallerFixture(options: { args?: string[]; standardHttpCode?: string } = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stable-installer-'));
   const binDir = path.join(root, 'bin');
   const curlLog = path.join(root, 'curl.log');
   const appPath = path.join(root, 'Applications', 'One Person Lab.app');
   const installerPath = path.join(process.cwd(), 'resources', 'opl-install.sh');
-  writeFile(path.join(binDir, 'uname'), '#!/usr/bin/env bash\nprintf "Darwin\\n"\n', 0o755);
+  const tag = 'v26.7.20-r1';
+  const version = tag.slice(1);
+  const standardName = `One-Person-Lab-${version}-mac-arm64.dmg`;
+  const standardBytes = 'standard-dmg\n';
+  const installerBytes = fs.readFileSync(installerPath);
+  const sha256 = (content: string | Buffer) => createHash('sha256').update(content).digest('hex');
+  const assetUrl = (name: string) =>
+    `https://github.com/gaofeng21cn/one-person-lab-app/releases/download/${tag}/${name}`;
+  const componentManifest = {
+    surface_kind: 'opl_app_component_manifest.v1',
+    component_id: 'opl-app',
+    version,
+    release_tag: tag,
+    release_url: `https://github.com/gaofeng21cn/one-person-lab-app/releases/tag/${tag}`,
+    component_manifest_ref: assetUrl('opl-app-component-manifest.json'),
+    component_manifest_digest: `sha256:${'a'.repeat(64)}`,
+    primary_artifact: {
+      name: standardName,
+      digest: `sha256:${sha256(standardBytes)}`,
+    },
+    artifacts: [
+      { name: standardName, digest: `sha256:${sha256(standardBytes)}`, ref: assetUrl(standardName) },
+      {
+        name: 'opl-install.sh',
+        digest: `sha256:${sha256(installerBytes)}`,
+        size: installerBytes.length,
+        ref: assetUrl('opl-install.sh'),
+      },
+    ],
+  };
+  const manifestBytes = `${JSON.stringify(componentManifest)}\n`;
+  const releaseRecord = {
+    tag_name: tag,
+    draft: false,
+    prerelease: false,
+    assets: [
+      {
+        name: standardName,
+        digest: `sha256:${sha256(standardBytes)}`,
+        size: Buffer.byteLength(standardBytes),
+        browser_download_url: assetUrl(standardName),
+      },
+      {
+        name: 'opl-app-component-manifest.json',
+        digest: `sha256:${sha256(manifestBytes)}`,
+        size: Buffer.byteLength(manifestBytes),
+        browser_download_url: assetUrl('opl-app-component-manifest.json'),
+      },
+      {
+        name: 'opl-install.sh',
+        digest: `sha256:${sha256(installerBytes)}`,
+        size: installerBytes.length,
+        browser_download_url: assetUrl('opl-install.sh'),
+      },
+    ],
+  };
+  const releaseRecordPath = path.join(root, 'github-release.json');
+  const componentManifestPath = path.join(root, 'opl-app-component-manifest.json');
+  const standardDmgPath = path.join(root, standardName);
+  fs.writeFileSync(releaseRecordPath, `${JSON.stringify(releaseRecord)}\n`);
+  fs.writeFileSync(componentManifestPath, manifestBytes);
+  fs.writeFileSync(standardDmgPath, standardBytes);
+  writeFile(
+    path.join(binDir, 'uname'),
+    '#!/usr/bin/env bash\nif [ "${1:-}" = "-m" ]; then printf "arm64\\n"; else printf "Darwin\\n"; fi\n',
+    0o755
+  );
   writeFile(
     path.join(binDir, 'curl'),
     [
@@ -47,12 +114,27 @@ function runStableInstallerFixture(options: { args?: string[]; fullHttpCode?: st
       '  shift',
       'done',
       'printf "%s\\n" "$url" >> "$OPL_TEST_CURL_LOG"',
-      'if [[ "$url" == *"-Full-"* ]]; then',
-      '  printf "%s" "${OPL_TEST_FULL_HTTP_CODE:-404}"',
-      '  exit 22',
-      'fi',
-      ': > "$output"',
-      'printf "200"',
+      'case "$url" in',
+      '  https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/*)',
+      '    cp "$OPL_TEST_RELEASE_RECORD" "$output"',
+      '    ;;',
+      '  */opl-app-component-manifest.json)',
+      '    cp "$OPL_TEST_COMPONENT_MANIFEST" "$output"',
+      '    printf "200"',
+      '    ;;',
+      `  */${standardName})`,
+      '    if [ "${OPL_TEST_STANDARD_HTTP_CODE:-200}" != "200" ]; then',
+      '      printf "%s" "$OPL_TEST_STANDARD_HTTP_CODE"',
+      '      exit 22',
+      '    fi',
+      '    cp "$OPL_TEST_STANDARD_DMG" "$output"',
+      '    printf "200"',
+      '    ;;',
+      '  *)',
+      '    printf "Unexpected URL: %s\\n" "$url" >&2',
+      '    exit 97',
+      '    ;;',
+      'esac',
       '',
     ].join('\n'),
     0o755
@@ -102,7 +184,10 @@ function runStableInstallerFixture(options: { args?: string[]; fullHttpCode?: st
         PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`,
         OPL_LOCAL_APP_PATH: appPath,
         OPL_TEST_CURL_LOG: curlLog,
-        OPL_TEST_FULL_HTTP_CODE: options.fullHttpCode ?? '404',
+        OPL_TEST_RELEASE_RECORD: releaseRecordPath,
+        OPL_TEST_COMPONENT_MANIFEST: componentManifestPath,
+        OPL_TEST_STANDARD_DMG: standardDmgPath,
+        OPL_TEST_STANDARD_HTTP_CODE: options.standardHttpCode ?? '200',
       },
     }
   );
@@ -482,29 +567,37 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(vmSmoke.resolvePackagedStandardInstaller(path.join(appRoot, 'Missing.app'))).toBeNull();
   });
 
-  it('prefers the same-tag Full DMG and falls back only when the implicit Full asset returns 404', () => {
+  it('falls back to the same-tag Standard DMG only when the Release record lacks implicit Full', () => {
     const { result, curlUrls, appInstalled } = runStableInstallerFixture();
 
     expect(result.status, result.stderr).toBe(0);
-    expect(result.stderr).toContain('Full DMG is not published for v26.7.20-r1');
+    expect(result.stderr).toContain('Full module is not appended to v26.7.20-r1');
     expect(curlUrls).toEqual([
-      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-Full-26.7.20-r1-mac-arm64.dmg',
+      'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/tags/v26.7.20-r1',
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/opl-app-component-manifest.json',
       'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-26.7.20-r1-mac-arm64.dmg',
     ]);
     expect(appInstalled).toBe(true);
   }, 20_000);
 
-  it('fails closed instead of falling back for explicit Full or non-404 download failures', () => {
-    for (const fixture of [
-      runStableInstallerFixture({ args: ['--full'] }),
-      runStableInstallerFixture({ fullHttpCode: '500' }),
-    ]) {
-      expect(fixture.result.status).not.toBe(0);
-      expect(fixture.curlUrls).toEqual([
-        'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-Full-26.7.20-r1-mac-arm64.dmg',
-      ]);
-      expect(fixture.appInstalled).toBe(false);
-    }
+  it('fails closed for an explicit missing Full module or a Standard download failure', () => {
+    const explicitFull = runStableInstallerFixture({ args: ['--full'] });
+    expect(explicitFull.result.status).not.toBe(0);
+    expect(explicitFull.result.stderr).toContain('No same-tag Full module is published.');
+    expect(explicitFull.curlUrls).toEqual([
+      'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/tags/v26.7.20-r1',
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/opl-app-component-manifest.json',
+    ]);
+    expect(explicitFull.appInstalled).toBe(false);
+
+    const downloadFailure = runStableInstallerFixture({ standardHttpCode: '500' });
+    expect(downloadFailure.result.status).not.toBe(0);
+    expect(downloadFailure.curlUrls).toEqual([
+      'https://api.github.com/repos/gaofeng21cn/one-person-lab-app/releases/tags/v26.7.20-r1',
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/opl-app-component-manifest.json',
+      'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-26.7.20-r1-mac-arm64.dmg',
+    ]);
+    expect(downloadFailure.appInstalled).toBe(false);
   });
 
   it('fails fast when the packaged App does not contain the main bootstrap fatal marker', () => {
