@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { REMOTE_COMPANION_ACCESS_VIEW_TYPE } from '@/common/types/opl/remoteCompanionAccess';
 import {
   activeOplChannelAccessQrChallenge,
   hasPackageContributionExecuteAction,
@@ -12,7 +13,6 @@ import {
   readOplPackageContributionReadResult,
   resolveOplUiContributionLabel,
   type OplChannelAccessAction,
-  type OplChannelAccessActionInput,
   type OplChannelAccessResult,
   type OplUiContribution,
   type OplUiContributionCommand,
@@ -26,6 +26,7 @@ import classNames from 'classnames';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { QRCodeSVG } from 'qrcode.react';
+import RemoteCompanionAccessView from './RemoteCompanionAccessView';
 import styles from './OplUiContributionSlot.module.css';
 
 type OplUiContributionSlotProps = {
@@ -37,11 +38,21 @@ function supportedEntry(entry: OplUiContribution): boolean {
 }
 
 function admittedInAionUi(entry: OplUiContribution): boolean {
-  return entry.view?.viewType !== 'channel_access';
+  // AionCore owns its built-in channel settings. Framework connector views are
+  // admitted by their activation boundary, not by a package-name allowlist.
+  if (entry.view?.viewType === 'channel_access' && entry.actionBoundary === 'opl.connect.channel-provider-host')
+    return false;
+  if (entry.view?.viewType === REMOTE_COMPANION_ACCESS_VIEW_TYPE) {
+    return entry.actionBoundary === 'opl.connect.remote-companion-connector';
+  }
+  return true;
 }
 
 function commandInvocationKey(entry: OplUiContribution, commandId: string, input: Record<string, unknown>): string {
-  return `${entry.contributionKey}:${commandId}:${JSON.stringify(input)}`;
+  const safeInput = Object.fromEntries(
+    Object.entries(input).filter(([key]) => key !== 'authentication_string' && key !== 'claim_secret')
+  );
+  return `${entry.contributionKey}:${commandId}:${JSON.stringify(safeInput)}`;
 }
 
 type ChannelAccessViewProps = {
@@ -53,7 +64,7 @@ type ChannelAccessViewProps = {
     entry: OplUiContribution,
     command: OplUiContributionCommand,
     confirmed: boolean,
-    input: OplChannelAccessActionInput
+    input: Record<string, unknown>
   ) => Promise<boolean>;
 };
 
@@ -404,6 +415,14 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
             {supported ? (
               entry.view?.viewType === 'channel_access' ? (
                 <ChannelAccessView
+                  entry={entry}
+                  locale={locale}
+                  actionAvailable={actionAvailable}
+                  runningCommandKey={runningCommandKey}
+                  executeCommand={executeCommand}
+                />
+              ) : entry.view?.viewType === REMOTE_COMPANION_ACCESS_VIEW_TYPE ? (
+                <RemoteCompanionAccessView
                   entry={entry}
                   locale={locale}
                   actionAvailable={actionAvailable}

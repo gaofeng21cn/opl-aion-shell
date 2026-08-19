@@ -67,6 +67,24 @@
         "connected": "已连接",
         "attention": "需要处理"
       }
+    },
+    "remoteCompanionAccess": {
+      "readFailed": "暂时无法读取远程伴侣连接状态",
+      "unavailable": "远程伴侣当前不可用",
+      "invalidInput": "此配对操作已失效，请刷新后重试。",
+      "qrCode": "远程伴侣配对二维码",
+      "shortCode": "手动配对码",
+      "authentication": "请先与手机核对此验证码，再确认配对",
+      "deviceLabel": "设备名称",
+      "states": {
+        "unpaired": "未配对",
+        "reserving": "正在准备配对",
+        "qr_ready": "等待扫码",
+        "awaiting_confirmation": "等待确认",
+        "active": "已连接",
+        "revoking": "正在撤销",
+        "attention": "需要处理"
+      }
     }
   },
   "feedback": {

@@ -67,6 +67,24 @@
         "connected": "Connected",
         "attention": "Needs attention"
       }
+    },
+    "remoteCompanionAccess": {
+      "readFailed": "Remote companion access is temporarily unavailable",
+      "unavailable": "Remote companion is unavailable",
+      "invalidInput": "This pairing action is no longer valid. Refresh and try again.",
+      "qrCode": "Remote companion pairing QR code",
+      "shortCode": "Manual pairing code",
+      "authentication": "Compare this code with the phone before confirming",
+      "deviceLabel": "Device label",
+      "states": {
+        "unpaired": "Not paired",
+        "reserving": "Preparing pairing",
+        "qr_ready": "Ready to scan",
+        "awaiting_confirmation": "Awaiting confirmation",
+        "active": "Connected",
+        "revoking": "Revoking",
+        "attention": "Needs attention"
+      }
     }
   },
   "feedback": {

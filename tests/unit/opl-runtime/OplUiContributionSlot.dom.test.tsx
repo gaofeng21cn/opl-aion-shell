@@ -219,4 +219,69 @@ describe('OplUiContributionSlot', () => {
     expect(stateMocks.runPackageContribution).not.toHaveBeenCalled();
     expect(stateMocks.executeAction).not.toHaveBeenCalled();
   });
+
+  it('admits remote_companion_access only through its activation boundary and keeps pairing material transient', async () => {
+    localStorage.clear();
+    stateMocks.appState = appState([
+      contribution({
+        actionBoundary: 'opl.connect.remote-companion-connector',
+        slot: 'settings.section',
+        viewType: 'remote_companion_access',
+      }),
+      {
+        ...contribution({ slot: 'settings.section', viewType: 'remote_companion_access' }),
+        contribution_key: 'example.package:unadmitted-remote',
+        contribution_id: 'unadmitted-remote',
+      },
+    ]);
+    stateMocks.runPackageContribution.mockResolvedValue({
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'example.package',
+          ref: 'example.activity.v1#current',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: { kind: 'local', identity: 'connector@local', lifecycle_authority: 'carrier_owned' },
+          readiness: { installed: true, physical_status: 'available', callability: 'callable' },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'example.activity.v1#current',
+            operation: 'read',
+            result: {
+              schema_version: 'opl-app-remote-companion-access.v1',
+              status: 'available',
+              state: 'awaiting_confirmation',
+              pairing: {
+                pairing_id: 'pair-001',
+                expires_at_ms: 1_800_000_000_000,
+                authentication_string: '123 456',
+              },
+              actions: [{ action_kind: 'confirm', command_id: 'refresh', input: { pairing_id: 'pair-001' } }],
+            },
+          },
+        },
+      },
+    });
+
+    render(<OplUiContributionSlot slot='settings.section' />);
+    expect(await screen.findByTestId('opl-remote-companion-access-confirmation')).toBeInTheDocument();
+    expect(screen.getByText('123 456')).toBeInTheDocument();
+    expect(screen.queryByTestId('opl-ui-contribution-example.package:unadmitted-remote')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh activity' }));
+    await waitFor(() => {
+      expect(stateMocks.executeAction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payloadJson: expect.objectContaining({
+            input: { pairing_id: 'pair-001', authentication_string: '123 456' },
+          }),
+        })
+      );
+    });
+    expect(localStorage.length).toBe(0);
+  });
 });
