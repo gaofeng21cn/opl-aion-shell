@@ -280,7 +280,10 @@
       "primary_user_object": "canonical_codex_conversation",
       "default_surface": "conversation_directory",
       "task_management_surface": false,
-      "transport": "tencent_cloud_im_outbound_tls_with_short_lived_usersig",
+      "transport_target": "ably_free_realtime_with_cloudflare_workers_d1_control_plane",
+      "transport_selection_status": "target_pending_mainland_china_probe",
+      "current_implementation": "legacy_tencent_and_go_sqlite_source_not_conformant_to_target",
+      "release_ready": false,
       "optional_web_fallback": "desktop_webui_remains_available_but_is_not_the_ios_product",
       "separate_product_renderer_allowed": false,
       "full_workbench_surface": false
