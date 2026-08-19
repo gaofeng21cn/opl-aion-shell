@@ -170,7 +170,7 @@ describe('CodexAppServerAdapter', () => {
   it('starts remote tasks in the projected desktop workspace while omitting app-server defaults', async () => {
     request.mockImplementation(async (method: string, params: unknown) => {
       if (method === 'thread/start') return { thread: rawThread('remote-thread', { cwd: '/workspace/selected' }) };
-      if (method === 'thread/resume') return resumedThread(rawThread('remote-thread', { cwd: '/workspace/selected' }));
+      if (method === 'thread/read') return { thread: rawThread('remote-thread', { cwd: '/workspace/selected' }) };
       if (method === 'thread/goal/get') return { goal: null };
       if (method === 'model/list') return { data: [] };
       if (method === 'turn/start') return { turn: { id: 'remote-turn' } };
@@ -185,6 +185,7 @@ describe('CodexAppServerAdapter', () => {
 
     expect(result.thread.workspace).toBe('/workspace/selected');
     expect(result.turn).toEqual({ msgId: 'remote-message-001', turnId: 'remote-turn' });
+    expect(request.mock.calls.map(([method]) => method)).not.toContain('thread/resume');
     const threadStart = request.mock.calls.find(([method]) => method === 'thread/start');
     const turnStart = request.mock.calls.find(([method]) => method === 'turn/start');
     expect(threadStart?.[1]).toEqual({ cwd: '/workspace/selected' });
@@ -257,6 +258,7 @@ describe('CodexAppServerAdapter', () => {
 
     await callback.resumeThread(thread);
     const turn = await callback.startTurn({ ...thread, text: 'Hello from WeChat' });
+    expect(request.mock.calls.filter(([method]) => method === 'thread/resume')).toHaveLength(0);
     const onTerminal = vi.fn();
     callback.subscribeTurn(turn, { onTerminal });
     notificationHandler?.('item/agentMessage/delta', {
@@ -310,6 +312,7 @@ describe('CodexAppServerAdapter', () => {
       if (method === 'thread/resume') return resumedThread(rawThread('existing-thread'));
       if (method === 'thread/goal/get') return { goal: null };
       if (method === 'model/list') return { data: [] };
+      if (method === 'turn/start') return { turn: { id: 'turn-1' } };
       throw new Error(`Unexpected method: ${method}`);
     });
 
@@ -325,6 +328,17 @@ describe('CodexAppServerAdapter', () => {
     expect(methods).not.toContain('thread/resume');
     expect(bindingStore.getOrCreate).toHaveBeenCalledOnce();
     expect(bindingStore.assertKnownThread).not.toHaveBeenCalled();
+
+    await callback.resumeThread({
+      canonical_thread_host: binding.canonical_thread_host,
+      canonical_thread_id: binding.canonical_thread_id,
+    });
+    await callback.startTurn({
+      canonical_thread_host: binding.canonical_thread_host,
+      canonical_thread_id: binding.canonical_thread_id,
+      text: 'Continue from WeChat',
+    });
+    expect(request.mock.calls.filter(([method]) => method === 'thread/resume')).toHaveLength(1);
   });
 
   it('serializes exact channel binding creation and fails closed on damaged state', async () => {

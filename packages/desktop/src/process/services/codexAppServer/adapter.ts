@@ -1051,6 +1051,8 @@ export class CodexAppServerAdapter {
   private readonly activeConversations = new Map<string, ActiveConversation>();
   private readonly startingThreads = new Set<string>();
   private readonly loadedThreads = new Set<string>();
+  private readonly writableThreads = new Set<string>();
+  private readonly unmaterializedThreads = new Set<string>();
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly channelTurnSubscriptions = new Map<string, Set<ChannelTurnSubscription>>();
   private readonly channelTurnText = new Map<string, ChannelTurnText>();
@@ -1295,9 +1297,10 @@ export class CodexAppServerAdapter {
     let settings: CodexThreadSettings | undefined;
     let models: CodexThreadModelDescriptor[] | undefined;
     try {
-      if (context) {
+      if (context && !this.unmaterializedThreads.has(threadId)) {
         const resumed = await this.resumeRawThread(threadId);
         raw = resumed.thread;
+        this.writableThreads.add(threadId);
         settings = settingsFromResponse(resumed.response);
         try {
           models = modelsFromResponse(await this.rpc.request('model/list', { limit: 100, includeHidden: false }));
@@ -1345,6 +1348,8 @@ export class CodexAppServerAdapter {
     );
     const thread = mapThread(parseThread(response.thread), false, [], this.host);
     this.loadedThreads.add(thread.id);
+    this.writableThreads.add(thread.id);
+    this.unmaterializedThreads.add(thread.id);
     return thread;
   }
 
@@ -1367,9 +1372,12 @@ export class CodexAppServerAdapter {
   }
 
   async resumeThread(threadId: string): Promise<CodexThreadDescriptor> {
-    const resumed = await this.resumeRawThread(threadId);
-    const thread = mapThread(resumed.thread, false, [], this.host);
+    const raw = this.writableThreads.has(threadId)
+      ? await this.readRawThread(threadId)
+      : (await this.resumeRawThread(threadId)).thread;
+    const thread = mapThread(raw, false, [], this.host);
     this.loadedThreads.add(thread.id);
+    this.writableThreads.add(thread.id);
     return thread;
   }
 
@@ -1380,6 +1388,7 @@ export class CodexAppServerAdapter {
     );
     const thread = mapThread(parseThread(response.thread), false, [threadId], this.host);
     this.loadedThreads.add(thread.id);
+    this.writableThreads.add(thread.id);
     return thread;
   }
 
@@ -1418,6 +1427,8 @@ export class CodexAppServerAdapter {
 
   async archiveThread(threadId: string): Promise<void> {
     await this.rpc.request('thread/archive', { threadId });
+    this.writableThreads.delete(threadId);
+    this.unmaterializedThreads.delete(threadId);
   }
 
   async unarchiveThread(threadId: string): Promise<CodexThreadDescriptor> {
@@ -1434,6 +1445,8 @@ export class CodexAppServerAdapter {
     this.activeConversations.delete(threadId);
     this.startingThreads.delete(threadId);
     this.loadedThreads.delete(threadId);
+    this.writableThreads.delete(threadId);
+    this.unmaterializedThreads.delete(threadId);
   }
 
   async startTurn(
@@ -1457,7 +1470,16 @@ export class CodexAppServerAdapter {
     this.activeConversations.set(threadId, reservation);
 
     try {
-      const thread = await this.readThread(threadId, conversationId).then((detail) => detail.thread);
+      const thread = this.writableThreads.has(threadId)
+        ? mapThread(
+            await this.readRawThread(threadId),
+            false,
+            [],
+            this.host,
+            null,
+            this.assignedProjectAffinities.get(threadId)
+          )
+        : await this.readThread(threadId, conversationId).then((detail) => detail.thread);
       if (thread.activeTurnId) throw new Error('Canonical Codex thread already has an active turn.');
       const context = this.activeConversations.get(threadId) ?? reservation;
       if (context.conversationId !== conversationId) {
@@ -1478,6 +1500,7 @@ export class CodexAppServerAdapter {
       );
       const turn = requiredRecord(response.turn, 'turn start turn');
       const turnId = requiredString(turn.id, 'turn id');
+      this.unmaterializedThreads.delete(threadId);
       context.turnId = turnId;
       this.startingThreads.delete(threadId);
       return { msgId, turnId };
@@ -1582,6 +1605,8 @@ export class CodexAppServerAdapter {
     this.activeConversations.clear();
     this.startingThreads.clear();
     this.loadedThreads.clear();
+    this.writableThreads.clear();
+    this.unmaterializedThreads.clear();
     this.pendingApprovals.clear();
     this.channelTurnSubscriptions.clear();
     this.channelTurnText.clear();
