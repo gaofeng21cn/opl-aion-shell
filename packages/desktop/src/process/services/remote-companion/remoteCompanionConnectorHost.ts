@@ -14,7 +14,6 @@ import {
   createRemoteCompanionConnectorFrameworkActivation,
   type RemoteCompanionConnectorFrameworkActivation,
 } from './remoteCompanionConnectorActivation';
-import { readRemoteBrokerConfig } from './brokerClient';
 import type { CanonicalConversationPort } from './canonicalConversationBridge';
 import type { CodexAppServerAdapter } from '../codexAppServer/adapter';
 
@@ -62,7 +61,6 @@ export type RemoteCompanionConnectorHostStartOptions = Readonly<{
   adapter?: CanonicalConversationPort | CodexAppServerAdapter;
   userDataPath?: string;
   loadBootstrap?: (frameworkPackageRoot: string) => Promise<RemoteCompanionConnectorHostBootstrap>;
-  readBrokerConfig?: typeof readRemoteBrokerConfig;
 }>;
 
 export type RemoteCompanionConnectorHostInitOptions = Readonly<{
@@ -70,7 +68,6 @@ export type RemoteCompanionConnectorHostInitOptions = Readonly<{
   adapter?: CanonicalConversationPort | CodexAppServerAdapter;
   userDataPath?: string;
   loadBootstrap?: (frameworkPackageRoot: string) => Promise<RemoteCompanionConnectorHostBootstrap>;
-  readBrokerConfig?: typeof readRemoteBrokerConfig;
   logWarn?: (message: string) => void;
 }>;
 
@@ -114,8 +111,18 @@ function serviceOrigin(value: string | null): string | null {
   }
 }
 
-function stableJson(value: Record<string, string>): string {
-  return JSON.stringify(Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))));
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    const serialized = JSON.stringify(value);
+    if (serialized === undefined) throw new Error('Remote companion release cohort contains a non-JSON value.');
+    return serialized;
+  }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  const object = value as Record<string, unknown>;
+  return `{${Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
+    .join(',')}}`;
 }
 
 function configDigest(input: {
@@ -124,32 +131,122 @@ function configDigest(input: {
   protocolVersion: string;
   provider: string;
   serviceOrigin: string;
+  configSummary: Record<string, unknown>;
 }): string {
   return `sha256:${crypto
     .createHash('sha256')
     .update(
-      stableJson({
+      canonicalJson({
         environment: input.environment,
         cohort_id: input.cohortId,
         protocol_version: input.protocolVersion,
         provider: input.provider,
         service_origin: input.serviceOrigin,
+        config_summary: input.configSummary,
       }),
       'utf8'
     )
     .digest('hex')}`;
 }
 
-function descriptorActivationContext(
-  descriptorValue: unknown,
-  input: {
-    environment: string;
-    cohortId: string;
-    protocolVersion: string;
-    provider: string;
-    serviceOrigin: string;
+const RELEASE_COHORT_PATH = 'release-cohort.json';
+const RELEASE_COHORT_PROVIDER = 'ably';
+
+type ReleaseCohort = Readonly<{
+  environment: string;
+  cohortId: string;
+  protocolVersion: string;
+  provider: string;
+  serviceOrigin: string;
+  configSummary: Record<string, unknown>;
+  configDigest: string;
+}>;
+
+function readReleaseCohort(descriptorValue: unknown): ReleaseCohort {
+  const descriptor = record(descriptorValue);
+  const manifest = record(descriptor?.manifest);
+  const contentLockPaths = manifest?.content_lock_paths;
+  if (!Array.isArray(contentLockPaths) || !contentLockPaths.includes(RELEASE_COHORT_PATH)) {
+    throw new Error(`Remote companion activation requires ${RELEASE_COHORT_PATH} in the Package content lock.`);
   }
-): RemoteCompanionActivationContext {
+
+  const sourcePath = requiredText(descriptor?.sourcePath, 'sourcePath');
+  const packageRoot = path.resolve(sourcePath);
+  let realPackageRoot: string;
+  let releaseCohortPath: string;
+  let realReleaseCohortPath: string;
+  try {
+    if (!fs.statSync(packageRoot).isDirectory()) throw new Error('Package source path is not a directory.');
+    realPackageRoot = fs.realpathSync.native(packageRoot);
+    releaseCohortPath = path.resolve(packageRoot, RELEASE_COHORT_PATH);
+    if (releaseCohortPath === packageRoot || !releaseCohortPath.startsWith(`${packageRoot}${path.sep}`)) {
+      throw new Error('Release cohort path escapes the Package.');
+    }
+    realReleaseCohortPath = fs.realpathSync.native(releaseCohortPath);
+    if (
+      realReleaseCohortPath === realPackageRoot ||
+      !realReleaseCohortPath.startsWith(`${realPackageRoot}${path.sep}`) ||
+      !fs.statSync(realReleaseCohortPath).isFile()
+    ) {
+      throw new Error('Release cohort path is unavailable or escapes the Package through a link.');
+    }
+  } catch (error) {
+    throw new Error(
+      `Remote companion activation cannot read the Package release cohort: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
+  let releaseCohortValue: unknown;
+  try {
+    releaseCohortValue = JSON.parse(fs.readFileSync(realReleaseCohortPath, 'utf8')) as unknown;
+  } catch (error) {
+    throw new Error(
+      `Remote companion activation cannot parse ${RELEASE_COHORT_PATH}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  const releaseCohort = record(releaseCohortValue);
+  if (!releaseCohort) throw new Error(`Remote companion activation requires an object in ${RELEASE_COHORT_PATH}.`);
+
+  const environment = requiredText(releaseCohort.environment, 'environment');
+  const cohortId = requiredText(releaseCohort.cohort_id, 'cohort_id');
+  const protocolVersion = requiredText(releaseCohort.protocol_version, 'protocol_version');
+  if (protocolVersion !== REMOTE_COMPANION_PROTOCOL_VERSION) {
+    throw new Error(`Remote companion activation requires protocol_version=${REMOTE_COMPANION_PROTOCOL_VERSION}.`);
+  }
+  const provider = requiredText(releaseCohort.provider, 'provider');
+  if (provider !== RELEASE_COHORT_PROVIDER) {
+    throw new Error(`Remote companion activation requires provider=${RELEASE_COHORT_PROVIDER}.`);
+  }
+  const serviceOriginValue = requiredText(releaseCohort.service_origin, 'service_origin');
+  if (!serviceOrigin(serviceOriginValue)) {
+    throw new Error('Remote companion activation requires a pathless HTTPS service_origin.');
+  }
+  const configSummary = record(releaseCohort.config_summary);
+  if (!configSummary) throw new Error(`Remote companion activation requires config_summary in ${RELEASE_COHORT_PATH}.`);
+  const declaredConfigDigest = digest(releaseCohort.config_digest, 'config_digest');
+  const expectedConfigDigest = configDigest({
+    environment,
+    cohortId,
+    protocolVersion,
+    provider,
+    serviceOrigin: serviceOriginValue,
+    configSummary,
+  });
+  if (declaredConfigDigest !== expectedConfigDigest) {
+    throw new Error(`Remote companion activation config_digest does not match ${RELEASE_COHORT_PATH}.`);
+  }
+  return {
+    environment,
+    cohortId,
+    protocolVersion,
+    provider,
+    serviceOrigin: serviceOriginValue,
+    configSummary,
+    configDigest: declaredConfigDigest,
+  };
+}
+
+function descriptorActivationContext(descriptorValue: unknown): RemoteCompanionActivationContext {
   const descriptor = record(descriptorValue);
   const manifest = record(descriptor?.manifest);
   const packageId = requiredText(manifest?.package_id, 'package_id');
@@ -158,15 +255,16 @@ function descriptorActivationContext(
     manifest?.artifact_digest ?? manifest?.package_artifact_digest ?? packageContentDigest,
     'package_artifact_digest'
   );
+  const releaseCohort = readReleaseCohort(descriptorValue);
   return Object.freeze({
     surface_kind: 'opl_remote_companion_activation_context.v1',
     package_id: packageId,
-    environment: input.environment,
-    cohort_id: input.cohortId,
-    protocol_version: input.protocolVersion,
-    provider: input.provider,
-    service_origin: input.serviceOrigin,
-    config_digest: configDigest(input),
+    environment: releaseCohort.environment,
+    cohort_id: releaseCohort.cohortId,
+    protocol_version: releaseCohort.protocolVersion,
+    provider: releaseCohort.provider,
+    service_origin: releaseCohort.serviceOrigin,
+    config_digest: releaseCohort.configDigest,
     package_content_digest: packageContentDigest,
     package_artifact_digest: packageArtifactDigest,
   });
@@ -218,31 +316,15 @@ function validateHostHandle(value: unknown): asserts value is RemoteCompanionCon
 export async function startRemoteCompanionConnectorHost(
   options: RemoteCompanionConnectorHostStartOptions
 ): Promise<RemoteCompanionConnectorHostHandle | null> {
-  const broker = (options.readBrokerConfig ?? readRemoteBrokerConfig)();
-  const origin = serviceOrigin(broker.baseUrl);
-  if (!origin) return null;
-
   const activation = createRemoteCompanionConnectorFrameworkActivation({
     adapter: options.adapter,
     userDataPath: options.userDataPath,
   });
-  const environment =
-    process.env.OPL_REMOTE_COMPANION_ENVIRONMENT?.trim() ||
-    (process.env.NODE_ENV === 'production' ? 'production' : 'development');
-  const cohort = process.env.OPL_REMOTE_COMPANION_COHORT?.trim() || 'local';
-  const provider = 'tencent_cloud_im';
-  const contextInput = {
-    environment,
-    cohortId: cohort,
-    protocolVersion: REMOTE_COMPANION_PROTOCOL_VERSION,
-    provider,
-    serviceOrigin: origin,
-  };
   const bootstrap = await (options.loadBootstrap ?? loadFrameworkBootstrap)(options.frameworkPackageRoot);
   const handle = await bootstrap({
     canonical_conversation_bridge: activation.conversationCallback,
     protectedBlobHost: activation.protectedBlobHost,
-    activationContext: (descriptor) => descriptorActivationContext(descriptor, contextInput),
+    activationContext: descriptorActivationContext,
   });
   validateHostHandle(handle);
   return handle;
@@ -261,7 +343,6 @@ export function initRemoteCompanionConnectorHost(options: RemoteCompanionConnect
         ...(options.adapter ? { adapter: options.adapter } : {}),
         ...(options.userDataPath ? { userDataPath: options.userDataPath } : {}),
         ...(options.loadBootstrap ? { loadBootstrap: options.loadBootstrap } : {}),
-        ...(options.readBrokerConfig ? { readBrokerConfig: options.readBrokerConfig } : {}),
       })
     )
     .catch((error): null => {
@@ -339,9 +420,11 @@ export async function disposeRemoteCompanionConnectorHost(): Promise<void> {
 }
 
 export const __remoteCompanionConnectorHostTest = {
+  canonicalJson,
   configDigest,
   descriptorActivationContext,
   loadFrameworkBootstrap,
+  readReleaseCohort,
   ownsRequest,
   serviceOrigin,
 };
