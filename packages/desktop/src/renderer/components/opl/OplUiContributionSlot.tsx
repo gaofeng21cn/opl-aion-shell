@@ -43,14 +43,14 @@ function admittedInAionUi(entry: OplUiContribution): boolean {
   if (entry.view?.viewType === 'channel_access' && entry.actionBoundary === 'opl.connect.channel-provider-host')
     return false;
   if (entry.view?.viewType === REMOTE_COMPANION_ACCESS_VIEW_TYPE) {
-    return entry.actionBoundary === 'opl.connect.remote-companion-connector';
+    return entry.actionBoundary === 'opl.connect.remote-companion-connector-host';
   }
   return true;
 }
 
 function commandInvocationKey(entry: OplUiContribution, commandId: string, input: Record<string, unknown>): string {
   const safeInput = Object.fromEntries(
-    Object.entries(input).filter(([key]) => key !== 'authentication_string' && key !== 'claim_secret')
+    Object.entries(input).filter(([key]) => key !== 'authentication_digits' && key !== 'claim_secret')
   );
   return `${entry.contributionKey}:${commandId}:${JSON.stringify(safeInput)}`;
 }

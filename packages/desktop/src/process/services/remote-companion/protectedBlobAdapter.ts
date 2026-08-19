@@ -10,6 +10,8 @@ import path from 'node:path';
 import { safeStorage } from 'electron';
 
 export const REMOTE_COMPANION_PROTECTED_BLOB_MAX_BYTES = 256 * 1024;
+const PROTECTED_BLOB_SCHEMA = 'opl_remote_companion_protected_blob.v1';
+const LEGACY_KEY = '__legacy__';
 
 export type ProtectedBlobSafeStorage = {
   isEncryptionAvailable: () => boolean;
@@ -25,6 +27,16 @@ export type ProtectedBlobFs = {
   unlinkSync: typeof fs.unlinkSync;
   existsSync: typeof fs.existsSync;
 };
+
+export type ProtectedBlobPort = Readonly<{
+  read(key: string): Promise<Uint8Array | null>;
+  replace(key: string, value: Uint8Array): Promise<void>;
+  clear(key: string): Promise<void>;
+}>;
+
+export type ProtectedBlobHost = Readonly<{
+  forPackage(packageId: string): ProtectedBlobPort;
+}>;
 
 export class ProtectedBlobUnavailableError extends Error {
   readonly code = 'protected_blob_unavailable' as const;
@@ -52,9 +64,21 @@ export type ProtectedBlobAdapterOptions = {
   randomId?: () => string;
 };
 
+type ProtectedBlobDocument = {
+  schema: typeof PROTECTED_BLOB_SCHEMA;
+  entries: Record<string, string>;
+};
+
 function packageIdForScope(value: string): string {
   if (!/^[a-z0-9](?:[a-z0-9._-]*[a-z0-9])?$/.test(value) || value.length > 128) {
     throw new ProtectedBlobInvalidError('Protected blob package id is not a valid scoped id.');
+  }
+  return value;
+}
+
+function keyForScope(value: unknown): string {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 512 || /\p{Cc}/u.test(value)) {
+    throw new ProtectedBlobInvalidError('Protected blob key is not a bounded opaque key.');
   }
   return value;
 }
@@ -67,18 +91,27 @@ function isSafeStorageAvailable(api: ProtectedBlobSafeStorage): boolean {
   }
 }
 
-function decodePlaintext(value: string): Buffer {
-  if (!/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) {
-    throw new ProtectedBlobInvalidError('Protected blob plaintext is not a valid opaque encoding.');
+function decodeBytes(value: unknown): Buffer {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(value) || value.length % 4 !== 0) {
+    throw new ProtectedBlobInvalidError('Protected blob entry is not a canonical opaque encoding.');
   }
   const decoded = Buffer.from(value, 'base64');
   if (decoded.toString('base64') !== value) {
-    throw new ProtectedBlobInvalidError('Protected blob plaintext is not a canonical opaque encoding.');
+    throw new ProtectedBlobInvalidError('Protected blob entry is not a canonical opaque encoding.');
   }
   if (decoded.byteLength > REMOTE_COMPANION_PROTECTED_BLOB_MAX_BYTES) {
     throw new ProtectedBlobInvalidError('Protected blob exceeds the Package size limit.');
   }
   return decoded;
+}
+
+function documentBytes(document: ProtectedBlobDocument): Buffer {
+  const encoded = JSON.stringify(document);
+  const bytes = Buffer.from(encoded, 'utf8');
+  if (bytes.byteLength > REMOTE_COMPANION_PROTECTED_BLOB_MAX_BYTES) {
+    throw new ProtectedBlobInvalidError('Protected blob exceeds the Package size limit.');
+  }
+  return bytes;
 }
 
 export class ProtectedBlobAdapter {
@@ -105,33 +138,115 @@ export class ProtectedBlobAdapter {
     return isSafeStorageAvailable(this.storage) ? 'available' : 'unavailable';
   }
 
-  read(): Buffer | null {
-    this.assertAvailable();
-    if (!this.fsApi.existsSync(this.filePath)) return null;
-    let encrypted: Buffer;
-    try {
-      encrypted = Buffer.from(this.fsApi.readFileSync(this.filePath));
-    } catch (error) {
-      throw new ProtectedBlobInvalidError(
-        `Protected blob could not be read: ${error instanceof Error ? error.message : 'unknown error'}`
-      );
-    }
-    let plaintext: string;
-    try {
-      plaintext = this.storage.decryptString(encrypted);
-    } catch {
-      throw new ProtectedBlobInvalidError('Protected blob could not be decrypted.');
-    }
-    return decodePlaintext(plaintext);
+  /** Compatibility API for the existing Shell-owned opaque blob surface. */
+  read(): Buffer | null;
+  /** Framework package-host port API. */
+  read(key: string): Promise<Uint8Array | null>;
+  read(key?: string): Buffer | null | Promise<Uint8Array | null> {
+    if (key === undefined) return this.readLegacy();
+    return Promise.resolve(this.readKey(key));
   }
 
+  /** Compatibility API for the existing Shell-owned opaque blob surface. */
   replace(value: Uint8Array): void {
     this.assertAvailable();
+    const bytes = Buffer.from(value);
+    const document: ProtectedBlobDocument = {
+      schema: PROTECTED_BLOB_SCHEMA,
+      entries: { [LEGACY_KEY]: bytes.toString('base64') },
+    };
+    this.writeDocument(document);
+  }
+
+  /** Compatibility API for the existing Shell-owned opaque blob surface. */
+  clear(): void {
+    this.assertAvailable();
+    if (this.fsApi.existsSync(this.filePath)) this.fsApi.unlinkSync(this.filePath);
+  }
+
+  frameworkPort(): ProtectedBlobPort {
+    return Object.freeze({
+      read: (key: string) => {
+        const value = this.readKey(key);
+        return Promise.resolve(value === null ? null : new Uint8Array(value));
+      },
+      replace: (key: string, value: Uint8Array) => {
+        this.writeKey(key, value);
+        return Promise.resolve();
+      },
+      clear: (key: string) => {
+        this.deleteKey(key);
+        return Promise.resolve();
+      },
+    });
+  }
+
+  private readLegacy(): Buffer | null {
+    return this.readKey(LEGACY_KEY);
+  }
+
+  private readKey(keyValue: string): Buffer | null {
+    this.assertAvailable();
+    const key = keyForScope(keyValue);
+    const document = this.readDocument();
+    const encoded = document.entries[key];
+    return encoded === undefined ? null : decodeBytes(encoded);
+  }
+
+  private writeKey(keyValue: string, value: Uint8Array): void {
+    this.assertAvailable();
+    const key = keyForScope(keyValue);
     const bytes = Buffer.from(value);
     if (bytes.byteLength > REMOTE_COMPANION_PROTECTED_BLOB_MAX_BYTES) {
       throw new ProtectedBlobInvalidError('Protected blob exceeds the Package size limit.');
     }
-    const encrypted = this.storage.encryptString(bytes.toString('base64'));
+    const current = this.readDocument();
+    current.entries[key] = bytes.toString('base64');
+    this.writeDocument(current);
+  }
+
+  private deleteKey(keyValue: string): void {
+    this.assertAvailable();
+    const key = keyForScope(keyValue);
+    const current = this.readDocument();
+    if (!(key in current.entries)) return;
+    delete current.entries[key];
+    if (Object.keys(current.entries).length === 0) {
+      this.clear();
+      return;
+    }
+    this.writeDocument(current);
+  }
+
+  private readDocument(): ProtectedBlobDocument {
+    if (!this.fsApi.existsSync(this.filePath)) return { schema: PROTECTED_BLOB_SCHEMA, entries: {} };
+    this.assertAvailable();
+    let parsed: unknown;
+    try {
+      const encrypted = Buffer.from(this.fsApi.readFileSync(this.filePath));
+      parsed = JSON.parse(this.storage.decryptString(encrypted));
+    } catch {
+      throw new ProtectedBlobInvalidError('Protected blob could not be decrypted.');
+    }
+    const record =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+    const entries = record?.entries;
+    if (record?.schema !== PROTECTED_BLOB_SCHEMA || !entries || typeof entries !== 'object' || Array.isArray(entries)) {
+      throw new ProtectedBlobInvalidError('Protected blob document is invalid.');
+    }
+    const normalized: Record<string, string> = {};
+    for (const [key, encoded] of Object.entries(entries)) {
+      keyForScope(key);
+      decodeBytes(encoded);
+      normalized[key] = encoded as string;
+    }
+    return { schema: PROTECTED_BLOB_SCHEMA, entries: normalized };
+  }
+
+  private writeDocument(document: ProtectedBlobDocument): void {
+    this.assertAvailable();
+    const plaintext = documentBytes(document).toString('utf8');
+    const encrypted = this.storage.encryptString(plaintext);
     const root = path.dirname(this.filePath);
     this.fsApi.mkdirSync(root, { recursive: true, mode: 0o700 });
     const temporaryPath = path.join(root, `.${path.basename(this.filePath)}.${this.randomId()}.tmp`);
@@ -148,14 +263,24 @@ export class ProtectedBlobAdapter {
     }
   }
 
-  clear(): void {
-    this.assertAvailable();
-    if (this.fsApi.existsSync(this.filePath)) this.fsApi.unlinkSync(this.filePath);
-  }
-
   private assertAvailable(): void {
     if (!isSafeStorageAvailable(this.storage)) throw new ProtectedBlobUnavailableError();
   }
+}
+
+export function createProtectedBlobHost(options: Omit<ProtectedBlobAdapterOptions, 'packageId'>): ProtectedBlobHost {
+  const adapters = new Map<string, ProtectedBlobAdapter>();
+  return Object.freeze({
+    forPackage(packageId: string): ProtectedBlobPort {
+      const normalized = packageIdForScope(packageId);
+      let adapter = adapters.get(normalized);
+      if (!adapter) {
+        adapter = new ProtectedBlobAdapter({ ...options, packageId: normalized });
+        adapters.set(normalized, adapter);
+      }
+      return adapter.frameworkPort();
+    },
+  });
 }
 
 export { ProtectedBlobAdapter as ElectronProtectedBlobAdapter };

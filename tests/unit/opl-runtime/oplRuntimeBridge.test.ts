@@ -502,6 +502,74 @@ describe('OPL runtime bridge command whitelist', () => {
     });
   });
 
+  it('keeps channel and remote companion projections together across nested App state merges', () => {
+    const base = {
+      surface: 'app_state_fast' as const,
+      command: 'opl app state --profile fast --json',
+      stdout: '{}',
+      parsed: {
+        request_id: 'request-2',
+        app_state: {
+          release: { channel: 'preview' },
+          ui_contributions: {
+            contribution_count: 3,
+            entries: [
+              { package_id: 'keep-package', slot: 'runtime.detail', view: { view_type: 'list_detail' } },
+              { package_id: 'stale-channel', slot: 'settings.section', view: { view_type: 'channel_access' } },
+              { package_id: 'stale-remote', slot: 'settings.section', view: { view_type: 'remote_companion_access' } },
+            ],
+            slots: {},
+          },
+          transport_bindings: { surface_kind: 'base_transport_projection.v1' },
+        },
+      },
+      ok: true as const,
+    };
+    const withChannel = __oplRuntimeBridgeTest.mergeChannelProviderAppStatePatch(base, {
+      ui_contributions: {
+        entries: [{ package_id: 'current-channel', slot: 'settings.section', view: { view_type: 'channel_access' } }],
+      },
+      transport_bindings: { surface_kind: 'current_transport_projection.v1' },
+    });
+    const merged = __oplRuntimeBridgeTest.mergeRemoteCompanionAppStatePatch(withChannel, {
+      ui_contributions: {
+        entries: [
+          {
+            package_id: 'current-remote',
+            slot: 'settings.section',
+            view: { view_type: 'remote_companion_access' },
+          },
+        ],
+      },
+      remote_companion: { surface_kind: 'opl_remote_companion_projection.v1', status: 'unpaired' },
+    });
+    const parsed = merged.parsed as {
+      request_id: string;
+      app_state: {
+        release: { channel: string };
+        transport_bindings: unknown;
+        remote_companion: unknown;
+        ui_contributions: {
+          entries: Array<{ package_id: string }>;
+          slots: Record<string, unknown[]>;
+        };
+      };
+    };
+    expect(parsed.request_id).toBe('request-2');
+    expect(parsed.app_state.release).toEqual({ channel: 'preview' });
+    expect(parsed.app_state.transport_bindings).toEqual({ surface_kind: 'current_transport_projection.v1' });
+    expect(parsed.app_state.remote_companion).toEqual({
+      surface_kind: 'opl_remote_companion_projection.v1',
+      status: 'unpaired',
+    });
+    expect(parsed.app_state.ui_contributions.entries.map((entry) => entry.package_id)).toEqual([
+      'keep-package',
+      'current-channel',
+      'current-remote',
+    ]);
+    expect(parsed.app_state.ui_contributions.slots['settings.section']).toHaveLength(2);
+  });
+
   it('recognizes only exact package contribution action payloads for Host routing', () => {
     expect(
       __oplRuntimeBridgeTest.channelAccessActionRequest({

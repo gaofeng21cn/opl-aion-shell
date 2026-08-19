@@ -34,6 +34,10 @@ import {
   readActiveChannelProviderAppStatePatch,
   runActiveChannelProviderAccess,
 } from '../services/codexAppServer/channelProviderHost';
+import {
+  readActiveRemoteCompanionAppStatePatch,
+  runActiveRemoteCompanionAccess,
+} from '../services/remote-companion/remoteCompanionConnectorHost';
 
 type RuntimeCommandSpec = {
   args: string[];
@@ -435,6 +439,19 @@ function channelProviderHostResult(
   };
 }
 
+function remoteCompanionHostResult(
+  request: IOplPackageContributionRequest,
+  parsed: Readonly<Record<string, unknown>>
+): IOplRuntimeCommandResult {
+  return {
+    surface: request.operation === 'read' ? 'package_contribution_read' : 'package_contribution_execute',
+    command: 'opl.connect.remote-companion-connector-host',
+    stdout: JSON.stringify(parsed),
+    parsed,
+    ok: true,
+  };
+}
+
 function mergeChannelProviderAppStatePatch(
   result: IOplRuntimeCommandResult,
   patch: Readonly<Record<string, unknown>> | undefined
@@ -478,10 +495,53 @@ function mergeChannelProviderAppStatePatch(
   };
 }
 
+function mergeRemoteCompanionAppStatePatch(
+  result: IOplRuntimeCommandResult,
+  patch: Readonly<Record<string, unknown>> | undefined
+): IOplRuntimeCommandResult {
+  if (!patch || !isRecord(result.parsed) || !isRecord(patch.ui_contributions)) return result;
+  const parsed = result.parsed;
+  const nestedAppState = isRecord(parsed.app_state) ? parsed.app_state : null;
+  const appState = nestedAppState ?? parsed;
+  const baseProjection = isRecord(appState.ui_contributions) ? appState.ui_contributions : {};
+  const baseEntries = Array.isArray(baseProjection.entries) ? baseProjection.entries.filter(isRecord) : [];
+  const hostEntries = Array.isArray(patch.ui_contributions.entries)
+    ? patch.ui_contributions.entries.filter(isRecord)
+    : [];
+  const isRemoteCompanionAccess = (entry: Record<string, unknown>) =>
+    isRecord(entry.view) && entry.view.view_type === 'remote_companion_access';
+  const entries = [...baseEntries.filter((entry) => !isRemoteCompanionAccess(entry)), ...hostEntries];
+  const slots = Object.fromEntries(
+    ['composer.palette', 'runtime.detail', 'settings.section'].map((slot) => [
+      slot,
+      entries.filter((entry) => entry.slot === slot),
+    ])
+  );
+  const uiContributions = {
+    ...baseProjection,
+    ...patch.ui_contributions,
+    contribution_count: entries.length,
+    entries,
+    slots,
+  };
+  const mergedAppState = {
+    ...appState,
+    ui_contributions: uiContributions,
+    ...(patch.remote_companion === undefined ? {} : { remote_companion: patch.remote_companion }),
+  };
+  const mergedParsed = nestedAppState ? { ...parsed, app_state: mergedAppState } : mergedAppState;
+  return {
+    ...result,
+    stdout: JSON.stringify(mergedParsed),
+    parsed: mergedParsed,
+  };
+}
+
 async function runAppStateRequest(profile: IOplAppStateProfile): Promise<IOplRuntimeCommandResult> {
   const result = await runOplCommand(buildAppStateCommand(profile));
   if (result.ok === false) return result;
-  return mergeChannelProviderAppStatePatch(result, await readActiveChannelProviderAppStatePatch());
+  const withChannelProvider = mergeChannelProviderAppStatePatch(result, await readActiveChannelProviderAppStatePatch());
+  return mergeRemoteCompanionAppStatePatch(withChannelProvider, await readActiveRemoteCompanionAppStatePatch());
 }
 
 async function runPackageContributionRequest(
@@ -490,6 +550,16 @@ async function runPackageContributionRequest(
   const packageId = assertPackageContributionId(request.packageId, 'package id');
   const ref = assertPackageContributionId(request.ref, 'ref');
   const input = assertPackageContributionInput(request.input ?? {});
+  const remoteCompanion = await runActiveRemoteCompanionAccess(
+    {
+      package_id: packageId,
+      ref,
+      input,
+      ...(request.confirmed === true ? { confirmed: true } : {}),
+    },
+    request.operation
+  );
+  if (remoteCompanion) return remoteCompanionHostResult(request, remoteCompanion);
   const direct = await runActiveChannelProviderAccess(
     {
       package_id: packageId,
@@ -523,6 +593,16 @@ async function runRuntimeActionRequest(request: IOplRuntimeActionRequest): Promi
   if (channelRequest) {
     const packageId = channelRequest.packageId;
     const ref = channelRequest.ref;
+    const remoteCompanion = await runActiveRemoteCompanionAccess(
+      {
+        package_id: packageId,
+        ref,
+        input: channelRequest.input ?? {},
+        ...(channelRequest.confirmed === true ? { confirmed: true } : {}),
+      },
+      'execute'
+    );
+    if (remoteCompanion) return remoteCompanionHostResult(channelRequest, remoteCompanion);
     const direct = await runActiveChannelProviderAccess(
       {
         package_id: packageId,
@@ -2183,6 +2263,7 @@ export const __oplRuntimeBridgeTest = {
   assertPackageContributionId,
   channelAccessActionRequest,
   mergeChannelProviderAppStatePatch,
+  mergeRemoteCompanionAppStatePatch,
   assertDomainDetailItemId,
   assertDomainDetailViewId,
   assertDomainDetailRevision,

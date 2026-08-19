@@ -61,6 +61,21 @@ export type CanonicalConversationBridgeOptions = {
   port: CanonicalConversationPort;
 };
 
+export type CanonicalConversationFrameworkCallback = Readonly<{
+  listDirectory(input?: Readonly<Record<string, unknown>>): Promise<unknown>;
+  readHistory(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  startConversation(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  openConversation(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  sendMessage(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  subscribeEvents(
+    observer: Readonly<{ onEvent(event: unknown): void | Promise<void> }>,
+    input?: Readonly<Record<string, unknown>>
+  ): CanonicalConversationSubscription;
+  stopTurn(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  respondApproval(input: Readonly<Record<string, unknown>>): Promise<unknown>;
+  refresh(input?: Readonly<Record<string, unknown>>): Promise<unknown>;
+}>;
+
 function requiredString(value: unknown, field: string): string {
   if (typeof value !== 'string' || !value.trim() || value !== value.trim()) {
     throw new Error(`Canonical conversation requires an exact ${field}.`);
@@ -71,6 +86,35 @@ function requiredString(value: unknown, field: string): string {
 function optionalExactString(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined;
   return requiredString(value, field);
+}
+
+function inputRecord(value: unknown): Readonly<Record<string, unknown>> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Canonical conversation callback input must be an object.');
+  }
+  return value as Readonly<Record<string, unknown>>;
+}
+
+function inputValue(input: Readonly<Record<string, unknown>>, snakeCase: string, camelCase = snakeCase): unknown {
+  return input[snakeCase] ?? input[camelCase] ?? (snakeCase === 'message_id' ? input.msg_id : undefined);
+}
+
+function inputString(
+  input: Readonly<Record<string, unknown>>,
+  snakeCase: string,
+  field: string,
+  camelCase = snakeCase
+): string {
+  return requiredString(inputValue(input, snakeCase, camelCase), field);
+}
+
+function inputOptionalString(
+  input: Readonly<Record<string, unknown>>,
+  snakeCase: string,
+  field: string,
+  camelCase = snakeCase
+): string | undefined {
+  return optionalExactString(inputValue(input, snakeCase, camelCase), field);
 }
 
 function approvalMatches(message: IResponseMessage, requestId: string, decision: CodexThreadApprovalDecision): boolean {
@@ -232,6 +276,142 @@ export class CanonicalConversationBridge {
     }
     if (input.conversationId !== undefined) throw new Error('Conversation refresh requires a thread id.');
     return { scope: 'directory', directory: await this.directory(input.directory) };
+  }
+
+  /**
+   * The Framework package ABI is deliberately transport-neutral. Keep the
+   * snake_case wire fields at this boundary and translate to the canonical
+   * adapter's typed requests here.
+   */
+  frameworkCallback(): CanonicalConversationFrameworkCallback {
+    return Object.freeze({
+      listDirectory: (rawInput = {}) => {
+        const input = inputRecord(rawInput);
+        return this.directory({
+          ...(inputValue(input, 'project_id', 'projectId') === undefined
+            ? {}
+            : { projectId: inputString(input, 'project_id', 'project id', 'projectId') }),
+          ...(inputValue(input, 'workspace') === undefined
+            ? {}
+            : { workspace: inputString(input, 'workspace', 'workspace') }),
+          ...(inputValue(input, 'include_archived', 'includeArchived') === undefined
+            ? {}
+            : {
+                includeArchived: inputValue(input, 'include_archived', 'includeArchived') === true,
+              }),
+        });
+      },
+      readHistory: (rawInput) => {
+        const input = inputRecord(rawInput);
+        return this.history(
+          inputString(input, 'thread_id', 'thread id', 'threadId'),
+          inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId')
+        );
+      },
+      startConversation: (rawInput) => {
+        const input = inputRecord(rawInput);
+        const text = inputValue(input, 'text');
+        const model = inputOptionalString(input, 'model', 'model');
+        return this.start({
+          workspace: inputString(input, 'workspace', 'workspace'),
+          ...(text === undefined ? {} : { text: requiredString(text, 'start text') }),
+          ...(inputValue(input, 'message_id', 'msgId') === undefined
+            ? {}
+            : { msgId: inputString(input, 'message_id', 'message id', 'msgId') }),
+          ...(model === undefined ? {} : { model }),
+        });
+      },
+      openConversation: (rawInput) => {
+        const input = inputRecord(rawInput);
+        return this.open(
+          inputString(input, 'thread_id', 'thread id', 'threadId'),
+          inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId')
+        );
+      },
+      sendMessage: (rawInput) => {
+        const input = inputRecord(rawInput);
+        return this.send({
+          threadId: inputString(input, 'thread_id', 'thread id', 'threadId'),
+          conversationId: inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId'),
+          text: inputString(input, 'text', 'text'),
+          msgId: inputString(input, 'message_id', 'message id', 'msgId'),
+        });
+      },
+      subscribeEvents: (observer, rawInput = {}) => {
+        if (!observer || typeof observer.onEvent !== 'function') {
+          throw new Error('Canonical conversation callback requires an event observer.');
+        }
+        const input = inputRecord(rawInput);
+        const subscription = this.subscribe(
+          {
+            threadId: inputString(input, 'thread_id', 'thread id', 'threadId'),
+            conversationId: inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId'),
+            turnId: inputOptionalString(input, 'turn_id', 'turn id', 'turnId'),
+          },
+          (event) => {
+            void observer.onEvent(event);
+          }
+        );
+        return subscription;
+      },
+      stopTurn: (rawInput) => {
+        const input = inputRecord(rawInput);
+        if (Object.hasOwn(input, 'turn_id') || Object.hasOwn(input, 'turnId')) {
+          throw new Error('Canonical stop does not accept a client-selected turn id.');
+        }
+        return this.stop({
+          threadId: inputString(input, 'thread_id', 'thread id', 'threadId'),
+          conversationId: inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId'),
+        });
+      },
+      respondApproval: (rawInput) => {
+        const input = inputRecord(rawInput);
+        const decision = inputValue(input, 'decision');
+        if (
+          decision !== 'accept' &&
+          decision !== 'acceptForSession' &&
+          decision !== 'acceptAlways' &&
+          decision !== 'acceptWithExecpolicyAmendment' &&
+          decision !== 'applyNetworkPolicyAmendment' &&
+          decision !== 'decline' &&
+          decision !== 'cancel'
+        ) {
+          throw new Error('Canonical approval decision is invalid.');
+        }
+        return this.respondApproval({
+          threadId: inputString(input, 'thread_id', 'thread id', 'threadId'),
+          conversationId: inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId'),
+          requestId: inputString(input, 'request_id', 'approval request id', 'requestId'),
+          decision,
+          ...(input.answers === undefined
+            ? {}
+            : { answers: input.answers as CodexThreadApprovalResponseRequest['answers'] }),
+          ...(input.content === undefined
+            ? {}
+            : { content: input.content as CodexThreadApprovalResponseRequest['content'] }),
+        });
+      },
+      refresh: (rawInput = {}) => {
+        const input = inputRecord(rawInput);
+        const threadId = inputOptionalString(input, 'thread_id', 'thread id', 'threadId');
+        const conversationId = inputOptionalString(input, 'conversation_id', 'conversation id', 'conversationId');
+        if (threadId) return this.refresh({ threadId, conversationId });
+        if (conversationId) throw new Error('Conversation refresh requires a thread id.');
+        return this.refresh({
+          directory: {
+            ...(inputValue(input, 'project_id', 'projectId') === undefined
+              ? {}
+              : { projectId: inputString(input, 'project_id', 'project id', 'projectId') }),
+            ...(inputValue(input, 'workspace') === undefined
+              ? {}
+              : { workspace: inputString(input, 'workspace', 'workspace') }),
+            ...(inputValue(input, 'include_archived', 'includeArchived') === undefined
+              ? {}
+              : { includeArchived: inputValue(input, 'include_archived', 'includeArchived') === true }),
+          },
+        });
+      },
+    });
   }
 }
 

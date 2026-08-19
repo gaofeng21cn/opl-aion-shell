@@ -18,6 +18,8 @@ import { disposeCodexAppServerBridge, initCodexAppServerBridge } from './codexAp
 import type { CodexAppServerAdapter } from '../services/codexAppServer/adapter';
 import { initGitWorkspaceBridge, type GitWorkspacePort } from '../services/git-workspace';
 import { disposeRemoteCompanionBridge, initRemoteCompanionBridge } from './remoteCompanionBridge';
+import { resolveActiveOplFrameworkPackageRoot } from './oplRuntimeBridge';
+import { initRemoteCompanionConnectorHost } from '../services/remote-companion/remoteCompanionConnectorHost';
 
 export type BridgeDependencies = {
   gitWorkspacePort?: GitWorkspacePort;
@@ -37,6 +39,15 @@ export function initAllBridges(deps: BridgeDependencies = {}): void {
   initLocalDataLifecycleBridge();
   initGitWorkspaceBridge(deps.gitWorkspacePort);
   initCodexAppServerBridge(deps.codexAppServerAdapter);
+  let frameworkPackageRoot: string | null = null;
+  try {
+    frameworkPackageRoot = resolveActiveOplFrameworkPackageRoot();
+  } catch (error) {
+    console.warn(
+      `[AionUi:remote-companion] Framework carrier unavailable: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+  initRemoteCompanionConnectorHost({ frameworkPackageRoot });
   initRemoteCompanionBridge();
 }
 

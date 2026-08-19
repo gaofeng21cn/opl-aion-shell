@@ -11,6 +11,7 @@ import { RemoteCompanionService } from '../services/remote-companion/RemoteCompa
 import { readRemoteBrokerConfig, RemoteBrokerClient } from '../services/remote-companion/brokerClient';
 import { ElectronRemoteCredentialStore } from '../services/remote-companion/credentialStore';
 import { TencentCloudImAdapter } from '../services/remote-companion/tencentImAdapter';
+import { disposeRemoteCompanionConnectorHost } from '../services/remote-companion/remoteCompanionConnectorHost';
 import { getActiveCodexAppServerAdapter } from './codexAppServerBridge';
 import { resolveSelectedWorkspaceRoot } from './oplRuntimeBridge';
 
@@ -160,7 +161,11 @@ export async function disposeRemoteCompanionBridge(): Promise<void> {
   disposeStateListener = null;
   const service = activeService;
   activeService = null;
-  await service?.dispose();
+  try {
+    await service?.dispose();
+  } finally {
+    await disposeRemoteCompanionConnectorHost();
+  }
 }
 
 export const __remoteCompanionBridgeTest = {

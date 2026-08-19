@@ -75,8 +75,18 @@
       "qrCode": "Remote companion pairing QR code",
       "shortCode": "Manual pairing code",
       "authentication": "Compare this code with the phone before confirming",
-      "deviceLabel": "Device label",
+      "authenticationPlaceholder": "Enter the six digits",
+      "invitationCode": "Invitation code",
+      "invitationCodePlaceholder": "Paste the invitation code",
+      "deviceName": "Device name",
+      "deviceNamePlaceholder": "Name this desktop",
+      "devices": "Devices",
+      "deviceTypes": {
+        "desktop": "Desktop",
+        "mobile": "Mobile"
+      },
       "states": {
+        "unavailable": "Unavailable",
         "unpaired": "Not paired",
         "reserving": "Preparing pairing",
         "qr_ready": "Ready to scan",

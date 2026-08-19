@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  createProtectedBlobHost,
   ProtectedBlobAdapter,
   ProtectedBlobInvalidError,
   ProtectedBlobUnavailableError,
@@ -72,5 +73,30 @@ describe('ProtectedBlobAdapter', () => {
     expect(() => unavailable.read()).toThrow(ProtectedBlobUnavailableError);
     expect(() => unavailable.replace(Buffer.from('x'))).toThrow(ProtectedBlobUnavailableError);
     expect(() => unavailable.clear()).toThrow(ProtectedBlobUnavailableError);
+  });
+
+  it('exposes the Framework package-scoped port with the exact read/replace/clear ABI', async () => {
+    const root = tempRoot();
+    const adapter = new ProtectedBlobAdapter({ userDataPath: root, packageId: 'connector', safeStorageApi: storage() });
+    const port = adapter.frameworkPort();
+
+    expect(Object.keys(port).sort()).toEqual(['clear', 'read', 'replace']);
+    await port.replace('pairing', new Uint8Array(Buffer.from('opaque')));
+    expect(await port.read('pairing')).toEqual(new Uint8Array(Buffer.from('opaque')));
+    await port.clear('pairing');
+    expect(await port.read('pairing')).toBeNull();
+  });
+
+  it('keeps Framework host storage isolated by manifest package id', async () => {
+    const root = tempRoot();
+    const host = createProtectedBlobHost({ userDataPath: root, safeStorageApi: storage() });
+    const first = host.forPackage('connector-one');
+    const second = host.forPackage('connector-two');
+
+    await first.replace('state', new Uint8Array([1, 2, 3]));
+    expect(await first.read('state')).toEqual(new Uint8Array([1, 2, 3]));
+    expect(await second.read('state')).toBeNull();
+    await first.clear('state');
+    expect(await first.read('state')).toBeNull();
   });
 });

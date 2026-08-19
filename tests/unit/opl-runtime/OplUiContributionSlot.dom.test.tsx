@@ -53,6 +53,8 @@ function contribution(
   input: {
     actionBoundary?: string;
     confirmationRequired?: boolean;
+    commandId?: string;
+    actionRef?: string;
     kind?: string;
     slot?: string;
     viewType?: string;
@@ -76,9 +78,9 @@ function contribution(
     },
     commands: [
       {
-        command_id: 'refresh',
+        command_id: input.commandId ?? 'refresh',
         label_i18n: { 'en-US': 'Refresh activity' },
-        action_ref: 'example.activity.v1#refresh',
+        action_ref: input.actionRef ?? 'example.activity.v1#refresh',
         confirmation_required: input.confirmationRequired ?? false,
       },
     ],
@@ -224,7 +226,9 @@ describe('OplUiContributionSlot', () => {
     localStorage.clear();
     stateMocks.appState = appState([
       contribution({
-        actionBoundary: 'opl.connect.remote-companion-connector',
+        actionBoundary: 'opl.connect.remote-companion-connector-host',
+        commandId: 'pair.confirm',
+        actionRef: 'example.activity.v1#pair-confirm',
         slot: 'settings.section',
         viewType: 'remote_companion_access',
       }),
@@ -253,14 +257,18 @@ describe('OplUiContributionSlot', () => {
             operation: 'read',
             result: {
               schema_version: 'opl-app-remote-companion-access.v1',
-              status: 'available',
-              state: 'awaiting_confirmation',
+              status: 'awaiting_confirmation',
               pairing: {
                 pairing_id: 'pair-001',
-                expires_at_ms: 1_800_000_000_000,
-                authentication_string: '123 456',
+                expires_at: '2026-08-19T01:00:00.000Z',
+                authentication_digits: '123456',
               },
-              actions: [{ action_kind: 'confirm', command_id: 'refresh', input: { pairing_id: 'pair-001' } }],
+              actions: [
+                {
+                  command_id: 'pair.confirm',
+                  input: { pairing_id: 'pair-001', authentication_digits: '123456' },
+                },
+              ],
             },
           },
         },
@@ -277,7 +285,8 @@ describe('OplUiContributionSlot', () => {
       expect(stateMocks.executeAction).toHaveBeenCalledWith(
         expect.objectContaining({
           payloadJson: expect.objectContaining({
-            input: { pairing_id: 'pair-001', authentication_string: '123 456' },
+            ref: 'example.activity.v1#pair-confirm',
+            input: { pairing_id: 'pair-001', authentication_digits: '123456' },
           }),
         })
       );
