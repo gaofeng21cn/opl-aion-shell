@@ -59,6 +59,18 @@ const renderRow = (workspace: string) => {
 };
 
 describe('ConversationRow worktree indicator', () => {
+  it('keeps an ordinary expanded conversation row text-only like DSH history', () => {
+    renderRow('/Users/example/workspace/one-person-lab-app');
+
+    const row = document.querySelector('[id="c-thread-1"]');
+    expect(row).not.toBeNull();
+    expect(row).toHaveClass('opl-codex-history-row');
+    expect(row).not.toHaveAttribute('data-opl-icon', 'message');
+    expect(row?.querySelector('[data-opl-icon="message"]')).toBeNull();
+    expect(row?.querySelector('img')).toBeNull();
+    expect(row?.querySelector('.chat-history__item-name')).toHaveClass('text-13px', 'font-[400]', 'lh-20px');
+  });
+
   it('shows a localized accessible branch indicator for a Codex managed worktree', () => {
     renderRow('/Users/example/.codex/worktrees/abc123/one-person-lab-app');
 

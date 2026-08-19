@@ -4,9 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getAgentLogo } from '@/renderer/utils/model/agentLogo';
 import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
-import { usePresetAssistantInfo } from '@/renderer/hooks/agent/usePresetAssistantInfo';
 import { CronJobIndicator } from '@/renderer/pages/cron';
 import { cleanupSiderTooltips, getSiderTooltipProps } from '@/renderer/utils/ui/siderTooltip';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
@@ -17,7 +15,6 @@ import { useTranslation } from 'react-i18next';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 import type { ConversationRowProps } from './types';
-import { getBackendKeyFromConversation } from './utils/exportHelpers';
 import { isCodexManagedWorktreeConversation, isConversationPinned } from './utils/groupingHelpers';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
@@ -52,53 +49,20 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
     getJobStatus,
   } = props;
   const { t } = useTranslation();
-  const { info: assistantInfo } = usePresetAssistantInfo(conversation);
   const isPinned = isConversationPinned(conversation);
   const isManagedWorktree = isCodexManagedWorktreeConversation(conversation);
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;
 
-  const renderLeadingIcon = () => {
+  const renderLeadingStatus = () => {
     if (cronStatus !== 'none') {
       return <CronJobIndicator status={cronStatus} size={16} className='flex-shrink-0' />;
     }
 
-    // When the row is pinned, hovering reveals a pushpin marker that overlays
-    // the leading icon. We dim the resting icon on hover so the pin reads cleanly.
-    const pinnedHoverFade = isPinned ? 'group-hover:opacity-0 transition-opacity' : '';
-    const composedClass = classNames(pinnedHoverFade);
-
-    if (assistantInfo) {
-      if (assistantInfo.isEmoji) {
-        return (
-          <span className={classNames('text-16px leading-none flex-shrink-0', composedClass)}>
-            {assistantInfo.logo}
-          </span>
-        );
-      }
-      return (
-        <img
-          src={assistantInfo.logo}
-          alt={assistantInfo.name}
-          className={classNames('w-16px h-16px rounded-50% flex-shrink-0', composedClass)}
-        />
-      );
-    }
-
-    const backendKey = getBackendKeyFromConversation(conversation);
-    const logo = getAgentLogo(backendKey);
-    if (logo) {
-      return (
-        <img
-          src={logo}
-          alt={`${backendKey || 'agent'} logo`}
-          className={classNames('w-16px h-16px rounded-50% flex-shrink-0', composedClass)}
-        />
-      );
-    }
-
-    return <OplIcon name='message' size={16} className={classNames('text-t-secondary', composedClass)} />;
+    // DSH keeps ordinary expanded history rows text-only. A compact glyph is
+    // retained only when the rail is collapsed and the title is unavailable.
+    return collapsed ? <OplIcon name='message' size={16} className='text-t-secondary' /> : null;
   };
 
   const handleRowClick = () => {
@@ -142,10 +106,10 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       <div
         id={'c-' + conversation.id}
         className={classNames(
-          'chat-history__item opl-codex-rail-row h-34px flex items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-2px min-w-0',
-          collapsed ? 'justify-center px-0' : 'justify-start gap-8px pr-16px',
-          // dimIcon means this row sits inside a project/cron parent — visually indent the row content while keeping the bg full-width
-          !collapsed && (dimIcon ? 'pl-34px' : 'pl-10px'),
+          'chat-history__item opl-codex-rail-row opl-codex-history-row flex items-center group cursor-pointer relative overflow-hidden shrink-0 conversation-item [&.conversation-item+&.conversation-item]:mt-1px min-w-0',
+          collapsed ? 'justify-center px-0' : 'justify-start pr-4px',
+          // DSH history rows use text indentation instead of a per-row icon slot.
+          !collapsed && (dimIcon ? 'pl-34px' : 'pl-28px'),
           {
             'bg-[rgba(var(--primary-6),0.08)]': batchMode && checked,
           }
@@ -166,19 +130,12 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <Checkbox checked={checked} />
           </span>
         )}
-        <span className='size-22px flex items-center justify-center shrink-0 relative'>
-          {isGenerating && !batchMode ? <Spin size={16} /> : renderLeadingIcon()}
-          {/* Pinned indicator: only visible when row is hovered, overlays leading icon */}
-          {!batchMode && isPinned && !isMobile && !isGenerating && (
-            <span
-              className='absolute inset-0 flex-center text-t-secondary pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity'
-              style={{ lineHeight: 0 }}
-            >
-              <OplIcon name='pin' size={14} />
-            </span>
-          )}
-        </span>
-        <FlexFullContainer className='h-24px min-w-0 flex-1 collapsed-hidden'>
+        {(isGenerating && !batchMode ? <Spin size={16} /> : renderLeadingStatus()) && (
+          <span className='mr-8px flex h-20px w-16px shrink-0 items-center justify-center leading-none'>
+            {isGenerating && !batchMode ? <Spin size={16} /> : renderLeadingStatus()}
+          </span>
+        )}
+        <FlexFullContainer className='h-20px min-w-0 flex-1 collapsed-hidden'>
           <div className='h-full min-w-0 flex items-center gap-4px pr-24px'>
             <Tooltip
               content={conversation.name}
@@ -189,7 +146,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
               popupHoverStay={false}
               position='top'
             >
-              <div className='chat-history__item-name overflow-hidden text-ellipsis block min-w-0 flex-1 text-14px font-[500] lh-24px whitespace-nowrap text-t-primary'>
+              <div className='chat-history__item-name overflow-hidden text-ellipsis block min-w-0 flex-1 text-13px font-[400] lh-20px whitespace-nowrap text-t-primary'>
                 <span className='block overflow-hidden text-ellipsis whitespace-nowrap'>{conversation.name}</span>
               </div>
             </Tooltip>
@@ -206,6 +163,17 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             )}
           </div>
         </FlexFullContainer>
+
+        {/* Pinned is row metadata, never the leading conversation glyph. */}
+        {!batchMode && isPinned && !isMobile && !isGenerating && (
+          <span
+            data-opl-pin-indicator='true'
+            className='pointer-events-none absolute right-32px top-1/2 flex h-20px w-16px -translate-y-1/2 items-center justify-center text-t-secondary opacity-0 transition-opacity group-hover:opacity-100'
+            aria-hidden='true'
+          >
+            <OplIcon name='pin' size={14} />
+          </span>
+        )}
 
         {renderCompletionUnreadDot()}
         {!batchMode && (

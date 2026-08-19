@@ -17,8 +17,8 @@
   --opl-codex-menu-item-radius: 10px;
   --opl-codex-menu-item-min-height: 40px;
   --opl-codex-menu-shadow: var(--dsw-shadow-lv3);
-  --opl-codex-rail-row-height: 36px;
-  --opl-codex-rail-row-radius: 10px;
+  --opl-codex-rail-row-height: 32px;
+  --opl-codex-rail-row-radius: 6px;
   --opl-codex-icon-button-size: 28px;
   --opl-codex-settings-row-height: 34px;
   --opl-codex-settings-row-gap: 20px;
@@ -93,6 +93,16 @@
 .opl-codex-rail-row[aria-current='page'] {
   background: var(--opl-sidebar-active);
   color: var(--dsw-alias-label-primary);
+}
+
+/* DSH history rows are compact text rows; ordinary conversations do not
+   reserve a decorative leading icon slot. */
+.opl-codex-history-row {
+  height: 30px !important;
+  min-height: 30px !important;
+  border-radius: 6px !important;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 .opl-codex-rail-row.arco-btn {
