@@ -1,4 +1,5 @@
 const { Arch } = require('builder-util');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -21,6 +22,26 @@ function resolveResourcesDir(electronPlatformName, appOutDir, packager) {
 
   const appName = packager?.appInfo?.productFilename || 'AionUi';
   return path.join(appOutDir, `${appName}.app`, 'Contents', 'Resources');
+}
+
+function stampMacDisplayVersion(electronPlatformName, appOutDir, packager) {
+  if (electronPlatformName !== 'darwin') return;
+
+  const displayVersion = process.env.OPL_RELEASE_VERSION?.trim();
+  if (!displayVersion) {
+    throw new Error('OPL_RELEASE_VERSION is required to stamp CFBundleShortVersionString.');
+  }
+
+  const appName = packager?.appInfo?.productFilename || 'AionUi';
+  const plistPath = path.join(appOutDir, `${appName}.app`, 'Contents', 'Info.plist');
+  execFileSync('/usr/bin/plutil', [
+    '-replace',
+    'CFBundleShortVersionString',
+    '-string',
+    displayVersion,
+    plistPath,
+  ], { stdio: 'inherit' });
+  console.log(`   ✓ Stamped macOS display version: ${displayVersion}`);
 }
 
 function resolvePackagedAioncoreTarget(electronPlatformName, targetArch) {
@@ -119,6 +140,7 @@ module.exports = async function afterPack(context) {
   console.log(`   Checking resources directory: ${resourcesDir}`);
   if (fs.existsSync(resourcesDir)) {
     if (electronPlatformName === 'darwin') {
+      stampMacDisplayVersion(electronPlatformName, appOutDir, packager);
       const { configPath } = writePackagedUpdaterConfig(resourcesDir, {
         projectRoot: path.resolve(__dirname, '..'),
       });

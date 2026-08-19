@@ -24,8 +24,9 @@ describe('OPL release version stamping', () => {
     expect(buildScript).toContain('return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;');
     expect(buildScript).toContain('process.env.OPL_UPDATER_VERSION = updaterVersion');
     expect(buildScript).toContain('--config.extraMetadata.version=${updaterVersion}');
-    const builderConfig = readRepoFile('packages/desktop/electron-builder.yml');
-    expect(builderConfig).toContain('CFBundleShortVersionString: ${env.OPL_RELEASE_VERSION}');
+    const afterPack = readRepoFile('scripts/afterPack.js');
+    expect(afterPack).toContain('stampMacDisplayVersion');
+    expect(afterPack).toContain("'-replace',\n    'CFBundleShortVersionString'");
     expect(buildScript).toContain('Stamping OPL App updater version: ${oplUpdaterVersion}');
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');
