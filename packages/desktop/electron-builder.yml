@@ -195,6 +195,10 @@ mac:
     - zip
   icon: resources/app.icns
   artifactName: One-Person-Lab-${env.OPL_RELEASE_VERSION}-${os}-${arch}.${ext}
+  # Keep the Finder-visible marketing/release version separate from the
+  # monotonic package version used by Electron's updater identity.
+  extendInfo:
+    CFBundleShortVersionString: ${env.OPL_RELEASE_VERSION}
   category: public.app-category.productivity
   hardenedRuntime: true
   gatekeeperAssess: false
