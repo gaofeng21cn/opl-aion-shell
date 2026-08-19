@@ -42,6 +42,7 @@ type RemoteCompanionActivationContext = Readonly<{
   provider: string;
   service_origin: string;
   config_digest: string;
+  config_summary: Readonly<Record<string, unknown>>;
   package_content_digest: string;
   package_artifact_digest: string;
 }>;
@@ -123,6 +124,32 @@ function canonicalJson(value: unknown): string {
     .sort()
     .map((key) => `${JSON.stringify(key)}:${canonicalJson(object[key])}`)
     .join(',')}}`;
+}
+
+function canonicalJsonProjection(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') {
+    if (typeof value === 'number' && !Number.isFinite(value)) {
+      throw new Error('Remote companion release cohort contains a non-JSON number.');
+    }
+    if (
+      typeof value === 'undefined' ||
+      typeof value === 'function' ||
+      typeof value === 'symbol' ||
+      typeof value === 'bigint'
+    ) {
+      throw new Error('Remote companion release cohort contains a non-JSON value.');
+    }
+    return value;
+  }
+  if (Array.isArray(value)) return Object.freeze(value.map(canonicalJsonProjection));
+  const object = value as Record<string, unknown>;
+  return Object.freeze(
+    Object.fromEntries(
+      Object.keys(object)
+        .sort()
+        .map((key) => [key, canonicalJsonProjection(object[key])])
+    )
+  );
 }
 
 function configDigest(input: {
@@ -241,7 +268,7 @@ function readReleaseCohort(descriptorValue: unknown): ReleaseCohort {
     protocolVersion,
     provider,
     serviceOrigin: serviceOriginValue,
-    configSummary,
+    configSummary: canonicalJsonProjection(configSummary) as Record<string, unknown>,
     configDigest: declaredConfigDigest,
   };
 }
@@ -265,6 +292,7 @@ function descriptorActivationContext(descriptorValue: unknown): RemoteCompanionA
     provider: releaseCohort.provider,
     service_origin: releaseCohort.serviceOrigin,
     config_digest: releaseCohort.configDigest,
+    config_summary: releaseCohort.configSummary,
     package_content_digest: packageContentDigest,
     package_artifact_digest: packageArtifactDigest,
   });

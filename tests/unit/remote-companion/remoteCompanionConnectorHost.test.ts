@@ -126,6 +126,7 @@ describe('remoteCompanionConnectorHost', () => {
     expect(Object.keys(context).sort()).toEqual([
       'cohort_id',
       'config_digest',
+      'config_summary',
       'environment',
       'package_artifact_digest',
       'package_content_digest',
@@ -135,7 +136,7 @@ describe('remoteCompanionConnectorHost', () => {
       'service_origin',
       'surface_kind',
     ]);
-    expect(context).toMatchObject({
+    expect(context).toEqual({
       surface_kind: 'opl_remote_companion_activation_context.v1',
       package_id: 'opl-link-desktop-connector',
       environment: releaseCohort.environment,
@@ -144,10 +145,14 @@ describe('remoteCompanionConnectorHost', () => {
       provider: releaseCohort.provider,
       service_origin: releaseCohort.service_origin,
       config_digest: releaseCohort.config_digest,
+      config_summary: releaseCohort.config_summary,
       package_content_digest: digest('a'),
       package_artifact_digest: digest('a'),
     });
     expect(context.config_digest).toBe(releaseCohort.config_digest);
+    expect(context.config_summary).toEqual(releaseCohort.config_summary);
+    expect(context.config_summary).not.toBe(releaseCohort.config_summary);
+    expect(Object.isFrozen(context.config_summary)).toBe(true);
   });
 
   it.each([
