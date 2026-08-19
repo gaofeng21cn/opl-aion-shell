@@ -406,13 +406,13 @@ class AutoUpdaterService extends EventEmitter {
       const currentUpdaterVersion = semver.valid(app.getVersion());
       const candidateUpdaterVersion = semver.valid(result.updateInfo.version);
       if (
-        !currentUpdaterVersion
-        || !candidateUpdaterVersion
-        || !semver.gt(candidateUpdaterVersion, currentUpdaterVersion)
+        !currentUpdaterVersion ||
+        !candidateUpdaterVersion ||
+        !semver.gt(candidateUpdaterVersion, currentUpdaterVersion)
       ) {
         log.warn(
-          `Ignoring non-upgrade updater candidate ${result.updateInfo.version}; `
-          + `installed version is ${app.getVersion()}.`,
+          `Ignoring non-upgrade updater candidate ${result.updateInfo.version}; ` +
+            `installed version is ${app.getVersion()}.`
         );
         this.broadcastStatus({ status: 'not-available' });
         return { success: true };

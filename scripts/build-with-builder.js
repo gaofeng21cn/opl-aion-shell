@@ -393,8 +393,8 @@ function buildOplReleaseVersionConfigArg() {
   const updaterVersion = process.env.OPL_UPDATER_VERSION?.trim();
   if (!updaterVersion) {
     throw new Error(
-      'OPL_UPDATER_VERSION is required for every packaged App build; '
-      + 'pass the canonical machine version instead of reusing OPL_RELEASE_VERSION.',
+      'OPL_UPDATER_VERSION is required for every packaged App build; ' +
+        'pass the canonical machine version instead of reusing OPL_RELEASE_VERSION.'
     );
   }
   if (!OPL_UPDATER_VERSION_PATTERN.test(updaterVersion)) {

@@ -34,13 +34,9 @@ function stampMacDisplayVersion(electronPlatformName, appOutDir, packager) {
 
   const appName = packager?.appInfo?.productFilename || 'AionUi';
   const plistPath = path.join(appOutDir, `${appName}.app`, 'Contents', 'Info.plist');
-  execFileSync('/usr/bin/plutil', [
-    '-replace',
-    'CFBundleShortVersionString',
-    '-string',
-    displayVersion,
-    plistPath,
-  ], { stdio: 'inherit' });
+  execFileSync('/usr/bin/plutil', ['-replace', 'CFBundleShortVersionString', '-string', displayVersion, plistPath], {
+    stdio: 'inherit',
+  });
   console.log(`   ✓ Stamped macOS display version: ${displayVersion}`);
 }
 

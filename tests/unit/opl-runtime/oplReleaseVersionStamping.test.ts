@@ -20,13 +20,15 @@ describe('OPL release version stamping', () => {
     expect(buildScript).toContain('const OPL_UPDATER_VERSION_PATTERN = /^\\d+\\.\\d+\\.\\d+');
     expect(buildScript).toContain('function buildOplReleaseVersionConfigArg()');
     expect(buildScript).toContain('OPL_UPDATER_VERSION is required for every packaged App build');
-    expect(buildScript).not.toContain("process.env.OPL_UPDATER_VERSION?.trim() || releaseVersion");
+    expect(buildScript).not.toContain('process.env.OPL_UPDATER_VERSION?.trim() || releaseVersion');
     expect(buildScript).toContain('return `${year}.${date.getUTCMonth() + 1}.${date.getUTCDate()}`;');
     expect(buildScript).toContain('process.env.OPL_UPDATER_VERSION = updaterVersion');
     expect(buildScript).toContain('--config.extraMetadata.version=${updaterVersion}');
     const afterPack = readRepoFile('scripts/afterPack.js');
     expect(afterPack).toContain('stampMacDisplayVersion');
-    expect(afterPack).toContain("'-replace',\n    'CFBundleShortVersionString'");
+    expect(afterPack).toMatch(
+      /execFileSync\(\s*['"]\/usr\/bin\/plutil['"],\s*\[\s*['"]-replace['"],\s*['"]CFBundleShortVersionString['"],\s*['"]-string['"],\s*displayVersion,\s*plistPath\s*\]/s
+    );
     expect(buildScript).toContain('Stamping OPL App updater version: ${oplUpdaterVersion}');
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');

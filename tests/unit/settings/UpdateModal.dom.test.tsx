@@ -329,11 +329,11 @@ describe('UpdateModal checking layout', () => {
 
   it('does not render a release title twice when the notes body repeats the modal title', () => {
     expect(
-      stripLeadingReleaseTitle('One Person Lab v26.8.16\n\n升级后可直接开始工作。', 'One Person Lab v26.8.16'),
+      stripLeadingReleaseTitle('One Person Lab v26.8.16\n\n升级后可直接开始工作。', 'One Person Lab v26.8.16')
     ).toBe('升级后可直接开始工作。');
-    expect(
-      stripLeadingReleaseTitle('# One Person Lab v26.8.16\n\nRelease notes.', 'One Person Lab v26.8.16'),
-    ).toBe('Release notes.');
+    expect(stripLeadingReleaseTitle('# One Person Lab v26.8.16\n\nRelease notes.', 'One Person Lab v26.8.16')).toBe(
+      'Release notes.'
+    );
     expect(stripLeadingReleaseTitle('Release notes.', 'One Person Lab v26.8.16')).toBe('Release notes.');
   });
 

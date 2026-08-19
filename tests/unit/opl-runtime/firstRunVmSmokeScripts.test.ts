@@ -100,6 +100,22 @@ function runStableInstallerFixture(options: { args?: string[]; standardHttpCode?
     0o755
   );
   writeFile(
+    path.join(binDir, 'plutil'),
+    `#!${process.execPath}
+const fs = require('node:fs');
+const args = process.argv.slice(2);
+if (args[0] !== '-extract' || !['raw', 'json'].includes(args[2]) || args[3] !== '-o' || args[4] !== '-') process.exit(2);
+let value = JSON.parse(fs.readFileSync(args[5], 'utf8'));
+for (const part of args[1].split('.')) {
+  if (value == null || !(part in value)) process.exit(1);
+  value = value[part];
+}
+if (args[2] === 'raw' && value === null) process.exit(1);
+process.stdout.write(args[2] === 'json' ? JSON.stringify(value) : String(value));
+`,
+    0o755
+  );
+  writeFile(
     path.join(binDir, 'curl'),
     [
       '#!/usr/bin/env bash',
