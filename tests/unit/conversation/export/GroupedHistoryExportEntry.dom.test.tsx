@@ -1,7 +1,11 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { TChatConversation } from '@/common/config/storage';
+
+const repoRoot = path.resolve(import.meta.dirname, '..', '..', '..', '..');
 
 const mocks = vi.hoisted(() => ({
   handleExportConversation: vi.fn(),
@@ -234,10 +238,38 @@ describe('GroupedHistory export entries', () => {
     render(<GroupedHistory />);
 
     expect(screen.getByTestId('workspace-group')).toHaveTextContent('review');
-    fireEvent.click(screen.getByRole('button', { name: 'conversation.history.newConversationWithWorkspace' }));
+    const newConversationAction = screen.getByRole('button', {
+      name: 'conversation.history.newConversationWithWorkspace',
+    });
+    expect(newConversationAction).toHaveClass('workspace-collapse__new-conversation-action');
+    expect(newConversationAction).not.toHaveClass('hidden', 'group-hover:flex');
+    fireEvent.click(newConversationAction);
     expect(mocks.navigate).toHaveBeenCalledWith('/guid', { state: { workspace: '/workspace/review' } });
     expect(screen.queryByText('conversation.history.removeProject')).not.toBeInTheDocument();
     expect(screen.queryByText('conversation.history.projectContext.add')).not.toBeInTheDocument();
+  });
+
+  it('keeps the project action hidden at rest only for fine pointers and reveals it for row hover or focus', () => {
+    const layoutCss = fs.readFileSync(path.join(repoRoot, 'packages/desktop/src/renderer/styles/layout.css'), 'utf8');
+
+    expect(layoutCss).toContain('@media (hover: hover) and (pointer: fine)');
+    expect(layoutCss).toContain('.workspace-collapse__new-conversation-action {\n    opacity: 0;');
+    expect(layoutCss).toContain('.workspace-collapse__header:hover .workspace-collapse__new-conversation-action');
+    expect(layoutCss).toContain(
+      '.workspace-collapse__header:focus-within .workspace-collapse__new-conversation-action'
+    );
+    expect(layoutCss).toContain('.workspace-collapse__new-conversation-action:focus-visible');
+  });
+
+  it.each(['Enter', ' '])('keeps the workspace shortcut keyboard activation for %s', (key) => {
+    render(<GroupedHistory />);
+    const newConversationAction = screen.getByRole('button', {
+      name: 'conversation.history.newConversationWithWorkspace',
+    });
+
+    fireEvent.keyDown(newConversationAction, { key });
+
+    expect(mocks.navigate).toHaveBeenCalledWith('/guid', { state: { workspace: '/workspace/review' } });
   });
 
   it('exposes one-time project adoption only for the projectless canonical row', () => {

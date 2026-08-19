@@ -623,10 +623,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
                                 role='button'
                                 tabIndex={0}
                                 aria-label={t('conversation.history.newConversationWithWorkspace')}
-                                className={classNames(
-                                  'opl-codex-icon-button flex-center cursor-pointer sider-action-btn',
-                                  isMobile ? 'flex' : 'hidden group-hover:flex'
-                                )}
+                                className='workspace-collapse__new-conversation-action opl-codex-icon-button flex-center cursor-pointer sider-action-btn'
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   startWorkspaceConversation(group.workspace);

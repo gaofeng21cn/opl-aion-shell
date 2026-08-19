@@ -15,6 +15,23 @@
 .sider-action-btn:hover {
   background-color: var(--bg-1);
 }
+
+/* Match DSH row actions: keep project shortcuts quiet at rest on desktop,
+   reveal only for the active row, and preserve keyboard and touch access. */
+@media (hover: hover) and (pointer: fine) {
+  .workspace-collapse__new-conversation-action {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .workspace-collapse__header:hover .workspace-collapse__new-conversation-action,
+  .workspace-collapse__header:focus-within .workspace-collapse__new-conversation-action,
+  .workspace-collapse__new-conversation-action:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 [data-theme='dark'] .sider-action-btn {
   background-color: var(--bg-5);
 }
