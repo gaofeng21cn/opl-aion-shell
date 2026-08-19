@@ -11,6 +11,7 @@ import log from 'electron-log';
 import { EventEmitter } from 'events';
 import fs from 'node:fs';
 import * as path from 'node:path';
+import semver from 'semver';
 import type { ExactUpdateReleaseTarget } from '../../common/update/updateTypes';
 import {
   recordAutoUpdateInstallNotAppliedIfNeeded,
@@ -401,6 +402,20 @@ class AutoUpdaterService extends EventEmitter {
         throw new Error(
           `Exact updater release mismatch: expected ${target.updaterVersion}, received ${result.updateInfo.version}`
         );
+      }
+      const currentUpdaterVersion = semver.valid(app.getVersion());
+      const candidateUpdaterVersion = semver.valid(result.updateInfo.version);
+      if (
+        !currentUpdaterVersion
+        || !candidateUpdaterVersion
+        || !semver.gt(candidateUpdaterVersion, currentUpdaterVersion)
+      ) {
+        log.warn(
+          `Ignoring non-upgrade updater candidate ${result.updateInfo.version}; `
+          + `installed version is ${app.getVersion()}.`,
+        );
+        this.broadcastStatus({ status: 'not-available' });
+        return { success: true };
       }
       // Only report updateInfo when electron-updater internally confirms the update is available.
       // When isUpdateAvailable is false, updateInfoAndProvider is NOT set internally,

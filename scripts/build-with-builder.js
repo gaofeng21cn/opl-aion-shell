@@ -390,7 +390,13 @@ function buildOplReleaseVersionConfigArg() {
   if (!OPL_RELEASE_VERSION_PATTERN.test(releaseVersion)) {
     throw new Error(`Invalid OPL_RELEASE_VERSION: ${releaseVersion}`);
   }
-  const updaterVersion = process.env.OPL_UPDATER_VERSION?.trim() || releaseVersion;
+  const updaterVersion = process.env.OPL_UPDATER_VERSION?.trim();
+  if (!updaterVersion) {
+    throw new Error(
+      'OPL_UPDATER_VERSION is required for every packaged App build; '
+      + 'pass the canonical machine version instead of reusing OPL_RELEASE_VERSION.',
+    );
+  }
   if (!OPL_UPDATER_VERSION_PATTERN.test(updaterVersion)) {
     throw new Error(`Invalid OPL_UPDATER_VERSION: ${updaterVersion}`);
   }

@@ -849,6 +849,29 @@ describe('updateBridge auto-update config handling', () => {
     expect(autoUpdater.downloadUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects a stale exact Release candidate even when electron-updater reports it as available', async () => {
+    const { app } = await import('electron');
+    const { autoUpdater } = await import('electron-updater');
+    const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
+    vi.mocked(app.getVersion).mockReturnValue('26.8.1991');
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+      isUpdateAvailable: true,
+      updateInfo: { version: '26.8.1691' },
+    } as never);
+    autoUpdaterService.resetForTest();
+    autoUpdaterService.initialize();
+
+    await autoUpdaterService.checkForUpdatesAndNotify({
+      repo: 'gaofeng21cn/one-person-lab-app',
+      tagName: 'v26.8.16',
+      updaterVersion: '26.8.1691',
+    });
+
+    expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'not-available' });
+    vi.mocked(app.getVersion).mockReturnValue('1.0.0');
+  });
+
   it('deduplicates concurrent checks for the same exact Release target', async () => {
     const { autoUpdater } = await import('electron-updater');
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');

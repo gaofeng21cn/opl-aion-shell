@@ -80,6 +80,17 @@ export const selectLocalizedReleaseNotes = (markdown: string, language?: string)
   return markdown;
 };
 
+export const stripLeadingReleaseTitle = (markdown: string, title?: string): string => {
+  const normalizedTitle = title?.trim();
+  if (!normalizedTitle) return markdown;
+
+  const lines = markdown.trimStart().split(/\r?\n/);
+  const firstLine = lines[0]?.trim().replace(/^#{1,6}\s+/, '');
+  if (firstLine !== normalizedTitle) return markdown;
+
+  return lines.slice(1).join('\n').trimStart();
+};
+
 const UpdateModal: React.FC = () => {
   const { t, i18n } = useTranslation();
   const appStateQuery = useOplAppState('fast');
@@ -385,7 +396,9 @@ const UpdateModal: React.FC = () => {
   };
 
   const releaseNotes = updateInfo?.body || autoUpdateInfo?.releaseNotes || '';
-  const localizedReleaseNotes = releaseNotes ? selectLocalizedReleaseNotes(releaseNotes, i18n.language) : '';
+  const localizedReleaseNotes = releaseNotes
+    ? stripLeadingReleaseTitle(selectLocalizedReleaseNotes(releaseNotes, i18n.language), updateInfo?.name)
+    : '';
 
   const renderContent = () => {
     switch (status) {

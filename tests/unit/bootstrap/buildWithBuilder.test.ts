@@ -192,6 +192,11 @@ childProcess.execSync = function mockedExecSync(command) {
 }
 
 describe('build-with-builder', () => {
+  const packagedVersionEnv = {
+    OPL_RELEASE_VERSION: '26.7.26',
+    OPL_UPDATER_VERSION: '26.7.2600',
+  };
+
   it('packages only the bundled runtime for the target platform and architecture', () => {
     const resourcesDir = mkdtempSync(join(tmpdir(), 'aionui-packaged-runtimes-test-'));
     const bundledRoot = join(resourcesDir, 'bundled-aioncore');
@@ -449,6 +454,7 @@ childProcess.execSync = function mockedExecSync(command) {
             encoding: 'utf8',
             env: {
               ...process.env,
+              ...packagedVersionEnv,
               AIONUI_COMMANDS_FILE: commandsPath,
               NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
             },
@@ -542,6 +548,7 @@ childProcess.execSync = function mockedExecSync(command) {
           encoding: 'utf8',
           env: {
             ...process.env,
+            ...packagedVersionEnv,
             NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
           },
         });
@@ -615,6 +622,7 @@ childProcess.execSync = function mockedExecSync(command) {
             encoding: 'utf8',
             env: {
               ...process.env,
+              ...packagedVersionEnv,
               AIONUI_COMMANDS_FILE: commandsPath,
               NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
             },
@@ -735,6 +743,7 @@ childProcess.execSync = function mockedExecSync(command) {
             encoding: 'utf8',
             env: {
               ...process.env,
+              ...packagedVersionEnv,
               AIONUI_PREPARE_CALLS_FILE: callsPath,
               NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
             },
@@ -792,6 +801,7 @@ childProcess.execSync = function mockedExecSync(command) {
           encoding: 'utf8',
           env: {
             ...process.env,
+            ...packagedVersionEnv,
             NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${hookPath}`].filter(Boolean).join(' '),
           },
         });
