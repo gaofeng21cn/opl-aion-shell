@@ -103,70 +103,6 @@ function appState(entries: unknown[], actionAvailable = true) {
   };
 }
 
-function channelAccessReadResult(
-  input: {
-    state?: 'disconnected' | 'connecting' | 'qr_ready' | 'qr_scanned' | 'connected' | 'attention';
-    expiresAtMs?: number;
-  } = {}
-) {
-  return {
-    surface: 'package_contribution_read',
-    ok: true,
-    parsed: {
-      opl_app_contribution: {
-        surface_kind: 'opl_app_package_contribution.v1',
-        package_id: 'example.package',
-        ref: 'example.activity.v1#current',
-        operation: 'read',
-        confirmation_required: false,
-        carrier_readback: {
-          kind: 'local',
-          identity: 'example.package@local',
-          lifecycle_authority: 'carrier_owned',
-        },
-        readiness: {
-          installed: true,
-          physical_status: 'available',
-          callability: 'callable',
-        },
-        response: {
-          schema_version: 'opl-package-app-contribution-response.v1',
-          ok: true,
-          ref: 'example.activity.v1#current',
-          operation: 'read',
-          result: {
-            schema_version: 'opl-app-channel-access.v1',
-            status: 'available',
-            channel_id: 'example',
-            connection: {
-              state: input.state ?? 'qr_ready',
-              qr_challenge: {
-                payload: 'ephemeral-qr-payload',
-                expires_at_ms: input.expiresAtMs ?? Date.now() + 60_000,
-              },
-            },
-            actions: [],
-            pending_pairings: [],
-            authorized_users: [
-              {
-                user_id: 'user-1',
-                display_name: 'Channel user',
-                authorized_at_ms: 1,
-                actions: [
-                  {
-                    command_id: 'refresh',
-                    input: { channel_id: 'example', user_id: 'user-1' },
-                  },
-                ],
-              },
-            ],
-          },
-        },
-      },
-    },
-  };
-}
-
 describe('OplUiContributionSlot', () => {
   beforeEach(async () => {
     await resetOplClientCordisCompositionForTest();
@@ -264,7 +200,7 @@ describe('OplUiContributionSlot', () => {
     });
   });
 
-  it('renders channel_access data and dispatches the exact validated entity input', async () => {
+  it('does not admit Framework channel_access contributions in AionUI', async () => {
     stateMocks.appState = appState(
       [
         contribution({
@@ -275,55 +211,12 @@ describe('OplUiContributionSlot', () => {
       ],
       false
     );
-    stateMocks.runPackageContribution.mockResolvedValue(channelAccessReadResult());
 
     render(<OplUiContributionSlot slot='settings.section' />);
-    expect(await screen.findByText('Channel user')).toBeInTheDocument();
-    expect(screen.getByLabelText('common.oplUiContributions.channelAccess.qrCode')).toBeInTheDocument();
-    expect(stateMocks.runPackageContribution).toHaveBeenCalledWith({
-      packageId: 'example.package',
-      ref: 'example.activity.v1#current',
-      operation: 'read',
-      input: {},
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: 'Refresh activity' }));
     await waitFor(() => {
-      expect(stateMocks.executeAction).toHaveBeenCalledWith({
-        actionId: 'package_contribution_execute',
-        payloadJson: {
-          package_id: 'example.package',
-          ref: 'example.activity.v1#refresh',
-          input: { channel_id: 'example', user_id: 'user-1' },
-          confirmed: false,
-        },
-        dryRun: false,
-      });
+      expect(screen.queryByTestId('opl-ui-contribution-slot-settings.section')).not.toBeInTheDocument();
     });
-    await waitFor(() => expect(stateMocks.runPackageContribution).toHaveBeenCalledTimes(2));
-  });
-
-  it.each([
-    ['the connection is not qr_ready', 'connected' as const, Date.now() + 60_000],
-    ['the challenge is expired', 'qr_ready' as const, Date.now() - 1],
-  ])('hides the channel QR when %s', async (_description, state, expiresAtMs) => {
-    stateMocks.appState = appState([contribution({ slot: 'settings.section', viewType: 'channel_access' })]);
-    stateMocks.runPackageContribution.mockResolvedValue(channelAccessReadResult({ state, expiresAtMs }));
-
-    render(<OplUiContributionSlot slot='settings.section' />);
-    expect(await screen.findByText('Channel user')).toBeInTheDocument();
-    expect(screen.queryByTestId('opl-channel-access-qr')).not.toBeInTheDocument();
-  });
-
-  it('removes the channel QR when the challenge expires without a projection refresh', async () => {
-    stateMocks.appState = appState([contribution({ slot: 'settings.section', viewType: 'channel_access' })]);
-    stateMocks.runPackageContribution.mockResolvedValue(channelAccessReadResult({ expiresAtMs: Date.now() + 200 }));
-
-    render(<OplUiContributionSlot slot='settings.section' />);
-    expect(await screen.findByTestId('opl-channel-access-qr')).toBeInTheDocument();
-    await waitFor(() => expect(screen.queryByTestId('opl-channel-access-qr')).not.toBeInTheDocument(), {
-      timeout: 1_000,
-    });
-    expect(stateMocks.runPackageContribution).toHaveBeenCalledTimes(1);
+    expect(stateMocks.runPackageContribution).not.toHaveBeenCalled();
+    expect(stateMocks.executeAction).not.toHaveBeenCalled();
   });
 });

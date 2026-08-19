@@ -36,6 +36,10 @@ function supportedEntry(entry: OplUiContribution): boolean {
   return entry.contributionKind === 'command_group' || (entry.contributionKind === 'view' && Boolean(entry.view));
 }
 
+function admittedInAionUi(entry: OplUiContribution): boolean {
+  return entry.view?.viewType !== 'channel_access';
+}
+
 function commandInvocationKey(entry: OplUiContribution, commandId: string, input: Record<string, unknown>): string {
   return `${entry.contributionKey}:${commandId}:${JSON.stringify(input)}`;
 }
@@ -285,12 +289,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
   const appStateQuery = useOplAppState('fast');
   const [runningCommandKey, setRunningCommandKey] = useState<string | null>(null);
   const [entries, setEntries] = useState<readonly OplUiContribution[]>([]);
-  const actionAvailable =
-    hasPackageContributionExecuteAction(appStateQuery.appState) ||
-    entries.some(
-      (entry) =>
-        entry.view?.viewType === 'channel_access' && entry.actionBoundary === 'opl.connect.channel-provider-host'
-    );
+  const actionAvailable = hasPackageContributionExecuteAction(appStateQuery.appState);
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US';
 
   useEffect(() => {
@@ -300,7 +299,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
       .then((composition) => {
         if (!active) return;
         const refresh = () => {
-          if (active) setEntries(composition.contributions.readSlot(slot));
+          if (active) setEntries(composition.contributions.readSlot(slot).filter(admittedInAionUi));
         };
         unsubscribe = composition.contributions.subscribe(refresh);
         composition.contributions.updateHostProjection(appStateQuery.appState);

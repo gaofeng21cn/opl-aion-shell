@@ -62,17 +62,14 @@ describe('codexAppServerBridge', () => {
     bridgeMocks.createProductionAdapter.mockReset();
   });
 
-  it('starts an available adapter and channel-provider Host immediately', async () => {
+  it('starts the App Server adapter without activating the Framework channel-provider Host', async () => {
     const adapter = {
       listThreads: vi.fn(async () => ({ schema: 'opl_codex_thread_directory.v1', threads: [] })),
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
-    const host = { dispose: vi.fn(async () => undefined) };
-    const startChannelProviderHost = vi.fn(async () => host);
-    initCodexAppServerBridge(adapter as never, { startChannelProviderHost });
+    initCodexAppServerBridge(adapter as never);
 
-    expect(startChannelProviderHost).toHaveBeenCalledWith(adapter);
     const list = bridgeMocks.handlers.get('list');
     expect(list).toBeTypeOf('function');
     await expect(list?.({ includeArchived: false })).resolves.toMatchObject({
@@ -81,9 +78,7 @@ describe('codexAppServerBridge', () => {
     });
     await disposeCodexAppServerBridge();
     expect(bridgeMocks.createProductionAdapter).not.toHaveBeenCalled();
-    expect(host.dispose).toHaveBeenCalledOnce();
     expect(adapter.dispose).toHaveBeenCalledOnce();
-    expect(host.dispose.mock.invocationCallOrder[0]).toBeLessThan(adapter.dispose.mock.invocationCallOrder[0]);
   });
 
   it('routes explicit affinity assignment to the adapter', async () => {
@@ -93,33 +88,22 @@ describe('codexAppServerBridge', () => {
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
-    const host = { dispose: vi.fn(async () => undefined) };
     bridgeMocks.createProductionAdapter.mockReturnValue(adapter);
-    initCodexAppServerBridge(adapter as never, {
-      startChannelProviderHost: vi.fn(async () => host),
-    });
+    initCodexAppServerBridge(adapter as never);
 
     const assign = bridgeMocks.handlers.get('assignProjectAffinity');
     await expect(assign?.({ threadId: 'thread-1', projectId: '/projects/selected' })).resolves.toBe(assigned);
     expect(adapter.assignProjectAffinity).toHaveBeenCalledWith('thread-1', '/projects/selected');
   });
 
-  it('always disposes the App Server when Host disposal fails', async () => {
+  it('disposes the active App Server adapter', async () => {
     const adapter = {
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
-    const hostError = new Error('host dispose failed');
-    const host = {
-      dispose: vi.fn(async () => {
-        throw hostError;
-      }),
-    };
-    initCodexAppServerBridge(adapter as never, {
-      startChannelProviderHost: vi.fn(async () => host),
-    });
+    initCodexAppServerBridge(adapter as never);
 
-    await expect(disposeCodexAppServerBridge()).rejects.toBe(hostError);
+    await disposeCodexAppServerBridge();
     expect(adapter.dispose).toHaveBeenCalledOnce();
   });
 });
