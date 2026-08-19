@@ -487,6 +487,12 @@ describe('ResourcesSettingsContent', () => {
     document.body.innerHTML = '';
   });
 
+  it('keeps OPL Link out of Stable settings until a configurable Package contribution is available', () => {
+    const view = renderResources();
+
+    expect(view.queryByTestId('settings-resources-remote-companion')).toBeNull();
+  });
+
   it('renders handle-only OPL connections and routes management actions through the App action bridge', async () => {
     const mocks = getMocks();
     mocks.connectionRegistry = {
