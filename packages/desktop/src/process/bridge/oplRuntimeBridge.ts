@@ -2318,7 +2318,7 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider(runRuntimeActionRequest);
   ipcBridge.oplRuntime.runPackageContribution.provider(runPackageContributionRequest);
-  ipcBridge.oplRuntime.applyOfficialProfile.provider(runOfficialProfileApplyRequest);
+  ipcBridge.oplRuntime.applyOfficialProfile.provider((request) => runOfficialProfileApplyRequest(request));
   ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
   ipcBridge.oplRuntime.runUpdateCheck.provider(() => runOplCommand(buildUpdateCheckCommand()));
   ipcBridge.oplRuntime.getUpdatePlan.provider(() => runOplCommand(buildUpdatePlanCommand()));
