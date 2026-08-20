@@ -5469,7 +5469,9 @@ function firstRunBeginnerUxExpression() {
     const primaryNode = document.querySelector('[data-testid="opl-first-run-beginner-primary"]');
     const summaryNode = document.querySelector('[data-testid="opl-first-run-beginner-summary"]');
     const actionNode = document.querySelector('[data-testid="opl-first-run-primary-action"]');
-    const detailsNode = document.querySelector('[data-testid="opl-first-run-technical-details-toggle"]');
+    const detailsNode = document.querySelector(
+      '[data-testid="opl-first-run-technical-details-toggle"], [data-testid="opl-first-run-technical-details"]'
+    );
     const deferredEntryNode = document.querySelector('[data-testid="opl-first-run-enter-app"]');
     const appLoaderVisible = Boolean(document.querySelector('[class*="loader"], .arco-spin-loading'));
     if (window.location.hash.startsWith('#/guid') && visible(guidEntry) && visible(guidInput) && visible(guidSendButton) && !windowNode && !appLoaderVisible) {

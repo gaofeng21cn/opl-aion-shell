@@ -783,6 +783,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('[data-testid="opl-first-run-beginner-summary"]');
     expect(expression).toContain('[data-testid="opl-first-run-primary-action"]');
     expect(expression).toContain('[data-testid="opl-first-run-technical-details-toggle"]');
+    expect(expression).toContain('[data-testid="opl-first-run-technical-details"]');
     expect(expression).toContain('[data-testid="opl-first-run-enter-app"]');
     expect(expression).toContain('deferredEntryVisible');
     expect(expression).toContain('technicalDetailsCollapsed');
@@ -793,6 +794,39 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('opl system initialize');
     expect(expression).toContain('runtime command failed');
     expect(navigationExpression.indexOf('readyButton.click()')).toBeGreaterThan(0);
+  });
+
+  it('accepts the collapsed persistent details surface on the first-run completion screen', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+        <main data-testid="opl-first-run-window">
+          <div data-testid="opl-first-run-progress">
+            <section data-testid="opl-first-run-beginner-primary">
+              <p data-testid="opl-first-run-beginner-summary">基础设置已完成，可以开始使用 One Person Lab。</p>
+              <div data-testid="opl-first-run-primary-action"><button>进入 OPL</button></div>
+            </section>
+          </div>
+          <div data-testid="opl-first-run-technical-details">
+            <button aria-expanded="false">系统与维护详情</button>
+          </div>
+        </main>
+      </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/first-run' }
+    );
+    const { window } = dom;
+    for (const node of window.document.querySelectorAll<HTMLElement>('[data-testid]')) {
+      Object.defineProperty(node, 'getBoundingClientRect', {
+        value: () => ({ width: 640, height: 80, top: 0, left: 0, right: 640, bottom: 80 }),
+      });
+    }
+
+    expect(window.eval(__test.firstRunBeginnerUxExpression())).toMatchObject({
+      status: 'captured',
+      beginnerPrimaryVisible: true,
+      summaryText: '基础设置已完成，可以开始使用 One Person Lab。',
+      technicalDetailsCollapsed: true,
+    });
+    dom.window.close();
   });
 
   it('accepts a usable entry reached before beginner screenshot capture', () => {
