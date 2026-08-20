@@ -25,10 +25,10 @@ describe('OPL release version stamping', () => {
     expect(buildScript).toContain('process.env.OPL_UPDATER_VERSION = updaterVersion');
     expect(buildScript).toContain('--config.extraMetadata.version=${updaterVersion}');
     const afterPack = readRepoFile('scripts/afterPack.js');
-    expect(afterPack).toContain('stampMacDisplayVersion');
-    expect(afterPack).toMatch(
-      /execFileSync\(\s*['"]\/usr\/bin\/plutil['"],\s*\[\s*['"]-replace['"],\s*['"]CFBundleShortVersionString['"],\s*['"]-string['"],\s*displayVersion,\s*plistPath\s*\]/s
-    );
+    const builderConfig = readRepoFile('packages/desktop/electron-builder.yml');
+    expect(afterPack).not.toContain('stampMacDisplayVersion');
+    expect(afterPack).not.toContain('CFBundleShortVersionString');
+    expect(builderConfig).not.toContain('CFBundleShortVersionString');
     expect(buildScript).toContain('Stamping OPL App updater version: ${oplUpdaterVersion}');
     expect(buildScript).toContain('${publishArg} ${oplReleaseVersionConfigArg}');
     expect(buildScript).toContain('--prepackaged "${appPath}" --publish=never ${oplReleaseVersionConfigArg}');
