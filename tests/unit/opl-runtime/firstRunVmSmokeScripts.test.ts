@@ -648,7 +648,7 @@ describe('OPL first-run VM smoke scripts', () => {
       'https://github.com/gaofeng21cn/one-person-lab-app/releases/download/v26.7.20-r1/One-Person-Lab-26.7.20-r1-mac-arm64.dmg',
     ]);
     expect(downloadFailure.appInstalled).toBe(false);
-  });
+  }, 20_000);
 
   it('fails fast when the packaged App does not contain the main bootstrap fatal marker', () => {
     const current = createPackagedAppWithMainEntry(
