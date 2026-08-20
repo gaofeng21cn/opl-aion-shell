@@ -3643,7 +3643,9 @@ function detectUsableEntryAccessibility(tree) {
 function assertDoesNotContainSecret(label, content, secret) {
   const secrets = (Array.isArray(secret) ? secret : [secret]).filter(Boolean);
   if (secrets.some((value) => content.includes(value))) {
-    throw new Error(`${label} unexpectedly contains a protected qualification credential.`);
+    throw new Error(
+      `${label} unexpectedly contains a protected qualification credential (Codex API key or Gateway account credential).`
+    );
   }
 }
 
