@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 process.env.NODE_ENV = 'test';
 
@@ -559,6 +560,25 @@ function createPackagedAppAsarArchive(content: string) {
 }
 
 describe('OPL first-run VM smoke scripts', () => {
+  it('imports the release harness without a Shell node_modules tree', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-first-run-harness-cold-import-'));
+    const scriptsDir = path.join(root, 'scripts');
+    const source = path.join(process.cwd(), 'scripts', 'opl-first-run-tart-smoke.mjs');
+    const target = path.join(scriptsDir, 'opl-first-run-tart-smoke.mjs');
+    try {
+      fs.mkdirSync(scriptsDir, { recursive: true });
+      fs.copyFileSync(source, target);
+      const result = spawnSync(
+        process.execPath,
+        ['--input-type=module', '--eval', `await import(${JSON.stringify(pathToFileURL(target).href)})`],
+        { encoding: 'utf8' }
+      );
+      expect(result.status, result.stderr).toBe(0);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('separates Full runtime equivalence from Codex-keyed core first-launch readiness', () => {
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('standard')).toBe(false);
     expect(vmSmoke.shouldVerifyFullFirstRunEquivalence('full')).toBe(true);

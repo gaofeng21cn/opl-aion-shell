@@ -2,9 +2,11 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { parse as parseToml } from 'smol-toml';
+
+const requireFromShell = createRequire(import.meta.url);
 
 const DEFAULT_GUEST_USER = process.env.OPL_FIRST_RUN_GUEST_USER || 'runner';
 const DEFAULT_GUEST_NODE_VERSION = process.env.OPL_FIRST_RUN_GUEST_NODE_VERSION || '22.21.1';
@@ -1049,6 +1051,7 @@ function resolveHostCodexProviderCredential(options, includeSecret = false) {
 
   let config;
   try {
+    const { parse: parseToml } = requireFromShell('smol-toml');
     config = parseToml(fs.readFileSync(configPath, 'utf8'));
   } catch (_) {
     return {
