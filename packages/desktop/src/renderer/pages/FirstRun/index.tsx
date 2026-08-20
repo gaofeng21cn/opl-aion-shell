@@ -705,7 +705,6 @@ const FirstRun: React.FC = () => {
     if (
       !isMacRuntime ||
       !readyToLaunch ||
-      initialize?.setup_flow?.is_first_run !== true ||
       !initializeResult ||
       initializeRevision === 0 ||
       officialProfileCompletedRef.current ||
@@ -737,7 +736,7 @@ const FirstRun: React.FC = () => {
     return () => {
       active = false;
     };
-  }, [initialize, initializeResult, initializeRevision, isMacRuntime, readyToLaunch]);
+  }, [initializeResult, initializeRevision, isMacRuntime, readyToLaunch]);
 
   const itemLabels = Object.fromEntries(
     FIRST_RUN_ITEM_IDS.map((itemId) => [itemId, t(ITEM_LABEL_KEYS[itemId])])

@@ -711,6 +711,11 @@ describe('OPL runtime bridge command whitelist', () => {
       )
     ).toBe(true);
     expect(
+      __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(
+        __oplRuntimeBridgeTest.buildGatewayAccountLoginCommand({ email: 'user@example.com', password: 'secret' })
+      )
+    ).toBe(true);
+    expect(
       __oplRuntimeBridgeTest.shouldAutoBootstrapOplCommand(__oplRuntimeBridgeTest.buildStartupMaintenanceCommand())
     ).toBe(true);
     expect(
@@ -839,6 +844,83 @@ describe('OPL runtime bridge command whitelist', () => {
       );
     } finally {
       fs.rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
+  it('records first-install Official Profile completion only after success and skips later automatic reapply', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-completion-'));
+    const resourcesPath = path.join(root, 'resources');
+    const markerPath = path.join(root, '.official-profile-first-install-complete');
+    fs.mkdirSync(resourcesPath, { recursive: true });
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
+    const runCommand = vi.fn(async () => ({
+      surface: 'app_action' as const,
+      command: 'node <official-profile-package-apply.ts> --intent first_install',
+      stdout: '{"official_profile_package_apply":{"status":"completed"}}\n',
+      parsed: { official_profile_package_apply: { status: 'completed' } },
+      ok: true as const,
+    }));
+    try {
+      const first = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+        { intent: 'first_install' },
+        { markerPath, resourcesPath, runCommand }
+      );
+      const second = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+        { intent: 'first_install' },
+        { markerPath, resourcesPath, runCommand }
+      );
+
+      expect(first.ok).toBe(true);
+      expect(second.parsed).toEqual({
+        official_profile_package_apply: {
+          status: 'already_completed',
+          intent: 'first_install',
+          changed: false,
+        },
+      });
+      expect(runCommand).toHaveBeenCalledTimes(1);
+      expect(fs.statSync(markerPath).mode & 0o777).toBe(0o600);
+      expect(fs.readFileSync(markerPath, 'utf8')).toContain('"status":"completed"');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves no Official Profile completion marker after failure so first install can retry', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-retry-'));
+    const resourcesPath = path.join(root, 'resources');
+    const markerPath = path.join(root, '.official-profile-first-install-complete');
+    fs.mkdirSync(resourcesPath, { recursive: true });
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
+    const runCommand = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('official profile install failed'))
+      .mockResolvedValueOnce({
+        surface: 'app_action',
+        command: 'node <official-profile-package-apply.ts> --intent first_install',
+        stdout: '{"official_profile_package_apply":{"status":"completed"}}\n',
+        parsed: { official_profile_package_apply: { status: 'completed' } },
+        ok: true,
+      });
+    try {
+      await expect(
+        __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+          { intent: 'first_install' },
+          { markerPath, resourcesPath, runCommand }
+        )
+      ).rejects.toThrow('official profile install failed');
+      expect(fs.existsSync(markerPath)).toBe(false);
+
+      await expect(
+        __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+          { intent: 'first_install' },
+          { markerPath, resourcesPath, runCommand }
+        )
+      ).resolves.toMatchObject({ ok: true });
+      expect(fs.existsSync(markerPath)).toBe(true);
+      expect(runCommand).toHaveBeenCalledTimes(2);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 

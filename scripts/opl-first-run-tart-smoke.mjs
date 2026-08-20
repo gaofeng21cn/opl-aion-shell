@@ -25,6 +25,7 @@ const OPL_GATEWAY_BASE_URL = 'https://gateway.medopl.com/v1';
 const OPL_GATEWAY_LEGACY_BASE_URLS = ['https://gflabtoken.cn/v1'];
 const HOST_CODEX_PROVIDER_SOURCE = 'developer_host_codex_selected_provider';
 const EXPLICIT_API_KEY_FILE_SOURCE = 'explicit_api_key_file';
+const GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE = 'gateway_account_password_file';
 const REQUIRED_ASSISTANT_ROUTE_IDS = ['mas', 'mag', 'rca'];
 const HOMEBREW_CASK_CANDIDATE_PROFILES = new Map([
   [
@@ -248,6 +249,10 @@ Options:
                            Optional host file containing a test Codex API key for
                            the explicit Provider compatibility lane. This overrides
                            automatic host Codex config discovery.
+  --gateway-account-email-file <path>
+  --gateway-account-password-file <path>
+                           Protected clean-VM Gateway test account files. Both are required
+                           together and values are never passed as CLI arguments.
   --host-codex-config <path>
                            Host Codex config.toml used for a requested AI self-check.
                            Defaults to $CODEX_HOME/config.toml or ~/.codex/config.toml.
@@ -334,6 +339,8 @@ function parseArgs(argv) {
     homebrewCaskFile: '',
     requireCodexConfigWizard: null,
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || '',
+    gatewayAccountEmailFile: process.env.OPL_FIRST_RUN_GATEWAY_ACCOUNT_EMAIL_FILE || '',
+    gatewayAccountPasswordFile: process.env.OPL_FIRST_RUN_GATEWAY_ACCOUNT_PASSWORD_FILE || '',
     hostCodexConfig:
       process.env.OPL_FIRST_RUN_HOST_CODEX_CONFIG ||
       path.join(process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex'), 'config.toml'),
@@ -517,6 +524,12 @@ function parseArgs(argv) {
     } else if (arg === '--codex-api-key-file') {
       options.codexApiKeyFile = path.resolve(value);
       explicit.add('codexApiKeyFile');
+    } else if (arg === '--gateway-account-email-file') {
+      options.gatewayAccountEmailFile = path.resolve(value);
+      explicit.add('gatewayAccountEmailFile');
+    } else if (arg === '--gateway-account-password-file') {
+      options.gatewayAccountPasswordFile = path.resolve(value);
+      explicit.add('gatewayAccountPasswordFile');
     } else if (arg === '--host-codex-config') {
       options.hostCodexConfig = path.resolve(value);
       explicit.add('hostCodexConfig');
@@ -619,6 +632,26 @@ function parseArgs(argv) {
   if (options.requireCodexConfigWizard && !options.codexApiKeyFile) {
     throw new Error('--require-codex-config-wizard requires --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.');
   }
+  if (Boolean(options.gatewayAccountEmailFile) !== Boolean(options.gatewayAccountPasswordFile)) {
+    throw new Error('--gateway-account-email-file and --gateway-account-password-file must be provided together.');
+  }
+  if (options.gatewayAccountEmailFile && options.codexApiKeyFile) {
+    throw new Error('Gateway account qualification and explicit API key qualification are separate lanes.');
+  }
+  if (
+    options.gatewayAccountEmailFile &&
+    path.basename(options.gatewayAccountEmailFile) === path.basename(options.gatewayAccountPasswordFile)
+  ) {
+    throw new Error('Gateway account email and password files must have distinct basenames for guest staging.');
+  }
+  for (const [label, file] of [
+    ['--gateway-account-email-file', options.gatewayAccountEmailFile],
+    ['--gateway-account-password-file', options.gatewayAccountPasswordFile],
+  ]) {
+    if (file && !options.dryRun && !fs.statSync(file, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`${label} must reference a readable file.`);
+    }
+  }
   resolveMasProvisioningTransport(options, !options.dryRun);
   if (
     options.bootstrapLaunchDiagnostics &&
@@ -694,7 +727,7 @@ function buildDryRunPlan(options) {
     homebrew_cask: options.homebrewCask,
     homebrew_trusted_casks: homebrewTrustedCaskRefs(options),
     install_origin: isHomebrewFullCaskSmoke(options) ? 'homebrew_full_cask' : options.installMode,
-    official_profile_desired_roots: isHomebrewFullCaskSmoke(options) ? officialProfileDesiredRoots() : [],
+    official_profile_desired_roots: officialProfileDesiredRoots(),
     expected_framework_sha: options.expectedFrameworkSha || null,
     artifacts: options.artifacts,
     guest_workdir: options.guestWorkdir,
@@ -716,10 +749,13 @@ function buildDryRunPlan(options) {
     codex_ai_self_check: {
       requested: options.codexAiSelfCheck,
       mode: options.codexAiSelfCheckMode,
-      blocking_release_gate: false,
+      blocking_release_gate: providerResolution.source === GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE,
     },
     cdp_port:
-      options.bootstrapLaunchDiagnostics || options.settingsSmoke || options.assistantRouteSmoke
+      options.bootstrapLaunchDiagnostics ||
+      options.settingsSmoke ||
+      options.assistantRouteSmoke ||
+      Boolean(options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile)
         ? options.cdpPort
         : null,
     runtime_profile: options.runtimeProfile,
@@ -734,7 +770,7 @@ function buildDryRunPlan(options) {
       base_url_matches_opl_gateway: providerResolution.base_url_matches_opl_gateway,
       manual_user_input_required: false,
       mutation_performed: false,
-      blocking_release_gate: false,
+      blocking_release_gate: providerResolution.source === GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE,
     },
     guest_node_root: options.guestNodeRoot || null,
     guest_node_command: options.guestNodeCommand || null,
@@ -931,6 +967,28 @@ function publicProviderCredentialResolution(resolution) {
 }
 
 function resolveHostCodexProviderCredential(options, includeSecret = false) {
+  if (options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile) {
+    const emailPresent = Boolean(
+      fs.statSync(options.gatewayAccountEmailFile, { throwIfNoEntry: false })?.isFile() &&
+      fs.readFileSync(options.gatewayAccountEmailFile, 'utf8').trim()
+    );
+    const passwordPresent = Boolean(
+      fs.statSync(options.gatewayAccountPasswordFile, { throwIfNoEntry: false })?.isFile() &&
+      fs.readFileSync(options.gatewayAccountPasswordFile, 'utf8').trim()
+    );
+    const available = emailPresent && passwordPresent;
+    return {
+      status: available ? 'available' : 'unavailable',
+      source: GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE,
+      reason: available ? null : 'gateway_account_credential_file_empty',
+      config_path: null,
+      selected_provider: null,
+      base_url: OPL_GATEWAY_BASE_URL,
+      base_url_present: true,
+      base_url_matches_opl_gateway: true,
+      credential_present: available,
+    };
+  }
   if (options.codexApiKeyFile) {
     if (!fs.existsSync(options.codexApiKeyFile)) {
       return {
@@ -1041,6 +1099,12 @@ function prepareHostCodexApiKeyFile(options) {
   options.providerCredentialPresent = resolution.status === 'available';
   options.providerCredentialSource = resolution.source;
   options.codexProviderBaseUrl = resolution.status === 'available' ? resolution.base_url : null;
+  if (resolution.source === GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE) {
+    if (resolution.status !== 'available') {
+      throw new Error(`Gateway account credential files are unavailable: ${resolution.reason}.`);
+    }
+    return null;
+  }
   if (resolution.status !== 'available') {
     if (resolution.source === EXPLICIT_API_KEY_FILE_SOURCE) {
       throw new Error(`Explicit Codex API key file is unavailable: ${resolution.reason}.`);
@@ -2062,12 +2126,22 @@ function guestSmokeCommand(
   guestCodexApiKeyPath,
   guestFrameworkSourceArchivePath = null,
   guestFrameworkInstallScriptPath = null,
-  guestHostDeadlineEpochMs = guestSmokeHostDeadlineEpochMs(options)
+  guestHostDeadlineEpochMs = guestSmokeHostDeadlineEpochMs(options),
+  guestGatewayAccountEmailPath = null,
+  guestGatewayAccountPasswordPath = null
 ) {
-  const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
+  const gatewayAccountRequested = Boolean(options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile);
+  const providerCredentialRequested =
+    gatewayAccountRequested || options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
   const providerCredentialSource =
-    options.providerCredentialSource ?? (options.codexApiKeyFile ? EXPLICIT_API_KEY_FILE_SOURCE : null);
-  const providerBaseUrl = options.codexProviderBaseUrl ?? (options.codexApiKeyFile ? OPL_GATEWAY_BASE_URL : null);
+    options.providerCredentialSource ??
+    (gatewayAccountRequested
+      ? GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE
+      : options.codexApiKeyFile
+        ? EXPLICIT_API_KEY_FILE_SOURCE
+        : null);
+  const providerBaseUrl =
+    options.codexProviderBaseUrl ?? (gatewayAccountRequested || options.codexApiKeyFile ? OPL_GATEWAY_BASE_URL : null);
   const nodeCommand = shellQuote(options.guestNodeCommand);
   const sourceArchiveUrl = guestFrameworkSourceArchivePath ? `file://${guestFrameworkSourceArchivePath}` : null;
   const installScriptUrl = guestFrameworkInstallScriptPath ? `file://${guestFrameworkInstallScriptPath}` : null;
@@ -2094,7 +2168,7 @@ function guestSmokeCommand(
       : homebrewCaskProfile?.caskToken === 'one-person-lab'
         ? 'homebrew_standard_cask'
         : null;
-  const officialRoots = homebrewCaskSmoke ? officialProfileDesiredRoots() : [];
+  const officialRoots = officialProfileDesiredRoots();
   const homebrewFormulaStatePath = homebrewFullCaskSmoke
     ? `${options.guestWorkdir}/homebrew-full-formula-state.json`
     : null;
@@ -2106,6 +2180,12 @@ function guestSmokeCommand(
     `--artifacts ${shellQuote(guestArtifactDir)}`,
     providerCredentialRequested && guestCodexApiKeyPath
       ? `--codex-api-key-file ${shellQuote(guestCodexApiKeyPath)}`
+      : '',
+    gatewayAccountRequested && guestGatewayAccountEmailPath
+      ? `--gateway-account-email-file ${shellQuote(guestGatewayAccountEmailPath)}`
+      : '',
+    gatewayAccountRequested && guestGatewayAccountPasswordPath
+      ? `--gateway-account-password-file ${shellQuote(guestGatewayAccountPasswordPath)}`
       : '',
     providerCredentialRequested && providerBaseUrl ? `--codex-provider-base-url ${shellQuote(providerBaseUrl)}` : '',
     providerCredentialRequested && providerCredentialSource
@@ -2139,7 +2219,10 @@ function guestSmokeCommand(
     options.codexAiSelfCheck
       ? `--codex-ai-self-check-timeout-ms ${shellQuote(String(options.codexAiSelfCheckTimeoutMs))}`
       : '',
-    options.bootstrapLaunchDiagnostics || options.settingsSmoke || options.assistantRouteSmoke
+    options.bootstrapLaunchDiagnostics ||
+    options.settingsSmoke ||
+    options.assistantRouteSmoke ||
+    gatewayAccountRequested
       ? `--cdp-port ${shellQuote(String(options.cdpPort))}`
       : '',
     `--runtime-profile ${shellQuote(options.runtimeProfile)}`,
@@ -2471,12 +2554,19 @@ function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null)
   }
   assertGuestReleaseSourceIdentity(options, guestSummary, hostArtifactsDir);
   const providerConfiguration = guestSummary.provider_configuration;
-  const providerCredentialRequested = options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
+  const gatewayAccountRequested = Boolean(options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile);
+  const providerCredentialRequested =
+    gatewayAccountRequested || options.providerCredentialPresent || Boolean(options.codexApiKeyFile);
   const expectedCredentialSource = providerCredentialRequested
-    ? (options.providerCredentialSource ?? (options.codexApiKeyFile ? EXPLICIT_API_KEY_FILE_SOURCE : null))
+    ? (options.providerCredentialSource ??
+      (gatewayAccountRequested
+        ? GATEWAY_ACCOUNT_PASSWORD_FILE_SOURCE
+        : options.codexApiKeyFile
+          ? EXPLICIT_API_KEY_FILE_SOURCE
+          : null))
     : null;
   if (
-    providerConfiguration?.blocking_release_gate !== false ||
+    providerConfiguration?.blocking_release_gate !== gatewayAccountRequested ||
     providerConfiguration?.requested !== providerCredentialRequested ||
     providerConfiguration?.credential_present !== providerCredentialRequested ||
     providerConfiguration?.credential_source !== expectedCredentialSource ||
@@ -2489,6 +2579,33 @@ function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null)
     (providerConfiguration.status !== 'not_requested' || providerConfiguration.mutation_performed !== false)
   ) {
     throw new Error('Guest release smoke must leave Provider configuration not_requested without credentials');
+  }
+  if (
+    gatewayAccountRequested &&
+    (providerConfiguration.status !== 'configured' ||
+      providerConfiguration.mutation_performed !== true ||
+      guestSummary.gateway_account_login?.schema !== 'opl_gateway_account_clean_vm_login.v1' ||
+      guestSummary.gateway_account_login?.status !== 'passed' ||
+      guestSummary.gateway_account_login?.login_submitted !== true ||
+      guestSummary.gateway_account_login?.model_access_confirmed !== true ||
+      guestSummary.gateway_account_login?.readback?.status !== 'connected' ||
+      guestSummary.gateway_account_login?.readback?.connection_mode !== 'account' ||
+      guestSummary.gateway_account_login?.readback?.managed_key_present !== true ||
+      guestSummary.gateway_account_login?.readback?.freshness !== 'fresh')
+  ) {
+    throw new Error('Guest smoke did not prove fresh Gateway account login through the packaged FirstRun UI.');
+  }
+  const expectedOfficialRoots = officialProfileDesiredRoots();
+  const officialProfile = guestSummary.official_profile_first_install;
+  if (
+    !options.bootstrapLaunchDiagnostics &&
+    (officialProfile?.schema !== 'opl_official_profile_clean_vm_first_install.v1' ||
+      officialProfile?.status !== 'passed' ||
+      officialProfile?.restore_action_invoked !== false ||
+      JSON.stringify(officialProfile?.desired_root_package_ids) !== JSON.stringify(expectedOfficialRoots) ||
+      JSON.stringify(officialProfile?.installed_root_package_ids) !== JSON.stringify(expectedOfficialRoots))
+  ) {
+    throw new Error('Guest clean-VM smoke did not prove Official Profile first-install convergence.');
   }
   if (options.runtimeProfile === 'full' && !options.bootstrapLaunchDiagnostics) {
     const proof = guestSummary.temporal_service_supervisor_proof;
@@ -2824,6 +2941,12 @@ async function main() {
     const guestDmgPath = options.dmg ? `${options.guestWorkdir}/${path.basename(options.dmg)}` : null;
     const guestScriptPath = `${options.guestWorkdir}/opl-first-run-vm-smoke.mjs`;
     const guestCodexApiKeyPath = codexApiKeyFile ? `${options.guestWorkdir}/codex-api-key.txt` : null;
+    const guestGatewayAccountEmailPath = options.gatewayAccountEmailFile
+      ? `${options.guestWorkdir}/${path.basename(options.gatewayAccountEmailFile)}`
+      : null;
+    const guestGatewayAccountPasswordPath = options.gatewayAccountPasswordFile
+      ? `${options.guestWorkdir}/${path.basename(options.gatewayAccountPasswordFile)}`
+      : null;
     setStage('prepare_guest_workdir');
     await ssh(
       options,
@@ -2835,6 +2958,8 @@ async function main() {
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
     const guestInputs = [resolveGuestSmokeScriptPath()];
     if (codexApiKeyFile) guestInputs.push(codexApiKeyFile.path);
+    if (options.gatewayAccountEmailFile) guestInputs.push(options.gatewayAccountEmailFile);
+    if (options.gatewayAccountPasswordFile) guestInputs.push(options.gatewayAccountPasswordFile);
     if (options.compiledExpectations) guestInputs.push(options.compiledExpectations);
     if (options.dmg) guestInputs.unshift(options.dmg);
     if (options.codexPackageTarball) guestInputs.push(options.codexPackageTarball);
@@ -2888,7 +3013,9 @@ async function main() {
         guestCodexApiKeyPath,
         guestFrameworkArchivePath,
         guestFrameworkInstallerPath,
-        guestHostDeadlineEpochMs
+        guestHostDeadlineEpochMs,
+        guestGatewayAccountEmailPath,
+        guestGatewayAccountPasswordPath
       ),
       {
         label: `ssh run_guest_smoke ${options.guestUser}@${ip}`,

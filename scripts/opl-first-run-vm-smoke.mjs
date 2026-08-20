@@ -342,6 +342,10 @@ Options:
   --codex-api-key-file <path>
                          File containing a test Codex API key for the explicit Provider
                          compatibility lane. The key is never passed as a CLI argument.
+  --gateway-account-email-file <path>
+  --gateway-account-password-file <path>
+                         Files containing the protected Gateway clean-VM test account.
+                         Both are required together and values are never passed as CLI arguments.
   --codex-provider-base-url <url>
                          Expected Provider Base URL resolved from the host Codex config.
   --provider-credential-source <source>
@@ -395,6 +399,8 @@ function parseArgs(argv) {
     homebrewFormulaState: null,
     officialProfileRoots: [],
     codexApiKeyFile: process.env.OPL_FIRST_RUN_CODEX_API_KEY_FILE || null,
+    gatewayAccountEmailFile: process.env.OPL_FIRST_RUN_GATEWAY_ACCOUNT_EMAIL_FILE || null,
+    gatewayAccountPasswordFile: process.env.OPL_FIRST_RUN_GATEWAY_ACCOUNT_PASSWORD_FILE || null,
     codexProviderBaseUrl: null,
     providerCredentialSource: null,
     requireCodexConfigWizard: false,
@@ -477,6 +483,8 @@ function parseArgs(argv) {
     else if (arg === '--codex-ai-self-check-timeout-ms') options.codexAiSelfCheckTimeoutMs = Number(value);
     else if (arg === '--host-deadline-epoch-ms') options.hostDeadlineEpochMs = Number(value);
     else if (arg === '--codex-api-key-file') options.codexApiKeyFile = path.resolve(value);
+    else if (arg === '--gateway-account-email-file') options.gatewayAccountEmailFile = path.resolve(value);
+    else if (arg === '--gateway-account-password-file') options.gatewayAccountPasswordFile = path.resolve(value);
     else if (arg === '--codex-provider-base-url') options.codexProviderBaseUrl = value;
     else if (arg === '--provider-credential-source') options.providerCredentialSource = value;
     else throw new Error(`Unsupported argument: ${arg}`);
@@ -554,6 +562,20 @@ function parseArgs(argv) {
   if (options.requireCodexConfigWizard && !options.codexApiKeyFile) {
     throw new Error('--require-codex-config-wizard requires --codex-api-key-file or OPL_FIRST_RUN_CODEX_API_KEY_FILE.');
   }
+  if (Boolean(options.gatewayAccountEmailFile) !== Boolean(options.gatewayAccountPasswordFile)) {
+    throw new Error('--gateway-account-email-file and --gateway-account-password-file must be provided together.');
+  }
+  if (options.gatewayAccountEmailFile && options.codexApiKeyFile) {
+    throw new Error('Gateway account qualification and explicit API key qualification are separate lanes.');
+  }
+  for (const [label, file] of [
+    ['--gateway-account-email-file', options.gatewayAccountEmailFile],
+    ['--gateway-account-password-file', options.gatewayAccountPasswordFile],
+  ]) {
+    if (file && !fs.statSync(file, { throwIfNoEntry: false })?.isFile()) {
+      throw new Error(`${label} must reference a readable file.`);
+    }
+  }
   if (!options.artifacts) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     options.artifacts = path.resolve('artifacts', `opl-first-run-${stamp}`);
@@ -608,6 +630,15 @@ function readCodexApiKey(options) {
   const key = fs.readFileSync(options.codexApiKeyFile, 'utf8').trim();
   if (!key) throw new Error(`Codex API key file is empty: ${options.codexApiKeyFile}`);
   return key;
+}
+
+function readGatewayAccountCredentials(options) {
+  if (!options.gatewayAccountEmailFile || !options.gatewayAccountPasswordFile) return null;
+  const email = fs.readFileSync(options.gatewayAccountEmailFile, 'utf8').trim();
+  const password = fs.readFileSync(options.gatewayAccountPasswordFile, 'utf8').trim();
+  if (!email) throw new Error('Gateway account email file is empty.');
+  if (!password) throw new Error('Gateway account password file is empty.');
+  return { email, password };
 }
 
 function validateCodexInstallPreseedOptions(options) {
@@ -2589,7 +2620,8 @@ function normalizeProviderBaseUrl(value) {
 }
 
 function buildProviderConfigurationSummary(options, codexApiKey, evidence = {}) {
-  const requested = Boolean(options.codexApiKeyFile);
+  const gatewayAccountRequested = Boolean(options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile);
+  const requested = gatewayAccountRequested || Boolean(options.codexApiKeyFile);
   if (!requested) {
     return {
       status: 'not_requested',
@@ -2604,18 +2636,23 @@ function buildProviderConfigurationSummary(options, codexApiKey, evidence = {}) 
       blocking_release_gate: false,
     };
   }
-  const mutationPerformed = evidence.programmaticConfigured === true || evidence.wizardSubmitted === true;
+  const mutationPerformed =
+    evidence.programmaticConfigured === true ||
+    evidence.wizardSubmitted === true ||
+    evidence.gatewayAccountConnected === true;
   return {
     status: mutationPerformed ? 'configured' : 'requested',
     requested: true,
     authentication_default: 'opl_gateway_account_password',
     api_key_role: 'explicit_compatibility_only',
-    credential_source: options.providerCredentialSource ?? 'explicit_api_key_file',
-    credential_present: Boolean(codexApiKey),
-    provider_base_url_matches_host: evidence.providerBaseUrlMatched ?? null,
+    credential_source:
+      options.providerCredentialSource ??
+      (gatewayAccountRequested ? 'gateway_account_password_file' : 'explicit_api_key_file'),
+    credential_present: gatewayAccountRequested || Boolean(codexApiKey),
+    provider_base_url_matches_host: gatewayAccountRequested ? true : (evidence.providerBaseUrlMatched ?? null),
     manual_user_input_required: false,
     mutation_performed: mutationPerformed,
-    blocking_release_gate: false,
+    blocking_release_gate: gatewayAccountRequested,
   };
 }
 
@@ -2885,6 +2922,46 @@ function officialProfileConvergenceFromFastState(payload, desiredRoots) {
     apply_reason: 'first_install',
     restore_action_invoked: false,
   };
+}
+
+async function collectOfficialProfileFirstInstallProof(options, secret) {
+  if (options.officialProfileRoots.length === 0) {
+    throw new Error('Release clean-VM smoke requires Official Profile roots.');
+  }
+  const args = ['app', 'state', '--profile', 'fast', '--json'];
+  const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
+  const started = Date.now();
+  let officialProfile = null;
+  let lastError = null;
+  while (Date.now() - started < options.timeoutMs) {
+    try {
+      const appState = parseOplJsonResult(
+        runOplJsonImpl(args, { ...options, timeoutMs: resolveOplProbeTimeoutMs(options.timeoutMs) }),
+        args
+      );
+      officialProfile = officialProfileConvergenceFromFastState(appState, options.officialProfileRoots);
+      break;
+    } catch (error) {
+      lastError = error;
+      await sleep(1_000);
+    }
+  }
+  if (!officialProfile) {
+    throw new Error(
+      `Official Profile did not converge before the clean-VM deadline: ${
+        lastError instanceof Error ? lastError.message : String(lastError)
+      }`
+    );
+  }
+  const receipt = {
+    schema: 'opl_official_profile_clean_vm_first_install.v1',
+    status: 'passed',
+    runtime_profile: options.runtimeProfile,
+    install_origin: options.installOrigin,
+    ...officialProfile,
+  };
+  writeJsonArtifact(path.join(options.artifacts, 'official-profile-first-install-summary.json'), receipt, secret);
+  return receipt;
 }
 
 function collectHomebrewFullCaskProof(options, secret) {
@@ -3564,8 +3641,9 @@ function detectUsableEntryAccessibility(tree) {
 }
 
 function assertDoesNotContainSecret(label, content, secret) {
-  if (secret && content.includes(secret)) {
-    throw new Error(`${label} unexpectedly contains the Codex API key.`);
+  const secrets = (Array.isArray(secret) ? secret : [secret]).filter(Boolean);
+  if (secrets.some((value) => content.includes(value))) {
+    throw new Error(`${label} unexpectedly contains a protected qualification credential.`);
   }
 }
 
@@ -3932,7 +4010,7 @@ function isFirstRunCompletionEvent(event) {
 }
 
 function shouldProbeExistingGuidEntryBeforeFirstRun(options) {
-  return options.assertClean !== true && options.requireCodexConfigWizard !== true;
+  return options.assertClean !== true && options.requireCodexConfigWizard !== true && !options.gatewayAccountEmailFile;
 }
 
 function existingStateGuidProbeTimeoutMs(options) {
@@ -3948,12 +4026,19 @@ function shouldWaitForCoreFirstLaunchReady(options) {
     return false;
   }
   return (
-    options.requireCodexConfigWizard === true || options.runtimeProfile === 'full' || Boolean(options.codexApiKeyFile)
+    options.requireCodexConfigWizard === true ||
+    options.runtimeProfile === 'full' ||
+    Boolean(options.codexApiKeyFile) ||
+    Boolean(options.gatewayAccountEmailFile)
   );
 }
 
 function shouldCheckFirstRunBeginnerUx(options) {
-  return options.assertClean === true || options.requireCodexConfigWizard === true;
+  return (
+    options.assertClean === true ||
+    options.requireCodexConfigWizard === true ||
+    Boolean(options.gatewayAccountEmailFile)
+  );
 }
 
 function shouldCaptureFullReleaseScreenshot(options) {
@@ -6085,6 +6170,175 @@ async function evaluateCdp(client, expression, timeoutMs = DEFAULT_CDP_COMMAND_T
   return result.result?.value;
 }
 
+async function callCdpFunction(client, functionDeclaration, values, timeoutMs = DEFAULT_CDP_COMMAND_TIMEOUT_MS) {
+  const globalObject = await client.send(
+    'Runtime.evaluate',
+    { expression: 'globalThis', returnByValue: false },
+    timeoutMs
+  );
+  const objectId = globalObject.result?.objectId;
+  if (!objectId) throw new Error('CDP did not expose the renderer global object.');
+  const result = await client.send(
+    'Runtime.callFunctionOn',
+    {
+      objectId,
+      functionDeclaration,
+      arguments: values.map((value) => ({ value })),
+      awaitPromise: true,
+      returnByValue: true,
+    },
+    timeoutMs
+  );
+  if (result.exceptionDetails) {
+    const detail = result.exceptionDetails.exception?.description || result.exceptionDetails.text || 'CDP call failed';
+    throw new Error(detail);
+  }
+  return result.result?.value;
+}
+
+function gatewayAccountFormReadinessExpression() {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const email = document.querySelector('[data-testid="opl-first-run-gateway-email-input"] input, [data-testid="opl-first-run-gateway-email-input"]');
+    const password = document.querySelector('[data-testid="opl-first-run-gateway-password-input"] input, [data-testid="opl-first-run-gateway-password-input"]');
+    const submit = document.querySelector('[data-testid="opl-first-run-gateway-login-button"]');
+    return visible(email) && visible(password) && visible(submit)
+      ? { status: 'ready', email_input: true, password_input: true, submit_button: true }
+      : false;
+  })()`;
+}
+
+const GATEWAY_ACCOUNT_FORM_SUBMIT_FUNCTION = `function(emailValue, passwordValue) {
+  const input = (testId) => {
+    const root = document.querySelector('[data-testid="' + testId + '"]');
+    if (!root) return null;
+    return root.matches('input') ? root : root.querySelector('input');
+  };
+  const setValue = (node, value) => {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    if (!node || !setter) throw new Error('gateway_account_input_setter_unavailable');
+    setter.call(node, value);
+    node.dispatchEvent(new Event('input', { bubbles: true }));
+    node.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+  const email = input('opl-first-run-gateway-email-input');
+  const password = input('opl-first-run-gateway-password-input');
+  const submit = document.querySelector('[data-testid="opl-first-run-gateway-login-button"]');
+  if (!email || !password || !submit) return { status: 'not_ready' };
+  setValue(email, emailValue);
+  setValue(password, passwordValue);
+  submit.click();
+  return { status: 'submitted' };
+}`;
+
+function gatewayAccountConfirmationExpression() {
+  return `(() => {
+    const error = document.querySelector('[data-testid="opl-first-run-user-error"], [data-testid="opl-first-run-technical-error"]');
+    if (error && String(error.textContent || '').trim()) {
+      return { status: 'failed', error: String(error.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 500) };
+    }
+    const confirm = document.querySelector('[data-testid="opl-first-run-gateway-model-access-confirm"]');
+    if (!confirm) return false;
+    const disabled = confirm.disabled === true || confirm.getAttribute('aria-disabled') === 'true';
+    if (disabled) return false;
+    confirm.click();
+    return { status: 'confirmed' };
+  })()`;
+}
+
+function gatewayAccountProjection(payload) {
+  return payload?.app_state?.settings_control_center?.app_settings_read_model?.opl_gateway_account ?? null;
+}
+
+async function waitForGatewayAccountConnected(options) {
+  const started = Date.now();
+  let lastProjection = null;
+  while (Date.now() - started < options.timeoutMs) {
+    try {
+      const args = ['app', 'state', '--profile', 'fast', '--json'];
+      const payload = parseOplJsonResult(runOplJson(args, options), args);
+      lastProjection = gatewayAccountProjection(payload);
+      if (
+        lastProjection?.surface_kind === 'opl_gateway_account_read_model.v1' &&
+        lastProjection.status === 'connected' &&
+        lastProjection.connection_mode === 'account' &&
+        lastProjection.account_card_visible === true &&
+        lastProjection.managed_key &&
+        lastProjection.freshness?.stale === false &&
+        !lastProjection.freshness?.last_error_code
+      ) {
+        return {
+          status: 'connected',
+          connection_mode: 'account',
+          account_card_visible: true,
+          managed_key_present: true,
+          freshness: 'fresh',
+        };
+      }
+    } catch (_) {}
+    await sleep(1_000);
+  }
+  throw new Error(
+    `Gateway account did not reach a fresh connected readback: ${JSON.stringify({
+      status: lastProjection?.status ?? null,
+      connection_mode: lastProjection?.connection_mode ?? null,
+      managed_key_present: Boolean(lastProjection?.managed_key),
+      stale: lastProjection?.freshness?.stale ?? null,
+      last_error_code: lastProjection?.freshness?.last_error_code ?? null,
+    })}`
+  );
+}
+
+async function loginGatewayAccountViaCdp(options, credentials) {
+  const target = await waitForCdpPageTarget(options.cdpPort, cdpProbeTimeoutMs(options));
+  const client = await openCdpClient(target.webSocketDebuggerUrl);
+  try {
+    await client.send('Runtime.enable');
+    const form = await waitForCdpPredicate(
+      client,
+      gatewayAccountFormReadinessExpression(),
+      options.timeoutMs,
+      'Gateway account login form did not become ready on clean first launch'
+    );
+    const submit = await callCdpFunction(client, GATEWAY_ACCOUNT_FORM_SUBMIT_FUNCTION, [
+      credentials.email,
+      credentials.password,
+    ]);
+    if (submit?.status !== 'submitted') throw new Error('Gateway account login form was not submitted.');
+    const confirmation = await waitForCdpPredicate(
+      client,
+      gatewayAccountConfirmationExpression(),
+      options.timeoutMs,
+      'Gateway account login did not expose model-access confirmation'
+    );
+    if (confirmation?.status === 'failed') {
+      throw new Error(`Gateway account login failed: ${confirmation.error || 'unknown error'}`);
+    }
+    const readback = await waitForGatewayAccountConnected(options);
+    const receipt = {
+      schema: 'opl_gateway_account_clean_vm_login.v1',
+      status: 'passed',
+      credentials_transport: 'protected_files_to_cdp_arguments',
+      form,
+      login_submitted: true,
+      model_access_confirmed: confirmation?.status === 'confirmed',
+      readback,
+    };
+    writeJsonArtifact(path.join(options.artifacts, 'gateway-account-login-summary.json'), receipt, [
+      credentials.email,
+      credentials.password,
+    ]);
+    return receipt;
+  } finally {
+    client.close();
+  }
+}
+
 async function dispatchCdpPointerClick(client, prepared) {
   const x = Number(prepared?.click_point?.x);
   const y = Number(prepared?.click_point?.y);
@@ -7709,7 +7963,13 @@ async function main() {
     COMPILED_EXPECTATION_CONSUMPTION = compiled.consumption;
   }
   const codexApiKey = readCodexApiKey(options);
-  const writeSmokeEvent = createSmokeEventWriter(options.artifacts, codexApiKey);
+  const gatewayAccountCredentials = readGatewayAccountCredentials(options);
+  const qualificationSecrets = [
+    codexApiKey,
+    gatewayAccountCredentials?.email,
+    gatewayAccountCredentials?.password,
+  ].filter(Boolean);
+  const writeSmokeEvent = createSmokeEventWriter(options.artifacts, qualificationSecrets);
   let codexInstallPreseed = codexInstallPreseedDiagnostics(options);
   try {
     fs.mkdirSync(options.artifacts, { recursive: true });
@@ -7772,6 +8032,7 @@ async function main() {
     let gatekeeperLaunchPolicy = null;
     let providerConfigurationMutationPerformed = false;
     let providerConfigurationBaseUrlMatched = null;
+    let gatewayAccountLogin = null;
 
     await runSmokePhase(writeSmokeEvent, 'verify_packaged_main_bootstrap', () =>
       assertPackagedMainBootstrap(appPath, options.artifacts)
@@ -7871,6 +8132,23 @@ async function main() {
       cdp_port: options.cdpPort,
       timeout_ms: options.codexInstallPhaseTimeoutMs,
     });
+    if (gatewayAccountCredentials) {
+      gatewayAccountLogin = await runSmokePhase(
+        writeSmokeEvent,
+        'gateway_account_login',
+        () =>
+          loginGatewayAccountViaCdp(
+            withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs, 'gateway_account_login'),
+            gatewayAccountCredentials
+          ),
+        {
+          credentials_transport: 'protected_files_to_cdp_arguments',
+          timeout_ms: options.codexReadinessPhaseTimeoutMs,
+        }
+      );
+      providerConfigurationMutationPerformed = true;
+      providerConfigurationBaseUrlMatched = true;
+    }
     if (options.bootstrapLaunchDiagnostics) {
       let bootstrapLaunchDiagnostics = null;
       try {
@@ -8090,11 +8368,25 @@ async function main() {
         }
       ));
     if (guidEntry.tree.length > 0) {
-      writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), guidEntry.tree, codexApiKey);
+      writeJsonArtifact(path.join(options.artifacts, 'accessibility-tree.json'), guidEntry.tree, qualificationSecrets);
     }
     if (guidEntry.cdpState) {
-      writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, codexApiKey);
+      writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, qualificationSecrets);
     }
+
+    const officialProfileFirstInstall = await runSmokePhase(
+      writeSmokeEvent,
+      'official_profile_first_install',
+      () =>
+        collectOfficialProfileFirstInstallProof(
+          withPhaseTimeout(installedAppOptions, options.codexReadinessPhaseTimeoutMs, 'official_profile_first_install'),
+          qualificationSecrets
+        ),
+      {
+        desired_root_package_ids: options.officialProfileRoots,
+        timeout_ms: options.codexReadinessPhaseTimeoutMs,
+      }
+    );
 
     const computerUseQualification = await runSmokePhase(
       writeSmokeEvent,
@@ -8215,7 +8507,7 @@ async function main() {
       writeTextArtifact(
         path.join(options.artifacts, 'first-run.jsonl'),
         fs.readFileSync(firstRunLog, 'utf8'),
-        codexApiKey
+        qualificationSecrets
       );
     }
 
@@ -8237,8 +8529,12 @@ async function main() {
           timeout_ms: options.codexReadinessPhaseTimeoutMs,
         }
       );
-      writeTextArtifact(path.join(options.artifacts, 'system-initialize.json'), systemInitializeRaw, codexApiKey);
-      writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, codexApiKey);
+      writeTextArtifact(
+        path.join(options.artifacts, 'system-initialize.json'),
+        systemInitializeRaw,
+        qualificationSecrets
+      );
+      writeTextArtifact(path.join(options.artifacts, 'modules.json'), modulesRaw, qualificationSecrets);
       temporalServiceSupervisorProof = await runSmokePhase(
         writeSmokeEvent,
         'temporal_service_supervisor_proof',
@@ -8302,7 +8598,7 @@ async function main() {
     const releaseSourceIdentity = await runReleaseSourceIdentityPhase(
       writeSmokeEvent,
       installedAppOptions,
-      codexApiKey
+      qualificationSecrets
     );
     captureMacScreenArtifact(path.join(options.artifacts, 'first-launch.png'));
     const unifiedLogPath = path.join(options.artifacts, 'unified-log.txt');
@@ -8310,7 +8606,7 @@ async function main() {
     assertDoesNotContainSecret(
       'unified-log.txt',
       fs.existsSync(unifiedLogPath) ? fs.readFileSync(unifiedLogPath, 'utf8') : '',
-      codexApiKey
+      qualificationSecrets
     );
 
     const summary = {
@@ -8339,7 +8635,10 @@ async function main() {
         programmaticConfigured: providerConfigurationMutationPerformed,
         providerBaseUrlMatched: providerConfigurationBaseUrlMatched,
         wizardSubmitted: firstRun.submittedCodexWizard,
+        gatewayAccountConnected: gatewayAccountLogin?.status === 'passed',
       }),
+      gateway_account_login: gatewayAccountLogin,
+      official_profile_first_install: officialProfileFirstInstall,
       codex_install_preseed: codexInstallPreseed,
       timeouts: {
         smoke_ms: options.timeoutMs,
@@ -8383,7 +8682,7 @@ async function main() {
       homebrew_standard_cask: homebrewStandardCask,
       guide_screenshots: guideScreenshots,
     };
-    writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, codexApiKey);
+    writeJsonArtifact(path.join(options.artifacts, 'smoke-summary.json'), summary, qualificationSecrets);
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'passed', {
       runtime_profile: options.runtimeProfile,
       guid_entry_probe: guidEntry.mode,
@@ -8406,7 +8705,7 @@ async function main() {
     writeSmokeEventSafely(writeSmokeEvent, 'summary', 'failed', {
       error: error instanceof Error ? error.message : String(error),
     });
-    throw collectFailureArtifactsForSmokeError(error, options, codexApiKey, writeSmokeEvent);
+    throw collectFailureArtifactsForSmokeError(error, options, qualificationSecrets, writeSmokeEvent);
   }
 }
 
@@ -8449,6 +8748,11 @@ export const __test =
         shouldWaitForCoreFirstLaunchReady,
         configureCodexApiKeyForSmoke,
         buildProviderConfigurationSummary,
+        readGatewayAccountCredentials,
+        gatewayAccountFormReadinessExpression,
+        gatewayAccountConfirmationExpression,
+        gatewayAccountProjection,
+        collectOfficialProfileFirstInstallProof,
         createCodexWizardState,
         observeCodexConfigWizard,
         shouldCaptureFullReleaseScreenshot,

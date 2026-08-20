@@ -102,6 +102,7 @@ const OPL_FRAMEWORK_COMPONENT_COMPATIBILITY_CONTRACT_PATH = [
   'app-component-compatibility-receipt-contract.json',
 ] as const;
 const OPL_FRAMEWORK_MISSING_CAPABILITY_ERROR_CODE = 'incompatible_missing_required_capability';
+const OFFICIAL_PROFILE_FIRST_INSTALL_MARKER = '.official-profile-first-install-complete';
 let standardBootstrapCompleted = false;
 let standardBootstrapInFlight: Promise<void> | null = null;
 let desktopStartupMaintenanceTask: Promise<IOplRuntimeCommandResult> | null = null;
@@ -647,6 +648,78 @@ function buildOfficialProfileApplyCommand(
   };
 }
 
+type OfficialProfileApplyDependencies = {
+  markerPath?: string;
+  resourcesPath?: string;
+  runCommand?: (command: ReturnType<typeof buildOfficialProfileApplyCommand>) => Promise<IOplRuntimeCommandResult>;
+};
+
+function resolveOfficialProfileFirstInstallMarker(env: NodeJS.ProcessEnv = buildOplCommandEnv()): string {
+  return path.join(resolveOplStateDir(env), OFFICIAL_PROFILE_FIRST_INSTALL_MARKER);
+}
+
+function officialProfileFirstInstallComplete(markerPath: string): boolean {
+  if (!fs.existsSync(markerPath)) return false;
+  if (!fs.lstatSync(markerPath).isFile()) {
+    throw new Error(`Official Profile first-install marker is not a file: ${markerPath}`);
+  }
+  return true;
+}
+
+function recordOfficialProfileFirstInstallComplete(markerPath: string, result: IOplRuntimeCommandResult): void {
+  fs.mkdirSync(path.dirname(markerPath), { recursive: true });
+  const temporary = `${markerPath}.${process.pid}.${randomUUID()}.tmp`;
+  const bytes = result.stdout.trim() || `${JSON.stringify(result.parsed, null, 2)}\n`;
+  try {
+    fs.writeFileSync(temporary, bytes.endsWith('\n') ? bytes : `${bytes}\n`, {
+      encoding: 'utf8',
+      mode: 0o600,
+      flag: 'wx',
+    });
+    try {
+      fs.linkSync(temporary, markerPath);
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
+      if (!officialProfileFirstInstallComplete(markerPath)) {
+        throw new Error(`Official Profile first-install marker could not be recorded: ${markerPath}`, { cause: error });
+      }
+    }
+  } finally {
+    fs.rmSync(temporary, { force: true });
+  }
+}
+
+async function runOfficialProfileApplyRequest(
+  request: IOplOfficialProfileApplyRequest,
+  dependencies: OfficialProfileApplyDependencies = {}
+): Promise<IOplRuntimeCommandResult> {
+  const command = buildOfficialProfileApplyCommand(request, dependencies.resourcesPath);
+  const runCommand = dependencies.runCommand ?? runSpawnJsonCommand;
+  if (request.intent === 'explicit_restore') return runCommand(command);
+
+  const markerPath = dependencies.markerPath ?? resolveOfficialProfileFirstInstallMarker(command.env);
+  if (officialProfileFirstInstallComplete(markerPath)) {
+    return {
+      surface: 'app_action',
+      command: command.redactedCommand ?? 'node <official-profile-package-apply.ts> --intent first_install',
+      stdout: '',
+      parsed: {
+        official_profile_package_apply: {
+          status: 'already_completed',
+          intent: 'first_install',
+          changed: false,
+        },
+      },
+      ok: true,
+    };
+  }
+
+  const result = await runCommand(command);
+  if (result.ok !== true) return result;
+  recordOfficialProfileFirstInstallComplete(markerPath, result);
+  return result;
+}
+
 function buildInitializeCommand(): RuntimeCommandSpec {
   return {
     surface: 'system_initialize',
@@ -955,7 +1028,9 @@ function isNoSuchOplCommandError(error: unknown): boolean {
 }
 
 function shouldAutoBootstrapOplCommand(spec: RuntimeCommandSpec): boolean {
-  return ['system_initialize', 'install_prep', 'configure_codex', 'startup_maintenance'].includes(spec.surface);
+  return ['system_initialize', 'install_prep', 'configure_codex', 'gateway_account', 'startup_maintenance'].includes(
+    spec.surface
+  );
 }
 
 function isLegacyManagedUpdatePassthroughError(spec: RuntimeCommandSpec, error: unknown): boolean {
@@ -2243,9 +2318,7 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getDrilldown.provider(({ detail }) => runOplCommand(buildDrilldownCommand(detail)));
   ipcBridge.oplRuntime.executeAction.provider(runRuntimeActionRequest);
   ipcBridge.oplRuntime.runPackageContribution.provider(runPackageContributionRequest);
-  ipcBridge.oplRuntime.applyOfficialProfile.provider((request) =>
-    runSpawnJsonCommand(buildOfficialProfileApplyCommand(request))
-  );
+  ipcBridge.oplRuntime.applyOfficialProfile.provider(runOfficialProfileApplyRequest);
   ipcBridge.oplRuntime.getUpdateStatus.provider(() => runOplCommand(buildUpdateStatusCommand()));
   ipcBridge.oplRuntime.runUpdateCheck.provider(() => runOplCommand(buildUpdateCheckCommand()));
   ipcBridge.oplRuntime.getUpdatePlan.provider(() => runOplCommand(buildUpdatePlanCommand()));
@@ -2273,6 +2346,10 @@ export const __oplRuntimeBridgeTest = {
   buildActionCommand,
   buildPackageContributionCommand,
   buildOfficialProfileApplyCommand,
+  officialProfileFirstInstallComplete,
+  recordOfficialProfileFirstInstallComplete,
+  resolveOfficialProfileFirstInstallMarker,
+  runOfficialProfileApplyRequest,
   buildAppStateCommand,
   buildDomainDetailViewCommand,
   buildConfigureCodexCommand,

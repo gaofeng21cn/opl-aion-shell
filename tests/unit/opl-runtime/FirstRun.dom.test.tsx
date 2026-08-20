@@ -687,7 +687,7 @@ describe('FirstRun readiness page', () => {
     expect(navigateMock).toHaveBeenCalledWith('/guid', { state: { postInstallSelfCheck: true } });
   });
 
-  it('keeps the completion state in place even when initialize reports a non-first-run ready install', async () => {
+  it('asks the Shell completion marker to converge Official Profile even when bootstrap cleared is_first_run', async () => {
     platformMocks.isMacOS.mockReturnValue(true);
     bridgeMocks.getInitializeInvoke.mockResolvedValueOnce({
       ...initializeResult,
@@ -708,7 +708,9 @@ describe('FirstRun readiness page', () => {
     expect(
       screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })
     ).toBeInTheDocument();
-    expect(bridgeMocks.applyOfficialProfileInvoke).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledWith({ intent: 'first_install' })
+    );
     expect(navigateMock).not.toHaveBeenCalled();
   });
 

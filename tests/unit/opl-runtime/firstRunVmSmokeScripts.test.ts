@@ -350,23 +350,57 @@ function createPassedHomebrewFullCaskProof(desiredRoots: string[]) {
   };
 }
 
+function createPassedOfficialProfileFirstInstall() {
+  const desiredRoots = tartSmoke.officialProfileDesiredRoots();
+  return {
+    schema: 'opl_official_profile_clean_vm_first_install.v1',
+    status: 'passed',
+    restore_action_invoked: false,
+    desired_root_package_ids: desiredRoots,
+    installed_root_package_ids: desiredRoots,
+  };
+}
+
+function createPassedGatewayAccountLogin() {
+  return {
+    schema: 'opl_gateway_account_clean_vm_login.v1',
+    status: 'passed',
+    login_submitted: true,
+    model_access_confirmed: true,
+    readback: {
+      status: 'connected',
+      connection_mode: 'account',
+      managed_key_present: true,
+      freshness: 'fresh',
+    },
+  };
+}
+
 function assertGuestSmokeSummary(options: Record<string, unknown>, summary: Record<string, unknown>): void {
-  const requested = Boolean(options.providerCredentialPresent || options.codexApiKeyFile);
+  const gatewayAccountRequested = Boolean(options.gatewayAccountEmailFile && options.gatewayAccountPasswordFile);
+  const requested = Boolean(gatewayAccountRequested || options.providerCredentialPresent || options.codexApiKeyFile);
   const source = requested
-    ? options.providerCredentialSource || (options.codexApiKeyFile ? 'explicit_api_key_file' : null)
+    ? options.providerCredentialSource ||
+      (gatewayAccountRequested
+        ? 'gateway_account_password_file'
+        : options.codexApiKeyFile
+          ? 'explicit_api_key_file'
+          : null)
     : null;
   tartSmoke.assertGuestSmokeSummary(options, {
     provider_configuration: {
-      status: requested ? 'requested' : 'not_requested',
+      status: gatewayAccountRequested ? 'configured' : requested ? 'requested' : 'not_requested',
       requested,
       credential_source: source,
       credential_present: requested,
       provider_base_url_matches_host: options.codexProviderBaseUrl ? true : null,
       manual_user_input_required: false,
-      mutation_performed: false,
-      blocking_release_gate: false,
+      mutation_performed: gatewayAccountRequested,
+      blocking_release_gate: gatewayAccountRequested,
     },
     computer_use_qualification: createPassedComputerUseQualification(String(options.runtimeProfile)),
+    gateway_account_login: gatewayAccountRequested ? createPassedGatewayAccountLogin() : null,
+    official_profile_first_install: createPassedOfficialProfileFirstInstall(),
     ...summary,
   });
 }
@@ -1156,6 +1190,155 @@ describe('OPL first-run VM smoke scripts', () => {
     ).not.toThrow();
   });
 
+  it('requires Gateway credential files as a pair and keeps the account and API key lanes exclusive', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-account-files-'));
+    const emailFile = path.join(root, 'email.txt');
+    const passwordFile = path.join(root, 'password.txt');
+    const apiKeyFile = path.join(root, 'api-key.txt');
+    writeFile(emailFile, 'clean-vm@example.com\n', 0o600);
+    writeFile(passwordFile, 'protected-password-value\n', 0o600);
+    writeFile(apiKeyFile, 'explicit-api-key-value\n', 0o600);
+    const tartBase = [
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      '/tmp/One-Person-Lab.dmg',
+      '--runtime-profile',
+      'standard',
+      '--dry-run',
+    ];
+    const vmBase = ['--dmg', '/tmp/One-Person-Lab.dmg'];
+    try {
+      for (const args of [tartBase, vmBase]) {
+        const parse = args === tartBase ? tartSmoke.parseArgs : vmSmoke.parseArgs;
+        expect(() => parse([...args, '--gateway-account-email-file', emailFile])).toThrow(/must be provided together/);
+        expect(() => parse([...args, '--gateway-account-password-file', passwordFile])).toThrow(
+          /must be provided together/
+        );
+        expect(() =>
+          parse([
+            ...args,
+            '--gateway-account-email-file',
+            emailFile,
+            '--gateway-account-password-file',
+            passwordFile,
+            '--codex-api-key-file',
+            apiKeyFile,
+          ])
+        ).toThrow(/separate lanes/);
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('passes Gateway credentials to the guest by protected file path without exposing their values', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-account-command-'));
+    const email = 'clean-vm-account@example.com';
+    const password = 'protected-password-value';
+    const emailFile = path.join(root, 'email.txt');
+    const passwordFile = path.join(root, 'password.txt');
+    writeFile(emailFile, `${email}\n`, 0o600);
+    writeFile(passwordFile, `${password}\n`, 0o600);
+    try {
+      const options = tartSmoke.parseArgs([
+        '--source-vm',
+        'clean-vm',
+        '--dmg',
+        '/tmp/One-Person-Lab.dmg',
+        '--runtime-profile',
+        'standard',
+        '--gateway-account-email-file',
+        emailFile,
+        '--gateway-account-password-file',
+        passwordFile,
+        '--dry-run',
+      ]);
+      const command = tartSmoke.guestSmokeCommand(
+        options,
+        '/tmp/guest/One-Person-Lab.dmg',
+        '/tmp/guest/opl-first-run-vm-smoke.mjs',
+        '/tmp/guest/artifacts',
+        null,
+        null,
+        null,
+        Date.now() + 60_000,
+        '/tmp/guest/email.txt',
+        '/tmp/guest/password.txt'
+      );
+
+      expect(command).toContain("--gateway-account-email-file '/tmp/guest/email.txt'");
+      expect(command).toContain("--gateway-account-password-file '/tmp/guest/password.txt'");
+      expect(command).toContain("--cdp-port '9230'");
+      expect(command).not.toContain('--codex-api-key-file');
+      expect(command).not.toContain(email);
+      expect(command).not.toContain(password);
+      expect(tartSmoke.buildDryRunPlan(options).provider_configuration).toMatchObject({
+        requested: true,
+        credential_source: 'gateway_account_password_file',
+        blocking_release_gate: true,
+      });
+      expect(tartSmoke.buildDryRunPlan(options).cdp_port).toBe(9230);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('requires fresh connected Gateway account readback from the packaged FirstRun UI', () => {
+    const options = {
+      runtimeProfile: 'standard',
+      bootstrapLaunchDiagnostics: false,
+      gatewayAccountEmailFile: '/tmp/email.txt',
+      gatewayAccountPasswordFile: '/tmp/password.txt',
+    };
+    const passed = createPassedGatewayAccountLogin();
+
+    expect(() =>
+      assertGuestSmokeSummary(options, {
+        status: 'passed',
+        runtime_profile: 'standard',
+        gateway_account_login: passed,
+      })
+    ).not.toThrow();
+
+    for (const readback of [
+      { ...passed.readback, status: undefined },
+      { ...passed.readback, managed_key_present: undefined },
+      { ...passed.readback, freshness: undefined },
+    ]) {
+      expect(() =>
+        assertGuestSmokeSummary(options, {
+          status: 'passed',
+          runtime_profile: 'standard',
+          gateway_account_login: { ...passed, readback },
+        })
+      ).toThrow(/fresh Gateway account login/);
+    }
+  });
+
+  it.each(['standard', 'full'])('passes every Official Profile root to a direct %s DMG guest smoke', (profile) => {
+    const options = tartSmoke.parseArgs([
+      '--source-vm',
+      'clean-vm',
+      '--dmg',
+      `/tmp/One-Person-Lab-${profile}.dmg`,
+      '--runtime-profile',
+      profile,
+      '--dry-run',
+    ]);
+    const command = tartSmoke.guestSmokeCommand(
+      options,
+      `/tmp/guest/One-Person-Lab-${profile}.dmg`,
+      '/tmp/guest/opl-first-run-vm-smoke.mjs',
+      '/tmp/guest/artifacts',
+      null
+    );
+
+    for (const root of tartSmoke.officialProfileDesiredRoots()) {
+      expect(command).toContain(`--official-profile-root '${root}'`);
+    }
+  });
+
   it('derives the exact Framework cohort from published artifact identity and forwards it to the guest', () => {
     const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-published-framework-identity-'));
     const frameworkSha = 'd'.repeat(40);
@@ -1258,6 +1441,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 blocking_release_gate: false,
               },
               computer_use_qualification: createPassedComputerUseQualification('standard'),
+              official_profile_first_install: createPassedOfficialProfileFirstInstall(),
               installed_framework_source_identity: result.installed_framework_source_identity,
             },
             hostArtifacts
@@ -1283,6 +1467,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 blocking_release_gate: false,
               },
               computer_use_qualification: createPassedComputerUseQualification('standard'),
+              official_profile_first_install: createPassedOfficialProfileFirstInstall(),
               installed_framework_source_identity: result.installed_framework_source_identity,
             },
             hostArtifacts
@@ -1347,6 +1532,7 @@ describe('OPL first-run VM smoke scripts', () => {
                 blocking_release_gate: false,
               },
               computer_use_qualification: createPassedComputerUseQualification('full'),
+              official_profile_first_install: createPassedOfficialProfileFirstInstall(),
               full_runtime_source_identity: result.full_runtime_source_identity,
               temporal_service_supervisor_proof: createPassedTemporalServiceSupervisorProof(),
             },
