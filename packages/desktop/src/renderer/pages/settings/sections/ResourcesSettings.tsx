@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState } from 'react';
+import React, { Suspense, useRef, useState } from 'react';
 import { Alert, Button, Input, Message, Modal, Space, Tag, Typography } from '@arco-design/web-react';
-import { Earth, Open, Toolkit } from '@icon-park/react';
+import { Communication, Earth, Open, Toolkit } from '@icon-park/react';
 import { ipcBridge } from '@/common';
 import WebuiModalContent from '@/renderer/components/settings/SettingsModal/contents/WebuiModalContent';
 import { oplRecord, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
@@ -21,6 +21,10 @@ import {
   type DockerWebuiProjection,
   type ResourceSourceProjection,
 } from '../accessProjection';
+
+const ChannelModalContent = React.lazy(
+  () => import('@/renderer/components/settings/SettingsModal/contents/channels/ChannelModalContent')
+);
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 type ResourceReadiness = 'ready' | 'notConfigured' | 'unverified';
@@ -202,6 +206,7 @@ export const ResourcesSettingsContent: React.FC = () => {
   const navigate = useNavigate();
   const appStateQuery = useOplAppState('fast');
   const [remoteSettingsVisible, setRemoteSettingsVisible] = useState(false);
+  const [channelSettingsVisible, setChannelSettingsVisible] = useState(false);
   const [diagnosticsVisible, setDiagnosticsVisible] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [pendingDockerAction, setPendingDockerAction] = useState<DockerWebuiAction | null>(null);
@@ -560,6 +565,31 @@ export const ResourcesSettingsContent: React.FC = () => {
           </Modal>
         </section>
 
+        <section
+          className='opl-settings-section'
+          id='messages-and-connections'
+          data-testid='settings-resources-channels'
+        >
+          <div className='opl-settings-row items-start'>
+            <div className='opl-settings-row__main flex min-w-0 flex-row items-start gap-10px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <Communication theme='outline' size='16' />
+              </span>
+              <div className='min-w-0'>
+                <Typography.Text className='block font-600 text-t-primary'>{t('settings.channels')}</Typography.Text>
+                <Typography.Text className='block text-12px text-t-secondary'>
+                  {t('settings.channels.guide')}
+                </Typography.Text>
+              </div>
+            </div>
+            <div className='opl-settings-row__meta'>
+              <Button data-testid='opl-settings-open-channels' onClick={() => setChannelSettingsVisible(true)}>
+                {t('settings.webui.goToChannels')}
+              </Button>
+            </div>
+          </div>
+        </section>
+
         <OplConnectionsSection
           registry={connectionRegistry}
           runningActionId={runningActionId}
@@ -643,6 +673,22 @@ export const ResourcesSettingsContent: React.FC = () => {
               </Typography.Text>
             ))}
         </div>
+      </Modal>
+
+      <Modal
+        visible={channelSettingsVisible}
+        title={t('settings.channels')}
+        footer={null}
+        className='settings-sub-modal'
+        style={{ width: 'min(920px, calc(100vw - 48px))' }}
+        onCancel={() => setChannelSettingsVisible(false)}
+        unmountOnExit
+      >
+        <Suspense
+          fallback={<Typography.Text className='text-13px text-t-secondary'>{t('common.loading')}</Typography.Text>}
+        >
+          <ChannelModalContent />
+        </Suspense>
       </Modal>
 
       <Modal

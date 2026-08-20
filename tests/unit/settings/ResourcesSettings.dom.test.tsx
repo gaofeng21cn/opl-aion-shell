@@ -36,6 +36,10 @@ vi.mock('@/renderer/components/settings/SettingsModal/contents/WebuiModalContent
   default: () => <div>Native remote settings</div>,
 }));
 
+vi.mock('@/renderer/components/settings/SettingsModal/contents/channels/ChannelModalContent', () => ({
+  default: () => <div>AionCore channels</div>,
+}));
+
 const createResourceSources = () => ({
   cloud_remote_access: {
     status: 'ready',
@@ -320,6 +324,9 @@ vi.mock('react-i18next', () => ({
       const labels: Record<string, string> = {
         'settings.resourcesPage.title': '资源与连接',
         'settings.resourcesPage.description': '管理浏览器工作台和已上报的外部环境连接。',
+        'settings.channels': '渠道配置',
+        'settings.channels.guide': '连接微信等消息应用，与 One Person Lab 助手对话。',
+        'settings.webui.goToChannels': '管理渠道',
         'settings.resourcesPage.sections.serverWebui.title': '浏览器工作台',
         'settings.resourcesPage.sections.serverWebui.description': '在浏览器中使用 OPL。',
         'settings.resourcesPage.docker.title': 'WebUI 与 OPL Workspace',
@@ -692,6 +699,17 @@ describe('ResourcesSettingsContent', () => {
     fireEvent.click(view.getByRole('button', { name: 'Close' }));
     expect(view.queryByText('Native remote settings')).toBeNull();
     expect(view.getByTestId('settings-page-resources')).toBeTruthy();
+  });
+
+  it('opens the existing AionCore channel settings from Resources', async () => {
+    const view = renderResources();
+
+    expect(view.getByTestId('settings-resources-channels')).toHaveTextContent('渠道配置');
+    expect(view.queryByText('AionCore channels')).toBeNull();
+
+    fireEvent.click(view.getByTestId('opl-settings-open-channels'));
+
+    await waitFor(() => expect(view.getByText('AionCore channels')).toBeTruthy());
   });
 
   it('uses the check action when WebUI actions exist without resource-ready evidence', async () => {
