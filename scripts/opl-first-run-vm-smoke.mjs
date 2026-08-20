@@ -6215,6 +6215,29 @@ function gatewayAccountFormReadinessExpression() {
   })()`;
 }
 
+function gatewayAccountFirstRunEntryExpression() {
+  return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const firstRun = document.querySelector('[data-testid="opl-first-run-window"]');
+    if (window.location.hash.startsWith('#/first-run') && visible(firstRun)) {
+      return {
+        status: 'entered',
+        navigation: 'persistent_setup_entry',
+        route_hash: window.location.hash,
+      };
+    }
+    const resume = document.querySelector('[data-testid="opl-first-run-resume-entry"]');
+    if (!visible(resume)) return false;
+    resume.click();
+    return false;
+  })()`;
+}
+
 const GATEWAY_ACCOUNT_FORM_SUBMIT_FUNCTION = `function(emailValue, passwordValue) {
   const input = (testId) => {
     const root = document.querySelector('[data-testid="' + testId + '"]');
@@ -6301,10 +6324,17 @@ async function loginGatewayAccountViaCdp(options, credentials) {
   const client = await openCdpClient(target.webSocketDebuggerUrl);
   try {
     await client.send('Runtime.enable');
+    const uiTimeoutMs = Math.min(options.timeoutMs, 300_000);
+    const entry = await waitForCdpPredicate(
+      client,
+      gatewayAccountFirstRunEntryExpression(),
+      uiTimeoutMs,
+      'Gateway account setup entry did not open FirstRun from the clean Guid launch'
+    );
     const form = await waitForCdpPredicate(
       client,
       gatewayAccountFormReadinessExpression(),
-      options.timeoutMs,
+      uiTimeoutMs,
       'Gateway account login form did not become ready on clean first launch'
     );
     const submit = await callCdpFunction(client, GATEWAY_ACCOUNT_FORM_SUBMIT_FUNCTION, [
@@ -6326,6 +6356,7 @@ async function loginGatewayAccountViaCdp(options, credentials) {
       schema: 'opl_gateway_account_clean_vm_login.v1',
       status: 'passed',
       credentials_transport: 'protected_files_to_cdp_arguments',
+      entry,
       form,
       login_submitted: true,
       model_access_confirmed: confirmation?.status === 'confirmed',
@@ -8751,6 +8782,7 @@ export const __test =
         configureCodexApiKeyForSmoke,
         buildProviderConfigurationSummary,
         readGatewayAccountCredentials,
+        gatewayAccountFirstRunEntryExpression,
         gatewayAccountFormReadinessExpression,
         gatewayAccountConfirmationExpression,
         gatewayAccountProjection,

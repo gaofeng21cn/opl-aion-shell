@@ -719,6 +719,44 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain("entryKind: 'assistant_home'");
   });
 
+  it('opens Gateway account setup through the persistent clean Guid recovery entry', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+        <button data-testid="opl-first-run-resume-entry">Complete setup</button>
+      </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const { window } = dom;
+    const resume = window.document.querySelector<HTMLButtonElement>('[data-testid="opl-first-run-resume-entry"]')!;
+    const clicks = vi.fn(() => {
+      window.location.hash = '#/first-run';
+    });
+    resume.addEventListener('click', clicks);
+    Object.defineProperty(resume, 'getBoundingClientRect', {
+      value: () => ({ width: 160, height: 40, top: 0, left: 0, right: 160, bottom: 40 }),
+    });
+
+    const expression = __test.gatewayAccountFirstRunEntryExpression();
+    expect(window.eval(expression)).toBe(false);
+    expect(clicks).toHaveBeenCalledTimes(1);
+    expect(window.location.hash).toBe('#/first-run');
+
+    const firstRun = window.document.createElement('main');
+    firstRun.dataset.testid = 'opl-first-run-window';
+    Object.defineProperty(firstRun, 'getBoundingClientRect', {
+      value: () => ({ width: 1200, height: 800, top: 0, left: 0, right: 1200, bottom: 800 }),
+    });
+    window.document.body.append(firstRun);
+
+    expect(window.eval(expression)).toMatchObject({
+      status: 'entered',
+      navigation: 'persistent_setup_entry',
+      route_hash: '#/first-run',
+    });
+    expect(clicks).toHaveBeenCalledTimes(1);
+    dom.window.close();
+  });
+
   it('accepts the App-owned assistant home after ready or deferred FirstRun navigation', () => {
     const expression = __test.guidEntryNavigationExpression();
 
