@@ -694,8 +694,12 @@ async function runOfficialProfileApplyRequest(
   dependencies: OfficialProfileApplyDependencies = {}
 ): Promise<IOplRuntimeCommandResult> {
   const command = buildOfficialProfileApplyCommand(request, dependencies.resourcesPath);
-  const runCommand = dependencies.runCommand ?? runSpawnJsonCommand;
-  if (request.intent === 'explicit_restore') return runCommand(command);
+  const executeCommand = dependencies.runCommand
+    ? () => dependencies.runCommand!(command)
+    : dependencies.resourcesPath
+      ? () => runSpawnJsonCommand(command)
+      : () => runSpawnJsonCommand(buildOfficialProfileApplyCommand(request));
+  if (request.intent === 'explicit_restore') return executeCommand();
 
   const markerPath = dependencies.markerPath ?? resolveOfficialProfileFirstInstallMarker(command.env);
   if (officialProfileFirstInstallComplete(markerPath)) {
@@ -714,7 +718,7 @@ async function runOfficialProfileApplyRequest(
     };
   }
 
-  const result = await runCommand(command);
+  const result = await executeCommand();
   if (result.ok !== true) return result;
   recordOfficialProfileFirstInstallComplete(markerPath, result);
   return result;
