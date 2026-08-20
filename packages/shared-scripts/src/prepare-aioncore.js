@@ -43,9 +43,11 @@ const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
   'corepack.cmd',
 ];
 const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
-const REQUIRED_MANAGED_CLI_NAMES = ['claude', 'codex'];
-const REQUIRED_CODEX_VERSION = '0.144.6';
-const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-codex-only-v1';
+const REQUIRED_AIONCORE_SOURCE_CLI_NAMES = [];
+const REQUIRED_CODEX_PACKAGE = '@openai/codex';
+const REQUIRED_CODEX_VERSION = '0.146.0';
+const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.70';
+const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-composed-codex-v2';
 const REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -79,6 +81,15 @@ const ACTIONS_ARTIFACT_TARGETS = {
     artifactName: 'aioncore-manual-windows-x64',
     manualPlatform: 'windows-x64',
   },
+};
+
+const CODEX_EXECUTABLE_BY_RUNTIME = {
+  'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
+  'darwin-x64': 'vendor/x86_64-apple-darwin/bin/codex',
+  'linux-arm64': 'vendor/aarch64-unknown-linux-musl/bin/codex',
+  'linux-x64': 'vendor/x86_64-unknown-linux-musl/bin/codex',
+  'win32-arm64': 'vendor/aarch64-pc-windows-msvc/bin/codex.exe',
+  'win32-x64': 'vendor/x86_64-pc-windows-msvc/bin/codex.exe',
 };
 
 function getActionsArtifactTarget(platform, arch) {
@@ -190,56 +201,13 @@ function readUpstreamManagedResourcesContract(stagingDir, runtimeKey) {
     'file',
     'AionCore Node executable'
   );
-  const clis = Array.isArray(manifest.clis) ? manifest.clis : [];
-  const names = clis.map((entry) => entry?.name).toSorted();
-  if (
-    names.length !== REQUIRED_MANAGED_CLI_NAMES.length ||
-    names.some((name, index) => name !== REQUIRED_MANAGED_CLI_NAMES[index])
-  ) {
-    throw new Error(`AionCore managed resources manifest must contain exactly claude and codex for ${runtimeKey}`);
+  const clis = Array.isArray(manifest.clis) ? manifest.clis : null;
+  if (!clis || clis.length !== 0) {
+    throw new Error(
+      `AionCore ${REQUIRED_CODEX_VERIFIED_BY_AIONCORE} managed resources must expose clis=[] for ${runtimeKey}`
+    );
   }
-  for (const cli of clis) {
-    if (
-      typeof cli?.name !== 'string' ||
-      typeof cli.version !== 'string' ||
-      !cli.version ||
-      cli.platformDirectory !== runtimeKey ||
-      !Array.isArray(cli.requiredFiles) ||
-      !Array.isArray(cli.requiredDirectories)
-    ) {
-      throw new Error(`AionCore managed resources manifest has an invalid ${cli?.name || 'unknown'} CLI identity`);
-    }
-    const cliRoot = requireStagingContractEntry(stagingDir, cli.root, 'directory', `AionCore ${cli.name} root`);
-    const absoluteCliRoot = path.join(stagingDir, ...cliRoot.split('/'));
-    requireStagingContractEntry(absoluteCliRoot, cli.executable, 'file', `AionCore ${cli.name} executable`);
-    for (const [index, relativePath] of cli.requiredFiles.entries()) {
-      requireStagingContractEntry(
-        absoluteCliRoot,
-        relativePath,
-        'file',
-        `AionCore ${cli.name} requiredFiles[${index}]`
-      );
-    }
-    for (const [index, relativePath] of cli.requiredDirectories.entries()) {
-      requireStagingContractEntry(
-        absoluteCliRoot,
-        relativePath,
-        'directory',
-        `AionCore ${cli.name} requiredDirectories[${index}]`
-      );
-    }
-  }
-  const codex = clis.find((entry) => entry?.name === 'codex');
-  if (
-    !codex ||
-    codex.version !== REQUIRED_CODEX_VERSION ||
-    codex.platformDirectory !== runtimeKey ||
-    !requireSafePosixRelativePath(codex.root, 'AionCore Codex root') ||
-    !requireSafePosixRelativePath(codex.executable, 'AionCore Codex executable')
-  ) {
-    throw new Error(`AionCore managed resources manifest has an invalid Codex identity for ${runtimeKey}`);
-  }
-  return { manifest, manifestPath, codex };
+  return { manifest, manifestPath };
 }
 
 function assertRequiredManagedResourceAbsence(
@@ -256,68 +224,130 @@ function assertRequiredManagedResourceAbsence(
   }
 }
 
-function projectManagedResources(stagingDir, targetDir, runtimeKey) {
-  const {
-    manifest: sourceManifest,
-    manifestPath,
-    codex,
-  } = readUpstreamManagedResourcesContract(stagingDir, runtimeKey);
+function codexPackageSpec(runtimeKey) {
+  if (!CODEX_EXECUTABLE_BY_RUNTIME[runtimeKey]) {
+    throw new Error(`Unsupported OPL Codex target: ${runtimeKey}`);
+  }
+  return `${REQUIRED_CODEX_PACKAGE}@${REQUIRED_CODEX_VERSION}-${runtimeKey}`;
+}
+
+function validateCodexPackageDir(packageDir, runtimeKey) {
+  const packageJson = readJsonFile(path.join(packageDir, 'package.json'), 'OPL Codex platform package');
+  const expectedPackageVersion = `${REQUIRED_CODEX_VERSION}-${runtimeKey}`;
+  if (packageJson.name !== REQUIRED_CODEX_PACKAGE || packageJson.version !== expectedPackageVersion) {
+    throw new Error(`OPL Codex platform package must be ${REQUIRED_CODEX_PACKAGE}@${expectedPackageVersion}`);
+  }
+  const executable = CODEX_EXECUTABLE_BY_RUNTIME[runtimeKey];
+  requireStagingContractEntry(packageDir, executable, 'file', 'OPL Codex executable');
+  return executable;
+}
+
+function unpackOfficialCodexPackage(runtimeKey, options = {}) {
+  const packageSpec = codexPackageSpec(runtimeKey);
+  const tempDir = path.join(os.tmpdir(), 'opl-codex-carrier', `${REQUIRED_CODEX_VERSION}-${runtimeKey}-${process.pid}`);
+  const archiveDir = path.join(tempDir, 'archive');
+  const extractDir = path.join(tempDir, 'extract');
+  removeDirectorySafe(tempDir);
+  ensureDirectory(archiveDir);
+  ensureDirectory(extractDir);
+
+  try {
+    const npmOutput = (options.codexExecFileSync || execFileSync)(
+      'npm',
+      ['pack', packageSpec, '--json', '--pack-destination', archiveDir],
+      {
+        encoding: 'utf8',
+        env: getManagedResourcePrepareEnv(options.env || process.env),
+      }
+    );
+    const packed = JSON.parse(String(npmOutput));
+    if (!Array.isArray(packed) || packed.length !== 1 || typeof packed[0]?.filename !== 'string') {
+      throw new Error(`npm pack returned an invalid identity for ${packageSpec}`);
+    }
+    const archivePath = path.join(archiveDir, packed[0].filename);
+    (options.codexExecFileSync || execFileSync)('tar', ['-xzf', archivePath, '-C', extractDir]);
+    const packageDir = path.join(extractDir, 'package');
+    validateCodexPackageDir(packageDir, runtimeKey);
+    return { packageDir, packageSpec, tempDir };
+  } catch (error) {
+    removeDirectorySafe(tempDir);
+    throw error;
+  }
+}
+
+function materializeCodexCarrier(targetDir, runtimeKey, options = {}) {
+  const packageSpec = codexPackageSpec(runtimeKey);
+  const providedPackageDir = options.codexPackageDir ? path.resolve(options.codexPackageDir) : null;
+  const unpacked = providedPackageDir ? null : unpackOfficialCodexPackage(runtimeKey, options);
+  const packageDir = providedPackageDir || unpacked.packageDir;
+  try {
+    const executable = validateCodexPackageDir(packageDir, runtimeKey);
+    const root = `cli/codex/${REQUIRED_CODEX_VERSION}/${runtimeKey}`;
+    const destination = path.join(targetDir, ...root.split('/'));
+    copyDirectorySafe(packageDir, destination);
+    ensureExecutableMode(path.join(destination, ...executable.split('/')));
+    return {
+      cli: {
+        name: 'codex',
+        version: REQUIRED_CODEX_VERSION,
+        root,
+        platformDirectory: runtimeKey,
+        executable,
+        requiredFiles: [],
+        requiredDirectories: [executable.split('/').slice(0, 2).join('/')],
+      },
+      source: {
+        package: REQUIRED_CODEX_PACKAGE,
+        version: REQUIRED_CODEX_VERSION,
+        packageSpec,
+        authority: 'official_npm_platform_package',
+        verifiedByAioncore: REQUIRED_CODEX_VERIFIED_BY_AIONCORE,
+      },
+    };
+  } finally {
+    if (unpacked) removeDirectorySafe(unpacked.tempDir);
+  }
+}
+
+function projectManagedResources(stagingDir, targetDir, runtimeKey, options = {}) {
+  const { manifest: sourceManifest, manifestPath } = readUpstreamManagedResourcesContract(stagingDir, runtimeKey);
   const sourceManifestSha256 = sha256File(manifestPath);
   const nodeRoot = requireSafePosixRelativePath(sourceManifest.node.root, 'AionCore Node root');
   const nodeExecutable = requireSafePosixRelativePath(sourceManifest.node.executable, 'AionCore Node executable');
   const sourceNodeRoot = path.resolve(stagingDir, ...nodeRoot.split('/'));
-  const sourceCodexRoot = path.resolve(stagingDir, ...codex.root.split('/'));
   if (!isPathInside(sourceNodeRoot, path.resolve(stagingDir)) || !fs.statSync(sourceNodeRoot).isDirectory()) {
     throw new Error(`AionCore managed Node root is missing for ${runtimeKey}: ${nodeRoot}`);
-  }
-  if (!isPathInside(sourceCodexRoot, path.resolve(stagingDir)) || !fs.statSync(sourceCodexRoot).isDirectory()) {
-    throw new Error(`AionCore managed Codex root is missing for ${runtimeKey}: ${codex.root}`);
   }
   if (!fs.existsSync(path.join(sourceNodeRoot, ...nodeExecutable.split('/')))) {
     throw new Error(`AionCore managed Node executable is missing for ${runtimeKey}: ${nodeRoot}/${nodeExecutable}`);
   }
-  if (!fs.existsSync(path.join(sourceCodexRoot, ...codex.executable.split('/')))) {
-    throw new Error(
-      `AionCore managed Codex executable is missing for ${runtimeKey}: ${codex.root}/${codex.executable}`
-    );
-  }
-
-  const projectionManifest = {
-    schema: OPL_MANAGED_RESOURCES_SCHEMA,
-    runtimeKey,
-    source: {
-      schemaVersion: sourceManifest.schemaVersion,
-      manifestSha256: sourceManifestSha256,
-      cliNames: [...REQUIRED_MANAGED_CLI_NAMES],
-    },
-    node: {
-      version: sourceManifest.node.version,
-      root: nodeRoot,
-      executable: nodeExecutable,
-    },
-    clis: [
-      {
-        name: codex.name,
-        version: codex.version,
-        root: codex.root,
-        platformDirectory: codex.platformDirectory,
-        executable: codex.executable,
-        requiredFiles: [...codex.requiredFiles],
-        requiredDirectories: [...codex.requiredDirectories],
-      },
-    ],
-    projection: {
-      includedCliNames: ['codex'],
-      excludedCliNames: ['claude'],
-      requiredAbsentPaths: [...REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS],
-    },
-  };
   const projectionDir = `${targetDir}.projection-${process.pid}`;
   removeDirectorySafe(projectionDir);
   try {
     ensureDirectory(projectionDir);
     copyDirectorySafe(path.join(stagingDir, 'node'), path.join(projectionDir, 'node'));
-    copyDirectorySafe(sourceCodexRoot, path.join(projectionDir, ...codex.root.split('/')));
+    const codex = materializeCodexCarrier(projectionDir, runtimeKey, options);
+    const projectionManifest = {
+      schema: OPL_MANAGED_RESOURCES_SCHEMA,
+      runtimeKey,
+      source: {
+        schemaVersion: sourceManifest.schemaVersion,
+        manifestSha256: sourceManifestSha256,
+        cliNames: [...REQUIRED_AIONCORE_SOURCE_CLI_NAMES],
+      },
+      node: {
+        version: sourceManifest.node.version,
+        root: nodeRoot,
+        executable: nodeExecutable,
+      },
+      clis: [codex.cli],
+      projection: {
+        includedCliNames: ['codex'],
+        excludedCliNames: ['claude'],
+        requiredAbsentPaths: [...REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS],
+        codexSource: codex.source,
+      },
+    };
     writeJson(path.join(projectionDir, 'manifest.json'), projectionManifest);
     assertRequiredManagedResourceAbsence(projectionDir, projectionManifest.projection.requiredAbsentPaths);
 
@@ -949,7 +979,7 @@ function prepareManagedResources(binaryPath, targetDir, options = {}) {
     if (pruneResult.pruned.length > 0) {
       logger.log(`  Pruned managed Node runtime resources (${pruneResult.pruned.length} paths)`);
     }
-    projectManagedResources(stagingOut, bundleOut, `${targetPlatform}-${options.arch || process.arch}`);
+    projectManagedResources(stagingOut, bundleOut, `${targetPlatform}-${options.arch || process.arch}`, options);
     return bundleOut;
   } finally {
     removeDirectorySafe(stagingOut);

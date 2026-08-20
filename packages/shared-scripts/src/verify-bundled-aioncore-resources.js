@@ -1,12 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
-const REQUIRED_AIONCORE_VERSION = 'v0.1.57';
-const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.57';
+const REQUIRED_AIONCORE_VERSION = 'v0.1.70';
+const REQUIRED_AIONCORE_REPORTED_VERSION = '0.1.70';
 const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
 const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
-const REQUIRED_CODEX_VERSION = '0.144.6';
-const REQUIRED_SOURCE_CLI_NAMES = ['claude', 'codex'];
+const REQUIRED_CODEX_PACKAGE = '@openai/codex';
+const REQUIRED_CODEX_VERSION = '0.146.0';
+const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.70';
+const REQUIRED_SOURCE_CLI_NAMES = [];
 const REQUIRED_INCLUDED_CLI_NAMES = ['codex'];
 const REQUIRED_EXCLUDED_CLI_NAMES = ['claude'];
 const REQUIRED_ABSENT_PATHS = [
@@ -328,6 +330,16 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
     !hasExactStringEntries(rootManifest.projection?.requiredAbsentPaths, REQUIRED_ABSENT_PATHS)
   ) {
     invalid.push(`${rootManifestRelativePath}: Codex-only projection policy is invalid`);
+  }
+  const codexSource = rootManifest.projection?.codexSource;
+  if (
+    codexSource?.package !== REQUIRED_CODEX_PACKAGE ||
+    codexSource?.version !== REQUIRED_CODEX_VERSION ||
+    codexSource?.packageSpec !== `${REQUIRED_CODEX_PACKAGE}@${REQUIRED_CODEX_VERSION}-${runtimeKey}` ||
+    codexSource?.authority !== 'official_npm_platform_package' ||
+    codexSource?.verifiedByAioncore !== REQUIRED_CODEX_VERIFIED_BY_AIONCORE
+  ) {
+    invalid.push(`${rootManifestRelativePath}: invalid OPL Codex carrier source`);
   }
 
   const expectedNode = {

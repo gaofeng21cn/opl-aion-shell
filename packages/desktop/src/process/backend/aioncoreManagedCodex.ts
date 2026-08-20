@@ -16,6 +16,9 @@ type ResolveAioncoreManagedCodexInput = {
 };
 
 const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
+const REQUIRED_CODEX_PACKAGE = '@openai/codex';
+const REQUIRED_CODEX_VERSION = '0.146.0';
+const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.70';
 const REQUIRED_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -122,11 +125,18 @@ export function resolveAioncoreManagedCodex(
     manifest.source.schemaVersion !== 2 ||
     typeof manifest.source.manifestSha256 !== 'string' ||
     !/^[0-9a-f]{64}$/.test(manifest.source.manifestSha256) ||
-    JSON.stringify(manifest.source.cliNames) !== JSON.stringify(['claude', 'codex']) ||
+    JSON.stringify(manifest.source.cliNames) !== JSON.stringify([]) ||
     !isRecord(manifest.projection) ||
     JSON.stringify(manifest.projection.includedCliNames) !== JSON.stringify(['codex']) ||
     JSON.stringify(manifest.projection.excludedCliNames) !== JSON.stringify(['claude']) ||
-    JSON.stringify(manifest.projection.requiredAbsentPaths) !== JSON.stringify(REQUIRED_ABSENT_PATHS)
+    JSON.stringify(manifest.projection.requiredAbsentPaths) !== JSON.stringify(REQUIRED_ABSENT_PATHS) ||
+    !isRecord(manifest.projection.codexSource) ||
+    manifest.projection.codexSource.package !== REQUIRED_CODEX_PACKAGE ||
+    manifest.projection.codexSource.version !== REQUIRED_CODEX_VERSION ||
+    manifest.projection.codexSource.packageSpec !==
+      `${REQUIRED_CODEX_PACKAGE}@${REQUIRED_CODEX_VERSION}-${runtimeKey}` ||
+    manifest.projection.codexSource.authority !== 'official_npm_platform_package' ||
+    manifest.projection.codexSource.verifiedByAioncore !== REQUIRED_CODEX_VERIFIED_BY_AIONCORE
   ) {
     fail(`manifest Codex-only projection policy is invalid: ${manifestPath}`);
   }
@@ -147,8 +157,8 @@ export function resolveAioncoreManagedCodex(
     fail(`Codex platformDirectory must be ${runtimeKey}: ${manifestPath}`);
   }
   const version = typeof codex.version === 'string' ? codex.version.trim() : '';
-  if (!version) {
-    fail(`Codex version must be non-empty: ${manifestPath}`);
+  if (version !== REQUIRED_CODEX_VERSION) {
+    fail(`Codex version must be ${REQUIRED_CODEX_VERSION}: ${manifestPath}`);
   }
 
   const root = requireSafePosixRelativePath(codex.root, 'Codex root');

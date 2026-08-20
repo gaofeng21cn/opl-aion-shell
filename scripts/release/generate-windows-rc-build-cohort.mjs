@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const RC_VERSION_PATTERN = /^\d+\.\d+\.\d+-rc\.\d+$/;
 const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
-const MANAGED_CODEX_VERSION = '0.144.6';
+const MANAGED_CODEX_VERSION = '0.146.0';
 const MANAGED_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -141,10 +141,15 @@ function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runt
   if (
     manifest.source?.schemaVersion !== 2 ||
     !/^[0-9a-f]{64}$/.test(manifest.source?.manifestSha256 || '') ||
-    JSON.stringify(manifest.source?.cliNames) !== JSON.stringify(['claude', 'codex']) ||
+    JSON.stringify(manifest.source?.cliNames) !== JSON.stringify([]) ||
     JSON.stringify(manifest.projection?.includedCliNames) !== JSON.stringify(['codex']) ||
     JSON.stringify(manifest.projection?.excludedCliNames) !== JSON.stringify(['claude']) ||
-    JSON.stringify(manifest.projection?.requiredAbsentPaths) !== JSON.stringify(MANAGED_ABSENT_PATHS)
+    JSON.stringify(manifest.projection?.requiredAbsentPaths) !== JSON.stringify(MANAGED_ABSENT_PATHS) ||
+    manifest.projection?.codexSource?.package !== '@openai/codex' ||
+    manifest.projection?.codexSource?.version !== MANAGED_CODEX_VERSION ||
+    manifest.projection?.codexSource?.packageSpec !== `@openai/codex@${MANAGED_CODEX_VERSION}-${runtimeKey}` ||
+    manifest.projection?.codexSource?.authority !== 'official_npm_platform_package' ||
+    manifest.projection?.codexSource?.verifiedByAioncore !== 'v0.1.70'
   ) {
     throw new Error('Managed resources manifest Codex-only projection policy is invalid');
   }

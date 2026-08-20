@@ -36,7 +36,7 @@ describe('AionUI upstream currentness', () => {
     expect(validateAionuiIntakeReceipt(receipt)).toBe(receipt);
     expect(validateReceiptAgainstCheckout(receipt, repoRoot)).toBe(receipt);
     expect(receipt.schema).toBe('opl_aionui_upstream_intake.v2');
-    expect(receipt.reviewed_release.tag).toBe('v2.1.56');
+    expect(receipt.reviewed_release.tag).toBe('v2.1.59');
     expect(receipt.reviewed_release.disposition).toBe('reviewed_deferred');
     expect(receipt.absorbed_release.tag).toBe('v2.1.39');
     expect(receipt.absorbed_release.commit).toBe('1b215f2fcb9d220bc66bf3b4961835ded07d5797');
@@ -47,17 +47,17 @@ describe('AionUI upstream currentness', () => {
         repository: 'https://github.com/iOfficeAI/AionCore',
         authority: 'official_release_assets_only',
         source_fork: 'forbidden',
-        version: 'v0.1.57',
-        commit: '4452a3a72ebb612f3ddd4402aeb5542187a6fbdf',
-        archive_sha256: 'f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401',
+        version: 'v0.1.70',
+        commit: '405912c895de3890d4de01d6aaaaed195e60cb5a',
+        archive_sha256: 'a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d',
         release_assets: {
           'darwin-arm64': {
-            name: 'aioncore-v0.1.57-aarch64-apple-darwin.tar.gz',
-            sha256: 'f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401',
+            name: 'aioncore-v0.1.70-aarch64-apple-darwin.tar.gz',
+            sha256: 'a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d',
           },
           'linux-x64': {
-            name: 'aioncore-v0.1.57-x86_64-unknown-linux-gnu.tar.gz',
-            sha256: '04a8dfa250f385fd72cb6e74779cbee462579911dd844ded1f6b4054ea90e330',
+            name: 'aioncore-v0.1.70-x86_64-unknown-linux-gnu.tar.gz',
+            sha256: 'a146f3af4a03de740d4b705a4cf318f621e1c37d19475f23ce0a38432da63409',
           },
         },
       },
@@ -73,10 +73,23 @@ describe('AionUI upstream currentness', () => {
           'node_modules/claude-code',
           'claude',
         ],
+        composition: 'aioncore_node_plus_opl_selected_cli',
+        aioncore_source_cli_names: [],
+        codex_source: 'managed_runtime.codex_cli',
       },
       node_runtime: { version: '24.11.0' },
-      claude_cli: { package: '@anthropic-ai/claude-code', version: '2.1.215' },
-      codex_cli: { package: '@openai/codex', version: '0.144.6' },
+      claude_cli: {
+        package: '@anthropic-ai/claude-code',
+        version: '2.1.215',
+        carrier_status: 'absent_legacy_producer_identity',
+        required_in_bundle: false,
+      },
+      codex_cli: {
+        package: '@openai/codex',
+        version: '0.146.0',
+        carrier: 'opl_app_official_npm_platform_package',
+        verified_by_aioncore: 'v0.1.70',
+      },
     });
   });
 
@@ -184,17 +197,17 @@ describe('AionUI upstream currentness', () => {
 
   it('turns a newer stable release into a review event without mutation', () => {
     const result = evaluateAionuiCurrentness(receipt, {
-      tag: 'v2.1.57',
+      tag: 'v2.1.60',
       commit: 'c'.repeat(40),
-      published_at: '2026-08-18T01:00:00Z',
+      published_at: '2026-08-20T01:00:00Z',
       draft: false,
       prerelease: false,
-      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.57',
+      url: 'https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.60',
     });
     expect(result).toMatchObject({
       status: 'review_required',
       release_mutation_performed: false,
-      observed_release: { tag: 'v2.1.57' },
+      observed_release: { tag: 'v2.1.60' },
     });
   });
 

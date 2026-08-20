@@ -30,8 +30,8 @@ function seedWindowsRcCohortFixture() {
   const managedResourcesRoot = `${packagedResourcesRoot}/bundled-aioncore/linux-x64/managed-resources`;
   const codex = {
     name: 'codex',
-    version: '0.144.6',
-    root: 'cli/codex/0.144.6/linux-x64',
+    version: '0.146.0',
+    root: 'cli/codex/0.146.0/linux-x64',
     platformDirectory: runtimeKey,
     executable: 'vendor/x86_64-unknown-linux-musl/bin/codex',
     requiredFiles: [],
@@ -43,7 +43,7 @@ function seedWindowsRcCohortFixture() {
     source: {
       schemaVersion: 2,
       manifestSha256: 'a'.repeat(64),
-      cliNames: ['claude', 'codex'],
+      cliNames: [],
     },
     node: {
       version: '24.11.0',
@@ -61,6 +61,13 @@ function seedWindowsRcCohortFixture() {
         'node_modules/claude-code',
         'claude',
       ],
+      codexSource: {
+        package: '@openai/codex',
+        version: '0.146.0',
+        packageSpec: '@openai/codex@0.146.0-linux-x64',
+        authority: 'official_npm_platform_package',
+        verifiedByAioncore: 'v0.1.70',
+      },
     },
   };
 
@@ -239,7 +246,7 @@ describe('Windows RC build cohort', () => {
       JSON.stringify({
         ...managedManifest,
         clis: managedManifest.clis.map((entry) =>
-          entry.name === 'codex' ? { ...entry, root: 'acp/codex-acp/0.144.6/linux-x64' } : entry
+          entry.name === 'codex' ? { ...entry, root: 'acp/codex-acp/0.146.0/linux-x64' } : entry
         ),
       })
     );

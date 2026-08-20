@@ -19,53 +19,36 @@ function writeUpstreamManagedResources(outputDir: string, runtimeKey: string) {
   const nodeSuffix = runtimeKey.startsWith('win32-') ? runtimeKey.replace(/^win32-/, 'win-') : runtimeKey;
   const nodeRoot = `node/node-v24.11.0-${nodeSuffix}`;
   const nodeExecutable = platform === 'win32' ? 'node.exe' : 'bin/node';
-  const claudeExecutable = platform === 'win32' ? 'claude.exe' : 'claude';
-  const codexExecutables: Record<string, string> = {
-    'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
-    'linux-x64': 'vendor/x86_64-unknown-linux-musl/bin/codex',
-  };
-  const codexExecutable = codexExecutables[runtimeKey];
-  if (!codexExecutable) throw new Error(`Unsupported managed-resources fixture ${runtimeKey}`);
-  const codexRoot = `cli/codex/0.144.6/${runtimeKey}`;
-  const claudeRoot = `cli/claude/2.1.215/${runtimeKey}`;
-
-  for (const relativePath of [
-    `${nodeRoot}/${nodeExecutable}`,
-    `${claudeRoot}/${claudeExecutable}`,
-    `${codexRoot}/${codexExecutable}`,
-  ]) {
-    const filePath = path.join(outputDir, ...relativePath.split('/'));
-    fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, path.basename(filePath));
-  }
+  const nodePath = path.join(outputDir, ...nodeRoot.split('/'), ...nodeExecutable.split('/'));
+  fs.mkdirSync(path.dirname(nodePath), { recursive: true });
+  fs.writeFileSync(nodePath, path.basename(nodePath));
   fs.writeFileSync(
     path.join(outputDir, 'manifest.json'),
     JSON.stringify({
       schemaVersion: 2,
       runtimeKey,
       node: { version: '24.11.0', root: nodeRoot, executable: nodeExecutable },
-      clis: [
-        {
-          name: 'claude',
-          version: '2.1.215',
-          root: claudeRoot,
-          platformDirectory: runtimeKey,
-          executable: claudeExecutable,
-          requiredFiles: [],
-          requiredDirectories: [],
-        },
-        {
-          name: 'codex',
-          version: '0.144.6',
-          root: codexRoot,
-          platformDirectory: runtimeKey,
-          executable: codexExecutable,
-          requiredFiles: [],
-          requiredDirectories: [codexExecutable.split('/').slice(0, 2).join('/')],
-        },
-      ],
+      clis: [],
     })
   );
+}
+
+function writeCodexPackage(runtimeKey: string) {
+  const executables: Record<string, string> = {
+    'darwin-arm64': 'vendor/aarch64-apple-darwin/bin/codex',
+    'linux-x64': 'vendor/x86_64-unknown-linux-musl/bin/codex',
+  };
+  const executable = executables[runtimeKey];
+  if (!executable) throw new Error(`Unsupported Codex fixture ${runtimeKey}`);
+  const packageDir = makeTempDir();
+  fs.writeFileSync(
+    path.join(packageDir, 'package.json'),
+    JSON.stringify({ name: '@openai/codex', version: `0.146.0-${runtimeKey}` })
+  );
+  const executablePath = path.join(packageDir, ...executable.split('/'));
+  fs.mkdirSync(path.dirname(executablePath), { recursive: true });
+  fs.writeFileSync(executablePath, 'codex', { mode: 0o755 });
+  return packageDir;
 }
 
 afterEach(() => {
@@ -298,15 +281,15 @@ describe('prepare-aioncore official release archive integrity', () => {
     ];
 
     const assets = targets.map(([platform, arch]) =>
-      __test__.resolveOfficialReleaseAsset(projectRoot, platform, arch, 'v0.1.57')
+      __test__.resolveOfficialReleaseAsset(projectRoot, platform, arch, 'v0.1.70')
     );
 
     expect(new Set(assets.map((asset: { sha256: string }) => asset.sha256)).size).toBe(6);
     expect(assets).toContainEqual({
       runtimeKey: 'linux-x64',
-      name: 'aioncore-v0.1.57-x86_64-unknown-linux-gnu.tar.gz',
-      sha256: '04a8dfa250f385fd72cb6e74779cbee462579911dd844ded1f6b4054ea90e330',
-      url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.57/aioncore-v0.1.57-x86_64-unknown-linux-gnu.tar.gz',
+      name: 'aioncore-v0.1.70-x86_64-unknown-linux-gnu.tar.gz',
+      sha256: 'a146f3af4a03de740d4b705a4cf318f621e1c37d19475f23ce0a38432da63409',
+      url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.70/aioncore-v0.1.70-x86_64-unknown-linux-gnu.tar.gz',
     });
   });
 
@@ -315,7 +298,7 @@ describe('prepare-aioncore official release archive integrity', () => {
     let extractionAttempted = false;
 
     expect(() =>
-      __test__.downloadAndExtract(projectRoot, 'linux', 'x64', 'v0.1.57', {
+      __test__.downloadAndExtract(projectRoot, 'linux', 'x64', 'v0.1.70', {
         downloadFile(_url: string, outputPath: string) {
           fs.writeFileSync(outputPath, 'wrong archive bytes');
         },
@@ -325,7 +308,7 @@ describe('prepare-aioncore official release archive integrity', () => {
       })
     ).toThrow(/linux-x64 archive SHA-256 mismatch/);
     expect(extractionAttempted).toBe(false);
-    expect(fs.existsSync(path.join(os.tmpdir(), 'aioncore-prepare', 'v0.1.57', 'linux-x64'))).toBe(false);
+    expect(fs.existsSync(path.join(os.tmpdir(), 'aioncore-prepare', 'v0.1.70', 'linux-x64'))).toBe(false);
   });
 });
 
@@ -481,6 +464,7 @@ describe('prepare-aioncore managed resources preparation', () => {
       retryDelayMs: 10,
       sleep: (ms: number) => delays.push(ms),
       logger: { log() {}, warn() {} },
+      codexPackageDir: writeCodexPackage('darwin-arm64'),
       execFileSync(_command: string, args: string[]) {
         calls += 1;
         const dataDir = args[args.indexOf('--data-dir') + 1];
@@ -509,11 +493,17 @@ describe('prepare-aioncore managed resources preparation', () => {
       runtimeKey: 'darwin-arm64',
       source: {
         schemaVersion: 2,
-        cliNames: ['claude', 'codex'],
+        cliNames: [],
       },
       projection: {
         includedCliNames: ['codex'],
         excludedCliNames: ['claude'],
+        codexSource: {
+          package: '@openai/codex',
+          version: '0.146.0',
+          packageSpec: '@openai/codex@0.146.0-darwin-arm64',
+          verifiedByAioncore: 'v0.1.70',
+        },
       },
     });
     expect(projection.source.manifestSha256).toMatch(/^[0-9a-f]{64}$/);
@@ -535,6 +525,7 @@ describe('prepare-aioncore managed resources preparation', () => {
       platform: 'linux',
       arch: 'x64',
       logger: { log() {}, warn() {} },
+      codexPackageDir: writeCodexPackage('linux-x64'),
       execFileSync(_command: string, args: string[]) {
         if (args.includes('--materialize-internal-file-symlinks')) {
           materializeCalls += 1;
@@ -550,21 +541,20 @@ describe('prepare-aioncore managed resources preparation', () => {
     expect(materializeCalls).toBe(1);
   });
 
-  it('does not publish or retain a partial projection when the final absence gate fails', () => {
+  it('does not publish or retain a partial projection when the Codex carrier identity is invalid', () => {
     const dir = makeTempDir();
     const stagingDir = path.join(dir, 'staging');
     const targetDir = path.join(dir, 'managed-resources');
     writeUpstreamManagedResources(stagingDir, 'darwin-arm64');
 
-    const manifestPath = path.join(stagingDir, 'manifest.json');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    const codex = manifest.clis.find((entry: { name: string }) => entry.name === 'codex');
-    fs.renameSync(path.join(stagingDir, ...codex.root.split('/')), path.join(stagingDir, 'claude'));
-    codex.root = 'claude';
-    fs.writeFileSync(manifestPath, JSON.stringify(manifest));
+    const codexPackageDir = writeCodexPackage('darwin-arm64');
+    fs.writeFileSync(
+      path.join(codexPackageDir, 'package.json'),
+      JSON.stringify({ name: '@openai/codex', version: '0.147.0-darwin-arm64' })
+    );
 
-    expect(() => __test__.projectManagedResources(stagingDir, targetDir, 'darwin-arm64')).toThrow(
-      /forbidden Claude\/raw producer paths: claude/
+    expect(() => __test__.projectManagedResources(stagingDir, targetDir, 'darwin-arm64', { codexPackageDir })).toThrow(
+      /must be @openai\/codex@0\.146\.0-darwin-arm64/
     );
     expect(fs.existsSync(targetDir)).toBe(false);
     expect(fs.readdirSync(dir).some((entry) => entry.startsWith('managed-resources.projection-'))).toBe(false);
@@ -643,7 +633,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
 
     const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.53');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
-    expect(cachePaths.resourcesRoot).toMatch(/-opl-codex-only-v1$/);
+    expect(cachePaths.resourcesRoot).toMatch(/-opl-composed-codex-v2$/);
   });
 
   it('reuses a complete prepared runtime cache without downloading or preparing managed resources', () => {
@@ -652,7 +642,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const cacheRoot = path.join(dir, 'cache');
     const cacheRuntimeDir = path.join(
       cacheRoot,
-      'darwin-arm64-v0.1.57-f972bb29fbbf01f3b74181e0dfc468cc96b4929e987f5a45b7916d558055c401-opl-codex-only-v1',
+      'darwin-arm64-v0.1.70-a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d-opl-composed-codex-v2',
       'bundled-aioncore',
       'darwin-arm64'
     );
@@ -671,8 +661,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
       JSON.stringify({
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.57',
-        compatibility: { reportedVersion: '0.1.57' },
+        version: 'v0.1.70',
+        compatibility: { reportedVersion: '0.1.70' },
       })
     );
     fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'node'), 'node');
@@ -683,7 +673,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'), 'npm runtime');
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.144.6', 'darwin-arm64');
+    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.146.0', 'darwin-arm64');
     const codexExecutable = 'vendor/aarch64-apple-darwin/bin/codex';
     fs.mkdirSync(path.join(codexRoot, ...codexExecutable.split('/').slice(0, -1)), { recursive: true });
     fs.writeFileSync(path.join(codexRoot, ...codexExecutable.split('/')), 'codex');
@@ -695,7 +685,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
         source: {
           schemaVersion: 2,
           manifestSha256: 'a'.repeat(64),
-          cliNames: ['claude', 'codex'],
+          cliNames: [],
         },
         node: {
           version: '24.11.0',
@@ -705,8 +695,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
         clis: [
           {
             name: 'codex',
-            version: '0.144.6',
-            root: 'cli/codex/0.144.6/darwin-arm64',
+            version: '0.146.0',
+            root: 'cli/codex/0.146.0/darwin-arm64',
             platformDirectory: 'darwin-arm64',
             executable: codexExecutable,
             requiredFiles: [],
@@ -723,6 +713,13 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'node_modules/claude-code',
             'claude',
           ],
+          codexSource: {
+            package: '@openai/codex',
+            version: '0.146.0',
+            packageSpec: '@openai/codex@0.146.0-darwin-arm64',
+            authority: 'official_npm_platform_package',
+            verifiedByAioncore: 'v0.1.70',
+          },
         },
       })
     );
@@ -733,10 +730,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.57',
+        version: 'v0.1.70',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.57\n'
+            ? 'aioncore 0.1.70\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });
@@ -759,7 +756,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'managed-resources',
             'cli',
             'codex',
-            '0.144.6',
+            '0.146.0',
             'darwin-arm64',
             ...codexExecutable.split('/')
           )

@@ -10,7 +10,8 @@ import {
 } from '@/process/backend/oplCodexRuntimeIdentity';
 
 const RUNTIME_KEY = 'darwin-arm64';
-const CODEX_ROOT = `cli/codex/0.144.6/${RUNTIME_KEY}`;
+const CODEX_VERSION = '0.146.0';
+const CODEX_ROOT = `cli/codex/${CODEX_VERSION}/${RUNTIME_KEY}`;
 const CODEX_EXECUTABLE = 'codex-aarch64-apple-darwin/codex-aarch64-apple-darwin';
 const REQUIRED_ABSENT_PATHS = [
   'cli/claude',
@@ -41,6 +42,13 @@ type TestManifest = {
     includedCliNames: string[];
     excludedCliNames: string[];
     requiredAbsentPaths: string[];
+    codexSource: {
+      package: string;
+      version: string;
+      packageSpec: string;
+      authority: string;
+      verifiedByAioncore: string;
+    };
   };
   clis: TestCli[];
 };
@@ -58,17 +66,24 @@ function makeManifest(): TestManifest {
     source: {
       schemaVersion: 2,
       manifestSha256: 'a'.repeat(64),
-      cliNames: ['claude', 'codex'],
+      cliNames: [],
     },
     projection: {
       includedCliNames: ['codex'],
       excludedCliNames: ['claude'],
       requiredAbsentPaths: REQUIRED_ABSENT_PATHS,
+      codexSource: {
+        package: '@openai/codex',
+        version: CODEX_VERSION,
+        packageSpec: `@openai/codex@${CODEX_VERSION}-${RUNTIME_KEY}`,
+        authority: 'official_npm_platform_package',
+        verifiedByAioncore: 'v0.1.70',
+      },
     },
     clis: [
       {
         name: 'codex',
-        version: '0.144.6',
+        version: CODEX_VERSION,
         root: CODEX_ROOT,
         platformDirectory: RUNTIME_KEY,
         executable: CODEX_EXECUTABLE,
@@ -132,14 +147,14 @@ describe('resolveAioncoreManagedCodex', () => {
     });
 
     expect(result.runtimeKey).toBe(RUNTIME_KEY);
-    expect(result.version).toBe('0.144.6');
+    expect(result.version).toBe(CODEX_VERSION);
     expect(result.managedResourcesRoot).toBe(fs.realpathSync(bundle.managedResourcesRoot));
     expect(result.executablePath).toBe(fs.realpathSync(bundle.executablePath));
     expect(result.identity).toMatchObject({
       schema: OPL_CODEX_RUNTIME_IDENTITY_SCHEMA,
       path: fs.realpathSync(bundle.executablePath),
       realpath: fs.realpathSync(bundle.executablePath),
-      version: '0.144.6',
+      version: CODEX_VERSION,
       codex_home: '/managed/codex-home',
       runtime_key: RUNTIME_KEY,
       carrier: {
@@ -223,7 +238,7 @@ describe('resolveAioncoreManagedCodex', () => {
     const emptyVersion = makeManifest();
     emptyVersion.clis.find((entry) => entry.name === 'codex')!.version = ' ';
     const versionBundle = writeBundle(emptyVersion);
-    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/version must be non-empty/);
+    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/Codex version must be 0\.146\.0/);
   });
 
   it.each(['../escape', '/absolute', 'cli\\codex', 'cli//codex', './cli'])(
