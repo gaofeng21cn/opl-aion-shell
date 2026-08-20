@@ -283,6 +283,36 @@
       "transport_target": "ably_free_realtime_with_cloudflare_workers_d1_control_plane",
       "transport_selection_status": "target_pending_mainland_china_probe",
       "current_implementation": "legacy_tencent_and_go_sqlite_source_not_conformant_to_target",
+      "access_view_type": "remote_companion_access",
+      "access_view_contract_ref": "contracts/opl-app-contributions.schema.json#/$defs/remote_companion_access_result",
+      "release_cohort_lock_ref": "contracts/app-remote-companion.json#transport.release_cohort_lock",
+      "validation_cohort_admission": {
+        "authority": "opl-link/service_cloudflare_worker_and_d1",
+        "active_pair_limit": 20,
+        "warning_threshold": 15,
+        "limit_scope": "validation_cohort_not_provider_seat_limit",
+        "fixed_provider_seat_limit": false,
+        "testflight_is_capacity_authority": false,
+        "metadata_or_config_digest_mismatch": "fail_closed_before_claim_or_transport_connection"
+      },
+      "access_status_values": [
+        "unavailable",
+        "unpaired",
+        "reserving",
+        "qr_ready",
+        "awaiting_confirmation",
+        "active",
+        "revoking",
+        "attention"
+      ],
+      "access_actions": [
+        "pair.start",
+        "pair.refresh",
+        "pair.confirm",
+        "pair.cancel",
+        "device.rename",
+        "pair.revoke"
+      ],
       "release_ready": false,
       "optional_web_fallback": "desktop_webui_remains_available_but_is_not_the_ios_product",
       "separate_product_renderer_allowed": false,
@@ -314,9 +344,256 @@
       "active_release_shell_source_ref": "contract_refs.active_shell"
     },
     "minimum_complete_product": {
-      "schema": "opl_app_successor_minimum_complete_product.v2",
+      "schema": "opl_app_successor_minimum_complete_product.v3",
       "implementation_id": "opl-studio",
       "completion_rule": "all_required_user_outcomes_have_owner_backed_state_action_and_post_action_readback_without_a_second_runtime_or_truth_store",
+      "feature_inventory_ref": "docs/product/gui/feature-inventory.md#b0-codex-necessary-baseline",
+      "functional_baseline_scope": {
+        "first_qualification_platform": "macos",
+        "macos_full_functional_baseline_required_before_cutover": true,
+        "windows_linux_full_vm_required_before_declared_platform_support": true,
+        "source_portability_may_substitute_for_platform_vm_evidence": false,
+        "current_state": "candidate_validation_only_not_active_shell_admitted"
+      },
+      "evidence_axes": {
+        "non_substitution_rule": "each_axis_proves_only_its_named_layer_and_cannot_close_any_other_axis",
+        "required": [
+          {
+            "id": "contract",
+            "owner": "one-person-lab-app",
+            "cutover_required": true
+          },
+          {
+            "id": "source_behavior",
+            "owner": "opl-studio",
+            "cutover_required": true
+          },
+          {
+            "id": "rendered",
+            "owner": "opl-studio",
+            "cutover_required": true
+          },
+          {
+            "id": "installed_macos",
+            "owner": "one-person-lab-app_release_qualification",
+            "cutover_required": true
+          },
+          {
+            "id": "clean_vm",
+            "owner": "one-person-lab-app_release_qualification",
+            "cutover_required": true
+          }
+        ]
+      },
+      "features": [
+        {
+          "feature_id": "B0-01",
+          "capability_id": "app_shell_window_navigation_and_keyboard_history",
+          "owner": "opl_studio_application_kernel",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-02",
+          "capability_id": "thread_directory_search_pin_rename_archive_restore_delete",
+          "owner": "codex_app_server_thread_truth_and_opl_studio_versioned_ui_metadata",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-03",
+          "capability_id": "conversation_streaming_stop_retry_tool_process_and_error",
+          "owner": "codex_app_server",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-04",
+          "capability_id": "composer_attachment_paste_drop_file_and_directory_input",
+          "owner": "opl_studio_host_input_bridge",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-05",
+          "capability_id": "model_reasoning_auto_and_fixed_selection",
+          "owner": "codex_app_server_with_app_product_defaults",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-06",
+          "capability_id": "permissions_sandbox_approval_and_elicitation",
+          "owner": "codex_app_server",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-07",
+          "capability_id": "files_changes_artifacts_and_common_renderers",
+          "owner": "codex_app_server_artifacts_and_opl_studio_renderers",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-08",
+          "capability_id": "git_diff_review_commit_push_and_pull_request_context",
+          "owner": "git_and_codex_app_server_review",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-09",
+          "capability_id": "terminal_browser_and_environment_details",
+          "owner": "codex_app_server_and_canonical_codex_tools",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-10",
+          "capability_id": "workspace_initial_cwd_project_affinity_and_local_worktree_mode",
+          "owner": "codex_app_server_runtime_cwd_and_opl_studio_versioned_ui_metadata",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-11",
+          "capability_id": "codex_subagents_and_parallel_tasks",
+          "owner": "codex_app_server",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-12",
+          "capability_id": "background_turn_continuity_notifications_and_scheduled_tasks",
+          "owner": "codex_app_server_and_single_canonical_scheduler",
+          "disposition": "mixed",
+          "cutover_blocking": true,
+          "components": [
+            {
+              "id": "background_turn_continuity",
+              "disposition": "required",
+              "cutover_blocking": true
+            },
+            {
+              "id": "completion_notification",
+              "disposition": "required",
+              "cutover_blocking": true
+            },
+            {
+              "id": "scheduled_tasks_cron",
+              "disposition": "deferred",
+              "cutover_blocking": false,
+              "deferral_boundary": "deferred_from_initial_studio_functional_baseline_without_adding_a_second_scheduler_or_store"
+            }
+          ]
+        },
+        {
+          "feature_id": "B0-13",
+          "capability_id": "memory_personalization_and_instructions",
+          "owner": "codex_profile_and_app_owner_refs",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "B0-14",
+          "capability_id": "settings_search_navigation_accessibility_theme_and_i18n",
+          "owner": "opl_studio_application_kernel",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-01",
+          "capability_id": "gateway_identity_login_refresh_logout_and_secret_boundary",
+          "owner": "opl_gateway",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-02",
+          "capability_id": "gateway_model_entitlement_usage_balance_and_freshness",
+          "owner": "opl_gateway",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-03",
+          "capability_id": "official_profile_first_run_and_restore",
+          "owner": "one-person-lab-app",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-04",
+          "capability_id": "dynamic_agents_and_capabilities_information_architecture",
+          "owner": "one-person-lab-framework_projection",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-05",
+          "capability_id": "opl_control_center_owner_routes",
+          "owner": "one-person-lab-app",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "R1-06",
+          "capability_id": "opl_bundle_update_deep_link_feedback_and_support",
+          "owner": "one-person-lab-app",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-01",
+          "capability_id": "agent_package_directory_and_lifecycle",
+          "owner": "native_package_managers_with_framework_projection",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-02",
+          "capability_id": "purpose_starter_and_active_context",
+          "owner": "one-person-lab-framework_projection",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-03",
+          "capability_id": "agent_conversation_and_business_runtime",
+          "owner": "agent_packages_temporal_and_framework_projection",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-04",
+          "capability_id": "app_base_and_packages_lifecycle",
+          "owner": "app_carrier_framework_and_native_package_managers",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-05",
+          "capability_id": "desktop_and_docker_webui_product_semantics",
+          "owner": "one-person-lab-app_transport_adapters",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-06",
+          "capability_id": "opl_data_inventory_and_guarded_cleanup",
+          "owner": "framework_owner_inventory_and_actions",
+          "disposition": "required",
+          "cutover_blocking": true
+        },
+        {
+          "feature_id": "U1-07",
+          "capability_id": "dynamic_agent_runtime_and_typed_views",
+          "owner": "agent_task_producers_with_framework_projection",
+          "disposition": "required",
+          "cutover_blocking": true
+        }
+      ],
       "required_user_outcomes": [
         "codex_project_thread_turn_streaming_and_lifecycle",
         "current_agent_run_status_and_package_contributed_hypothesis_roadmap",
@@ -325,6 +602,7 @@
         "dynamic_agent_catalog_search_filter_source_policy_home_visibility_order_and_lifecycle",
         "dynamic_capability_directory_and_package_settings_contributions",
         "provider_projected_channel_access_and_canonical_transport_binding",
+        "remote_companion_access_pairing_and_device_projection_without_channel_view_filtering",
         "separate_app_base_and_packages_update_status_actions_and_fresh_readback",
         "service_health_safe_recovery_and_owner_routed_diagnostics"
       ],
@@ -410,7 +688,7 @@
     "contribution_abi": "opl_app_client_contributions.v1",
     "allowlist_contract": "contracts/opl-app-contributions.schema.json",
     "typed_slots": ["settings.section", "runtime.detail", "composer.palette"],
-    "standard_view_types": ["list_detail", "timeline", "approval_diff", "task_board", "artifact_view", "activity_log", "channel_access"],
+    "standard_view_types": ["list_detail", "timeline", "approval_diff", "task_board", "artifact_view", "activity_log", "channel_access", "remote_companion_access"],
     "transport_binding_source": "app_state.transport_bindings",
     "transport_binding_schema": "opl_app_transport_bindings_projection.v1",
     "transport_binding_migration_state": "framework_transport_binding_projection_and_dual_shell_source_e2e_completed",
@@ -1076,7 +1354,7 @@
         "projectless_session_semantics": "no_user_selected_project_affinity_not_no_runtime_cwd",
         "projectless_detection": "explicit_project_id_absent_defines_unbound_identity_while_managed_scratch_recorded_cwd_including_user_documents_codex_and_user_codex_worktrees_never_creates_directory_group",
         "recorded_cwd_role": "canonical_runtime_workspace_and_derived_directory_group_fallback_when_explicit_project_id_absent_and_not_managed_scratch",
-        "project_affinity_source": "explicit_project_id_projection",
+        "project_affinity_source": "opl_studio_versioned_ui_metadata_keyed_by_canonical_thread_id",
         "project_affinity_role": "explicit_project_id_wins_for_sidebar_grouping_non_managed_scratch_recorded_cwd_only_supplies_derived_directory_group",
         "managed_scratch_presentation": "user_documents_codex_and_user_codex_worktrees_subtrees_preserve_recorded_cwd_and_render_unbound_without_leaf_directory_project_groups",
         "workspace_binding_role": "new_session_initial_cwd_and_explicit_project_affinity_assignment_are_distinct",
@@ -1092,10 +1370,10 @@
         "runtime_pwd_role": "turn_cwd_or_command_pwd_execution_context_not_persisted_as_project_affinity",
         "turn_cwd_override_allowed": true,
         "writable_roots_role": "sandbox_permission_surface_independent_of_project_affinity",
-        "core_workspace_application": "thread_settings_update_cwd_records_runtime_workspace_only",
+        "core_workspace_application": "thread_resume_or_turn_start_cwd_records_runtime_workspace_only",
         "runtime_pwd_changes_project_affinity": false,
         "project_affinity_changes_writable_roots": false,
-        "project_adoption_transition": "unbound_to_bound_once_via_explicit_project_affinity_assignment",
+        "project_adoption_transition": "unbound_to_bound_once_via_versioned_ui_metadata_assignment",
         "bound_project_reassignment": "not_exposed",
         "workspace_owns_session": false,
         "workspace_owns_context": false,
