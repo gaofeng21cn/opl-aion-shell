@@ -819,6 +819,7 @@ const FirstRun: React.FC = () => {
       className={styles.firstRunPage}
       aria-labelledby='opl-first-run-setup-title'
       data-testid='opl-first-run-window'
+      data-official-profile-state={officialProfileFirstInstallState}
       tabIndex={-1}
     >
       <header className={`${styles.firstRunBrandBar} ${isMacRuntime ? styles.firstRunBrandBarMac : ''}`}>

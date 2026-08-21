@@ -4498,6 +4498,17 @@ function guidEntryNavigationExpression() {
     const deferredButton = deferredAnchor?.closest('button') || deferredAnchor;
     const readyAnchor = document.querySelector('[aria-label="opl-first-run-ready-entry"], [data-testid="opl-first-run-ready-entry"]');
     const readyButton = readyAnchor?.closest('button') || readyAnchor;
+    const officialProfileState = firstRunWindow?.getAttribute('data-official-profile-state');
+    if (firstRunWindow && officialProfileState === 'failed') {
+      const technicalError = document.querySelector('[data-testid="opl-first-run-technical-error"]');
+      return {
+        status: 'official_profile_failed',
+        error: String(technicalError?.textContent || 'Official Profile first-install apply failed')
+          .replace(/\\s+/g, ' ')
+          .trim()
+          .slice(0, 1000),
+      };
+    }
     const disabled = (button) =>
       !button ||
       button.disabled === true ||
@@ -4507,7 +4518,14 @@ function guidEntryNavigationExpression() {
     if (deferredButton && firstRunWindow && !appLoaderVisible && !disabled(deferredButton)) {
       window.__oplFirstRunSmokeNavigationKind = 'deferred_entry';
       deferredButton.click();
-    } else if (readyButton && firstRunWindow && !appLoaderVisible && !disabled(readyButton)) {
+    } else if (
+      readyButton &&
+      firstRunWindow &&
+      !appLoaderVisible &&
+      !disabled(readyButton) &&
+      officialProfileState !== 'idle' &&
+      officialProfileState !== 'running'
+    ) {
       window.__oplFirstRunSmokeNavigationKind = 'ready_entry';
       readyButton.click();
     }
@@ -5805,6 +5823,9 @@ async function waitForGuidEntryViaCdp(options, secret) {
       options.timeoutMs,
       'OPL usable entry did not become ready in the packaged app'
     );
+    if (state.status === 'official_profile_failed') {
+      throw new Error(`Official Profile first-install apply failed: ${state.error || 'unknown error'}`);
+    }
     await captureFullReleaseScreenshotEvidence(options, client);
     return { state, startupPreflight, firstRunBeginnerUx, labels: state.labels ?? [DEFAULT_LABELS.guidEntry] };
   } finally {

@@ -770,7 +770,28 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(expression).toContain('preset-pill-mas');
     expect(expression).toContain('preset-pill-research');
     expect(expression).toContain('querySelectorAll');
+    expect(expression).toContain("officialProfileState === 'failed'");
+    expect(expression).toContain("officialProfileState !== 'running'");
     expect(expression).not.toContain("window.location.hash = '#/guid'");
+  });
+
+  it('fails immediately on an Official Profile apply error instead of leaving FirstRun', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+        <main data-testid="opl-first-run-window" data-official-profile-state="failed">
+          <div data-testid="opl-first-run-technical-error">Package mas is absent</div>
+          <button><span data-testid="opl-first-run-ready-entry">Enter OPL</span></button>
+        </main>
+      </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/first-run' }
+    );
+    const result = dom.window.eval(__test.guidEntryNavigationExpression());
+    expect(result).toEqual({
+      status: 'official_profile_failed',
+      error: 'Package mas is absent',
+    });
+    expect(dom.window.location.hash).toBe('#/first-run');
+    dom.window.close();
   });
 
   it('checks the beginner first-run layout before the ready-entry navigation click', () => {

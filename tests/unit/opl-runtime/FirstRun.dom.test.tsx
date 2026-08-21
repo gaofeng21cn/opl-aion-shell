@@ -679,6 +679,7 @@ describe('FirstRun readiness page', () => {
     expect(screen.getByTestId('opl-first-run-official-profile-background')).toHaveTextContent(
       'settings.firstRun.officialProfile.preparing'
     );
+    expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('data-official-profile-state', 'running');
     fireEvent.click(readyEntry);
     expect(bridgeMocks.applyOfficialProfileInvoke).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('opl-first-run-completion')).toBeInTheDocument();
@@ -747,6 +748,7 @@ describe('FirstRun readiness page', () => {
         'settings.firstRun.officialProfile.attention'
       )
     );
+    expect(screen.getByTestId('opl-first-run-window')).toHaveAttribute('data-official-profile-state', 'failed');
     expect(screen.queryByTestId('opl-first-run-user-error')).not.toBeInTheDocument();
     expect(screen.getByTestId('opl-first-run-ready-entry')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'guid.uiOptimization.firstRun.completion.primaryAction' })).toBeEnabled();
