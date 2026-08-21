@@ -778,6 +778,55 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('binds Standard Framework readback to the App packaged Codex Plugin Manager', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-standard-packaged-codex-'));
+    const appPath = path.join(root, 'One Person Lab.app');
+    const runtimeKey = `${process.platform}-${process.arch}`;
+    const managedResourcesRoot = path.join(
+      appPath,
+      'Contents',
+      'Resources',
+      'bundled-aioncore',
+      runtimeKey,
+      'managed-resources'
+    );
+    const codexRoot = `cli/codex/0.146.0/${runtimeKey}`;
+    const codexExecutable = 'vendor/bin/codex';
+    const codexPath = path.join(managedResourcesRoot, codexRoot, codexExecutable);
+    const oplPath = path.join(root, 'opl');
+    try {
+      writeFile(codexPath, '#!/usr/bin/env bash\n', 0o755);
+      writeFile(oplPath, '#!/usr/bin/env bash\n', 0o755);
+      writeFile(
+        path.join(managedResourcesRoot, 'manifest.json'),
+        `${JSON.stringify({
+          clis: [
+            {
+              name: 'codex',
+              platformDirectory: runtimeKey,
+              root: codexRoot,
+              executable: codexExecutable,
+            },
+          ],
+        })}\n`
+      );
+
+      const command = vmSmoke.buildOplJsonShellCommand(['app', 'state', '--profile', 'fast', '--json'], {
+        appPath,
+        runtimeProfile: 'standard',
+        codexHome: path.join(root, '.codex'),
+        __testOplCommandPath: oplPath,
+      });
+
+      expect(vmSmoke.resolvePackagedCodexPluginManager(appPath)).toBe(codexPath);
+      expect(command.command).toContain(`export CODEX_HOME='${path.join(root, '.codex')}'`);
+      expect(command.command).toContain(`export OPL_CODEX_BIN='${codexPath}'`);
+      expect(command.command).toContain(`export OPL_CODEX_PLUGIN_BIN='${codexPath}'`);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('binds Full source identity to the packaged manifest Framework commit', () => {
     const frameworkSha = 'a'.repeat(40);
     const fixture = createPackagedFullRuntimeAppFixture(frameworkSha);

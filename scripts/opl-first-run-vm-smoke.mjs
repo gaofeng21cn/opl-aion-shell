@@ -2376,6 +2376,61 @@ function resolvePackagedStandardInstaller(appPath) {
   return fs.existsSync(installerPath) && fs.statSync(installerPath).isFile() ? installerPath : null;
 }
 
+function resolvePackagedCodexPluginManager(appPath) {
+  if (!appPath) return null;
+  const runtimeKey = `${process.platform}-${process.arch}`;
+  const managedResourcesRoot = path.join(
+    appPath,
+    'Contents',
+    'Resources',
+    'bundled-aioncore',
+    runtimeKey,
+    'managed-resources'
+  );
+  const manifestPath = path.join(managedResourcesRoot, 'manifest.json');
+  if (!fs.existsSync(manifestPath) || !fs.statSync(manifestPath).isFile()) {
+    throw new Error(`Packaged Codex managed-resources manifest is missing: ${manifestPath}`);
+  }
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const codexEntries = Array.isArray(manifest?.clis) ? manifest.clis.filter((entry) => entry?.name === 'codex') : [];
+  if (codexEntries.length !== 1) {
+    throw new Error(`Packaged Codex managed-resources manifest must contain exactly one Codex CLI: ${manifestPath}`);
+  }
+  const codex = codexEntries[0];
+  const relativeParts = [codex.root, codex.executable];
+  if (
+    codex.platformDirectory !== runtimeKey ||
+    relativeParts.some(
+      (value) =>
+        typeof value !== 'string' ||
+        !value ||
+        path.posix.isAbsolute(value) ||
+        value.split('/').some((part) => !part || part === '.' || part === '..')
+    )
+  ) {
+    throw new Error(`Packaged Codex managed-resources entry is invalid for ${runtimeKey}: ${manifestPath}`);
+  }
+  const executablePath = path.resolve(managedResourcesRoot, ...codex.root.split('/'), ...codex.executable.split('/'));
+  const relativeExecutable = path.relative(managedResourcesRoot, executablePath);
+  if (
+    !relativeExecutable ||
+    relativeExecutable === '..' ||
+    relativeExecutable.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativeExecutable)
+  ) {
+    throw new Error(`Packaged Codex executable escapes managed-resources: ${executablePath}`);
+  }
+  try {
+    fs.accessSync(executablePath, fs.constants.X_OK);
+    if (!fs.statSync(executablePath).isFile()) throw new Error('not a regular file');
+  } catch (error) {
+    throw new Error(
+      `Packaged Codex executable is unavailable: ${executablePath} (${error instanceof Error ? error.message : String(error)})`
+    );
+  }
+  return executablePath;
+}
+
 function buildStandardBootstrapCommand(installerPath) {
   return {
     command: '/bin/bash',
@@ -2438,15 +2493,26 @@ function buildOplJsonShellCommand(args, options = {}) {
   const runtimeHome = fullRuntime?.runtime_home ?? null;
   const testOplCommandPath = process.env.NODE_ENV === 'test' ? options.__testOplCommandPath : null;
   const pathPrefix = buildStandardBootstrapPathPrefix();
+  const packagedCodexPluginManager = runtimeHome ? null : resolvePackagedCodexPluginManager(options.appPath);
+  const standardCodexEnv = packagedCodexPluginManager
+    ? [
+        `export CODEX_HOME=${shellQuote(options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex'))}`,
+        `export OPL_CODEX_BIN=${shellQuote(packagedCodexPluginManager)}`,
+        `export OPL_CODEX_PLUGIN_BIN=${shellQuote(packagedCodexPluginManager)}`,
+      ]
+    : [];
   const commandArgs = [
     testOplCommandPath || (runtimeHome ? toRuntimeShellPath(path.join(runtimeHome, 'bin', 'opl')) : 'opl'),
     ...args,
   ];
   const command =
     runtimeHome || testOplCommandPath
-      ? [buildFullRuntimeCommandPrefix(runtimeHome), commandArgs.map(shellQuote).join(' ')].filter(Boolean).join(' && ')
+      ? [buildFullRuntimeCommandPrefix(runtimeHome), ...standardCodexEnv, commandArgs.map(shellQuote).join(' ')]
+          .filter(Boolean)
+          .join(' && ')
       : [
           pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
+          ...standardCodexEnv,
           'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
           commandArgs.map(shellQuote).join(' '),
         ]
@@ -8846,6 +8912,7 @@ export const __test =
         resolveManagedNodeBin,
         buildStandardBootstrapPathPrefix,
         resolvePackagedStandardInstaller,
+        resolvePackagedCodexPluginManager,
         buildStandardBootstrapCommand,
         runPackagedStandardBootstrapForSmoke,
         buildOplJsonShellCommand,
