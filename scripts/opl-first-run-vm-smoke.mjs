@@ -5988,11 +5988,19 @@ async function waitForUsableGuidEntry(options, secret) {
     };
   } catch (error) {
     const elapsedMs = Date.now() - started;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (errorMessage.startsWith('Official Profile first-install apply failed:')) {
+      writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp_business_failure', 'failed', {
+        duration_ms: elapsedMs,
+        error: errorMessage,
+      });
+      throw error;
+    }
     const fallbackTimeoutMs = remainingGuidFallbackTimeoutMs(options.timeoutMs, elapsedMs);
     writeSmokeEventSafely(options.writeSmokeEvent, 'wait_guid_cdp', 'failed', {
       duration_ms: elapsedMs,
       fallback_timeout_ms: fallbackTimeoutMs,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     });
     const launchDiagnostics = collectLaunchDiagnostics(options, secret);
     const nativeModalSignature = detectNativeModalLaunchBlocker(options, launchDiagnostics);
