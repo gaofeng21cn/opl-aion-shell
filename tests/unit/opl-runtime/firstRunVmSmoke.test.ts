@@ -1063,11 +1063,7 @@ describe('packaged first-run VM smoke helpers', () => {
   it('probes the Provider wizard only for a Codex configuration blocker', () => {
     const options = { requireCodexConfigWizard: false };
     expect(
-      __test.shouldObserveCodexConfigWizard(
-        { setup_flow: { blocking_items: ['codex'] } },
-        options,
-        'test-credential'
-      )
+      __test.shouldObserveCodexConfigWizard({ setup_flow: { blocking_items: ['codex'] } }, options, 'test-credential')
     ).toBe(false);
     expect(
       __test.shouldObserveCodexConfigWizard(
