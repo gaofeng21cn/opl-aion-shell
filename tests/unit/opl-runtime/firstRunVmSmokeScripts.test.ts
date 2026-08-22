@@ -509,8 +509,34 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
   const appPath = path.join(root, 'One Person Lab.app');
   const payloadRoot = path.join(appPath, 'Contents', 'Resources', 'opl-full-runtime');
   const runtimeHome = path.join(payloadRoot, 'runtime', 'current');
+  const runtimeKey = `${process.platform}-${process.arch}`;
+  const managedResourcesRoot = path.join(
+    appPath,
+    'Contents',
+    'Resources',
+    'bundled-aioncore',
+    runtimeKey,
+    'managed-resources'
+  );
+  const codexRoot = `cli/codex/0.146.0/${runtimeKey}`;
+  const codexExecutable = 'vendor/bin/codex';
+  const codexPath = path.join(managedResourcesRoot, codexRoot, codexExecutable);
   fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
+  writeFile(codexPath, '#!/usr/bin/env bash\n', 0o755);
+  writeFile(
+    path.join(managedResourcesRoot, 'manifest.json'),
+    `${JSON.stringify({
+      clis: [
+        {
+          name: 'codex',
+          platformDirectory: runtimeKey,
+          root: codexRoot,
+          executable: codexExecutable,
+        },
+      ],
+    })}\n`
+  );
   writeFile(
     path.join(payloadRoot, 'manifest', 'full-package-manifest.json'),
     `${JSON.stringify({
@@ -520,7 +546,7 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
       resolved_refs: { opl_framework: { resolved_commit: frameworkSha } },
     })}\n`
   );
-  return { root, appPath, runtimeHome };
+  return { root, appPath, runtimeHome, codexPath };
 }
 
 function installedFrameworkAppState(frameworkSha = 'b'.repeat(40)) {
@@ -767,6 +793,8 @@ describe('OPL first-run VM smoke scripts', () => {
         runtime_home: fixture.runtimeHome,
       });
       expect(command.command).toContain(path.join(fixture.runtimeHome, 'bin', 'opl'));
+      expect(command.command).toContain(`export OPL_CODEX_BIN='${fixture.codexPath}'`);
+      expect(command.command).toContain(`export OPL_CODEX_PLUGIN_BIN='${fixture.codexPath}'`);
       expect(command.command).toContain('system');
       expect(command.command).not.toContain('command -v opl');
       expect(JSON.parse(raw)).toEqual({

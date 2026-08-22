@@ -2502,8 +2502,8 @@ function buildOplJsonShellCommand(args, options = {}) {
   const runtimeHome = fullRuntime?.runtime_home ?? null;
   const testOplCommandPath = process.env.NODE_ENV === 'test' ? options.__testOplCommandPath : null;
   const pathPrefix = buildStandardBootstrapPathPrefix();
-  const packagedCodexPluginManager = runtimeHome ? null : resolvePackagedCodexPluginManager(options.appPath);
-  const standardCodexEnv = packagedCodexPluginManager
+  const packagedCodexPluginManager = resolvePackagedCodexPluginManager(options.appPath);
+  const packagedCodexEnv = packagedCodexPluginManager
     ? [
         `export CODEX_HOME=${shellQuote(options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex'))}`,
         `export OPL_CODEX_BIN=${shellQuote(packagedCodexPluginManager)}`,
@@ -2516,12 +2516,12 @@ function buildOplJsonShellCommand(args, options = {}) {
   ];
   const command =
     runtimeHome || testOplCommandPath
-      ? [buildFullRuntimeCommandPrefix(runtimeHome), ...standardCodexEnv, commandArgs.map(shellQuote).join(' ')]
+      ? [buildFullRuntimeCommandPrefix(runtimeHome), ...packagedCodexEnv, commandArgs.map(shellQuote).join(' ')]
           .filter(Boolean)
           .join(' && ')
       : [
           pathPrefix ? `export PATH=${shellQuote(pathPrefix)}` : '',
-          ...standardCodexEnv,
+          ...packagedCodexEnv,
           'OPL_RESOLVED_PATH=$(command -v opl) && [ -n "$OPL_RESOLVED_PATH" ]',
           commandArgs.map(shellQuote).join(' '),
         ]
