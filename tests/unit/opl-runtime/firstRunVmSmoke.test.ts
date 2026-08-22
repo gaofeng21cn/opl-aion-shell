@@ -1607,7 +1607,7 @@ describe('packaged first-run VM smoke helpers', () => {
         package_id: 'mas',
         runtime_source_readiness: { checkout_path: root },
       },
-      snapshot: { use_receipt_refs: [] },
+      snapshot: { package_id: 'mas', workspace },
     };
     const runOplJson = vi.fn();
     const invoke = (receiptPath: string | null) =>
@@ -1653,7 +1653,7 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
-  it('separates ordinary send receipt stability from receipt-bound Framework Stage activation evidence', () => {
+  it('separates ordinary send package-readiness stability from Framework Stage activation evidence', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
     const manifestPath = path.join(root, 'agent', 'stages', 'manifest.json');
     const workspace = path.join(root, 'workspace');
@@ -1667,21 +1667,36 @@ describe('packaged first-run VM smoke helpers', () => {
         stages: [{ stage_id: 'direction_and_route_selection' }],
       })
     );
-    const existingUseReceipt = {
-      action: 'use',
-      receipt_ref: 'opl://agent-package/use/mas/existing',
-      recorded_at: '2026-07-20T00:00:00.000Z',
-      use_binding: { target_root: workspace },
-    };
-    const packagePayload = (lifecycleReceipts: Record<string, unknown>[]) => ({
+    const packagePayload = (overrides: Record<string, unknown> = {}) => ({
       version: 'g2',
       opl_agent_package_status: {
         package_id: 'mas',
-        lifecycle_receipts: lifecycleReceipts,
         runtime_source_readiness: { checkout_path: root },
+        status: 'available',
+        installed_package_count: 1,
+        installed_manifest_sha256: 'a'.repeat(64),
+        installed_content_digest: null,
+        installed_carrier_readback: {
+          kind: 'local',
+          identity: 'med-autoscience@med-autoscience-local',
+          source_ref: '/tmp/med-autoscience',
+          version: '0.2.27',
+          enabled: true,
+        },
+        configured_carrier: {
+          package_id: 'mas',
+          operation: 'list',
+          status: 'installed',
+          installed_version: '0.2.27',
+          enabled: true,
+          plugin_source_path: '/tmp/med-autoscience',
+        },
+        launch_state: 'ready',
+        launch_allowed: true,
+        ...overrides,
       },
     });
-    const beforePayload = packagePayload([existingUseReceipt]);
+    const beforePayload = packagePayload();
     const beforeSnapshot = __test.agentPackageLifecycleSnapshot(beforePayload, target, workspace);
     const unchangedSnapshot = __test.agentPackageLifecycleSnapshot(beforePayload, target, workspace);
     expect(__test.assertHomeAssistantRouteSendWithoutActivation(beforeSnapshot, unchangedSnapshot)).toMatchObject({
@@ -1690,18 +1705,13 @@ describe('packaged first-run VM smoke helpers', () => {
       activation_or_use_receipts_added: false,
     });
 
-    const useReceiptRef = 'opl://agent-package/use/mas/stage-runtime';
-    const stageUseReceipt = {
-      action: 'use',
-      receipt_ref: useReceiptRef,
-      recorded_at: '2026-07-20T00:00:01.000Z',
-      use_binding: { target_root: workspace },
-    };
-    const afterPayload = packagePayload([existingUseReceipt, stageUseReceipt]);
+    const afterPayload = packagePayload({ launch_state: 'attention_needed' });
     const afterSnapshot = __test.agentPackageLifecycleSnapshot(afterPayload, target, workspace);
     expect(() => __test.assertHomeAssistantRouteSendWithoutActivation(beforeSnapshot, afterSnapshot)).toThrow(
-      useReceiptRef
+      'changed Framework package readiness'
     );
+
+    const useReceiptRef = 'opl://agent-package/use/mas/stage-runtime';
 
     const provisioning = writeMasQualificationProvisioningReceipt(root, workspace);
     const stageResult = {
@@ -1762,7 +1772,7 @@ describe('packaged first-run VM smoke helpers', () => {
         study_id: provisioning.receipt.study_id,
         provisioning_receipt_ref: provisioning.receipt.receipt_ref,
         use_receipt_ref: useReceiptRef,
-        lifecycle_use_receipt_readback: true,
+        framework_use_binding_readback: true,
         stage_body_started: false,
       });
       const stageArgs = runOplJson.mock.calls[0][0];
@@ -1783,6 +1793,24 @@ describe('packaged first-run VM smoke helpers', () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('uses only the current Framework package-status CLI surface', () => {
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
+    const runOplJson = vi.fn(() =>
+      JSON.stringify({
+        version: 'g2',
+        opl_agent_package_status: { package_id: target.packageId },
+      })
+    );
+    const state = __test.readAgentPackageLifecycleState(
+      { timeoutMs: 30_000, __testHooks: { runOplJson } },
+      target,
+      '/tmp/opl-smoke-workspace'
+    );
+    expect(state.args).toEqual(['packages', 'status', '--package-id', target.packageId, '--json']);
+    expect(state.args).not.toContain('--scope');
+    expect(state.args).not.toContain('--target-workspace');
   });
 
   it('checks Standard Home assistants through state-aware launch admission without creating route receipts', () => {

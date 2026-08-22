@@ -5272,53 +5272,38 @@ function requireAgentPackageStatus(payload, target) {
   return status;
 }
 
-function lifecycleReceiptTargetsWorkspace(receipt, workspace) {
-  if (!isRecord(receipt)) return false;
-  const roots = [];
-  if (isRecord(receipt.use_binding) && typeof receipt.use_binding.target_root === 'string') {
-    roots.push(receipt.use_binding.target_root);
-  }
-  if (isRecord(receipt.scope_materialization) && typeof receipt.scope_materialization.target_root === 'string') {
-    roots.push(receipt.scope_materialization.target_root);
-  }
-  if (Array.isArray(receipt.scope_materializations)) {
-    for (const materialization of receipt.scope_materializations) {
-      if (isRecord(materialization) && typeof materialization.target_root === 'string') {
-        roots.push(materialization.target_root);
-      }
-    }
-  }
-  return roots.includes(workspace);
-}
-
 function agentPackageLifecycleSnapshot(payload, target, workspace) {
   const status = requireAgentPackageStatus(payload, target);
-  const receipts = Array.isArray(status.lifecycle_receipts) ? status.lifecycle_receipts : [];
-  const workspaceReceipts = receipts
-    .filter(
-      (receipt) =>
-        isRecord(receipt) &&
-        (receipt.action === 'activate' || receipt.action === 'use') &&
-        lifecycleReceiptTargetsWorkspace(receipt, workspace)
-    )
-    .map((receipt) => ({
-      action: receipt.action,
-      receipt_ref: typeof receipt.receipt_ref === 'string' ? receipt.receipt_ref : null,
-      recorded_at: typeof receipt.recorded_at === 'string' ? receipt.recorded_at : null,
-    }))
-    .filter((receipt) => receipt.receipt_ref)
-    .sort((left, right) => left.receipt_ref.localeCompare(right.receipt_ref));
-  const refsFor = (action) =>
-    workspaceReceipts
-      .filter((receipt) => receipt.action === action)
-      .map((receipt) => receipt.receipt_ref)
-      .sort();
+  const carrier = isRecord(status.installed_carrier_readback) ? status.installed_carrier_readback : null;
+  const configuredCarrier = isRecord(status.configured_carrier) ? status.configured_carrier : null;
   return {
     package_id: target.packageId,
     workspace,
-    activate_receipt_refs: refsFor('activate'),
-    use_receipt_refs: refsFor('use'),
-    all_receipt_refs: workspaceReceipts.map((receipt) => receipt.receipt_ref).sort(),
+    status: status.status ?? null,
+    installed_package_count: status.installed_package_count ?? null,
+    installed_manifest_sha256: status.installed_manifest_sha256 ?? null,
+    installed_content_digest: status.installed_content_digest ?? null,
+    installed_carrier: carrier
+      ? {
+          kind: carrier.kind ?? null,
+          identity: carrier.identity ?? null,
+          source_ref: carrier.source_ref ?? null,
+          version: carrier.version ?? null,
+          enabled: carrier.enabled ?? null,
+        }
+      : null,
+    configured_carrier: configuredCarrier
+      ? {
+          package_id: configuredCarrier.package_id ?? null,
+          operation: configuredCarrier.operation ?? null,
+          status: configuredCarrier.status ?? null,
+          installed_version: configuredCarrier.installed_version ?? null,
+          enabled: configuredCarrier.enabled ?? null,
+          plugin_source_path: configuredCarrier.plugin_source_path ?? null,
+        }
+      : null,
+    launch_state: status.launch_state ?? null,
+    launch_allowed: status.launch_allowed ?? null,
   };
 }
 
@@ -5328,10 +5313,6 @@ function readAgentPackageLifecycleState(options, target, workspace) {
     'status',
     '--package-id',
     target.packageId,
-    '--scope',
-    'workspace',
-    '--target-workspace',
-    workspace,
     '--json',
   ];
   const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
@@ -5345,11 +5326,9 @@ function readAgentPackageLifecycleState(options, target, workspace) {
 }
 
 function assertHomeAssistantRouteSendWithoutActivation(before, after) {
-  const beforeRefs = new Set(before.all_receipt_refs);
-  const newReceiptRefs = after.all_receipt_refs.filter((receiptRef) => !beforeRefs.has(receiptRef));
-  if (newReceiptRefs.length > 0) {
+  if (JSON.stringify(before) !== JSON.stringify(after)) {
     throw new Error(
-      `Ordinary Home send created forbidden package activation/use receipts: ${newReceiptRefs.join(', ')}`
+      `Ordinary Home send changed Framework package readiness: ${JSON.stringify({ before, after })}`
     );
   }
   return {
@@ -5358,8 +5337,7 @@ function assertHomeAssistantRouteSendWithoutActivation(before, after) {
     workspace: after.workspace,
     shell_activation_attempted: false,
     activation_or_use_receipts_added: false,
-    receipt_count_before: before.all_receipt_refs.length,
-    receipt_count_after: after.all_receipt_refs.length,
+    package_status_unchanged: true,
   };
 }
 
@@ -5496,9 +5474,6 @@ function frameworkStageRuntimeActivationExpression(input) {
     errors.push('stage_body_blocker');
   }
   if (stageRun?.temporal_start !== null) errors.push('unexpected_temporal_start');
-  const beforeUseRefs = new Set(input.beforeSnapshot.use_receipt_refs);
-  const newUseReceiptRefs = input.afterSnapshot.use_receipt_refs.filter((receiptRef) => !beforeUseRefs.has(receiptRef));
-  if (!newUseReceiptRefs.includes(useBinding?.use_receipt_ref)) errors.push('framework_use_receipt_readback');
   if (errors.length > 0) {
     throw new Error(
       `Framework Stage runtime activation evidence is invalid for ${input.target.id}: ${errors.join(', ')}`
@@ -5517,7 +5492,7 @@ function frameworkStageRuntimeActivationExpression(input) {
     stage_manifest_sha256: input.stageTarget.manifest_sha256,
     use_boundary_id: useBinding.use_boundary_id,
     use_receipt_ref: useBinding.use_receipt_ref,
-    lifecycle_use_receipt_readback: true,
+    framework_use_binding_readback: true,
     stage_body_started: false,
     stage_body_blocked_reason: FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
   };
