@@ -1798,6 +1798,7 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
   if (!runtimeHome) return '';
   const pythonBin = resolvePythonBin(runtimeHome);
   const hermesBin = path.join(runtimeHome, 'bin', 'hermes');
+  const codexBin = path.join(runtimeHome, 'bin', 'codex');
   const runtimeHomeForShell = toRuntimeShellPath(runtimeHome);
   const pathEntries = [
     path.join(runtimeHome, 'bin'),
@@ -1819,7 +1820,14 @@ function buildFullRuntimeCommandPrefix(runtimeHome) {
     `export OPL_MODULE_PATH_REDCUBE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'rca')))}`,
     `export OPL_MODULE_PATH_OPLMETAAGENT=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'meta-agent')))}`,
     `export OPL_MODULE_PATH_OPLBOOKFORGE=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'modules', 'bookforge')))}`,
-    `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(path.join(runtimeHome, 'bin', 'codex')))}`,
+    (() => {
+      try {
+        fs.accessSync(codexBin, fs.constants.X_OK);
+        return `export OPL_CODEX_BIN=${shellQuote(toRuntimeShellPath(codexBin))}`;
+      } catch {
+        return 'unset OPL_CODEX_BIN';
+      }
+    })(),
     fs.existsSync(hermesBin) ? `export OPL_HERMES_BIN=${shellQuote(toRuntimeShellPath(hermesBin))}` : '',
     `export PATH=${shellQuote(pathEntries)}:"$PATH"`,
   ]
