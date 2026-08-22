@@ -33,6 +33,7 @@ const DEFAULT_LABELS = {
 const DEFERRED_FULL_FIRST_RUN_BLOCKERS = new Set(['domain_modules', 'family_runtime_provider', 'recommended_skills']);
 const RUNTIME_PROFILES = new Set(['full', 'standard']);
 const DEFAULT_OPL_PROBE_TIMEOUT_MS = 90_000;
+const CORE_CODEX_BLOCKER_GRACE_MS = 30_000;
 const OPL_JSON_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const OPL_BOOTSTRAP_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const OPL_JSON_DIAGNOSTIC_INLINE_BYTES = 64 * 1024;
@@ -4186,17 +4187,17 @@ function codexWizardResult(state) {
   };
 }
 
+function shouldObserveCodexConfigWizard(initialize, options, codexApiKey) {
+  const blockers = listStringValues(initialize?.setup_flow?.blocking_items);
+  return blockers.includes('codex_config') && (options.requireCodexConfigWizard === true || Boolean(codexApiKey));
+}
+
 async function waitForCoreFirstLaunchReady(options, codexApiKey) {
   const started = Date.now();
   let lastError = null;
   let lastSystemInitializeRaw = '';
   const wizardState = createCodexWizardState();
   while (Date.now() - started < options.timeoutMs) {
-    try {
-      observeCodexConfigWizard(options.processName, codexApiKey, options.artifacts, wizardState);
-    } catch (error) {
-      if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
-    }
     try {
       lastSystemInitializeRaw = runOplJson(['system', 'initialize', '--json'], {
         ...options,
@@ -4210,10 +4211,32 @@ async function waitForCoreFirstLaunchReady(options, codexApiKey) {
           ...codexWizardResult(wizardState),
         };
       }
+      if (shouldObserveCodexConfigWizard(initialize, options, codexApiKey)) {
+        try {
+          observeCodexConfigWizard(options.processName, codexApiKey, options.artifacts, wizardState);
+        } catch (error) {
+          if (String(error instanceof Error ? error.message : error).includes('--codex-api-key-file')) throw error;
+        }
+      }
+      const blockers = listStringValues(initialize?.setup_flow?.blocking_items);
+      if (
+        blockers.includes('codex') &&
+        !blockers.includes('codex_config') &&
+        Date.now() - started >= CORE_CODEX_BLOCKER_GRACE_MS
+      ) {
+        const error = new Error(
+          `OPL core readiness is blocked by an unavailable Codex runtime after ${CORE_CODEX_BLOCKER_GRACE_MS}ms: ${JSON.stringify(
+            summarizeCoreFirstLaunch(lastSystemInitializeRaw)
+          )}`
+        );
+        error.code = 'OPL_CORE_CODEX_RUNTIME_UNAVAILABLE';
+        throw error;
+      }
       lastError = new Error(
         `Core first-launch readiness is not ready: ${JSON.stringify(summarizeCoreFirstLaunch(lastSystemInitializeRaw))}`
       );
     } catch (error) {
+      if (error?.code === 'OPL_CORE_CODEX_RUNTIME_UNAVAILABLE') throw error;
       lastError = error;
     }
     await sleep(2_000);
@@ -8894,6 +8917,7 @@ export const __test =
         collectOfficialProfileFirstInstallProof,
         createCodexWizardState,
         observeCodexConfigWizard,
+        shouldObserveCodexConfigWizard,
         shouldCaptureFullReleaseScreenshot,
         shouldCaptureFirstRunBeginnerScreenshot,
         shouldCheckFirstRunBeginnerUx,

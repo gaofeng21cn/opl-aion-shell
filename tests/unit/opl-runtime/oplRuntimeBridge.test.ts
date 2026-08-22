@@ -1059,7 +1059,7 @@ describe('OPL runtime bridge command whitelist', () => {
 
     expect(env.OPL_FULL_RUNTIME_HOME).toBe(runtimeHome);
     expect(env.OPL_PACKAGED_SKILLS_ROOT).toBe(path.join(runtimeHome, 'skills'));
-    expect(env.OPL_CODEX_BIN).toBe(path.join(runtimeHome, 'bin', 'codex'));
+    expect(env.OPL_CODEX_BIN).toBeUndefined();
     expect(env.OPL_FAMILY_RUNTIME_PROVIDER).toBe('temporal');
     expect(Object.keys(env).filter((key) => key.startsWith('OPL_MODULE_PATH_'))).toEqual([]);
     expect(env.OPL_PREFILLED_NODE_MODULES_DIR).toBe(path.join(runtimeHome, 'opl', 'node_modules'));
@@ -1069,6 +1069,28 @@ describe('OPL runtime bridge command whitelist', () => {
       path.join(runtimeHome, 'node', 'bin'),
       path.join(runtimeHome, 'uv', 'bin'),
     ]);
+  });
+
+  it('passes only a real executable Codex path to Framework commands', () => {
+    const homeDir = makeTempRoot('opl-full-runtime-codex-home');
+    const runtimeHome = path.join(homeDir, 'Library', 'Application Support', 'OPL', 'runtime', 'current');
+    const runtimeCodex = path.join(runtimeHome, 'bin', 'codex');
+    fs.mkdirSync(path.dirname(runtimeCodex), { recursive: true });
+    fs.writeFileSync(path.join(runtimeHome, 'bin', 'opl'), '#!/usr/bin/env bash\n', { mode: 0o755 });
+    fs.writeFileSync(runtimeCodex, '#!/usr/bin/env bash\n', { mode: 0o755 });
+
+    const env = __oplRuntimeBridgeTest.buildOplCommandEnv({
+      baseEnv: {
+        HOME: homeDir,
+        PATH: '/usr/bin:/bin',
+        OPL_FULL_RUNTIME_HOME: runtimeHome,
+        OPL_CODEX_BIN: path.join(homeDir, 'missing-codex'),
+      },
+      platform: 'darwin',
+      arch: 'arm64',
+    });
+
+    expect(env.OPL_CODEX_BIN).toBe(runtimeCodex);
   });
 
   it('uses one private process instance id for every OPL command and rotates it only for a new process', () => {
@@ -1110,6 +1132,10 @@ describe('OPL runtime bridge command whitelist', () => {
   it('runs startup maintenance once for Desktop after storage initialization and never for Web', async () => {
     const desktopEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/index.ts'), 'utf8');
     expect(desktopEntry).toContain("initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' })");
+    expect(desktopEntry.indexOf('const managedCodex = resolveAioncoreManagedCodex')).toBeLessThan(
+      desktopEntry.indexOf("initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' })")
+    );
+    expect(desktopEntry.match(/const managedCodex = resolveAioncoreManagedCodex/g)).toHaveLength(1);
     const processEntry = fs.readFileSync(path.join(process.cwd(), 'packages/desktop/src/process/index.ts'), 'utf8');
     expect(processEntry).not.toContain('await runStartupMaintenanceForHost(options.hostKind)');
     expect(processEntry.indexOf('await (options.initializeStorage ?? initStorage)()')).toBeLessThan(

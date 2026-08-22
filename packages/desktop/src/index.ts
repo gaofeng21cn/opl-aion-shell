@@ -647,6 +647,24 @@ const handleAppReady = async (): Promise<void> => {
     }
   }
 
+  if (app.isPackaged && process.platform !== 'win32') {
+    try {
+      const managedCodex = resolveAioncoreManagedCodex({
+        resourcesPath: process.resourcesPath,
+        env: process.env,
+      });
+      applyOplFullRuntimeEnv(managedCodex.env);
+      console.log(
+        `[AionUi] Activated AionCore-managed Codex CLI ${managedCodex.version} for ${managedCodex.runtimeKey} (${managedCodex.identity.runtime_cohort_ref})`
+      );
+      mark('aioncoreManagedCodex.activate');
+    } catch (error) {
+      console.error('[AionUi] Failed to activate AionCore-managed Codex before OPL startup maintenance:', error);
+      app.exit(1);
+      return;
+    }
+  }
+
   try {
     await initializeProcess({ hostKind: isWebUIBootstrap ? 'web' : 'desktop' });
     rendererInitialLanguage = ProcessConfig.getSync('language') ?? app.getLocale();
@@ -662,16 +680,6 @@ const handleAppReady = async (): Promise<void> => {
   // close it before the backend touches the same file.
   const backendStartup = await startBackendOrExit({
     startBackend: async () => {
-      if (app.isPackaged && process.platform !== 'win32') {
-        const managedCodex = resolveAioncoreManagedCodex({
-          resourcesPath: process.resourcesPath,
-          env: process.env,
-        });
-        applyOplFullRuntimeEnv(managedCodex.env);
-        console.log(
-          `[AionUi] Activated AionCore-managed Codex CLI ${managedCodex.version} for ${managedCodex.runtimeKey} (${managedCodex.identity.runtime_cohort_ref})`
-        );
-      }
       assertStartupArchitectureCompatible({
         arch: process.arch,
         isPackaged: app.isPackaged,

@@ -1060,6 +1060,24 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
+  it('probes the Provider wizard only for a Codex configuration blocker', () => {
+    const options = { requireCodexConfigWizard: false };
+    expect(
+      __test.shouldObserveCodexConfigWizard(
+        { setup_flow: { blocking_items: ['codex'] } },
+        options,
+        'test-credential'
+      )
+    ).toBe(false);
+    expect(
+      __test.shouldObserveCodexConfigWizard(
+        { setup_flow: { blocking_items: ['codex_config'] } },
+        options,
+        'test-credential'
+      )
+    ).toBe(true);
+  });
+
   it('records explicit API Key configuration as a non-blocking compatibility lane', () => {
     const options = __test.parseArgs([
       '--app',

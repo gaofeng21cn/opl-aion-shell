@@ -1341,6 +1341,17 @@ function pathExistsFile(file: string): boolean {
   return fs.existsSync(file) && fs.statSync(file).isFile();
 }
 
+function runnableFile(value: string | undefined): string | null {
+  const candidate = normalizeOptionalString(value);
+  if (!candidate || !pathExistsFile(candidate)) return null;
+  try {
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
 function resolveOplCliEntrypoints(packageRoot: string): OplCliEntrypoints {
   return {
     sourceCli:
@@ -1757,12 +1768,13 @@ function buildFullRuntimeBridgeEnv(baseEnv: NodeJS.ProcessEnv): NodeJS.ProcessEn
     baseEnv.PATH,
   ]);
   const hermesBin = baseEnv.OPL_HERMES_BIN?.trim() || path.join(runtimeHome, 'bin', 'hermes');
+  const codexBin = runnableFile(baseEnv.OPL_CODEX_BIN) ?? runnableFile(path.join(runtimeHome, 'bin', 'codex'));
   const prefilledNodeModulesDir = path.join(runtimeHome, 'opl', 'node_modules');
   return {
     OPL_FULL_RUNTIME_HOME: runtimeHome,
     OPL_FRAMEWORK_UPDATE_TARGET_ROOT: path.join(runtimeHome, 'opl'),
     OPL_PACKAGED_SKILLS_ROOT: baseEnv.OPL_PACKAGED_SKILLS_ROOT?.trim() || path.join(runtimeHome, 'skills'),
-    OPL_CODEX_BIN: baseEnv.OPL_CODEX_BIN?.trim() || path.join(runtimeHome, 'bin', 'codex'),
+    ...(codexBin ? { OPL_CODEX_BIN: codexBin } : {}),
     OPL_FAMILY_RUNTIME_PROVIDER: baseEnv.OPL_FAMILY_RUNTIME_PROVIDER?.trim() || 'temporal',
     ...(fs.existsSync(prefilledNodeModulesDir) ? { OPL_PREFILLED_NODE_MODULES_DIR: prefilledNodeModulesDir } : {}),
     ...(fs.existsSync(hermesBin) ? { OPL_HERMES_BIN: hermesBin } : {}),
@@ -1778,14 +1790,27 @@ function buildOplCommandEnv(input: BuildStandardBootstrapEnvInput = {}): NodeJS.
   };
   const fullRuntimeEnv = buildFullRuntimeBridgeEnv(standardEnv);
   if (!fullRuntimeEnv) {
+    const codexBin = runnableFile(standardEnv.OPL_CODEX_BIN);
+    if (codexBin) {
+      standardEnv.OPL_CODEX_BIN = codexBin;
+    } else {
+      delete standardEnv.OPL_CODEX_BIN;
+    }
     return standardEnv;
   }
 
-  return {
+  const commandEnv: NodeJS.ProcessEnv = {
     ...standardEnv,
     ...fullRuntimeEnv,
     PATH: normalizePathEntries([fullRuntimeEnv.PATH, standardEnv.PATH]),
   };
+  const codexBin = runnableFile(commandEnv.OPL_CODEX_BIN);
+  if (codexBin) {
+    commandEnv.OPL_CODEX_BIN = codexBin;
+  } else {
+    delete commandEnv.OPL_CODEX_BIN;
+  }
+  return commandEnv;
 }
 
 function resetOplAppProcessInstanceIdForTest(): string {
