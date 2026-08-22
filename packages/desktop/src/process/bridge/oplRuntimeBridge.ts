@@ -770,11 +770,13 @@ function startOfficialProfileFirstInstallAfterInitialize(
   dependencies: OfficialProfileFirstInstallStartDependencies = {}
 ): void {
   if ((dependencies.platform ?? process.platform) !== 'darwin' || !initializeReadyToLaunch(result)) return;
-  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))().catch((error) => {
-    (dependencies.logWarn ?? console.warn)(
-      `[AionUi:opl-official-profile] ${error instanceof Error ? error.message : String(error)}`
-    );
-  });
+  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))().catch(
+    (error) => {
+      (dependencies.logWarn ?? console.warn)(
+        `[AionUi:opl-official-profile] ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  );
 }
 
 function resetOfficialProfileFirstInstallForTest(): void {
