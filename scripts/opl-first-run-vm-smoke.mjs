@@ -5428,14 +5428,44 @@ function resolveMasQualificationProvisioningReceipt(receiptPath, workspace) {
   };
 }
 
-function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
+function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
+  const candidates = [];
+  const addCandidate = (value) => {
+    if (typeof value === 'string' && value.trim()) candidates.push(value.trim());
+  };
   const runtimeSource = isRecord(packageStatus.runtime_source_readiness)
     ? packageStatus.runtime_source_readiness
     : null;
-  const checkoutPath =
-    runtimeSource && typeof runtimeSource.checkout_path === 'string' && runtimeSource.checkout_path.trim()
-      ? runtimeSource.checkout_path.trim()
-      : null;
+  addCandidate(packageStatus.effective_runtime_checkout_path);
+  addCandidate(runtimeSource?.checkout_path);
+  addCandidate(packageStatus.installed_carrier_readback?.source_ref);
+  addCandidate(packageStatus.configured_carrier?.plugin_source_path);
+
+  const checked = new Set();
+  for (const candidate of candidates) {
+    let current = path.resolve(candidate);
+    // Framework's current carrier projection may point at a plugin directory
+    // inside the packaged module. Resolve only the bounded parent chain needed
+    // to reach that module's canonical stage manifest.
+    for (let depth = 0; depth <= 3; depth += 1) {
+      if (checked.has(current)) break;
+      checked.add(current);
+      const manifestPath = path.join(current, 'agent', 'stages', 'manifest.json');
+      try {
+        if (fs.statSync(manifestPath).isFile()) return current;
+      } catch {
+        // Try the next bounded parent candidate.
+      }
+      const parent = path.dirname(current);
+      if (parent === current) break;
+      current = parent;
+    }
+  }
+  return null;
+}
+
+function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
+  const checkoutPath = resolveFrameworkStageRuntimeCheckoutPath(packageStatus);
   if (!checkoutPath) {
     throw new Error(`Package ${target.packageId} has no Framework-owned runtime source checkout.`);
   }
