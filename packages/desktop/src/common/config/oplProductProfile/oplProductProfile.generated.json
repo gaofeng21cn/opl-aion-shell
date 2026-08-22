@@ -134,15 +134,32 @@
       "carrier_specific_product_forks_allowed": false,
       "aionui_source_or_runtime_dependency_required": false
     },
+    "application_host": {
+      "implementation_repo": "gaofeng21cn/opl-studio",
+      "role": "deepseek_harness_cordis_application_host",
+      "implementation_status": "source_implemented_release_admission_separate",
+      "upstream_version": "0.1.1-rc.2",
+      "upstream_ref": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+      "profile": "opl-studio",
+      "profile_source": "scripts/webui-host/dsh/cordis.yml",
+      "web_overlay": "scripts/webui-host/dsh/web.patch.yml",
+      "dsh_base_loaded": false,
+      "codex_runtime_owner": "opl-codex-native",
+      "framework_bridge_scope": "framework_app_state_action_authentication_and_channel_callbacks_only",
+      "active_shell_adopted": false,
+      "release_ready": false
+    },
     "shared_host_core": {
       "technology": "node",
-      "role": "single_codex_and_opl_transport_host",
-      "owns": [
-        "codex_app_server_process_lifecycle",
-        "canonical_thread_and_turn_transport",
-        "opl_app_state_action_bridge",
+      "role": "cross_carrier_application_service_facade_inside_dsh_host",
+      "exposes": [
+        "codex_thread_and_turn_transport",
+        "framework_app_state_action_bridge",
         "typed_host_events"
       ],
+      "lifecycle_owner": "opl-studio_dsh_application_host",
+      "codex_service_owner": "opl-codex-native",
+      "framework_bridge_owner": "opl-framework-bridge",
       "desktop_adapter": "electron_main_and_preload_ipc",
       "web_adapter": "http_sse",
       "same_core_required_across_carriers": true,
@@ -153,11 +170,11 @@
       "supported_backend_scope": "codex_cli_only",
       "codex_interface": "codex_app_server",
       "codex_transport_by_carrier": {
-        "electron_desktop": "shared_node_host_core_managed_stdio",
-        "standalone_headless_webui": "shared_node_host_core_managed_stdio",
-        "docker_webui": "shared_node_host_core_managed_stdio"
+        "electron_desktop": "opl_codex_native_managed_app_server_stdio",
+        "standalone_headless_webui": "opl_codex_native_managed_app_server_stdio",
+        "docker_webui": "opl_codex_native_managed_app_server_stdio"
       },
-      "opl_integration": "framework_app_state_action_contracts_only",
+      "opl_integration": "framework_app_state_action_authentication_and_channel_callbacks_only",
       "aioncore_allowed": false,
       "aionui_required": false,
       "multi_backend_abstraction_required": false,
@@ -635,6 +652,11 @@
         "typed_slot_policy": "mount_only_app_product_profile_declared_slots",
         "typed_action_policy": "action_refs_only_via_canonical_app_action_bridge",
         "framework_host_composition_authority": "one-person-lab-framework",
+        "framework_host_composition_authority_scope": "framework_runtime_package_graph_and_app_projection",
+        "framework_runtime_and_package_composition_authority": "one-person-lab-framework",
+        "studio_application_host": "opl-studio",
+        "studio_application_host_scope": "dsh_profile_plugin_lifecycle_codex_and_delivery_transport_composition",
+        "studio_application_host_may_exist_without_authority_transfer": true,
         "app_authority_policy": "one-person-lab-app_owns_product_profile_gui_abi_active_shell_and_release",
         "framework_projection_runtime_status": "framework_host_projection_active",
         "shared_transport_policy": "framework_host_projected_typed_rpc_reads_typed_events_and_canonical_app_actions",
