@@ -5308,13 +5308,7 @@ function agentPackageLifecycleSnapshot(payload, target, workspace) {
 }
 
 function readAgentPackageLifecycleState(options, target, workspace) {
-  const args = [
-    'packages',
-    'status',
-    '--package-id',
-    target.packageId,
-    '--json',
-  ];
+  const args = ['packages', 'status', '--package-id', target.packageId, '--json'];
   const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
   const payload = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
   return {
@@ -5327,9 +5321,7 @@ function readAgentPackageLifecycleState(options, target, workspace) {
 
 function assertHomeAssistantRouteSendWithoutActivation(before, after) {
   if (JSON.stringify(before) !== JSON.stringify(after)) {
-    throw new Error(
-      `Ordinary Home send changed Framework package readiness: ${JSON.stringify({ before, after })}`
-    );
+    throw new Error(`Ordinary Home send changed Framework package readiness: ${JSON.stringify({ before, after })}`);
   }
   return {
     status: 'passed',
