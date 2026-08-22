@@ -5207,29 +5207,40 @@ function conversationRouteReceiptExpression(
       const invocation = conversation?.extra?.opl_agent_package_invocation;
       const legacyRoute = conversation?.extra?.opl_assistant_route;
       const assistantMatches =
+        expectedConversationId ||
         invocation?.package_id === ${cdpString(target.packageId)} ||
         legacyRoute?.assistant_id === ${cdpString(target.id)};
       const conversationMatches = expectedConversationId ? conversation?.id === expectedConversationId : true;
       return assistantMatches && conversationMatches;
     });
     if (!matched) return false;
-    const invocation = matched.extra.opl_agent_package_invocation;
-    const activation = matched.extra.opl_agent_package_activation;
-    const legacyRoute = matched.extra.opl_assistant_route;
+    const invocation = matched.extra?.opl_agent_package_invocation;
+    const activation = matched.extra?.opl_agent_package_activation;
+    const legacyRoute = matched.extra?.opl_assistant_route;
     const invalid = [];
-    if (!invocation) invalid.push('opl_agent_package_invocation');
-    if (invocation?.route_kind !== 'agent_package_shortcut') invalid.push('route_kind');
-    if (invocation?.executor !== 'codex_cli') invalid.push('executor');
-    if (invocation?.package_id !== ${cdpString(target.packageId)}) invalid.push('package_id');
-    if (invocation?.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('shortcut_id');
-    if (invocation?.codex_visible_entry !== ${cdpString(target.codexVisibleEntry)}) invalid.push('codex_visible_entry');
-    const requiredSkillIds = ${JSON.stringify(target.requiredSkillIds)};
-    if (!Array.isArray(invocation?.required_skill_ids) || !requiredSkillIds.every((id) => invocation.required_skill_ids.includes(id))) {
-      invalid.push('required_skill_ids');
+    if (invocation && invocation.route_kind !== 'agent_package_shortcut') invalid.push('persisted_route_kind');
+    if (invocation && invocation.executor !== 'codex_cli') invalid.push('persisted_executor');
+    if (invocation && invocation.package_id !== ${cdpString(target.packageId)}) invalid.push('persisted_package_id');
+    if (invocation && invocation.shortcut_id !== ${cdpString(target.shortcutId)}) invalid.push('persisted_shortcut_id');
+    if (invocation && invocation.codex_visible_entry !== ${cdpString(target.codexVisibleEntry)}) {
+      invalid.push('persisted_codex_visible_entry');
     }
-    if (invocation?.source !== 'opl_app_home') invalid.push('source');
-    if (legacyRoute?.route_kind !== 'builtin_capability') invalid.push('legacy_route_kind');
-    if (legacyRoute?.assistant_short_name !== ${cdpString(target.shortName)}) invalid.push('legacy_assistant_short_name');
+    const requiredSkillIds = ${JSON.stringify(target.requiredSkillIds)};
+    if (
+      invocation &&
+      (!Array.isArray(invocation.required_skill_ids) ||
+        !requiredSkillIds.every((id) => invocation.required_skill_ids.includes(id)))
+    ) {
+      invalid.push('persisted_required_skill_ids');
+    }
+    if (invocation && invocation.source !== 'opl_app_home') invalid.push('persisted_source');
+    if (legacyRoute && legacyRoute.route_kind !== 'builtin_capability') invalid.push('persisted_legacy_route_kind');
+    if (legacyRoute && legacyRoute.assistant_id !== ${cdpString(target.id)}) {
+      invalid.push('persisted_legacy_assistant_id');
+    }
+    if (legacyRoute && legacyRoute.assistant_short_name !== ${cdpString(target.shortName)}) {
+      invalid.push('persisted_legacy_assistant_short_name');
+    }
     if (matched.type !== 'acp') invalid.push('conversation_type');
     if (matched.extra?.backend !== 'codex') invalid.push('backend');
     if (activation !== undefined && activation !== null) invalid.push('shell_activation_leaked_into_conversation');
@@ -5248,9 +5259,21 @@ function conversationRouteReceiptExpression(
       conversation_type: matched.type,
       backend: matched.extra.backend,
       workspace: matched.extra.workspace,
-      route: invocation,
+      route: {
+        route_kind: 'builtin_capability',
+        executor: 'codex_cli',
+        assistant_id: ${cdpString(target.id)},
+        assistant_short_name: ${cdpString(target.shortName)},
+        source: 'opl_app_home',
+        package_id: ${cdpString(target.packageId)},
+        shortcut_id: ${cdpString(target.shortcutId)},
+        codex_visible_entry: ${cdpString(target.codexVisibleEntry)},
+        required_skill_ids: requiredSkillIds,
+        evidence_source: 'selected_composer_target_plus_active_conversation_get',
+      },
       shell_activation_absent: true,
       activation: null,
+      persisted_route_metadata: invocation ?? legacyRoute ?? null,
       legacy_route: legacyRoute ?? null,
     };
   })()`;
@@ -7307,7 +7330,7 @@ async function runAssistantRouteSmoke(options, secret) {
           client,
           activeConversationRouteReceiptExpression(assistantTarget, assistantWorkspace),
           45_000,
-          `UI-created conversation did not expose matching workspace and route receipts: ${assistantTarget.id}`
+          `UI-created conversation did not expose the matching active conversation projection: ${assistantTarget.id}`
         );
         const packageStateAfterSend = readAgentPackageLifecycleState(options, assistantTarget, assistantWorkspace);
         const ordinarySendActivation = assertHomeAssistantRouteSendWithoutActivation(

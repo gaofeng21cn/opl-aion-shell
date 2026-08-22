@@ -1517,9 +1517,8 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(activeReceiptExpression).toContain('conversation_temporary_workspace');
     expect(activeReceiptExpression).not.toContain('conversation_custom_workspace');
     expect(activeReceiptExpression).not.toContain("method: 'POST'");
-    expect(receiptExpression).toContain('opl_agent_package_invocation');
-    expect(receiptExpression).toContain('opl_assistant_route');
-    expect(receiptExpression).toContain('agent_package_shortcut');
+    expect(receiptExpression).toContain("evidence_source: 'selected_composer_target_plus_active_conversation_get'");
+    expect(receiptExpression).toContain('persisted_route_metadata');
     expect(receiptExpression).toContain('builtin_capability');
     expect(receiptExpression).toContain('codex_cli');
     expect(receiptExpression).toContain('opl_app_home');
@@ -1540,20 +1539,6 @@ describe('packaged first-run VM smoke helpers', () => {
       backend: 'codex',
       workspace: '/Users/opl/OPL-Smoke',
       is_temporary_workspace: false,
-      opl_agent_package_invocation: {
-        route_kind: 'agent_package_shortcut',
-        executor: 'codex_cli',
-        package_id: 'mas',
-        shortcut_id: 'research',
-        codex_visible_entry: 'med-autoscience',
-        required_skill_ids: ['med-autoscience'],
-        source: 'opl_app_home',
-      },
-      opl_assistant_route: {
-        route_kind: 'builtin_capability',
-        assistant_id: 'mas',
-        assistant_short_name: 'MAS',
-      },
     };
     const conversation = {
       id: 'conv-123',
@@ -1578,6 +1563,19 @@ describe('packaged first-run VM smoke helpers', () => {
       workspace: '/Users/opl/OPL-Smoke',
       shell_activation_absent: true,
       activation: null,
+      persisted_route_metadata: null,
+      route: {
+        route_kind: 'builtin_capability',
+        executor: 'codex_cli',
+        assistant_id: 'mas',
+        assistant_short_name: 'MAS',
+        source: 'opl_app_home',
+        package_id: 'mas',
+        shortcut_id: 'research',
+        codex_visible_entry: 'med-autoscience',
+        required_skill_ids: ['med-autoscience'],
+        evidence_source: 'selected_composer_target_plus_active_conversation_get',
+      },
     });
 
     conversationExtra.opl_agent_package_activation = {
