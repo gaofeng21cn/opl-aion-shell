@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import {
   __oplRuntimeBridgeTest,
   readOplAppUpdaterReleaseChannel,
@@ -847,31 +848,47 @@ describe('OPL runtime bridge command whitelist', () => {
     }
   });
 
-  it('records first-install Official Profile completion only after success and skips later automatic reapply', async () => {
+  it('runs first-install Official Profile once across concurrent callers and skips later automatic reapply', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-completion-'));
     const resourcesPath = path.join(root, 'resources');
     const markerPath = path.join(root, '.official-profile-first-install-complete');
     fs.mkdirSync(resourcesPath, { recursive: true });
     fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
-    const runCommand = vi.fn(async () => ({
-      surface: 'app_action' as const,
-      command: 'node <official-profile-package-apply.ts> --intent first_install',
-      stdout: '{"official_profile_package_apply":{"status":"completed"}}\n',
-      parsed: { official_profile_package_apply: { status: 'completed' } },
-      ok: true as const,
-    }));
+    let completeApply!: () => void;
+    const runCommand = vi.fn(
+      () =>
+        new Promise<IOplRuntimeCommandResult>((resolve) => {
+          completeApply = () =>
+            resolve({
+              surface: 'app_action',
+              command: 'node <official-profile-package-apply.ts> --intent first_install',
+              stdout: '{"official_profile_package_apply":{"status":"completed"}}\n',
+              parsed: { official_profile_package_apply: { status: 'completed' } },
+              ok: true,
+            });
+        })
+    );
     try {
-      const first = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+      __oplRuntimeBridgeTest.resetOfficialProfileFirstInstallForTest();
+      const firstPromise = __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
         { intent: 'first_install' },
         { markerPath, resourcesPath, runCommand }
       );
-      const second = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+      const concurrentPromise = __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+        { intent: 'first_install' },
+        { markerPath, resourcesPath, runCommand }
+      );
+      expect(runCommand).toHaveBeenCalledTimes(1);
+      completeApply();
+      const [first, concurrent] = await Promise.all([firstPromise, concurrentPromise]);
+      const later = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
         { intent: 'first_install' },
         { markerPath, resourcesPath, runCommand }
       );
 
       expect(first.ok).toBe(true);
-      expect(second.parsed).toEqual({
+      expect(concurrent).toBe(first);
+      expect(later.parsed).toEqual({
         official_profile_package_apply: {
           status: 'already_completed',
           intent: 'first_install',
@@ -882,8 +899,42 @@ describe('OPL runtime bridge command whitelist', () => {
       expect(fs.statSync(markerPath).mode & 0o777).toBe(0o600);
       expect(fs.readFileSync(markerPath, 'utf8')).toContain('"status":"completed"');
     } finally {
+      __oplRuntimeBridgeTest.resetOfficialProfileFirstInstallForTest();
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it('starts first-install Official Profile from a ready macOS initialize result without waiting for the renderer', async () => {
+    const runApply = vi.fn(async () => ({
+      surface: 'app_action' as const,
+      command: 'node <official-profile-package-apply.ts> --intent first_install',
+      stdout: '{}',
+      parsed: { official_profile_package_apply: { status: 'completed' } },
+      ok: true as const,
+    }));
+    const readyInitialize = {
+      surface: 'system_initialize' as const,
+      command: 'opl system initialize --events --json',
+      stdout: '{}',
+      parsed: { system_initialize: { setup_flow: { ready_to_launch: true } } },
+      ok: true as const,
+    };
+
+    __oplRuntimeBridgeTest.startOfficialProfileFirstInstallAfterInitialize(readyInitialize, {
+      platform: 'darwin',
+      runApply,
+    });
+    await vi.waitFor(() => expect(runApply).toHaveBeenCalledTimes(1));
+
+    __oplRuntimeBridgeTest.startOfficialProfileFirstInstallAfterInitialize(readyInitialize, {
+      platform: 'win32',
+      runApply,
+    });
+    __oplRuntimeBridgeTest.startOfficialProfileFirstInstallAfterInitialize(
+      { ...readyInitialize, parsed: { system_initialize: { setup_flow: { ready_to_launch: false } } } },
+      { platform: 'darwin', runApply }
+    );
+    expect(runApply).toHaveBeenCalledTimes(1);
   });
 
   it('leaves no Official Profile completion marker after failure so first install can retry', async () => {

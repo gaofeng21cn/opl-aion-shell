@@ -106,6 +106,7 @@ const OFFICIAL_PROFILE_FIRST_INSTALL_MARKER = '.official-profile-first-install-c
 let standardBootstrapCompleted = false;
 let standardBootstrapInFlight: Promise<void> | null = null;
 let desktopStartupMaintenanceTask: Promise<IOplRuntimeCommandResult> | null = null;
+const officialProfileFirstInstallTasks = new Map<string, Promise<IOplRuntimeCommandResult>>();
 let oplAppProcessInstanceId = randomUUID();
 let cachedDeveloperModeGithubIdentity: {
   key: string;
@@ -718,10 +719,66 @@ async function runOfficialProfileApplyRequest(
     };
   }
 
-  const result = await executeCommand();
-  if (result.ok !== true) return result;
-  recordOfficialProfileFirstInstallComplete(markerPath, result);
-  return result;
+  const existingTask = officialProfileFirstInstallTasks.get(markerPath);
+  if (existingTask) return existingTask;
+
+  const task = (async () => {
+    if (officialProfileFirstInstallComplete(markerPath)) {
+      return {
+        surface: 'app_action' as const,
+        command: command.redactedCommand ?? 'node <official-profile-package-apply.ts> --intent first_install',
+        stdout: '',
+        parsed: {
+          official_profile_package_apply: {
+            status: 'already_completed',
+            intent: 'first_install',
+            changed: false,
+          },
+        },
+        ok: true as const,
+      };
+    }
+    const result = await executeCommand();
+    if (result.ok !== true) return result;
+    recordOfficialProfileFirstInstallComplete(markerPath, result);
+    return result;
+  })();
+  officialProfileFirstInstallTasks.set(markerPath, task);
+  try {
+    return await task;
+  } finally {
+    if (officialProfileFirstInstallTasks.get(markerPath) === task) {
+      officialProfileFirstInstallTasks.delete(markerPath);
+    }
+  }
+}
+
+function initializeReadyToLaunch(result: IOplRuntimeCommandResult): boolean {
+  if (result.ok !== true || !isRecord(result.parsed)) return false;
+  const initialize = isRecord(result.parsed.system_initialize) ? result.parsed.system_initialize : result.parsed;
+  return isRecord(initialize.setup_flow) && initialize.setup_flow.ready_to_launch === true;
+}
+
+type OfficialProfileFirstInstallStartDependencies = {
+  platform?: NodeJS.Platform;
+  runApply?: () => Promise<IOplRuntimeCommandResult>;
+  logWarn?: (message: string) => void;
+};
+
+function startOfficialProfileFirstInstallAfterInitialize(
+  result: IOplRuntimeCommandResult,
+  dependencies: OfficialProfileFirstInstallStartDependencies = {}
+): void {
+  if ((dependencies.platform ?? process.platform) !== 'darwin' || !initializeReadyToLaunch(result)) return;
+  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))().catch((error) => {
+    (dependencies.logWarn ?? console.warn)(
+      `[AionUi:opl-official-profile] ${error instanceof Error ? error.message : String(error)}`
+    );
+  });
+}
+
+function resetOfficialProfileFirstInstallForTest(): void {
+  officialProfileFirstInstallTasks.clear();
 }
 
 function buildInitializeCommand(): RuntimeCommandSpec {
@@ -2337,7 +2394,11 @@ function resetDesktopStartupMaintenanceForTest(): void {
 export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.getAppState.provider(({ profile }) => runAppStateRequest(profile));
   ipcBridge.oplRuntime.readDomainDetailView.provider((request) => runOplCommand(buildDomainDetailViewCommand(request)));
-  ipcBridge.oplRuntime.getInitialize.provider(() => runOplCommand(buildInitializeCommand()));
+  ipcBridge.oplRuntime.getInitialize.provider(async () => {
+    const result = await runOplCommand(buildInitializeCommand());
+    startOfficialProfileFirstInstallAfterInitialize(result);
+    return result;
+  });
   ipcBridge.oplRuntime.runInstallPrep.provider(() => runOplCommand(buildInstallPrepCommand()));
   ipcBridge.oplRuntime.configureCodex.provider((request) => runOplCommand(buildConfigureCodexCommand(request)));
   ipcBridge.oplRuntime.loginGatewayAccount.provider((request) =>
@@ -2379,6 +2440,9 @@ export const __oplRuntimeBridgeTest = {
   recordOfficialProfileFirstInstallComplete,
   resolveOfficialProfileFirstInstallMarker,
   runOfficialProfileApplyRequest,
+  initializeReadyToLaunch,
+  startOfficialProfileFirstInstallAfterInitialize,
+  resetOfficialProfileFirstInstallForTest,
   buildAppStateCommand,
   buildDomainDetailViewCommand,
   buildConfigureCodexCommand,
