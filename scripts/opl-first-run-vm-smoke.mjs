@@ -5509,8 +5509,8 @@ function resolveFrameworkStageRuntimeTarget(packageStatus, target, options = {})
       ? manifest.target_domain_id.trim()
       : null;
   const runtimeDomainId =
-    typeof descriptor.standard_agent_interface?.runtime?.runtime_domain_id === 'string'
-      && descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
+    typeof descriptor.standard_agent_interface?.runtime?.runtime_domain_id === 'string' &&
+    descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
       ? descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
       : null;
   const stage = Array.isArray(manifest.stages)
