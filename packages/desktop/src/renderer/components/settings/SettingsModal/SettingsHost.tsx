@@ -530,7 +530,9 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
                   onCapabilitiesTabChange={setCapabilitiesTab}
                 />
               ))}
-            {activeTab === 'capabilities' && <OplUiContributionSlot slot='settings.section' />}
+            {activeTab === 'capabilities' && (
+              <OplUiContributionSlot slot='settings.section' excludeViewTypes={['activity_log', 'service_status']} />
+            )}
             {renderExtensionTabs()}
           </AionScrollArea>
         </div>

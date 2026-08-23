@@ -45,6 +45,7 @@ import {
 } from '@/renderer/services/managedUpdateProjection';
 import { copyText } from '@/renderer/utils/ui/clipboard';
 import OplRefreshIconButton from '@/renderer/components/opl/OplRefreshIconButton';
+import OplUiContributionSlot from '@/renderer/components/opl/OplUiContributionSlot';
 import SettingsPageWrapper from '../components/SettingsPageWrapper';
 import {
   useSettingsActiveAnchor,
@@ -1931,6 +1932,11 @@ const RuntimeSettingsContent: React.FC = () => {
             {activeSurface === 'services' && (
               <div className='flex flex-col gap-14px' data-testid='settings-maintenance-service-status'>
                 {serviceNeedsAction && <span data-testid='settings-maintenance-exception' aria-hidden='true' />}
+                <OplUiContributionSlot
+                  slot='settings.section'
+                  viewTypes={['service_status']}
+                  showTechnicalDetails={diagnosticsVisible}
+                />
                 <section className='opl-settings-section opl-settings-surface--status' id='health'>
                   <div className='opl-settings-section__header'>
                     <div>

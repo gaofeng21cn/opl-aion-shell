@@ -11,9 +11,12 @@ import {
   hasPackageContributionExecuteAction,
   readOplChannelAccessResult,
   readOplPackageContributionReadResult,
+  readOplServiceStatusResult,
+  projectOplServiceStatusSummary,
   resolveOplUiContributionLabel,
   type OplChannelAccessAction,
   type OplChannelAccessResult,
+  type OplServiceStatusResult,
   type OplUiContribution,
   type OplUiContributionCommand,
   type OplUiContributionSlot,
@@ -31,6 +34,9 @@ import styles from './OplUiContributionSlot.module.css';
 
 type OplUiContributionSlotProps = {
   slot: OplUiContributionSlot;
+  viewTypes?: readonly string[];
+  excludeViewTypes?: readonly string[];
+  showTechnicalDetails?: boolean;
 };
 
 function supportedEntry(entry: OplUiContribution): boolean {
@@ -45,8 +51,170 @@ function admittedInAionUi(entry: OplUiContribution): boolean {
   if (entry.view?.viewType === REMOTE_COMPANION_ACCESS_VIEW_TYPE) {
     return entry.actionBoundary === 'opl.connect.remote-companion-connector-host';
   }
+  if (entry.slot === 'settings.section' && entry.view?.viewType === 'activity_log') return false;
   return true;
 }
+
+const SERVICE_STATUS_STATE_KEYS = {
+  healthy: 'common.oplUiContributions.serviceStatus.states.healthy',
+  attention: 'common.oplUiContributions.serviceStatus.states.attention',
+  unavailable: 'common.oplUiContributions.serviceStatus.states.unavailable',
+  unknown: 'common.oplUiContributions.serviceStatus.states.unknown',
+} as const;
+
+const SERVICE_STATUS_FIELD_KEYS = {
+  native_carrier: 'common.oplUiContributions.serviceStatus.fields.nativeCarrier',
+  freshness: 'common.oplUiContributions.serviceStatus.fields.freshness',
+  node: 'common.oplUiContributions.serviceStatus.fields.node',
+  collection: 'common.oplUiContributions.serviceStatus.fields.collection',
+  doctor: 'common.oplUiContributions.serviceStatus.fields.doctor',
+  checks: 'common.oplUiContributions.serviceStatus.fields.checks',
+} as const;
+
+const SERVICE_STATUS_VALUE_KEYS: Record<string, string> = {
+  available: 'common.oplUiContributions.serviceStatus.values.available',
+  ready: 'common.oplUiContributions.serviceStatus.values.ready',
+  fresh: 'common.oplUiContributions.serviceStatus.values.fresh',
+  healthy: 'common.oplUiContributions.serviceStatus.values.healthy',
+  current: 'common.oplUiContributions.serviceStatus.values.current',
+  pass: 'common.oplUiContributions.serviceStatus.values.pass',
+  running: 'common.oplUiContributions.serviceStatus.values.running',
+  external_running: 'common.oplUiContributions.serviceStatus.values.externalRunning',
+  unavailable: 'common.oplUiContributions.serviceStatus.values.unavailable',
+  stale: 'common.oplUiContributions.serviceStatus.values.stale',
+  attention: 'common.oplUiContributions.serviceStatus.values.attention',
+  warning: 'common.oplUiContributions.serviceStatus.values.warning',
+  degraded: 'common.oplUiContributions.serviceStatus.values.degraded',
+  partial: 'common.oplUiContributions.serviceStatus.values.partial',
+  failed: 'common.oplUiContributions.serviceStatus.values.failed',
+  error: 'common.oplUiContributions.serviceStatus.values.error',
+};
+
+function serviceStatusDisplayValue(value: string, t: (key: string) => string): string {
+  const normalized = value.toLowerCase();
+  const key = SERVICE_STATUS_VALUE_KEYS[normalized];
+  return key ? t(key) : value.replaceAll('_', ' ');
+}
+
+type ServiceStatusViewProps = {
+  entry: OplUiContribution;
+  showTechnicalDetails: boolean;
+};
+
+const ServiceStatusView: React.FC<ServiceStatusViewProps> = ({ entry, showTechnicalDetails }) => {
+  const { t } = useTranslation();
+  const [result, setResult] = useState<OplServiceStatusResult | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const view = entry.view;
+
+  const load = useCallback(async () => {
+    if (!view) return;
+    setLoading(true);
+    setLoadError(false);
+    try {
+      const commandResult = await ipcBridge.oplRuntime.runPackageContribution.invoke({
+        packageId: entry.packageId,
+        ref: view.dataRef,
+        operation: 'read',
+        input: {},
+      });
+      const readResult = readOplPackageContributionReadResult(commandResult, {
+        packageId: entry.packageId,
+        ref: view.dataRef,
+      });
+      const serviceResult = readOplServiceStatusResult(readResult);
+      if (!serviceResult) throw new Error('invalid service status response');
+      setResult(serviceResult);
+    } catch {
+      setResult(null);
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [entry.packageId, view]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  if (loading && !result) {
+    return (
+      <div className='flex min-h-72px items-center justify-center' data-testid='opl-service-status-loading'>
+        <Spin />
+      </div>
+    );
+  }
+  if (loadError || !result) {
+    return (
+      <Alert
+        type='warning'
+        showIcon
+        content={t('common.oplUiContributions.serviceStatus.readFailed')}
+        data-testid='opl-service-status-read-failed'
+      />
+    );
+  }
+
+  const summary = projectOplServiceStatusSummary(result);
+  return (
+    <div className='flex min-w-0 flex-col gap-10px' data-testid='opl-service-status'>
+      <div className='flex min-w-0 flex-wrap items-center gap-8px'>
+        <Tag
+          color={summary.state === 'healthy' ? 'green' : summary.state === 'unavailable' ? 'red' : undefined}
+          data-testid='opl-service-status-state'
+        >
+          {t(SERVICE_STATUS_STATE_KEYS[summary.state])}
+        </Tag>
+      </div>
+      {summary.fields.length > 0 ? (
+        <dl className='flex min-w-0 flex-col gap-6px'>
+          {summary.fields.map((field) => (
+            <div
+              key={field.id}
+              className='flex min-w-0 flex-wrap gap-8px border-0 border-t border-solid border-line pt-6px'
+            >
+              <dt className='text-12px text-t-secondary'>{t(SERVICE_STATUS_FIELD_KEYS[field.id])}</dt>
+              <dd className='m-0 min-w-0 flex-1 break-words text-12px text-t-primary'>
+                {field.checkCounts
+                  ? [
+                      field.checkCounts.passed > 0
+                        ? t('common.oplUiContributions.serviceStatus.checks.passed', {
+                            count: field.checkCounts.passed,
+                          })
+                        : null,
+                      field.checkCounts.attention > 0
+                        ? t('common.oplUiContributions.serviceStatus.checks.attention', {
+                            count: field.checkCounts.attention,
+                          })
+                        : null,
+                      field.checkCounts.unavailable > 0
+                        ? t('common.oplUiContributions.serviceStatus.checks.unavailable', {
+                            count: field.checkCounts.unavailable,
+                          })
+                        : null,
+                    ]
+                      .filter((item): item is string => Boolean(item))
+                      .join(t('common.oplUiContributions.serviceStatus.checks.separator'))
+                  : serviceStatusDisplayValue(field.value, t)}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <Typography.Text type='secondary'>{t('common.oplUiContributions.serviceStatus.noData')}</Typography.Text>
+      )}
+      {showTechnicalDetails && (
+        <details className='text-12px text-t-secondary' data-testid='opl-service-status-technical-details'>
+          <summary>{t('common.oplUiContributions.serviceStatus.technicalDetails')}</summary>
+          <pre className='mt-8px max-h-240px overflow-auto whitespace-pre-wrap break-words'>
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+};
 
 function commandInvocationKey(entry: OplUiContribution, commandId: string, input: Record<string, unknown>): string {
   const safeInput = Object.fromEntries(
@@ -294,7 +462,12 @@ const ChannelAccessView: React.FC<ChannelAccessViewProps> = ({
   );
 };
 
-const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot }) => {
+const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({
+  slot,
+  viewTypes,
+  excludeViewTypes,
+  showTechnicalDetails = false,
+}) => {
   const { t, i18n } = useTranslation();
   const [message, messageContextHolder] = Message.useMessage();
   const appStateQuery = useOplAppState('fast');
@@ -302,6 +475,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
   const [entries, setEntries] = useState<readonly OplUiContribution[]>([]);
   const actionAvailable = hasPackageContributionExecuteAction(appStateQuery.appState);
   const locale = i18n?.resolvedLanguage ?? i18n?.language ?? 'en-US';
+  const technicalDetailsEnabled = showTechnicalDetails;
 
   useEffect(() => {
     let active = true;
@@ -310,7 +484,17 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
       .then((composition) => {
         if (!active) return;
         const refresh = () => {
-          if (active) setEntries(composition.contributions.readSlot(slot).filter(admittedInAionUi));
+          if (!active) return;
+          setEntries(
+            composition.contributions
+              .readSlot(slot)
+              .filter(admittedInAionUi)
+              .filter((entry) => {
+                const entryViewType = entry.view?.viewType;
+                if (viewTypes && (!entryViewType || !viewTypes.includes(entryViewType))) return false;
+                return !excludeViewTypes?.includes(entryViewType ?? '');
+              })
+          );
         };
         unsubscribe = composition.contributions.subscribe(refresh);
         composition.contributions.updateHostProjection(appStateQuery.appState);
@@ -325,7 +509,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
       active = false;
       unsubscribe?.();
     };
-  }, [appStateQuery.appState, slot]);
+  }, [appStateQuery.appState, excludeViewTypes, slot, viewTypes]);
 
   const executeCommand = useCallback(
     async (
@@ -410,7 +594,7 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
                 <Puzzle aria-hidden='true' theme='outline' size={15} fill='currentColor' />
                 <span className={styles.titleText}>{title}</span>
               </span>
-              <Tag size='small'>{entry.packageId}</Tag>
+              {technicalDetailsEnabled && <Tag size='small'>{entry.packageId}</Tag>}
             </header>
             {supported ? (
               entry.view?.viewType === 'channel_access' ? (
@@ -429,6 +613,8 @@ const OplUiContributionSlotView: React.FC<OplUiContributionSlotProps> = ({ slot 
                   runningCommandKey={runningCommandKey}
                   executeCommand={executeCommand}
                 />
+              ) : entry.view?.viewType === 'service_status' ? (
+                <ServiceStatusView entry={entry} showTechnicalDetails={technicalDetailsEnabled} />
               ) : (
                 <>
                   {entry.badges.length > 0 && (

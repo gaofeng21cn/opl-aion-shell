@@ -95,6 +95,49 @@
         "revoking": "Revoking",
         "attention": "Needs attention"
       }
+    },
+    "serviceStatus": {
+      "readFailed": "Service status is temporarily unavailable",
+      "noData": "No service status is available",
+      "technicalDetails": "Technical details",
+      "states": {
+        "healthy": "Operating normally",
+        "attention": "Needs attention",
+        "unavailable": "Unavailable",
+        "unknown": "Status pending"
+      },
+      "fields": {
+        "nativeCarrier": "Native carrier",
+        "freshness": "Freshness",
+        "node": "This device",
+        "collection": "Collection",
+        "doctor": "Doctor",
+        "checks": "Checks"
+      },
+      "checks": {
+        "passed": "{{count}} passed",
+        "attention": "{{count}} need attention",
+        "unavailable": "{{count}} unavailable",
+        "separator": ", "
+      },
+      "values": {
+        "available": "Available",
+        "ready": "Ready",
+        "fresh": "Fresh",
+        "healthy": "Healthy",
+        "current": "Current",
+        "pass": "Pass",
+        "running": "Running",
+        "externalRunning": "Running externally",
+        "unavailable": "Unavailable",
+        "stale": "May be stale",
+        "attention": "Needs attention",
+        "warning": "Needs attention",
+        "degraded": "Degraded",
+        "partial": "Partial",
+        "failed": "Failed",
+        "error": "Error"
+      }
     }
   },
   "feedback": {

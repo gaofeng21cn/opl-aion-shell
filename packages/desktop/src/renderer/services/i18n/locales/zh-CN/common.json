@@ -95,6 +95,49 @@
         "revoking": "正在撤销",
         "attention": "需要处理"
       }
+    },
+    "serviceStatus": {
+      "readFailed": "暂时无法读取服务状态",
+      "noData": "暂无可展示的服务状态",
+      "technicalDetails": "技术详情",
+      "states": {
+        "healthy": "运行正常",
+        "attention": "需要关注",
+        "unavailable": "当前不可用",
+        "unknown": "状态待确认"
+      },
+      "fields": {
+        "nativeCarrier": "本机载体",
+        "freshness": "新鲜度",
+        "node": "本机",
+        "collection": "数据采集",
+        "doctor": "诊断",
+        "checks": "检查结果"
+      },
+      "checks": {
+        "passed": "{{count}} 项通过",
+        "attention": "{{count}} 项需关注",
+        "unavailable": "{{count}} 项暂不可用",
+        "separator": "，"
+      },
+      "values": {
+        "available": "可用",
+        "ready": "已就绪",
+        "fresh": "最新",
+        "healthy": "正常",
+        "current": "当前",
+        "pass": "通过",
+        "running": "运行中",
+        "externalRunning": "外部运行中",
+        "unavailable": "暂不可用",
+        "stale": "可能过期",
+        "attention": "需要关注",
+        "warning": "需要关注",
+        "degraded": "部分可用",
+        "partial": "部分可用",
+        "failed": "未通过",
+        "error": "发生错误"
+      }
     }
   },
   "feedback": {

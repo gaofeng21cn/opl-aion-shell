@@ -190,6 +190,114 @@ describe('OplUiContributionSlot', () => {
     expect(screen.getByTestId('opl-ui-contribution-example.package:activity')).toHaveTextContent('Package activity');
   });
 
+  it('renders service_status only in its Services view, keeps raw data hidden by default, and admits Fleet projection reads', async () => {
+    stateMocks.appState = appState([
+      contribution({ slot: 'settings.section', viewType: 'service_status' }),
+      {
+        ...contribution({ slot: 'settings.section', viewType: 'activity_log' }),
+        contribution_key: 'example.package:activity-log',
+        contribution_id: 'activity-log',
+      },
+    ]);
+    stateMocks.runPackageContribution.mockResolvedValue({
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'example.package',
+          ref: 'example.activity.v1#current',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: {
+            kind: 'codex_plugin',
+            identity: 'opl-fleet-agent@fixture',
+            lifecycle_authority: 'codex_plugin_manager',
+          },
+          readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'example.activity.v1#current',
+            operation: 'read',
+            result: {
+              availability: 'available',
+              reason_code: 'native_provider_debug_only',
+              freshness: { state: 'fresh', last_observed_at: '2026-08-23T08:00:00.000Z' },
+              node: { display_name: 'Local Mac', platform: 'macOS' },
+              native_carrier: { availability: 'available', status: 'ready' },
+              payload: {
+                collection_status: 'available',
+                doctor: { state: 'healthy' },
+                checks: [{ state: 'pass' }, { state: 'attention' }],
+                host_cpu_percent: 61.04,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const servicesView = render(<OplUiContributionSlot slot='settings.section' viewTypes={['service_status']} />);
+    expect(await screen.findByTestId('opl-service-status')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-service-status-state')).toHaveTextContent(
+      'common.oplUiContributions.serviceStatus.states.healthy'
+    );
+    expect(screen.queryByText('native_provider_debug_only')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-service-status-technical-details')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('opl-ui-contribution-example.package:activity-log')).not.toBeInTheDocument();
+    expect(stateMocks.runPackageContribution).toHaveBeenCalledWith(
+      expect.objectContaining({ packageId: 'example.package', ref: 'example.activity.v1#current' })
+    );
+
+    servicesView.rerender(
+      <OplUiContributionSlot slot='settings.section' excludeViewTypes={['activity_log', 'service_status']} />
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId('opl-ui-contribution-example.package:activity')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('opl-ui-contribution-example.package:activity-log')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows service raw data only when the existing technical-details boundary is enabled', async () => {
+    stateMocks.appState = appState([contribution({ slot: 'settings.section', viewType: 'service_status' })]);
+    stateMocks.runPackageContribution.mockResolvedValue({
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'example.package',
+          ref: 'example.activity.v1#current',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: { kind: 'local', identity: 'fleet@local', lifecycle_authority: 'carrier_owned' },
+          readiness: { installed: true, physical_status: 'available', callability: 'callable' },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'example.activity.v1#current',
+            operation: 'read',
+            result: {
+              availability: 'available',
+              freshness: { state: 'fresh' },
+              node: null,
+              payload: { host_cpu_percent: 61.04 },
+            },
+          },
+        },
+      },
+    });
+
+    render(<OplUiContributionSlot slot='settings.section' viewTypes={['service_status']} showTechnicalDetails />);
+    expect(await screen.findByTestId('opl-service-status-technical-details')).toBeInTheDocument();
+    expect(screen.getByTestId('opl-service-status-technical-details')).toHaveTextContent('host_cpu_percent');
+  });
+
   it('unmounts a contribution when it disappears from the current projection', async () => {
     const view = render(<OplUiContributionSlot slot='runtime.detail' />);
     expect(await screen.findByTestId('opl-ui-contribution-example.package:activity')).toBeInTheDocument();

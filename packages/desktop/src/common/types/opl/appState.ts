@@ -20,7 +20,8 @@ export type OplAppContributionViewType =
   | 'approval_diff'
   | 'task_board'
   | 'artifact_view'
-  | 'activity_log';
+  | 'activity_log'
+  | 'service_status';
 
 export type OplAppContributionNavigation = {
   navigationId: string;

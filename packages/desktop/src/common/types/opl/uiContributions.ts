@@ -128,6 +128,47 @@ export type OplChannelAccessResult =
       refreshAfterMs?: number;
     };
 
+export type OplServiceStatusValue =
+  | string
+  | number
+  | boolean
+  | null
+  | OplServiceStatusValue[]
+  | { [key: string]: OplServiceStatusValue };
+
+export type OplServiceStatusSummaryObject = { [key: string]: OplServiceStatusValue };
+
+export type OplServiceStatusResult = {
+  schemaVersion?: 'opl-app-service-status.v1';
+  status?: string;
+  schema?: string;
+  availability?: string;
+  reasonCode?: string;
+  capabilityAbi?: OplServiceStatusSummaryObject;
+  access?: string;
+  authority?: string;
+  operation?: string;
+  readRef?: string;
+  observedAt?: string;
+  nativeCarrier?: OplServiceStatusSummaryObject | null;
+  freshness?: OplServiceStatusSummaryObject;
+  node?: OplServiceStatusSummaryObject | null;
+  payload?: OplServiceStatusSummaryObject;
+};
+
+export type OplServiceStatusSummaryState = 'healthy' | 'attention' | 'unavailable' | 'unknown';
+
+export type OplServiceStatusSummaryField = {
+  id: 'native_carrier' | 'freshness' | 'node' | 'collection' | 'doctor' | 'checks';
+  value: string;
+  checkCounts?: { passed: number; attention: number; unavailable: number };
+};
+
+export type OplServiceStatusSummary = {
+  state: OplServiceStatusSummaryState;
+  fields: OplServiceStatusSummaryField[];
+};
+
 export function activeOplChannelAccessQrChallenge(
   connection: OplChannelAccessConnection,
   nowMs: number
@@ -620,6 +661,229 @@ export function readOplChannelAccessResult(value: unknown): OplChannelAccessResu
     authorizedUsers,
     ...(refreshAfterMs !== null ? { refreshAfterMs } : {}),
   };
+}
+
+const SERVICE_STATUS_RESULT_FIELDS = [
+  'schema_version',
+  'status',
+  'schema',
+  'availability',
+  'reason_code',
+  'capability_abi',
+  'access',
+  'authority',
+  'operation',
+  'read_ref',
+  'observed_at',
+  'native_carrier',
+  'freshness',
+  'node',
+  'payload',
+] as const;
+
+const INVALID_SERVICE_STATUS_VALUE = Symbol('invalid-service-status-value');
+
+type InvalidServiceStatusValue = typeof INVALID_SERVICE_STATUS_VALUE;
+
+function parseServiceStatusValue(value: unknown, depth = 0): OplServiceStatusValue | InvalidServiceStatusValue {
+  if (depth > 16) return INVALID_SERVICE_STATUS_VALUE;
+  if (value === null) return null;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : INVALID_SERVICE_STATUS_VALUE;
+  if (typeof value === 'string') {
+    const normalized = value.trim();
+    return normalized.length > 0 && normalized.length <= 2048 ? normalized : INVALID_SERVICE_STATUS_VALUE;
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 100) return INVALID_SERVICE_STATUS_VALUE;
+    const items = value.map((item) => parseServiceStatusValue(item, depth + 1));
+    return items.some((item): item is InvalidServiceStatusValue => item === INVALID_SERVICE_STATUS_VALUE)
+      ? INVALID_SERVICE_STATUS_VALUE
+      : (items as OplServiceStatusValue[]);
+  }
+  const record = asRecord(value);
+  if (!record || Object.keys(record).length > 64) return INVALID_SERVICE_STATUS_VALUE;
+  const entries = Object.entries(record).map(([key, item]) => [key, parseServiceStatusValue(item, depth + 1)] as const);
+  if (entries.some(([, item]) => item === INVALID_SERVICE_STATUS_VALUE)) return INVALID_SERVICE_STATUS_VALUE;
+  return Object.fromEntries(entries) as OplServiceStatusSummaryObject;
+}
+
+function parseServiceStatusSummaryObject(value: unknown): OplServiceStatusSummaryObject | null {
+  const parsed = parseServiceStatusValue(value);
+  return parsed !== INVALID_SERVICE_STATUS_VALUE &&
+    parsed !== null &&
+    typeof parsed === 'object' &&
+    !Array.isArray(parsed)
+    ? (parsed as OplServiceStatusSummaryObject)
+    : null;
+}
+
+function parseOptionalServiceStatusString(
+  result: Record<string, unknown>,
+  key: string,
+  maxLength: number
+): string | undefined | null {
+  if (!Object.hasOwn(result, key)) return undefined;
+  const value = result[key];
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim();
+  return normalized.length > 0 && normalized.length <= maxLength ? normalized : null;
+}
+
+export function readOplServiceStatusResult(value: unknown): OplServiceStatusResult | null {
+  const result = asRecord(value);
+  if (!result || !hasOnlyKeys(result, SERVICE_STATUS_RESULT_FIELDS)) return null;
+  if (Object.hasOwn(result, 'schema_version') && result.schema_version !== 'opl-app-service-status.v1') return null;
+
+  const freshness = Object.hasOwn(result, 'freshness') ? parseServiceStatusSummaryObject(result.freshness) : undefined;
+  const node = !Object.hasOwn(result, 'node')
+    ? undefined
+    : result.node === null
+      ? null
+      : parseServiceStatusSummaryObject(result.node);
+  if (Object.hasOwn(result, 'freshness') && !freshness) return null;
+  if (Object.hasOwn(result, 'node') && result.node !== null && !node) return null;
+
+  const strings = {
+    status: parseOptionalServiceStatusString(result, 'status', 128),
+    schema: parseOptionalServiceStatusString(result, 'schema', 128),
+    availability: parseOptionalServiceStatusString(result, 'availability', 128),
+    reasonCode: parseOptionalServiceStatusString(result, 'reason_code', 256),
+    access: parseOptionalServiceStatusString(result, 'access', 128),
+    authority: parseOptionalServiceStatusString(result, 'authority', 128),
+    operation: parseOptionalServiceStatusString(result, 'operation', 128),
+    readRef: parseOptionalServiceStatusString(result, 'read_ref', 257),
+    observedAt: parseOptionalServiceStatusString(result, 'observed_at', 64),
+  };
+  const { status, schema, availability, reasonCode, access, authority, operation, readRef, observedAt } = strings;
+  if (
+    status === null ||
+    schema === null ||
+    availability === null ||
+    reasonCode === null ||
+    access === null ||
+    authority === null ||
+    operation === null ||
+    readRef === null ||
+    observedAt === null
+  ) {
+    return null;
+  }
+  if (!status && !availability && !Object.hasOwn(result, 'native_carrier')) return null;
+
+  const nativeCarrier = !Object.hasOwn(result, 'native_carrier')
+    ? undefined
+    : result.native_carrier === null
+      ? null
+      : parseServiceStatusSummaryObject(result.native_carrier);
+  if (Object.hasOwn(result, 'native_carrier') && result.native_carrier !== null && !nativeCarrier) return null;
+
+  const capabilityAbi = Object.hasOwn(result, 'capability_abi')
+    ? parseServiceStatusSummaryObject(result.capability_abi)
+    : undefined;
+  const payload = Object.hasOwn(result, 'payload') ? parseServiceStatusSummaryObject(result.payload) : undefined;
+  if (Object.hasOwn(result, 'capability_abi') && !capabilityAbi) return null;
+  if (Object.hasOwn(result, 'payload') && !payload) return null;
+
+  return {
+    ...(result.schema_version === 'opl-app-service-status.v1' ? { schemaVersion: result.schema_version } : {}),
+    ...(status ? { status } : {}),
+    ...(schema ? { schema } : {}),
+    ...(availability ? { availability } : {}),
+    ...(reasonCode ? { reasonCode } : {}),
+    ...(capabilityAbi ? { capabilityAbi } : {}),
+    ...(access ? { access } : {}),
+    ...(authority ? { authority } : {}),
+    ...(operation ? { operation } : {}),
+    ...(readRef ? { readRef } : {}),
+    ...(observedAt ? { observedAt } : {}),
+    ...(nativeCarrier !== undefined ? { nativeCarrier } : {}),
+    ...(freshness ? { freshness } : {}),
+    ...(node !== undefined ? { node } : {}),
+    ...(payload ? { payload } : {}),
+  };
+}
+
+function serviceStatusSignal(value: string | null): OplServiceStatusSummaryState {
+  if (!value) return 'unknown';
+  const normalized = value.toLowerCase();
+  if (['available', 'ready', 'fresh', 'healthy', 'current', 'pass', 'ok', 'running'].includes(normalized)) {
+    return 'healthy';
+  }
+  if (['unavailable', 'error', 'failed', 'blocked', 'missing'].includes(normalized)) return 'unavailable';
+  if (['stale', 'attention', 'warning', 'degraded', 'partial'].includes(normalized)) return 'attention';
+  return 'unknown';
+}
+
+function serviceStatusString(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function serviceStatusObject(value: unknown): Record<string, unknown> {
+  return asRecord(value) ?? {};
+}
+
+export function projectOplServiceStatusSummary(result: OplServiceStatusResult): OplServiceStatusSummary {
+  const nativeCarrier = result.nativeCarrier ?? (result.availability ? { availability: result.availability } : null);
+  const freshness = serviceStatusObject(result.freshness);
+  const node = result.node ? serviceStatusObject(result.node) : null;
+  const payload = serviceStatusObject(result.payload);
+  const doctor = serviceStatusObject(payload.doctor);
+  const freshnessState =
+    serviceStatusString(freshness.state) ??
+    serviceStatusString(freshness.status) ??
+    (freshness.stale === true ? 'stale' : freshness.stale === false ? 'fresh' : null);
+  const doctorState =
+    serviceStatusString(doctor.state) ??
+    serviceStatusString(doctor.status) ??
+    serviceStatusString(payload.doctor_state);
+  const checks = Array.isArray(payload.checks) ? payload.checks.map(serviceStatusObject) : [];
+  const passed = checks.filter((check) => serviceStatusSignal(serviceStatusString(check.state)) === 'healthy').length;
+  const unavailable = checks.filter(
+    (check) => serviceStatusSignal(serviceStatusString(check.state)) === 'unavailable'
+  ).length;
+  const attention = checks.length - passed - unavailable;
+  const signals = [
+    serviceStatusString(serviceStatusObject(nativeCarrier).availability),
+    serviceStatusString(serviceStatusObject(nativeCarrier).status) ??
+      serviceStatusString(serviceStatusObject(nativeCarrier).state),
+    freshnessState,
+    doctorState,
+    serviceStatusString(payload.collection_status),
+  ].map(serviceStatusSignal);
+  const state = signals.includes('unavailable')
+    ? 'unavailable'
+    : signals.includes('attention')
+      ? 'attention'
+      : signals.includes('healthy')
+        ? 'healthy'
+        : 'unknown';
+
+  const fields: OplServiceStatusSummaryField[] = [];
+  const nativeCarrierValues = [
+    serviceStatusString(serviceStatusObject(nativeCarrier).availability),
+    serviceStatusString(serviceStatusObject(nativeCarrier).status) ??
+      serviceStatusString(serviceStatusObject(nativeCarrier).state),
+  ].filter((value): value is string => Boolean(value));
+  if (nativeCarrierValues.length) fields.push({ id: 'native_carrier', value: nativeCarrierValues.join(' · ') });
+  if (freshnessState) fields.push({ id: 'freshness', value: freshnessState });
+
+  const nodeValues = [serviceStatusString(node?.display_name), serviceStatusString(node?.platform)].filter(
+    (value): value is string => Boolean(value)
+  );
+  if (nodeValues.length) fields.push({ id: 'node', value: nodeValues.join(' · ') });
+  const collectionStatus = serviceStatusString(payload.collection_status);
+  if (collectionStatus) fields.push({ id: 'collection', value: collectionStatus });
+  if (doctorState) fields.push({ id: 'doctor', value: doctorState });
+
+  if (checks.length) {
+    fields.push({
+      id: 'checks',
+      value: JSON.stringify({ passed, attention, unavailable }),
+      checkCounts: { passed, attention, unavailable },
+    });
+  }
+  return { state, fields };
 }
 
 export function readOplPackageContributionReadResult(

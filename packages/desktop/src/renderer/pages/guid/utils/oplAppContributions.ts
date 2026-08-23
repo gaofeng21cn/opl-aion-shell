@@ -15,6 +15,7 @@ const VIEW_TYPES = new Set<OplAppContributionViewType>([
   'task_board',
   'artifact_view',
   'activity_log',
+  'service_status',
 ]);
 const BADGE_TONES = new Set(['neutral', 'info', 'success', 'warning', 'critical']);
 const FORBIDDEN_FIELDS = new Set(['component', 'code', 'path', 'url', 'react', 'electron', 'html', 'javascript', 'js']);

@@ -4,6 +4,8 @@ import {
   hasPackageContributionExecuteAction,
   readOplChannelAccessResult,
   readOplPackageContributionReadResult,
+  readOplServiceStatusResult,
+  projectOplServiceStatusSummary,
   readOplTransportBindingsProjection,
   readOplUiContributionsProjection,
   resolveOplUiContributionLabel,
@@ -314,5 +316,116 @@ describe('OPL UI contribution projection', () => {
         )
       ).toBeNull();
     }
+  });
+
+  it('accepts the Fleet service-status projection when the App envelope is callable', () => {
+    const result = {
+      surface: 'package_contribution_read',
+      ok: true,
+      parsed: {
+        opl_app_contribution: {
+          surface_kind: 'opl_app_package_contribution.v1',
+          package_id: 'opl-fleet-agent',
+          ref: 'fleet.agent.telemetry.v1#local',
+          operation: 'read',
+          confirmation_required: false,
+          carrier_readback: {
+            kind: 'codex_plugin',
+            identity: 'opl-fleet-agent@fixture',
+            lifecycle_authority: 'codex_plugin_manager',
+          },
+          readiness: {
+            installed: true,
+            physical_status: 'available',
+            callability: 'callable',
+          },
+          response: {
+            schema_version: 'opl-package-app-contribution-response.v1',
+            ok: true,
+            ref: 'fleet.agent.telemetry.v1#local',
+            operation: 'read',
+            result: {
+              availability: 'unavailable',
+              reason_code: 'native_provider_not_installed',
+              freshness: { state: 'unavailable', last_observed_at: null, last_known: false },
+              node: null,
+            },
+          },
+        },
+      },
+    };
+    const readback = readOplPackageContributionReadResult(result, {
+      packageId: 'opl-fleet-agent',
+      ref: 'fleet.agent.telemetry.v1#local',
+    });
+    const serviceStatus = readOplServiceStatusResult(readback);
+    expect(serviceStatus).toMatchObject({
+      availability: 'unavailable',
+      reasonCode: 'native_provider_not_installed',
+      freshness: { state: 'unavailable' },
+      node: null,
+    });
+    expect(projectOplServiceStatusSummary(serviceStatus!)).toMatchObject({
+      state: 'unavailable',
+      fields: [
+        { id: 'native_carrier', value: 'unavailable' },
+        { id: 'freshness', value: 'unavailable' },
+      ],
+    });
+    expect(
+      readOplPackageContributionReadResult(
+        {
+          ...result,
+          parsed: {
+            opl_app_contribution: {
+              ...result.parsed.opl_app_contribution,
+              readiness: { ...result.parsed.opl_app_contribution.readiness, callability: 'disabled' },
+            },
+          },
+        },
+        { packageId: 'opl-fleet-agent', ref: 'fleet.agent.telemetry.v1#local' }
+      )
+    ).toBeNull();
+  });
+
+  it('projects only bounded service fields and rejects malformed or unbounded payloads', () => {
+    const result = readOplServiceStatusResult({
+      schema_version: 'opl-app-service-status.v1',
+      status: 'ready',
+      native_carrier: { availability: 'available', status: 'ready' },
+      freshness: { state: 'fresh' },
+      node: { display_name: 'Local Mac', platform: 'macOS' },
+      payload: {
+        collection_status: 'available',
+        doctor: { state: 'healthy' },
+        checks: [{ state: 'pass' }, { state: 'attention' }, { state: 'unavailable' }],
+        host_cpu_percent: 61.04,
+      },
+    });
+    expect(result).not.toBeNull();
+    expect(projectOplServiceStatusSummary(result!)).toEqual({
+      state: 'healthy',
+      fields: [
+        { id: 'native_carrier', value: 'available · ready' },
+        { id: 'freshness', value: 'fresh' },
+        { id: 'node', value: 'Local Mac · macOS' },
+        { id: 'collection', value: 'available' },
+        { id: 'doctor', value: 'healthy' },
+        {
+          id: 'checks',
+          value: JSON.stringify({ passed: 1, attention: 1, unavailable: 1 }),
+          checkCounts: { passed: 1, attention: 1, unavailable: 1 },
+        },
+      ],
+    });
+    expect(readOplServiceStatusResult({ status: 'ready' })).toMatchObject({ status: 'ready' });
+    expect(
+      readOplServiceStatusResult({
+        availability: 'ready',
+        freshness: { state: 'fresh' },
+        node: null,
+        payload: { tooLarge: 'x'.repeat(2049) },
+      })
+    ).toBeNull();
   });
 });
