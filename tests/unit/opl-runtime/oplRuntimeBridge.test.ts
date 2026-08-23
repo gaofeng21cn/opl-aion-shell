@@ -854,10 +854,7 @@ describe('OPL runtime bridge command whitelist', () => {
   it('keeps first-install Official Profile alive past 120 seconds and cancels it at its bootstrap deadline', async () => {
     const resourcesPath = makeTempRoot('opl-official-profile-deadline');
     fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
-    const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand(
-      { intent: 'first_install' },
-      resourcesPath
-    );
+    const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand({ intent: 'first_install' }, resourcesPath);
     const child = Object.assign(new EventEmitter(), {
       stdin: new PassThrough(),
       stdout: new PassThrough(),
