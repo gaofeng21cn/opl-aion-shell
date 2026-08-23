@@ -5454,9 +5454,7 @@ function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
   addCandidate(runtimeSource?.checkout_path);
   addCandidate(packageStatus.installed_carrier_readback?.source_ref);
   addCandidate(packageStatus.configured_carrier?.plugin_source_path);
-  const configuredCarrier = isRecord(packageStatus.configured_carrier)
-    ? packageStatus.configured_carrier
-    : null;
+  const configuredCarrier = isRecord(packageStatus.configured_carrier) ? packageStatus.configured_carrier : null;
   const carrier = isRecord(configuredCarrier?.carrier) ? configuredCarrier.carrier : null;
   const observedSources = Array.isArray(carrier?.observed_sources) ? carrier.observed_sources : [];
   for (const observedSource of observedSources) {

@@ -1759,9 +1759,9 @@ describe('packaged first-run VM smoke helpers', () => {
       JSON.stringify(args[0] === 'family-runtime' ? stageResult : afterPayload)
     );
     try {
-      expect(() =>
-        __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target)
-      ).toThrow('has no Framework-owned runtime source checkout');
+      expect(() => __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target)).toThrow(
+        'has no Framework-owned runtime source checkout'
+      );
       const stageTarget = __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target, {
         runtimeHome,
       });
