@@ -47,14 +47,6 @@ const FULL_RUNTIME_MANIFEST = 'full-package-manifest.json';
 const LOWERCASE_GIT_SHA = /^[0-9a-f]{40}$/;
 const MAIN_BOOTSTRAP_FATAL_MARKER = 'aionui.main_bootstrap_fatal.v1';
 const OPL_CONNECT_MODULES_ARGS = ['connect', 'modules', '--json'];
-const FULL_CODEX_VISIBLE_COMPANION_SKILLS = [
-  'officecli',
-  'officecli-docx',
-  'officecli-pptx',
-  'officecli-xlsx',
-  'mineru-document-extractor',
-  'ui-ux-pro-max',
-];
 const FULL_PLUGIN_ONLY_DOMAIN_SKILLS = [
   ['med-autoscience', 'modules/mas', 'med-autoscience'],
   ['med-autogrant', 'modules/mag', 'med-autogrant'],
@@ -1885,26 +1877,6 @@ function assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRel
   }
 }
 
-function assertFullCompanionSkillPayloads(initialize, runtimeHome, options = {}) {
-  const codexHome = options.codexHome || process.env.CODEX_HOME?.trim() || path.join(os.homedir(), '.codex');
-  const recommendedSkills = initialize.recommended_skills?.skills ?? [];
-  const readySkills = new Map(recommendedSkills.map((skill) => [skill.skill_id, skill.status]));
-  for (const skillId of FULL_CODEX_VISIBLE_COMPANION_SKILLS) {
-    if (readySkills.get(skillId) !== 'ready') {
-      throw new Error(
-        `OPL Full first-run companion skill ${skillId} is not ready: ${readySkills.get(skillId) ?? 'missing'}`
-      );
-    }
-    const codexSkillPath = path.join(codexHome, 'skills', skillId, 'SKILL.md');
-    const packagedSkillPath = path.join(runtimeHome, 'skills', skillId, 'SKILL.md');
-    if (!fs.existsSync(codexSkillPath) && !fs.existsSync(packagedSkillPath)) {
-      throw new Error(
-        `OPL Full first-run companion skill ${skillId} is missing from Codex-visible or packaged runtime skill sources: ${codexSkillPath}, ${packagedSkillPath}`
-      );
-    }
-  }
-}
-
 function assertPackagedDomainPluginSkill(runtimeHome, skillId, runtimeRelativePath, pluginName = skillId) {
   const pluginRoot = path.join(runtimeHome, runtimeRelativePath, 'plugins', pluginName);
   const manifestPath = path.join(pluginRoot, '.codex-plugin', 'plugin.json');
@@ -1934,7 +1906,6 @@ function assertFullFirstRunEquivalence(systemInitializeRaw, modulesRaw, options 
   if (!runtimeHome) {
     throw new Error('OPL Full runtime home was not found after first launch.');
   }
-  assertFullCompanionSkillPayloads(initialize, runtimeHome, { codexHome: options.codexHome });
   for (const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] of FULL_RUNTIME_MODULES) {
     assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, requiredPayloadPaths);
   }
@@ -4393,7 +4364,7 @@ async function waitForFullFirstRunEquivalence(timeoutMs, options = {}) {
   }
   throw new Error(
     [
-      'Timed out waiting for Full runtime modules and companion skills to materialize after core first launch.',
+      'Timed out waiting for Full runtime modules to materialize after core first launch.',
       lastError ? `Last readiness error: ${lastError instanceof Error ? lastError.message : String(lastError)}` : '',
       lastSystemInitializeRaw ? `Last system initialize sample: ${lastSystemInitializeRaw.slice(0, 1200)}` : '',
       lastModulesRaw ? `Last modules sample: ${lastModulesRaw.slice(0, 1200)}` : '',
@@ -9072,7 +9043,6 @@ export const __test =
         buildPackagedPythonRuntimeEnv,
         resolvePackagedPythonCacheRoot,
         assertFullFirstRunEquivalence,
-        assertFullCompanionSkillPayloads,
         captureMacScreenArtifact,
         findLatestFullRuntimeHome,
         isFirstRunCompletionEvent,

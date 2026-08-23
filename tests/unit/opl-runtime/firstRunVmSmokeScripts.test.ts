@@ -236,14 +236,7 @@ function createReadySystemInitialize() {
         domain_ready: true,
       },
       recommended_skills: {
-        skills: [
-          'officecli',
-          'officecli-docx',
-          'officecli-pptx',
-          'officecli-xlsx',
-          'mineru-document-extractor',
-          'ui-ux-pro-max',
-        ].map((skill_id) => ({ skill_id, status: 'ready' })),
+        skills: [],
       },
     },
   });
@@ -438,16 +431,6 @@ function createFullRuntimeEquivalenceFixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-full-equivalence-'));
   const codexHome = path.join(root, 'codex-home');
   const runtimeHome = path.join(root, 'runtime', 'current');
-  for (const skillId of [
-    'officecli',
-    'officecli-docx',
-    'officecli-pptx',
-    'officecli-xlsx',
-    'mineru-document-extractor',
-    'ui-ux-pro-max',
-  ]) {
-    writeFile(path.join(runtimeHome, 'skills', skillId, 'SKILL.md'), `# ${skillId}\n`);
-  }
   for (const moduleFixture of [
     {
       moduleId: 'medautoscience',
@@ -3724,7 +3707,7 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
-  it('checks Full companion skills through packaged runtime payloads before Codex skill mirrors exist', () => {
+  it('accepts the Framework-selected empty companion skill set while requiring packaged tools and domain plugins', () => {
     const fixture = createFullRuntimeEquivalenceFixture();
     try {
       expect(() =>
@@ -3735,15 +3718,7 @@ describe('OPL first-run VM smoke scripts', () => {
       ).not.toThrow();
 
       expect(fs.existsSync(path.join(fixture.codexHome, 'skills', 'officecli', 'SKILL.md'))).toBe(false);
-      expect(fs.existsSync(path.join(fixture.runtimeHome, 'skills', 'officecli', 'SKILL.md'))).toBe(true);
-      fs.rmSync(path.join(fixture.runtimeHome, 'skills', 'officecli'), { recursive: true, force: true });
-
-      expect(() =>
-        vmSmoke.assertFullFirstRunEquivalence(createReadySystemInitialize(), '{"modules":{"items":[]}}', {
-          codexHome: fixture.codexHome,
-          runtimeHome: fixture.runtimeHome,
-        })
-      ).toThrow(/companion skill officecli/);
+      expect(fs.existsSync(path.join(fixture.runtimeHome, 'skills', 'officecli', 'SKILL.md'))).toBe(false);
     } finally {
       fs.rmSync(fixture.root, { recursive: true, force: true });
     }
