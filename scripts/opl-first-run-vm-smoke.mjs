@@ -5493,18 +5493,11 @@ function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
 
 function resolveStandardAgentInterface(checkoutPath, descriptorPath, descriptor) {
   const declared = descriptor.standard_agent_interface;
-  if (
-    isRecord(declared) &&
-    declared.ref_kind === 'repo_json_pointer' &&
-    typeof declared.ref === 'string'
-  ) {
+  if (isRecord(declared) && declared.ref_kind === 'repo_json_pointer' && typeof declared.ref === 'string') {
     const [relativePath, pointer = ''] = declared.ref.split('#', 2);
     const resolvedCheckoutPath = path.resolve(checkoutPath);
     const interfacePath = path.resolve(resolvedCheckoutPath, relativePath);
-    if (
-      interfacePath !== resolvedCheckoutPath &&
-      !interfacePath.startsWith(`${resolvedCheckoutPath}${path.sep}`)
-    ) {
+    if (interfacePath !== resolvedCheckoutPath && !interfacePath.startsWith(`${resolvedCheckoutPath}${path.sep}`)) {
       throw new Error(`Standard Agent interface ref in ${descriptorPath} must stay inside its package checkout.`);
     }
     if (!fs.existsSync(interfacePath)) {
