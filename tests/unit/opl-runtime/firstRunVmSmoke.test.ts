@@ -1653,11 +1653,31 @@ describe('packaged first-run VM smoke helpers', () => {
 
   it('separates ordinary send package-readiness stability from Framework Stage activation evidence', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
-    const manifestPath = path.join(root, 'agent', 'stages', 'manifest.json');
+    const runtimeHome = path.join(root, 'runtime', 'current');
+    const moduleRoot = path.join(runtimeHome, 'modules', 'mas');
+    const manifestPath = path.join(moduleRoot, 'agent', 'stages', 'manifest.json');
+    const descriptorPath = path.join(moduleRoot, 'contracts', 'domain_descriptor.json');
+    const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
+    const thinPluginRoot = path.join(root, 'codex', 'plugins', 'med-autoscience');
     const workspace = path.join(root, 'workspace');
     const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0];
     fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(path.dirname(descriptorPath), { recursive: true });
+    fs.mkdirSync(path.join(moduleRoot, 'plugins'), { recursive: true });
+    fs.mkdirSync(thinPluginRoot, { recursive: true });
     fs.mkdirSync(workspace, { recursive: true });
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({ packaged_runtime: true, module_id: 'medautoscience', repo_name: 'med-autoscience' })
+    );
+    fs.writeFileSync(
+      descriptorPath,
+      JSON.stringify({
+        package_id: 'mas',
+        domain_id: 'medautoscience',
+        standard_agent_interface: { runtime: { runtime_domain_id: 'medautoscience' } },
+      })
+    );
     fs.writeFileSync(
       manifestPath,
       JSON.stringify({
@@ -1669,7 +1689,7 @@ describe('packaged first-run VM smoke helpers', () => {
       version: 'g2',
       opl_agent_package_status: {
         package_id: 'mas',
-        runtime_source_readiness: { checkout_path: root },
+        runtime_source_readiness: { checkout_path: thinPluginRoot },
         status: 'available',
         installed_package_count: 1,
         installed_manifest_sha256: 'a'.repeat(64),
@@ -1677,7 +1697,7 @@ describe('packaged first-run VM smoke helpers', () => {
         installed_carrier_readback: {
           kind: 'local',
           identity: 'med-autoscience@med-autoscience-local',
-          source_ref: '/tmp/med-autoscience',
+          source_ref: thinPluginRoot,
           version: '0.2.27',
           enabled: true,
         },
@@ -1687,7 +1707,7 @@ describe('packaged first-run VM smoke helpers', () => {
           status: 'installed',
           installed_version: '0.2.27',
           enabled: true,
-          plugin_source_path: '/tmp/med-autoscience',
+          plugin_source_path: thinPluginRoot,
         },
         launch_state: 'ready',
         launch_allowed: true,
@@ -1739,17 +1759,27 @@ describe('packaged first-run VM smoke helpers', () => {
       JSON.stringify(args[0] === 'family-runtime' ? stageResult : afterPayload)
     );
     try {
-      const stageTarget = __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target);
+      expect(() =>
+        __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target)
+      ).toThrow('has no Framework-owned runtime source checkout');
+      const stageTarget = __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target, {
+        runtimeHome,
+      });
       expect(stageTarget).toMatchObject({
         domain_id: 'medautoscience',
         stage_id: 'direction_and_route_selection',
+        runtime_source: 'packaged_full_runtime_module',
+        domain_descriptor_path: descriptorPath,
         manifest_path: manifestPath,
       });
+      expect(stageTarget.domain_descriptor_sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(stageTarget.manifest_sha256).toMatch(/^[0-9a-f]{64}$/);
 
       const evidence = __test.runFrameworkStageRuntimeActivation(
         {
           timeoutMs: 30_000,
+          runtimeProfile: 'full',
+          runtimeHome,
           masStudyProvisioningReceipt: provisioning.receiptPath,
           __testHooks: { runOplJson },
         },

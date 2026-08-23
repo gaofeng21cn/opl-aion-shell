@@ -5428,6 +5428,20 @@ function resolveMasQualificationProvisioningReceipt(receiptPath, workspace) {
   };
 }
 
+function resolvePackagedFrameworkStageRuntimeCheckoutPath(runtimeHome, target) {
+  const moduleSpec = FULL_RUNTIME_MODULES.find(([, repoName]) => repoName === target.codexVisibleEntry);
+  if (!moduleSpec) {
+    throw new Error(`Package ${target.packageId} has no Full runtime module mapping.`);
+  }
+  const [moduleId, repoName, runtimeRelativePath, requiredPayloadPaths] = moduleSpec;
+  assertPackagedRuntimeModule(runtimeHome, moduleId, repoName, runtimeRelativePath, [
+    ...requiredPayloadPaths,
+    path.join('contracts', 'domain_descriptor.json'),
+    path.join('agent', 'stages', 'manifest.json'),
+  ]);
+  return path.join(runtimeHome, runtimeRelativePath);
+}
+
 function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
   const candidates = [];
   const addCandidate = (value) => {
@@ -5479,13 +5493,18 @@ function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
   return null;
 }
 
-function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
-  const checkoutPath = resolveFrameworkStageRuntimeCheckoutPath(packageStatus);
+function resolveFrameworkStageRuntimeTarget(packageStatus, target, options = {}) {
+  const checkoutPath = options.runtimeHome
+    ? resolvePackagedFrameworkStageRuntimeCheckoutPath(options.runtimeHome, target)
+    : resolveFrameworkStageRuntimeCheckoutPath(packageStatus);
   if (!checkoutPath) {
     throw new Error(`Package ${target.packageId} has no Framework-owned runtime source checkout.`);
   }
+  const descriptorPath = path.join(checkoutPath, 'contracts', 'domain_descriptor.json');
   const manifestPath = path.join(checkoutPath, 'agent', 'stages', 'manifest.json');
+  const descriptorBytes = fs.readFileSync(descriptorPath);
   const manifestBytes = fs.readFileSync(manifestPath);
+  const descriptor = JSON.parse(descriptorBytes.toString('utf8'));
   const manifest = JSON.parse(manifestBytes.toString('utf8'));
   const domainId =
     typeof manifest.target_domain_id === 'string' && manifest.target_domain_id.trim()
@@ -5498,9 +5517,21 @@ function resolveFrameworkStageRuntimeTarget(packageStatus, target) {
   if (!domainId || !stageId) {
     throw new Error(`Package ${target.packageId} stage manifest does not declare a runtime domain and stage.`);
   }
+  const descriptorDomainIds = [descriptor.domain_id, descriptor.standard_agent_interface?.runtime?.runtime_domain_id]
+    .filter((value) => typeof value === 'string' && value.trim())
+    .map((value) => value.trim());
+  if (!descriptorDomainIds.includes(domainId)) {
+    throw new Error(`Package ${target.packageId} domain descriptor does not match its stage manifest.`);
+  }
+  if (typeof descriptor.package_id === 'string' && descriptor.package_id.trim() !== target.packageId) {
+    throw new Error(`Package ${target.packageId} domain descriptor exposes a different package identity.`);
+  }
   return {
     domain_id: domainId,
     stage_id: stageId,
+    runtime_source: options.runtimeHome ? 'packaged_full_runtime_module' : 'framework_package_status',
+    domain_descriptor_path: descriptorPath,
+    domain_descriptor_sha256: createHash('sha256').update(descriptorBytes).digest('hex'),
     manifest_path: manifestPath,
     manifest_sha256: createHash('sha256').update(manifestBytes).digest('hex'),
   };
@@ -5559,11 +5590,17 @@ function frameworkStageRuntimeActivationExpression(input) {
 }
 
 function runFrameworkStageRuntimeActivation(options, target, workspace, beforeState, provisioning = null) {
-  const stageTarget = resolveFrameworkStageRuntimeTarget(beforeState.status, target);
   const workItemProvisioning =
     target.packageId === 'mas'
       ? (provisioning ?? resolveMasQualificationProvisioningReceipt(options.masStudyProvisioningReceipt, workspace))
       : null;
+  const runtimeHome =
+    options.runtimeHome ??
+    (options.runtimeProfile === 'full' ? resolveFullRuntimeForSmoke(options).runtime_home : null);
+  if (options.runtimeProfile === 'full' && !runtimeHome) {
+    throw new Error(`Package ${target.packageId} has no packaged Full runtime home.`);
+  }
+  const stageTarget = resolveFrameworkStageRuntimeTarget(beforeState.status, target, { runtimeHome });
   const workspaceLocator = workItemProvisioning
     ? { workspace_root: workspace, study_id: workItemProvisioning.study_id }
     : { workspace_root: workspace };
