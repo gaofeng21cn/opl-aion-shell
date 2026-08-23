@@ -2,6 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IOplRuntimeCommandResult } from '@/common/adapter/ipcBridge';
 import {
@@ -840,11 +842,47 @@ describe('OPL runtime bridge command whitelist', () => {
       );
       expect(command.args).toContain('first_install');
       expect(command.args.filter((value) => value === '--root-package-id').length).toBeGreaterThan(0);
+      expect(command.timeoutMs).toBe(900_000);
       expect(command.redactedCommand).toBe(
         'node <official-profile-package-apply.ts> --intent first_install --root-package-id <profile-roots>'
       );
     } finally {
       fs.rmSync(resourcesPath, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps first-install Official Profile alive past 120 seconds and cancels it at its bootstrap deadline', async () => {
+    const resourcesPath = makeTempRoot('opl-official-profile-deadline');
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// test');
+    const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand(
+      { intent: 'first_install' },
+      resourcesPath
+    );
+    const child = Object.assign(new EventEmitter(), {
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+    }) as unknown as ChildProcessWithoutNullStreams;
+    const terminate = vi.fn(async () => undefined);
+
+    vi.useFakeTimers();
+    try {
+      const result = __oplRuntimeBridgeTest.runSpawnJsonCommand({
+        ...command,
+        launch: () => ({ child, terminate }),
+      });
+      const rejection = expect(result).rejects.toThrow(
+        'OPL runtime command timed out: node <official-profile-package-apply.ts> --intent first_install'
+      );
+
+      await vi.advanceTimersByTimeAsync(120_001);
+      expect(terminate).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(779_999);
+      await rejection;
+      expect(terminate).toHaveBeenCalledOnce();
+      expect(terminate).toHaveBeenCalledWith(0);
+    } finally {
+      vi.useRealTimers();
     }
   });
 

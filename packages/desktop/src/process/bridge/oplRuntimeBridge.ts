@@ -84,6 +84,7 @@ const OPL_BOOTSTRAP_MAX_STDOUT_BYTES = 50 * 1024 * 1024;
 const OPL_COMMAND_TIMEOUT_MS = 30_000;
 const OPL_INITIALIZE_TIMEOUT_MS = 120_000;
 const OPL_STARTUP_MAINTENANCE_TIMEOUT_MS = 120_000;
+const OPL_OFFICIAL_PROFILE_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const OPL_MANAGED_UPDATE_READ_TIMEOUT_MS = 120_000;
 const OPL_BOOTSTRAP_TIMEOUT_MS = 900_000;
 const MANAGED_NODE_VERSION = 'v22.21.1';
@@ -644,7 +645,7 @@ function buildOfficialProfileApplyCommand(
       ...rootPackageIds.flatMap((packageId) => ['--root-package-id', packageId]),
     ],
     env: nodeCommand.env,
-    timeoutMs: OPL_STARTUP_MAINTENANCE_TIMEOUT_MS,
+    timeoutMs: OPL_OFFICIAL_PROFILE_BOOTSTRAP_TIMEOUT_MS,
     redactedCommand: `node <official-profile-package-apply.ts> --intent ${request.intent} --root-package-id <profile-roots>`,
   };
 }

@@ -2158,16 +2158,6 @@ function guestSmokeCommand(
         installScriptUrl ? `launchctl setenv OPL_INSTALL_SCRIPT_URL ${shellQuote(installScriptUrl)}` : '',
       ].filter(Boolean)
     : [];
-  const curlHome = `${options.guestWorkdir}/curl-home`;
-  const curlConfigPath = `${curlHome}/.curlrc`;
-  const curlTransportEnv = [
-    `mkdir -p ${shellQuote(curlHome)}`,
-    `chmod 700 ${shellQuote(curlHome)}`,
-    `printf '%s\\n' 'http1.1' > ${shellQuote(curlConfigPath)}`,
-    `chmod 600 ${shellQuote(curlConfigPath)}`,
-    `export CURL_HOME=${shellQuote(curlHome)}`,
-    `launchctl setenv CURL_HOME ${shellQuote(curlHome)}`,
-  ];
   const compiledExpectationsPath = options.compiledExpectations
     ? `${options.guestWorkdir}/app-first-run-compiled-expectations.json`
     : null;
@@ -2250,7 +2240,6 @@ function guestSmokeCommand(
     'set -euo pipefail',
     providerCredentialRequested ? '' : 'unset OPL_FIRST_RUN_CODEX_API_KEY_FILE',
     ...sourceArchiveEnv,
-    ...curlTransportEnv,
     compiledExpectationsPath
       ? `export OPL_FIRST_RUN_COMPILED_EXPECTATIONS=${shellQuote(compiledExpectationsPath)}`
       : '',
