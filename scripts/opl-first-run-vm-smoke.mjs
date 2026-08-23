@@ -5587,6 +5587,78 @@ function frameworkStageRuntimeActivationExpression(input) {
   };
 }
 
+function qualificationOnlyStageAdmissionGuardExpression(input) {
+  if (!(input.error instanceof OplJsonCommandError) || !isRecord(input.error.rawOutput)) return null;
+  const payload = ['stderr', 'stdout']
+    .map((stream) => String(input.error.rawOutput[stream] ?? '').trim())
+    .filter(Boolean)
+    .map((value) => {
+      try {
+        return JSON.parse(value);
+      } catch (_) {
+        return null;
+      }
+    })
+    .find(isRecord);
+  const error = isRecord(payload?.error) ? payload.error : null;
+  const details = isRecord(error?.details) ? error.details : null;
+  const forbiddenRoutes = listStringValues(details?.explicitly_unauthorized_routes).toSorted();
+  const expectedForbiddenRoutes = [
+    'business_action_authorized',
+    'publication_authorized',
+    'stage_body_authorized',
+    'submission_authorized',
+  ];
+  let lifecyclePath = null;
+  try {
+    lifecyclePath = typeof details?.lifecycle_ref === 'string' ? fileURLToPath(details.lifecycle_ref) : null;
+  } catch (_) {
+    lifecyclePath = null;
+  }
+  const expectedLifecyclePath = path.join(
+    input.workspace,
+    input.provisioning.canonical_study_root,
+    'control',
+    'lifecycle.json'
+  );
+  if (
+    error?.code !== 'contract_shape_invalid' ||
+    error?.message !== 'Qualification-only lifecycle cannot authorize an ordinary Stage or business route.' ||
+    error?.exit_code !== 3 ||
+    details?.failure_code !== 'domain_lifecycle_stage_launch_blocked' ||
+    details?.lifecycle_state !== input.provisioning.lifecycle_state ||
+    details?.qualification_only !== true ||
+    details?.business_status !== 'qualification_only' ||
+    JSON.stringify(forbiddenRoutes) !== JSON.stringify(expectedForbiddenRoutes) ||
+    !lifecyclePath ||
+    realpathOrResolve(lifecyclePath) !== realpathOrResolve(expectedLifecyclePath)
+  ) {
+    return null;
+  }
+  return {
+    status: 'passed',
+    verification_mode: 'qualification_only_stage_admission_guard',
+    activation_owner: 'one-person-lab_family_runtime',
+    package_id: input.target.packageId,
+    domain_id: input.stageTarget.domain_id,
+    stage_id: input.stageTarget.stage_id,
+    workspace_locator: input.workspace,
+    study_id: input.provisioning.study_id,
+    provisioning_receipt_ref: input.provisioning.receipt_ref,
+    stage_manifest_path: input.stageTarget.manifest_path,
+    stage_manifest_sha256: input.stageTarget.manifest_sha256,
+    framework_use_binding_readback: false,
+    framework_admission_guard_readback: true,
+    stage_launch_admitted: false,
+    stage_body_started: false,
+    admission_error_code: error.code,
+    admission_failure_code: details.failure_code,
+    lifecycle_ref: details.lifecycle_ref,
+    qualification_only: true,
+    explicitly_unauthorized_routes: forbiddenRoutes,
+  };
+}
+
 function runFrameworkStageRuntimeActivation(options, target, workspace, beforeState, provisioning = null) {
   const workItemProvisioning =
     target.packageId === 'mas'
@@ -5625,7 +5697,27 @@ function runFrameworkStageRuntimeActivation(options, target, workspace, beforeSt
     '--json',
   ];
   const runOplJsonImpl = options.__testHooks?.runOplJson ?? runOplJson;
-  const result = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
+  let result;
+  try {
+    result = parseOplJsonResult(runOplJsonImpl(args, { ...options, timeoutMs: options.timeoutMs }), args);
+  } catch (error) {
+    if (!workItemProvisioning) throw error;
+    const admissionGuard = qualificationOnlyStageAdmissionGuardExpression({
+      error,
+      target,
+      workspace,
+      stageTarget,
+      provisioning: workItemProvisioning,
+    });
+    if (!admissionGuard) throw error;
+    readAgentPackageLifecycleState(options, target, workspace);
+    return admissionGuard;
+  }
+  if (workItemProvisioning) {
+    throw new Error(
+      `Framework unexpectedly admitted an ordinary Stage for qualification-only Study ${workItemProvisioning.study_id}.`
+    );
+  }
   const afterState = readAgentPackageLifecycleState(options, target, workspace);
   return frameworkStageRuntimeActivationExpression({
     target,
@@ -9118,7 +9210,9 @@ export const __test =
         resolveMasQualificationProvisioningReceipt,
         fullAssistantWorkspacePath,
         frameworkStageRuntimeActivationExpression,
+        qualificationOnlyStageAdmissionGuardExpression,
         runFrameworkStageRuntimeActivation,
+        OplJsonCommandError,
         FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
       }
     : undefined;

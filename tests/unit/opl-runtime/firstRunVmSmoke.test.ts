@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 process.env.NODE_ENV = 'test';
@@ -1651,7 +1652,7 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
-  it('separates ordinary send package-readiness stability from Framework Stage activation evidence', () => {
+  it('separates ordinary send package-readiness stability from the qualification-only Framework guard', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
     const runtimeHome = path.join(root, 'runtime', 'current');
     const moduleRoot = path.join(runtimeHome, 'modules', 'mas');
@@ -1729,10 +1730,40 @@ describe('packaged first-run VM smoke helpers', () => {
       'changed Framework package readiness'
     );
 
-    const useReceiptRef = 'opl://agent-package/use/mas/stage-runtime';
-
     const provisioning = writeMasQualificationProvisioningReceipt(root, workspace);
-    const stageResult = {
+    const guardPayload = {
+      version: 'g2',
+      error: {
+        code: 'contract_shape_invalid',
+        message: 'Qualification-only lifecycle cannot authorize an ordinary Stage or business route.',
+        exit_code: 3,
+        details: {
+          failure_code: 'domain_lifecycle_stage_launch_blocked',
+          lifecycle_ref: pathToFileURL(
+            path.join(workspace, provisioning.receipt.canonical_study_root, 'control', 'lifecycle.json')
+          ).href,
+          lifecycle_state: 'active',
+          qualification_only: true,
+          business_status: 'qualification_only',
+          explicitly_unauthorized_routes: [
+            'stage_body_authorized',
+            'business_action_authorized',
+            'publication_authorized',
+            'submission_authorized',
+          ],
+        },
+      },
+    };
+    const guardError = new __test.OplJsonCommandError(
+      'qualification-only Stage launch blocked',
+      { status: 3 },
+      { stdout: '', stderr: JSON.stringify(guardPayload) }
+    );
+    const runOplJson = vi.fn((args: string[]) => {
+      if (args[0] === 'family-runtime') throw guardError;
+      return JSON.stringify(afterPayload);
+    });
+    const unexpectedStageResult = {
       version: 'g2',
       family_runtime_stage_run: {
         blocked_reason: __test.FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
@@ -1743,21 +1774,10 @@ describe('packaged first-run VM smoke helpers', () => {
           workspace_locator: {
             workspace_root: workspace,
             study_id: provisioning.receipt.study_id,
-            package_use_binding: {
-              surface_kind: 'opl_agent_package_use_binding.v1',
-              use_boundary_id: 'package-use-stage-runtime',
-              use_receipt_ref: useReceiptRef,
-              scope: 'workspace',
-              target_root: workspace,
-              root_package: { package_id: 'mas' },
-            },
           },
         },
       },
     };
-    const runOplJson = vi.fn((args: string[]) =>
-      JSON.stringify(args[0] === 'family-runtime' ? stageResult : afterPayload)
-    );
     try {
       expect(() => __test.resolveFrameworkStageRuntimeTarget(beforePayload.opl_agent_package_status, target)).toThrow(
         'has no Framework-owned runtime source checkout'
@@ -1792,6 +1812,7 @@ describe('packaged first-run VM smoke helpers', () => {
       );
       expect(evidence).toMatchObject({
         status: 'passed',
+        verification_mode: 'qualification_only_stage_admission_guard',
         activation_owner: 'one-person-lab_family_runtime',
         package_id: 'mas',
         domain_id: 'medautoscience',
@@ -1799,9 +1820,13 @@ describe('packaged first-run VM smoke helpers', () => {
         workspace_locator: workspace,
         study_id: provisioning.receipt.study_id,
         provisioning_receipt_ref: provisioning.receipt.receipt_ref,
-        use_receipt_ref: useReceiptRef,
-        framework_use_binding_readback: true,
+        framework_use_binding_readback: false,
+        framework_admission_guard_readback: true,
+        stage_launch_admitted: false,
         stage_body_started: false,
+        admission_error_code: 'contract_shape_invalid',
+        admission_failure_code: 'domain_lifecycle_stage_launch_blocked',
+        qualification_only: true,
       });
       const stageArgs = runOplJson.mock.calls[0][0];
       expect(stageArgs).toEqual(
@@ -1818,6 +1843,26 @@ describe('packaged first-run VM smoke helpers', () => {
       expect(stageArgs).toContain(
         JSON.stringify({ workspace_root: workspace, study_id: provisioning.receipt.study_id })
       );
+      const unexpectedAdmission = vi.fn((args: string[]) =>
+        JSON.stringify(args[0] === 'family-runtime' ? unexpectedStageResult : afterPayload)
+      );
+      expect(() =>
+        __test.runFrameworkStageRuntimeActivation(
+          {
+            timeoutMs: 30_000,
+            runtimeProfile: 'full',
+            runtimeHome,
+            masStudyProvisioningReceipt: provisioning.receiptPath,
+            __testHooks: { runOplJson: unexpectedAdmission },
+          },
+          target,
+          workspace,
+          {
+            status: beforePayload.opl_agent_package_status,
+            snapshot: beforeSnapshot,
+          }
+        )
+      ).toThrow('unexpectedly admitted an ordinary Stage for qualification-only Study');
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
