@@ -5491,6 +5491,38 @@ function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
   return null;
 }
 
+function resolveStandardAgentInterface(checkoutPath, descriptorPath, descriptor) {
+  const declared = descriptor.standard_agent_interface;
+  if (
+    isRecord(declared) &&
+    declared.ref_kind === 'repo_json_pointer' &&
+    typeof declared.ref === 'string'
+  ) {
+    const [relativePath, pointer = ''] = declared.ref.split('#', 2);
+    const resolvedCheckoutPath = path.resolve(checkoutPath);
+    const interfacePath = path.resolve(resolvedCheckoutPath, relativePath);
+    if (
+      interfacePath !== resolvedCheckoutPath &&
+      !interfacePath.startsWith(`${resolvedCheckoutPath}${path.sep}`)
+    ) {
+      throw new Error(`Standard Agent interface ref in ${descriptorPath} must stay inside its package checkout.`);
+    }
+    if (!fs.existsSync(interfacePath)) {
+      throw new Error(`Standard Agent interface ref in ${descriptorPath} does not resolve to a file.`);
+    }
+    let payload = JSON.parse(fs.readFileSync(interfacePath, 'utf8'));
+    for (const segment of pointer.replace(/^\//, '').split('/').filter(Boolean)) {
+      const key = segment.replace(/~1/g, '/').replace(/~0/g, '~');
+      if (!isRecord(payload) || !(key in payload)) {
+        throw new Error(`Standard Agent interface JSON pointer in ${descriptorPath} does not resolve.`);
+      }
+      payload = payload[key];
+    }
+    return isRecord(payload) ? payload : null;
+  }
+  return isRecord(declared) ? declared : null;
+}
+
 function resolveFrameworkStageRuntimeTarget(packageStatus, target, options = {}) {
   const checkoutPath = options.runtimeHome
     ? resolvePackagedFrameworkStageRuntimeCheckoutPath(options.runtimeHome, target)
@@ -5504,23 +5536,30 @@ function resolveFrameworkStageRuntimeTarget(packageStatus, target, options = {})
   const manifestBytes = fs.readFileSync(manifestPath);
   const descriptor = JSON.parse(descriptorBytes.toString('utf8'));
   const manifest = JSON.parse(manifestBytes.toString('utf8'));
+  const standardAgentInterface = resolveStandardAgentInterface(checkoutPath, descriptorPath, descriptor);
   const manifestDomainId =
     typeof manifest.target_domain_id === 'string' && manifest.target_domain_id.trim()
       ? manifest.target_domain_id.trim()
       : null;
   const runtimeDomainId =
-    typeof descriptor.standard_agent_interface?.runtime?.runtime_domain_id === 'string' &&
-    descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
-      ? descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
+    typeof standardAgentInterface?.runtime?.runtime_domain_id === 'string' &&
+    standardAgentInterface.runtime.runtime_domain_id.trim()
+      ? standardAgentInterface.runtime.runtime_domain_id.trim()
       : null;
   const stage = Array.isArray(manifest.stages)
     ? manifest.stages.find((candidate) => isRecord(candidate) && typeof candidate.stage_id === 'string')
     : null;
   const stageId = stage?.stage_id?.trim() || null;
-  if (!manifestDomainId || !runtimeDomainId || !stageId) {
-    throw new Error(`Package ${target.packageId} stage manifest does not declare a runtime domain and stage.`);
+  if (!manifestDomainId) {
+    throw new Error(`Package ${target.packageId} stage manifest does not declare a target domain.`);
   }
-  const descriptorDomainIds = [descriptor.domain_id, descriptor.standard_agent_interface?.runtime?.runtime_domain_id]
+  if (!stageId) {
+    throw new Error(`Package ${target.packageId} stage manifest does not declare a stage.`);
+  }
+  if (!runtimeDomainId) {
+    throw new Error(`Package ${target.packageId} standard Agent interface does not declare a runtime domain.`);
+  }
+  const descriptorDomainIds = [descriptor.domain_id, runtimeDomainId]
     .filter((value) => typeof value === 'string' && value.trim())
     .map((value) => value.trim());
   if (!descriptorDomainIds.includes(manifestDomainId)) {

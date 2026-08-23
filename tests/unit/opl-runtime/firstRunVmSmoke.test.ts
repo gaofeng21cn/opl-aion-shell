@@ -1695,6 +1695,59 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
+  it('resolves the RCA runtime domain from its repo JSON-pointer interface', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-rca-stage-runtime-domain-'));
+    const runtimeHome = path.join(root, 'runtime', 'current');
+    const moduleRoot = path.join(runtimeHome, 'modules', 'rca');
+    const manifestPath = path.join(moduleRoot, 'agent', 'stages', 'manifest.json');
+    const descriptorPath = path.join(moduleRoot, 'contracts', 'domain_descriptor.json');
+    const interfacePath = path.join(moduleRoot, 'contracts', 'standard_agent_interface.json');
+    const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[2];
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(path.dirname(descriptorPath), { recursive: true });
+    fs.mkdirSync(path.join(moduleRoot, 'plugins'), { recursive: true });
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({ packaged_runtime: true, module_id: 'redcube', repo_name: 'redcube-ai' })
+    );
+    fs.writeFileSync(
+      descriptorPath,
+      JSON.stringify({
+        package_id: 'rca',
+        domain_id: 'redcube_ai',
+        standard_agent_interface: {
+          ref_kind: 'repo_json_pointer',
+          ref: 'contracts/standard_agent_interface.json#/standard_agent_interface',
+        },
+      })
+    );
+    fs.writeFileSync(
+      interfacePath,
+      JSON.stringify({
+        standard_agent_interface: { runtime: { runtime_domain_id: 'redcube_ai' } },
+      })
+    );
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        target_domain_id: 'redcube_ai',
+        stages: [{ stage_id: 'source_intake' }],
+      })
+    );
+    try {
+      expect(__test.resolveFrameworkStageRuntimeTarget({}, target, { runtimeHome })).toMatchObject({
+        domain_id: 'redcube_ai',
+        stage_id: 'source_intake',
+        runtime_source: 'packaged_full_runtime_module',
+        domain_descriptor_path: descriptorPath,
+        manifest_path: manifestPath,
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('separates ordinary send package-readiness stability from the qualification-only Framework guard', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
     const runtimeHome = path.join(root, 'runtime', 'current');
