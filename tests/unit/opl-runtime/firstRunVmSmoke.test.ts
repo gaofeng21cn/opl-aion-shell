@@ -1652,6 +1652,49 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
+  it('uses the descriptor runtime domain for a MAG StageRun while validating its manifest domain', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-mag-stage-runtime-domain-'));
+    const runtimeHome = path.join(root, 'runtime', 'current');
+    const moduleRoot = path.join(runtimeHome, 'modules', 'mag');
+    const manifestPath = path.join(moduleRoot, 'agent', 'stages', 'manifest.json');
+    const descriptorPath = path.join(moduleRoot, 'contracts', 'domain_descriptor.json');
+    const markerPath = path.join(moduleRoot, 'opl-runtime-module.json');
+    const target = __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[1];
+    fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+    fs.mkdirSync(path.dirname(descriptorPath), { recursive: true });
+    fs.mkdirSync(path.join(moduleRoot, 'plugins'), { recursive: true });
+    fs.writeFileSync(
+      markerPath,
+      JSON.stringify({ packaged_runtime: true, module_id: 'medautogrant', repo_name: 'med-autogrant' })
+    );
+    fs.writeFileSync(
+      descriptorPath,
+      JSON.stringify({
+        package_id: 'mag',
+        domain_id: 'med-autogrant',
+        standard_agent_interface: { runtime: { runtime_domain_id: 'medautogrant' } },
+      })
+    );
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        target_domain_id: 'med-autogrant',
+        stages: [{ stage_id: 'call_and_candidate_intake' }],
+      })
+    );
+    try {
+      expect(__test.resolveFrameworkStageRuntimeTarget({}, target, { runtimeHome })).toMatchObject({
+        domain_id: 'medautogrant',
+        stage_id: 'call_and_candidate_intake',
+        runtime_source: 'packaged_full_runtime_module',
+        domain_descriptor_path: descriptorPath,
+        manifest_path: manifestPath,
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('separates ordinary send package-readiness stability from the qualification-only Framework guard', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
     const runtimeHome = path.join(root, 'runtime', 'current');

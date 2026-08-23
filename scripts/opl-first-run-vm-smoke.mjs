@@ -5504,28 +5504,33 @@ function resolveFrameworkStageRuntimeTarget(packageStatus, target, options = {})
   const manifestBytes = fs.readFileSync(manifestPath);
   const descriptor = JSON.parse(descriptorBytes.toString('utf8'));
   const manifest = JSON.parse(manifestBytes.toString('utf8'));
-  const domainId =
+  const manifestDomainId =
     typeof manifest.target_domain_id === 'string' && manifest.target_domain_id.trim()
       ? manifest.target_domain_id.trim()
+      : null;
+  const runtimeDomainId =
+    typeof descriptor.standard_agent_interface?.runtime?.runtime_domain_id === 'string'
+      && descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
+      ? descriptor.standard_agent_interface.runtime.runtime_domain_id.trim()
       : null;
   const stage = Array.isArray(manifest.stages)
     ? manifest.stages.find((candidate) => isRecord(candidate) && typeof candidate.stage_id === 'string')
     : null;
   const stageId = stage?.stage_id?.trim() || null;
-  if (!domainId || !stageId) {
+  if (!manifestDomainId || !runtimeDomainId || !stageId) {
     throw new Error(`Package ${target.packageId} stage manifest does not declare a runtime domain and stage.`);
   }
   const descriptorDomainIds = [descriptor.domain_id, descriptor.standard_agent_interface?.runtime?.runtime_domain_id]
     .filter((value) => typeof value === 'string' && value.trim())
     .map((value) => value.trim());
-  if (!descriptorDomainIds.includes(domainId)) {
+  if (!descriptorDomainIds.includes(manifestDomainId)) {
     throw new Error(`Package ${target.packageId} domain descriptor does not match its stage manifest.`);
   }
   if (typeof descriptor.package_id === 'string' && descriptor.package_id.trim() !== target.packageId) {
     throw new Error(`Package ${target.packageId} domain descriptor exposes a different package identity.`);
   }
   return {
-    domain_id: domainId,
+    domain_id: runtimeDomainId,
     stage_id: stageId,
     runtime_source: options.runtimeHome ? 'packaged_full_runtime_module' : 'framework_package_status',
     domain_descriptor_path: descriptorPath,
@@ -5556,9 +5561,6 @@ function frameworkStageRuntimeActivationExpression(input) {
   if (typeof useBinding?.use_boundary_id !== 'string' || !useBinding.use_boundary_id) {
     errors.push('use_boundary_id');
   }
-  if (typeof useBinding?.use_receipt_ref !== 'string' || !useBinding.use_receipt_ref) {
-    errors.push('use_receipt_ref');
-  }
   if (stageRun?.blocked_reason !== FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON) {
     errors.push('stage_body_blocker');
   }
@@ -5580,7 +5582,6 @@ function frameworkStageRuntimeActivationExpression(input) {
     stage_manifest_path: input.stageTarget.manifest_path,
     stage_manifest_sha256: input.stageTarget.manifest_sha256,
     use_boundary_id: useBinding.use_boundary_id,
-    use_receipt_ref: useBinding.use_receipt_ref,
     framework_use_binding_readback: true,
     stage_body_started: false,
     stage_body_blocked_reason: FRAMEWORK_STAGE_ACTIVATION_SMOKE_BLOCKED_REASON,
