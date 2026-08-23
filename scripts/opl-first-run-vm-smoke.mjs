@@ -5446,7 +5446,14 @@ function resolveFrameworkStageRuntimeCheckoutPath(packageStatus) {
   const carrier = isRecord(configuredCarrier?.carrier) ? configuredCarrier.carrier : null;
   const observedSources = Array.isArray(carrier?.observed_sources) ? carrier.observed_sources : [];
   for (const observedSource of observedSources) {
-    if (isRecord(observedSource)) addCandidate(observedSource.marketplace_source);
+    if (isRecord(observedSource)) {
+      // Framework's native carrier projection exposes the physical checkout
+      // separately from its marketplace identity. Prefer the physical path;
+      // marketplace_source is a repository identity and is only a fallback
+      // for legacy local-carrier projections.
+      addCandidate(observedSource.plugin_source_path);
+      addCandidate(observedSource.marketplace_source);
+    }
   }
 
   const checked = new Set();
