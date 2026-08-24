@@ -189,29 +189,36 @@ printf '%s\\n' "\${OPL_WEBUI_USERNAME:-}" > "${tmp}/webui-username"
     expect(fs.readFileSync(path.join(fixture.dataDir, 'existing-user.db'), 'utf8')).toBe('preserve\n');
   });
 
-  it('fails before WebUI startup and leaves no marker when Official Profile convergence fails', () => {
+  it('records Official Profile failure, starts WebUI, and waits for an explicit retry', () => {
     const fixture = writeFixture();
-    const result = spawnSync('sh', [entrypointPath, 'start'], {
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
-        AIONUI_DATA_DIR: fixture.dataDir,
-        OPL_DATA_DIR: fixture.dataDir,
-        OPL_PROJECTS_DIR: fixture.projectsDir,
-        OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
-        OPL_IMAGE_SEED_DIR: fixture.seedDir,
-        AIONUI_WEB_BIN: fixture.webBin,
-        OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
-        OPL_TEST_PROFILE_FAIL: '1',
-      },
-    });
+    const env = {
+      ...process.env,
+      PATH: `${fixture.fakeBin}${path.delimiter}${process.env.PATH ?? ''}`,
+      AIONUI_DATA_DIR: fixture.dataDir,
+      OPL_DATA_DIR: fixture.dataDir,
+      OPL_PROJECTS_DIR: fixture.projectsDir,
+      OPL_IMAGE_MANIFEST_PATH: fixture.manifestPath,
+      OPL_IMAGE_SEED_DIR: fixture.seedDir,
+      AIONUI_WEB_BIN: fixture.webBin,
+      OPL_OFFICIAL_PROFILE_APPLY_BIN: fixture.officialProfileBin,
+      OPL_TEST_PROFILE_FAIL: '1',
+    };
 
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain('"status":"failed"');
-    expect(result.stderr).toContain('Official Profile first-install failed with status 17');
+    const first = spawnSync('sh', [entrypointPath, 'start'], { encoding: 'utf8', env });
+    const second = spawnSync('sh', [entrypointPath, 'start'], { encoding: 'utf8', env });
+
+    expect(first.status).toBe(0);
+    expect(first.stderr).toContain('"status":"failed"');
+    expect(first.stderr).toContain('Official Profile first-install failed with status 17; continuing WebUI');
+    expect(second.status).toBe(0);
+    expect(second.stderr).toContain('Official Profile first-install previously failed; waiting for an explicit retry');
     expect(fs.existsSync(path.join(fixture.dataDir, '.official-profile-first-install-complete'))).toBe(false);
-    expect(fs.existsSync(path.join(tmp, 'webui-args'))).toBe(false);
+    expect(
+      JSON.parse(fs.readFileSync(path.join(fixture.dataDir, '.official-profile-first-install-attempt-result'), 'utf8'))
+        .official_profile_package_apply.status
+    ).toBe('failed');
+    expect(fs.readFileSync(path.join(tmp, 'official-profile-args'), 'utf8').trim().split(/\r?\n/)).toHaveLength(1);
+    expect(fs.readFileSync(path.join(tmp, 'webui-args'), 'utf8').trim()).toBe('start');
   });
 
   it('skips seed apply for slim metadata-only images and still starts maintenance and WebUI', () => {
