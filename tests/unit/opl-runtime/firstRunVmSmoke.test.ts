@@ -1530,6 +1530,43 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(receiptExpression).toContain("matched.extra?.backend !== 'codex'");
   });
 
+  it('dismisses only the downloaded update modal before preparing a real assistant pointer send', () => {
+    const dom = new JSDOM(
+      `<!doctype html><body>
+        <div role="dialog" id="unrelated-dialog"><div><h3>Confirm action</h3><button type="button">Close</button></div></div>
+        <div role="dialog" id="update-dialog"><div><h3>Software update</h3><button type="button">Close</button></div></div>
+      </body>`,
+      { runScripts: 'outside-only', url: 'https://opl.invalid/#/guid' }
+    );
+    const updateDialog = dom.window.document.querySelector('#update-dialog') as HTMLElement;
+    const unrelatedDialog = dom.window.document.querySelector('#unrelated-dialog') as HTMLElement;
+    const updateClose = updateDialog.querySelector('button') as HTMLButtonElement;
+    const unrelatedClose = unrelatedDialog.querySelector('button') as HTMLButtonElement;
+    const updateCloseSpy = vi.fn(() => updateDialog.remove());
+    const unrelatedCloseSpy = vi.fn();
+    updateClose.addEventListener('click', updateCloseSpy);
+    unrelatedClose.addEventListener('click', unrelatedCloseSpy);
+    for (const dialog of [updateDialog, unrelatedDialog]) {
+      Object.defineProperty(dialog, 'getBoundingClientRect', {
+        value: () => ({ width: 400, height: 300 }),
+      });
+    }
+    Object.defineProperty(updateClose, 'getBoundingClientRect', {
+      value: () => ({ width: 24, height: 24 }),
+    });
+
+    const expression = __test.homeAssistantRouteSendWithoutActivationExpression(
+      __test.OPL_ASSISTANT_ROUTE_SMOKE_TARGETS[0],
+      'Verify MAS launch.'
+    );
+    expect(dom.window.eval(expression)).toBe(false);
+    expect(updateCloseSpy).toHaveBeenCalledOnce();
+    expect(unrelatedCloseSpy).not.toHaveBeenCalled();
+    expect(dom.window.document.querySelector('#update-dialog')).toBeNull();
+    expect(dom.window.document.querySelector('#unrelated-dialog')).not.toBeNull();
+    dom.window.close();
+  });
+
   it('accepts an ordinary conversation only when Shell activation evidence is absent', async () => {
     const dom = new JSDOM('<!doctype html><body></body>', {
       runScripts: 'outside-only',

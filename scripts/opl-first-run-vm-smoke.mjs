@@ -4973,6 +4973,25 @@ function homeAssistantCoreReadinessExpression(pendingAsFalse = true) {
 
 function homeAssistantRouteSendWithoutActivationExpression(target, prompt) {
   return `(() => {
+    const visible = (node) => {
+      if (!node) return false;
+      const rect = node.getBoundingClientRect();
+      const style = window.getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+    };
+    const updateModal = [...document.querySelectorAll('[role="dialog"], .arco-modal')].find((node) => {
+      if (!visible(node)) return false;
+      const title = node.querySelector('h3');
+      const titleText = title?.textContent?.trim() || '';
+      return titleText === 'Software update' || titleText === '\\u8f6f\\u4ef6\\u66f4\\u65b0';
+    });
+    if (updateModal) {
+      const title = updateModal.querySelector('h3');
+      const closeButton = title?.parentElement?.querySelector('button[type="button"]');
+      if (!visible(closeButton)) throw new Error('Downloaded update modal did not expose its close button');
+      closeButton.click();
+      return false;
+    }
     const input = document.querySelector('[data-testid="guid-input"] textarea, [data-testid="guid-input"]');
     const sendButton = document.querySelector('[data-testid="guid-send-btn"]');
     const composer = document.querySelector('[data-testid="opl-guid-entry"]');
