@@ -10,6 +10,7 @@ set -eu
 : "${AIONUI_WEB_BIN:=/app/aionui-web/aionui-web}"
 : "${OPL_OFFICIAL_PROFILE_APPLY_BIN:=/app/aionui-web/opl-official-profile-apply}"
 : "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER:=${OPL_DATA_DIR}/.official-profile-first-install-complete}"
+: "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT:=${OPL_DATA_DIR}/.official-profile-first-install-attempt-result}"
 
 export AIONUI_DATA_DIR
 export OPL_DATA_DIR
@@ -215,6 +216,11 @@ if command -v opl >/dev/null 2>&1; then
       [ -f "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}" ] \
         || fail "Official Profile first-install marker is not a file: ${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_MARKER}"
       log "Official Profile first-install marker already exists; preserving user Package choices"
+    elif [ -e "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT}" ]; then
+      [ -f "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT}" ] \
+        || fail "Official Profile first-install attempt result is not a file: ${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT}"
+      log "Official Profile first-install previously failed; waiting for an explicit retry"
+      cat "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT}" >&2
     else
       [ -x "${OPL_OFFICIAL_PROFILE_APPLY_BIN}" ] \
         || fail "Official Profile helper is not executable: ${OPL_OFFICIAL_PROFILE_APPLY_BIN}"
@@ -231,8 +237,9 @@ if command -v opl >/dev/null 2>&1; then
       else
         profile_status="$?"
         cat "${marker_temp}" >&2 || true
-        rm -f "${marker_temp}" || true
-        fail "Official Profile first-install failed with status ${profile_status}"
+        mv "${marker_temp}" "${OPL_OFFICIAL_PROFILE_FIRST_INSTALL_ATTEMPT_RESULT}" \
+          || fail "cannot record Official Profile first-install attempt result"
+        log "Official Profile first-install failed with status ${profile_status}; continuing WebUI"
       fi
     fi
   fi
