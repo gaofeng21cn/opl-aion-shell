@@ -27,7 +27,7 @@ interface UseAttachEntryOptions {
 }
 
 interface UseAttachEntryResult {
-  /** File entry plus an optional directory entry; WebUI also includes device upload.
+  /** Desktop file/directory entries, or the browser upload entry in WebUI.
    * Entries stay flat so all top-level rows share a uniform height. */
   entries: MobileActionSheetEntry[];
   /** Mount this near the sendbox so the hidden file input can be triggered. */
@@ -37,7 +37,7 @@ interface UseAttachEntryResult {
 /**
  * Builds the "Attach" entries for the mobile action sheet, branching on platform:
  * - Desktop: host file picker plus the optional host directory picker.
- * - WebUI: host file/directory pickers plus browser device upload.
+ * - WebUI: browser device upload only; host filesystem browsing is unavailable.
  */
 export const useAttachEntry = ({
   openFileSelector,
@@ -94,33 +94,16 @@ export const useAttachEntry = ({
       return desktopEntries;
     }
 
-    const webEntries: MobileActionSheetEntry[] = [
+    return [
       {
-        key: 'attach-host-files',
+        key: 'attach',
         icon: <OplIcon name='paperclip' />,
         label: t('common.fileAttach.addFiles', { defaultValue: 'Add files' }),
         variant: 'muted',
         dividerBefore,
-        onClick: () => openFileSelector(),
+        onClick: () => triggerLocalUpload(),
       },
     ];
-    if (openDirectorySelector) {
-      webEntries.push({
-        key: 'attach-host-directory',
-        icon: <OplIcon name='folderOpen' />,
-        label: directoryLabel,
-        variant: 'muted',
-        onClick: () => openDirectorySelector(),
-      });
-    }
-    webEntries.push({
-      key: 'attach-my-device',
-      icon: <OplIcon name='folderUpload' />,
-      label: t('common.fileAttach.myDevice', { defaultValue: 'Upload from device' }),
-      variant: 'muted',
-      onClick: () => triggerLocalUpload(),
-    });
-    return webEntries;
   }, [directoryLabel, dividerBefore, isDesktop, openDirectorySelector, openFileSelector, t, triggerLocalUpload]);
 
   const hiddenFileInput = (

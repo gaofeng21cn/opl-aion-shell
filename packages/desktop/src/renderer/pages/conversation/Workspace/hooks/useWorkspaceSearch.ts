@@ -7,7 +7,7 @@
 import type { IDirOrFile } from '@/common/adapter/ipcBridge';
 import useDebounce from '@/renderer/hooks/ui/useDebounce';
 import type { RefInputType } from '@arco-design/web-react/es/Input/interface';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 type UseWorkspaceSearchParams = {
   workspace: string;
@@ -15,16 +15,12 @@ type UseWorkspaceSearchParams = {
 };
 
 /**
- * Manages workspace search state, debounced search callback, focus behavior,
- * and host file selector state (WebUI).
+ * Manages workspace search state, debounced search callback, and focus behavior.
  */
 export function useWorkspaceSearch({ workspace, loadWorkspace }: UseWorkspaceSearchParams) {
   const [searchText, setSearchText] = useState('');
   const [showSearch, setShowSearch] = useState(true);
   const searchInputRef = useRef<RefInputType | null>(null);
-
-  // Host file selector state (WebUI: use DirectorySelectionModal instead of native dialog)
-  const [showHostFileSelector, setShowHostFileSelector] = useState(false);
 
   // Only focus search input when user actively opens search, not on conversation switch
   const previousShowSearchRef = useRef<boolean | null>(null);
@@ -60,20 +56,6 @@ export function useWorkspaceSearch({ workspace, loadWorkspace }: UseWorkspaceSea
     [workspace, loadWorkspace]
   );
 
-  // Handle host file selection callback (WebUI)
-  const handleHostFileSelected = useCallback(
-    (
-      paths: string[] | undefined,
-      handleFilesToAdd: (files: Array<{ name: string; path: string }>) => Promise<void>
-    ) => {
-      setShowHostFileSelector(false);
-      if (paths && paths.length > 0) {
-        void handleFilesToAdd(paths.map((p) => ({ name: p.split('/').pop() || p, path: p })));
-      }
-    },
-    []
-  );
-
   return {
     searchText,
     setSearchText,
@@ -81,8 +63,5 @@ export function useWorkspaceSearch({ workspace, loadWorkspace }: UseWorkspaceSea
     setShowSearch,
     searchInputRef,
     onSearch,
-    showHostFileSelector,
-    setShowHostFileSelector,
-    handleHostFileSelected,
   };
 }
