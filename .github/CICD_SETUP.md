@@ -13,8 +13,6 @@ distribution 的 owner 已迁到 `gaofeng21cn/one-person-lab-app`。
 - `pr-checks-docs.yml`：文档类 PR 的轻量检查。
 - `_build-reusable.yml`：被手动 build / pack workflow 复用的 shell build 片段。
 - `build-manual.yml`：维护者手动构建 shell 包。
-- `pack-web-cli.yml`：打包 Web CLI 与安装脚本 smoke。
-- `pr-e2e-artifacts.yml`：按需生成 PR E2E artifacts。
 - `bump-homebrew.yml`：验证 Homebrew cask。
 - `aionui-upstream-currentness.yml`：维护者按需检查 AionUI 最新稳定版，
   再由产品 owner 评估行为变化与选择性吸收。
