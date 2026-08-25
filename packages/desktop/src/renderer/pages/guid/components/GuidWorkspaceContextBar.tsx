@@ -1,6 +1,7 @@
 import { ipcBridge } from '@/common';
 import { addRecentWorkspace, getRecentWorkspaces } from '@/renderer/components/workspace';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
+import { isElectronDesktop } from '@/renderer/utils/platform';
 import { Button, Tooltip } from '@arco-design/web-react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +11,7 @@ import GuidWorkspaceManagementModal from './GuidWorkspaceManagementModal';
 type GuidWorkspaceContextBarProps = {
   workspaceDir: string;
   workspaceDisplayDir?: string;
+  webWorkspaceRoot?: string;
   onSelectWorkspace: (workspace: { runtimePath: string; hostPath: string }) => void;
   onClearWorkspace: () => void;
   workspaceAccessDisabled?: boolean;
@@ -19,6 +21,7 @@ type GuidWorkspaceContextBarProps = {
 const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
   workspaceDir,
   workspaceDisplayDir,
+  webWorkspaceRoot,
   onSelectWorkspace,
   onClearWorkspace,
   workspaceAccessDisabled = false,
@@ -26,12 +29,20 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
 }) => {
   const { t } = useTranslation();
   const [managementOpen, setManagementOpen] = useState(false);
+  const isDesktop = isElectronDesktop();
   const displayDir = workspaceDisplayDir || workspaceDir;
   const workspaceName = displayDir ? displayDir.split(/[\\/]/).pop() || displayDir : '';
-  const hasRegisteredWorkspaces = getRecentWorkspaces().length > 0;
+  const hasRegisteredWorkspaces = isDesktop && getRecentWorkspaces().length > 0;
+  const selectionDisabled = workspaceAccessDisabled || (!isDesktop && !webWorkspaceRoot?.trim());
 
   const openWorkspacePicker = useCallback(() => {
-    if (workspaceAccessDisabled) return;
+    if (selectionDisabled) return;
+    if (!isDesktop) {
+      const runtimePath = webWorkspaceRoot?.trim();
+      if (!runtimePath) return;
+      onSelectWorkspace({ runtimePath, hostPath: runtimePath });
+      return;
+    }
     void ipcBridge.dialog.showWorkspace
       .invoke({ properties: ['openDirectory', 'createDirectory'] })
       .then((selection) => {
@@ -42,7 +53,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
       .catch((error) => {
         console.error('Failed to open workspace directory dialog:', error);
       });
-  }, [onSelectWorkspace, workspaceAccessDisabled]);
+  }, [isDesktop, onSelectWorkspace, selectionDisabled, webWorkspaceRoot]);
 
   return (
     <>
@@ -50,7 +61,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
         className={styles.workspaceContextBar}
         data-testid='guid-workspace-context-bar'
         aria-label={t('guid.context.workingDirectory')}
-        aria-disabled={workspaceAccessDisabled}
+        aria-disabled={selectionDisabled}
       >
         <span className={styles.workspaceContextLabel}>
           <OplIcon name='folderOpen' size={16} aria-hidden='true' />
@@ -62,7 +73,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
               type='text'
               size='mini'
               className={styles.workspaceContextPath}
-              disabled={workspaceAccessDisabled}
+              disabled={selectionDisabled}
               onClick={openWorkspacePicker}
               data-testid='guid-workspace-select'
             >
@@ -74,7 +85,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
             type='text'
             size='mini'
             className={styles.workspaceContextPath}
-            disabled={workspaceAccessDisabled}
+            disabled={selectionDisabled}
             onClick={openWorkspacePicker}
             data-testid='guid-workspace-select'
           >
@@ -89,7 +100,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
                 shape='circle'
                 size='mini'
                 icon={<OplIcon name='settingsSmall' size={13} />}
-                disabled={workspaceAccessDisabled}
+                disabled={selectionDisabled}
                 onClick={() => setManagementOpen(true)}
                 aria-label={t('guid.workspace.manageRegistered')}
                 data-testid='guid-workspace-manage'
@@ -103,7 +114,7 @@ const GuidWorkspaceContextBar: React.FC<GuidWorkspaceContextBarProps> = ({
                 shape='circle'
                 size='mini'
                 icon={<OplIcon name='closeFill' size={13} />}
-                disabled={workspaceAccessDisabled}
+                disabled={selectionDisabled}
                 onClick={onClearWorkspace}
                 aria-label={t('guid.context.clearWorkingDirectoryNamed', { name: workspaceName })}
                 data-testid='guid-workspace-clear'

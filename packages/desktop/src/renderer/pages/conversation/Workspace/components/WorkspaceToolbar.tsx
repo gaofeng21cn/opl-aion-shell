@@ -6,7 +6,7 @@
 
 import { iconColors } from '@/renderer/styles/colors';
 import { isElectronDesktop } from '@/renderer/utils/platform';
-import { Dropdown, Input, Menu, Tooltip } from '@arco-design/web-react';
+import { Input, Tooltip } from '@arco-design/web-react';
 import { Down, Plus, Refresh, Search } from '@icon-park/react';
 import React from 'react';
 import UploadProgressBar from '@/renderer/components/media/UploadProgressBar';
@@ -28,9 +28,7 @@ type WorkspaceToolbarProps = {
   loading: boolean;
   refreshWorkspace: () => void;
   // Upload
-  handleSelectHostFiles: () => void;
   handleUploadDeviceFiles: () => void;
-  setShowHostFileSelector: (v: boolean) => void;
 };
 
 /** Toolbar area: workspace name, search toggle, refresh button, upload menu, settings. */
@@ -46,30 +44,8 @@ const WorkspaceToolbar: React.FC<WorkspaceToolbarProps> = ({
   searchInputRef,
   loading,
   refreshWorkspace,
-  handleSelectHostFiles,
   handleUploadDeviceFiles,
-  setShowHostFileSelector,
 }) => {
-  const workspaceUploadMenu = (
-    <Menu
-      onClickMenuItem={(key) => {
-        if (key === 'host') {
-          if (isElectronDesktop()) {
-            handleSelectHostFiles();
-          } else {
-            setShowHostFileSelector(true);
-          }
-        }
-        if (key === 'device') {
-          handleUploadDeviceFiles();
-        }
-      }}
-    >
-      <Menu.Item key='host'>{t('common.fileAttach.addFiles')}</Menu.Item>
-      <Menu.Item key='device'>{t('common.fileAttach.myDevice')}</Menu.Item>
-    </Menu>
-  );
-
   return (
     <div className='px-12px'>
       {/* Search Input */}
@@ -110,16 +86,17 @@ const WorkspaceToolbar: React.FC<WorkspaceToolbarProps> = ({
         </div>
         <div className='workspace-toolbar-actions flex items-center gap-8px flex-shrink-0'>
           {!isElectronDesktop() && (
-            <Dropdown droplist={workspaceUploadMenu} trigger='click' position='bl'>
+            <Tooltip content={t('common.fileAttach.addFiles')}>
               <span>
                 <Plus
                   className='workspace-toolbar-icon-btn lh-[1] flex cursor-pointer'
                   theme='outline'
                   size='16'
                   fill={iconColors.secondary}
+                  onClick={handleUploadDeviceFiles}
                 />
               </span>
-            </Dropdown>
+            </Tooltip>
           )}
           <Tooltip content={t('conversation.workspace.refresh')}>
             <span>

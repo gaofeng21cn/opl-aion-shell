@@ -57,6 +57,55 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
   const [pasteTargetFolder, setPasteTargetFolder] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const projectTargetRef = useRef<
+    | {
+        conversation_id: string;
+        promise: Promise<{ pe_id: string }>;
+      }
+    | undefined
+  >(undefined);
+
+  const resolveProjectTarget = useCallback(async (): Promise<{ pe_id: string }> => {
+    if (projectTargetRef.current?.conversation_id === conversation_id) {
+      return projectTargetRef.current.promise;
+    }
+
+    const promise = (async () => {
+      const conversation = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+      const projectId = conversation.project_id?.trim();
+      if (!projectId) {
+        throw new Error('Conversation has no project binding');
+      }
+
+      const project = await ipcBridge.project.get.invoke({ project_id: projectId });
+      const peId = project.explorer.workspace_pe_id?.trim();
+      if (!peId) {
+        throw new Error('Project has no workspace explorer');
+      }
+      return { pe_id: peId };
+    })();
+
+    projectTargetRef.current = { conversation_id, promise };
+    try {
+      return await promise;
+    } catch (error) {
+      if (projectTargetRef.current?.promise === promise) {
+        projectTargetRef.current = undefined;
+      }
+      throw error;
+    }
+  }, [conversation_id]);
+
+  const copyFilesIntoProject = useCallback(
+    async (filePaths: string[], relativePath = '') => {
+      const { pe_id } = await resolveProjectTarget();
+      return ipcBridge.fs.copyFilesToWorkspace.invoke({
+        file_paths: filePaths,
+        target: { pe_id, relative_path: relativePath },
+      });
+    },
+    [resolveProjectTarget]
+  );
 
   const copyFilesIntoWorkspace = useCallback(
     async (selectedFiles: string[]) => {
@@ -64,7 +113,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         return;
       }
 
-      const result = await ipcBridge.fs.copyFilesToWorkspace.invoke({ file_paths: selectedFiles, workspace });
+      const result = await copyFilesIntoProject(selectedFiles);
       const copiedFiles = result.copied_files ?? [];
       const failedFiles = result.failed_files ?? [];
 
@@ -78,7 +127,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         messageApi.warning('Some files failed to copy');
       }
     },
-    [workspace, refreshWorkspace, messageApi, t]
+    [copyFilesIntoProject, refreshWorkspace, messageApi]
   );
 
   const handleSelectHostFiles = useCallback(() => {
@@ -111,7 +160,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       input.addEventListener('change', async () => {
         const fileList = input.files;
         if (!fileList || fileList.length === 0) return;
-        let successCount = 0;
+        const uploadedPaths: string[] = [];
         try {
           for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
@@ -123,10 +172,10 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
               onAbort: () => controller.abort(),
             });
             try {
-              await uploadFileViaHttp(file, conversation_id, tracker.onProgress, undefined, {
+              const uploadedPath = await uploadFileViaHttp(file, conversation_id, tracker.onProgress, undefined, {
                 signal: controller.signal,
               });
-              successCount++;
+              uploadedPaths.push(uploadedPath);
             } catch (error) {
               // Quietly swallow user-initiated aborts; surface real failures.
               if (!(error instanceof Error && error.message === UPLOAD_ABORTED_ERROR)) {
@@ -136,12 +185,21 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
               tracker.finish();
             }
           }
-          if (successCount > 0) {
-            messageApi.success(t('common.fileAttach.uploadSuccess') || 'Uploaded');
-            setTimeout(() => refreshWorkspace(), 300);
+          if (uploadedPaths.length > 0) {
+            const targetFolder = getTargetFolderPath(selectedNodeRef.current, selected, files, workspace);
+            const result = await copyFilesIntoProject(uploadedPaths, targetFolder.relativePath ?? '');
+            const copiedFiles = result.copied_files ?? [];
+            const failedFiles = result.failed_files ?? [];
+            if (copiedFiles.length > 0) {
+              messageApi.success(t('common.fileAttach.uploadSuccess') || 'Uploaded');
+              setTimeout(() => refreshWorkspace(), 300);
+            }
+            if (failedFiles.length > 0) {
+              messageApi.warning('Some files failed to copy');
+            }
           }
         } catch {
-          // unexpected error
+          messageApi.error(t('common.unknownError') || 'Upload failed');
         }
         input.value = '';
       });
@@ -150,7 +208,18 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
     }
 
     fileInputRef.current.click();
-  }, [conversation_id, handleSelectHostFiles, messageApi, refreshWorkspace, t]);
+  }, [
+    conversation_id,
+    copyFilesIntoProject,
+    files,
+    handleSelectHostFiles,
+    messageApi,
+    refreshWorkspace,
+    selected,
+    selectedNodeRef,
+    t,
+    workspace,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -171,7 +240,6 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
 
       // 使用工具函数获取目标文件夹路径 / Use utility function to get target folder path
       const targetFolder = getTargetFolderPath(selectedNodeRef.current, selected, files, workspace);
-      const targetFolderPath = targetFolder.fullPath;
       const targetFolderKey = targetFolder.relativePath;
 
       // 设置粘贴目标文件夹以提供视觉反馈 / Set paste target folder for visual feedback
@@ -184,7 +252,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       if (skipConfirm) {
         try {
           const file_paths = filesMeta.map((f) => f.path);
-          const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ file_paths, workspace: targetFolderPath });
+          const res = await copyFilesIntoProject(file_paths, targetFolderKey ?? '');
           const copiedFiles = res.copied_files ?? [];
           const failedFiles = res.failed_files ?? [];
 
@@ -197,7 +265,7 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
             // 如果有文件粘贴失败则通知用户 / Notify user when any paste fails
             messageApi.warning('Some files failed to copy');
           }
-        } catch (error) {
+        } catch {
           messageApi.error(t('common.unknownError') || 'Paste failed');
         } finally {
           // 操作完成后重置粘贴目标文件夹（成功或失败都重置）
@@ -216,7 +284,17 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
         targetFolder: targetFolderKey,
       });
     },
-    [workspace, refreshWorkspace, t, messageApi, files, selected, selectedNodeRef, setPasteConfirm]
+    [
+      workspace,
+      refreshWorkspace,
+      t,
+      messageApi,
+      files,
+      selected,
+      selectedNodeRef,
+      setPasteConfirm,
+      copyFilesIntoProject,
+    ]
   );
 
   /**
@@ -234,10 +312,8 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
 
       // 获取目标文件夹路径 / Get target folder path
       const targetFolder = getTargetFolderPath(selectedNodeRef.current, selected, files, workspace);
-      const targetFolderPath = targetFolder.fullPath;
-
       const file_paths = pasteConfirm.filesToPaste.map((f) => f.path);
-      const res = await ipcBridge.fs.copyFilesToWorkspace.invoke({ file_paths, workspace: targetFolderPath });
+      const res = await copyFilesIntoProject(file_paths, targetFolder.relativePath ?? '');
       const copiedFiles = res.copied_files ?? [];
       const failedFiles = res.failed_files ?? [];
 
@@ -251,19 +327,30 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
       }
 
       closePasteConfirm();
-    } catch (error) {
+    } catch {
       messageApi.error(t('common.unknownError') || 'Paste failed');
     } finally {
       setPasteTargetFolder(null);
     }
-  }, [pasteConfirm, closePasteConfirm, messageApi, t, files, selected, selectedNodeRef, workspace, refreshWorkspace]);
+  }, [
+    pasteConfirm,
+    closePasteConfirm,
+    messageApi,
+    t,
+    files,
+    selected,
+    selectedNodeRef,
+    workspace,
+    refreshWorkspace,
+    copyFilesIntoProject,
+  ]);
 
   // 注册粘贴服务以在工作空间组件获得焦点时捕获全局粘贴事件
   // Register paste service to catch global paste events when workspace component is focused
   const { onFocus } = usePasteService({
     supportedExts: [],
-    onFilesAdded: (files) => {
-      const meta = files.map((f) => ({ name: f.name, path: f.path }));
+    onFilesAdded: (addedFiles) => {
+      const meta = addedFiles.map((f) => ({ name: f.name, path: f.path }));
       void handleFilesToAdd(meta);
     },
     conversation_id,

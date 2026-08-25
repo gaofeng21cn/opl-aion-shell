@@ -55,6 +55,19 @@ import styles from './index.module.css';
 
 const AGENT_REFERENCE_ADMISSION_POLICY = getOplOrdinaryCapabilitySelectorPolicy().agent_reference_admission_policy;
 
+function readWebWorkspaceRoot(appState: unknown): string {
+  if (!appState || typeof appState !== 'object' || Array.isArray(appState)) return '';
+  const pathsValue = (appState as Record<string, unknown>).paths;
+  if (!pathsValue || typeof pathsValue !== 'object' || Array.isArray(pathsValue)) return '';
+  const paths = pathsValue as Record<string, unknown>;
+  const workspaceRootValue = paths.workspace_root;
+  if (workspaceRootValue && typeof workspaceRootValue === 'object' && !Array.isArray(workspaceRootValue)) {
+    const selectedPath = (workspaceRootValue as Record<string, unknown>).selected_path;
+    if (typeof selectedPath === 'string' && selectedPath.trim()) return selectedPath.trim();
+  }
+  return typeof paths.workspace_root_path === 'string' ? paths.workspace_root_path.trim() : '';
+}
+
 type GuidNavigationState = {
   resetAssistant?: boolean;
   selectedAgentKey?: string;
@@ -144,6 +157,7 @@ const GuidPage: React.FC = () => {
   const [setupNoticeKind, setSetupNoticeKind] = useState<GuidSetupNoticeKind | null>(null);
   const [activeShortcut, setActiveShortcut] = useState<OplActiveShortcut | null>(null);
   const { appState } = useOplAppState('fast');
+  const webWorkspaceRoot = useMemo(() => readWebWorkspaceRoot(appState), [appState]);
 
   const localeKey = resolveLocaleKey(i18n.language);
 
@@ -917,6 +931,7 @@ const GuidPage: React.FC = () => {
             <GuidWorkspaceContextBar
               workspaceDir={guidInput.dir}
               workspaceDisplayDir={workspaceDisplayDir}
+              webWorkspaceRoot={webWorkspaceRoot}
               onSelectWorkspace={handleWorkspaceSelect}
               onClearWorkspace={handleWorkspaceClear}
               workspaceAccessDisabled={workspaceAccessBlocked}
