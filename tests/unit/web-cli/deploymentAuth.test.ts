@@ -85,7 +85,7 @@ describe('configureGatewayApiKey', () => {
     const logs: string[] = [];
 
     await configureGatewayApiKey(
-      { localUrl: 'http://127.0.0.1:3000', apiKey: 'sk-test-secret' },
+      { localUrl: 'http://127.0.0.1:3000', apiKey: 'sk-test-secret', sessionCookie: 'sid=abc123' },
       {
         fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
           calls.push({ url: String(input), init });
@@ -100,6 +100,7 @@ describe('configureGatewayApiKey', () => {
 
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe('http://127.0.0.1:3000/api/opl-runtime/configure-codex');
+    expect(calls[0].init?.headers).toMatchObject({ cookie: 'sid=abc123' });
     expect(calls[0].init?.body).toBe(JSON.stringify({ apiKey: 'sk-test-secret' }));
     expect(logs).toEqual(['[aionui-web] OPL Gateway API key configured from external secret.']);
     expect(JSON.stringify(logs)).not.toContain('sk-test-secret');
