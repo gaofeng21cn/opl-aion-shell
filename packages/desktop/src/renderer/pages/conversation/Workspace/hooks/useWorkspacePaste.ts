@@ -71,8 +71,17 @@ export function useWorkspacePaste(options: UseWorkspacePasteOptions) {
     }
 
     const promise = (async () => {
-      const conversation = await ipcBridge.conversation.get.invoke({ id: conversation_id });
-      const projectId = conversation.project_id?.trim();
+      let conversation = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+      let projectId = conversation.project_id?.trim();
+
+      // AionCore may persist a lazy project binding while serving the first
+      // read, so that response can still contain the pre-binding row. One
+      // fresh read observes the binding without adding a general retry loop.
+      if (!projectId) {
+        conversation = await ipcBridge.conversation.get.invoke({ id: conversation_id });
+        projectId = conversation.project_id?.trim();
+      }
+
       if (!projectId) {
         throw new Error('Conversation has no project binding');
       }

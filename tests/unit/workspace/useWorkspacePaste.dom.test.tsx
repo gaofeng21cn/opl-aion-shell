@@ -91,4 +91,52 @@ describe('useWorkspacePaste WebUI project uploads', () => {
 
     unmount();
   });
+
+  it('re-reads a lazily bound conversation before resolving its Project Explorer target', async () => {
+    mocks.conversationGet
+      .mockResolvedValueOnce({ project_id: undefined })
+      .mockResolvedValueOnce({ project_id: 'project-1' });
+    mocks.projectGet.mockResolvedValue({ explorer: { workspace_pe_id: 'pe-workspace' } });
+    mocks.uploadFile.mockResolvedValue('/tmp/aionui/general/input.csv');
+    mocks.copyFiles.mockResolvedValue({ copied_files: ['/projects/input.csv'], failed_files: [] });
+    const refreshWorkspace = vi.fn();
+    const messageApi = { success: vi.fn(), warning: vi.fn(), error: vi.fn() };
+    const selectedNodeRef = { current: null };
+    const { result, unmount } = renderHook(() =>
+      useWorkspacePaste({
+        conversation_id: 'conversation-1',
+        workspace: '/projects',
+        messageApi,
+        t: (key) => key,
+        files: [],
+        selected: [],
+        selectedNodeRef,
+        refreshWorkspace,
+        pasteConfirm: { visible: false, file_name: '', filesToPaste: [], doNotAsk: false, targetFolder: null },
+        setPasteConfirm: vi.fn(),
+        closePasteConfirm: vi.fn(),
+      })
+    );
+
+    act(() => result.current.handleUploadDeviceFiles());
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    fireEvent.change(input!, {
+      target: { files: [new File(['id\n1\n'], 'input.csv', { type: 'text/csv' })] },
+    });
+
+    await waitFor(() =>
+      expect(mocks.copyFiles).toHaveBeenCalledWith({
+        file_paths: ['/tmp/aionui/general/input.csv'],
+        target: { pe_id: 'pe-workspace', relative_path: '' },
+      })
+    );
+    expect(mocks.conversationGet).toHaveBeenCalledTimes(2);
+    expect(mocks.conversationGet).toHaveBeenNthCalledWith(1, { id: 'conversation-1' });
+    expect(mocks.conversationGet).toHaveBeenNthCalledWith(2, { id: 'conversation-1' });
+    expect(mocks.projectGet).toHaveBeenCalledWith({ project_id: 'project-1' });
+    expect(messageApi.error).not.toHaveBeenCalled();
+
+    unmount();
+  });
 });
