@@ -253,6 +253,8 @@ interface IChatConversation<T, Extra> {
   name: string;
   desc?: string;
   id: string;
+  /** AionCore project bound to this conversation, including managed scratch projects. */
+  project_id?: string;
   type: T;
   extra: Extra & TConversationArchiveExtra;
   model: TProviderWithModel;

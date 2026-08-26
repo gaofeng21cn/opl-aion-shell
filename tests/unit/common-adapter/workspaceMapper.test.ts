@@ -5,9 +5,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { fromBackendWorkspaceFlatFiles, type RawWorkspaceFlatFile } from '@/common/adapter/workspaceMapper';
+import {
+  absoluteToRelativePath,
+  fromBackendWorkspaceFlatFiles,
+  type RawWorkspaceFlatFile,
+} from '@/common/adapter/workspaceMapper';
 
 describe('workspaceMapper', () => {
+  it('maps the workspace root to the non-empty backend root path', () => {
+    expect(absoluteToRelativePath('/projects', '/projects')).toBe('.');
+  });
+
   it('maps workspace flat files from backend snake_case to frontend camelCase', () => {
     const raw: RawWorkspaceFlatFile[] = [
       {

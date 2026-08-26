@@ -204,35 +204,35 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   }, [fileAccessDisabled, openDirectorySelector]);
 
   const paletteGroups = useMemo<ComposerCapabilityPaletteGroup[]>(() => {
-    const addItems: ComposerCapabilityPaletteItem[] = [
-      {
-        id: 'attach-file',
-        label: t('guid.context.attachFile'),
-        description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFilesDescription'),
-        icon: <OplIcon name='paperclip' />,
-        disabled: fileAccessDisabled || uploading,
-        onSelect: openHostFilePicker,
-      },
-      {
-        id: 'attach-directory',
-        label: t('guid.context.attachDirectory'),
-        description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFolderDescription'),
-        icon: <OplIcon name='folderOpen' />,
-        disabled: fileAccessDisabled || uploading,
-        onSelect: openHostDirectoryPicker,
-      },
-    ];
-
-    if (isWebUI) {
-      addItems.push({
-        id: 'attach-device',
-        label: t('common.fileAttach.myDevice'),
-        description: fileAccessDisabled ? fileAccessDisabledReason : undefined,
-        icon: <OplIcon name='paperclip' />,
-        disabled: fileAccessDisabled || uploading,
-        onSelect: () => fileInputRef.current?.click(),
-      });
-    }
+    const addItems: ComposerCapabilityPaletteItem[] = isWebUI
+      ? [
+          {
+            id: 'attach-file',
+            label: t('guid.context.attachFile'),
+            description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFilesDescription'),
+            icon: <OplIcon name='paperclip' />,
+            disabled: fileAccessDisabled || uploading,
+            onSelect: () => fileInputRef.current?.click(),
+          },
+        ]
+      : [
+          {
+            id: 'attach-file',
+            label: t('guid.context.attachFile'),
+            description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFilesDescription'),
+            icon: <OplIcon name='paperclip' />,
+            disabled: fileAccessDisabled || uploading,
+            onSelect: openHostFilePicker,
+          },
+          {
+            id: 'attach-directory',
+            label: t('guid.context.attachDirectory'),
+            description: fileAccessDisabled ? fileAccessDisabledReason : t('common.fileAttach.addFolderDescription'),
+            icon: <OplIcon name='folderOpen' />,
+            disabled: fileAccessDisabled || uploading,
+            onSelect: openHostDirectoryPicker,
+          },
+        ];
 
     const agentPackageItems: ComposerCapabilityPaletteItem[] = [];
     assistants

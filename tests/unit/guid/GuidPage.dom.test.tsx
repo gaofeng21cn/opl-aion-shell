@@ -732,7 +732,7 @@ describe('GuidPage selected purpose assistant surface', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
 
     expect(screen.getByTestId('mobile-action-sheet-attach-file')).toBeInTheDocument();
-    expect(screen.getByTestId('mobile-action-sheet-attach-directory')).toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-action-sheet-attach-directory')).not.toBeInTheDocument();
     expect(screen.getByTestId('mobile-action-sheet-permission')).toBeInTheDocument();
     const modelEntry = screen.getByTestId('mobile-action-sheet-model');
     const reasoningEntry = screen.getByTestId('mobile-action-sheet-reasoning');
@@ -890,6 +890,7 @@ describe('GuidPage selected purpose assistant surface', () => {
   });
 
   it('projects a selected workspace into the runtime path while preserving host display', async () => {
+    mocks.isElectronDesktop.value = true;
     const { ipcBridge } = await import('@/common');
     vi.mocked(ipcBridge.dialog.showWorkspace.invoke).mockResolvedValueOnce({
       host_path: 'D:\\研究\\RCT',
@@ -904,6 +905,18 @@ describe('GuidPage selected purpose assistant surface', () => {
       expect(mocks.useGuidSend).toHaveBeenLastCalledWith(expect.objectContaining({ dir: '/mnt/d/研究/RCT' }))
     );
     expect(screen.getByTestId('guid-workspace-select')).toHaveTextContent('RCT');
+  });
+
+  it('selects the owner-projected workspace root directly in WebUI', async () => {
+    const { ipcBridge } = await import('@/common');
+    vi.mocked(ipcBridge.dialog.showWorkspace.invoke).mockClear();
+    render(<GuidPage />);
+
+    await userEvent.click(screen.getByTestId('guid-workspace-select'));
+
+    await waitFor(() => expect(mocks.setDir).toHaveBeenCalledWith('/Users/example/OPL Workspace'));
+    expect(ipcBridge.dialog.showWorkspace.invoke).not.toHaveBeenCalled();
+    expect(screen.getByTestId('guid-workspace-select')).toHaveTextContent('OPL Workspace');
   });
 
   it('disables builtin-auto Skills that are absent from the owner projection', async () => {

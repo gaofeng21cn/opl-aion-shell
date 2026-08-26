@@ -394,6 +394,27 @@ export const conversation = {
   },
 };
 
+export type IProjectExplorer = {
+  workspace_pe_id: string;
+  entries: Array<{
+    pe_id: string;
+    role: string;
+    display_path: string;
+    order_index: number;
+    runtime_status: string;
+  }>;
+};
+
+export type IProject = {
+  project_id: string;
+  name: string;
+  explorer: IProjectExplorer;
+};
+
+export const project = {
+  get: httpGet<IProject, { project_id: string }>((p) => `/api/projects/${encodeURIComponent(p.project_id)}`),
+};
+
 export const runtime = {
   statusChanged: wsEmitter<IRuntimeStatusEvent>('runtime.statusChanged'),
 };
@@ -1229,7 +1250,11 @@ export const fs = {
   getFileMetadata: httpPost<IFileMetadata, { path: string; workspace?: string }>('/api/fs/metadata'),
   copyFilesToWorkspace: httpPost<
     { copied_files: string[]; failed_files?: Array<{ path: string; error: string }> },
-    { file_paths: string[]; workspace: string; source_root?: string }
+    {
+      file_paths: string[];
+      target: { pe_id: string; relative_path: string };
+      source_root?: string;
+    }
   >('/api/fs/copy'),
   removeEntry: httpPost<void, { path: string }>('/api/fs/remove'),
   renameEntry: httpPost<{ new_path: string }, { path: string; new_name: string }>('/api/fs/rename'),

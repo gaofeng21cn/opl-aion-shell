@@ -10,6 +10,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 let isMobileLayout = false;
+let electronDesktop = true;
 
 const mocks = vi.hoisted(() => ({
   showOpenInvoke: vi.fn(),
@@ -77,7 +78,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
 }));
 
 vi.mock('@/renderer/utils/platform', () => ({
-  isElectronDesktop: () => true,
+  isElectronDesktop: () => electronDesktop,
 }));
 
 vi.mock('@/renderer/utils/model/agentModes', () => ({
@@ -236,6 +237,7 @@ const buildProps = () => ({
 describe('GuidActionRow composer controls', () => {
   beforeEach(() => {
     isMobileLayout = false;
+    electronDesktop = true;
     mocks.showOpenInvoke.mockReset();
     mocks.showOpenInvoke.mockResolvedValue([]);
     mocks.recentWorkspaces = [];
@@ -276,6 +278,20 @@ describe('GuidActionRow composer controls', () => {
     await waitFor(() =>
       expect(mocks.showOpenInvoke).toHaveBeenLastCalledWith({ properties: ['openDirectory', 'multiSelections'] })
     );
+  });
+
+  it('uses browser upload as the only WebUI file entry', async () => {
+    electronDesktop = false;
+    render(<GuidActionRow {...buildProps()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const attachFile = await screen.findByText('Attach file');
+    expect(screen.queryByText('Attach folder')).not.toBeInTheDocument();
+    expect(screen.queryByText('common.fileAttach.myDevice')).not.toBeInTheDocument();
+
+    fireEvent.click(attachFile);
+    expect(mocks.showOpenInvoke).not.toHaveBeenCalled();
+    expect(document.querySelector('input[type="file"]')).not.toBeNull();
   });
 
   it('shows owner-projected skill descriptions in the Home capability palette', async () => {
