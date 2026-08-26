@@ -97,12 +97,15 @@ export function resolveDeploymentAuth(
 }
 
 export async function configureGatewayApiKey(
-  opts: { localUrl: string; apiKey: string },
+  opts: { localUrl: string; apiKey: string; sessionCookie: string },
   deps: ConfigureGatewayApiKeyDeps
 ): Promise<void> {
+  if (!opts.sessionCookie) {
+    throw new Error('Configured WebUI session is required to configure the OPL Gateway API key.');
+  }
   const res = await deps.fetch(`${opts.localUrl}/api/opl-runtime/configure-codex`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', cookie: opts.sessionCookie },
     body: JSON.stringify({ apiKey: opts.apiKey }),
   });
   if (!res.ok) {
