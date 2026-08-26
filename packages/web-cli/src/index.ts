@@ -302,7 +302,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
     };
 
     if (deploymentAuth.mode === 'password') {
-      await provisionConfiguredAdmin(
+      const adminSession = await provisionConfiguredAdmin(
         {
           backendPort: handle.backendPort,
           username: deploymentAuth.username,
@@ -312,7 +312,7 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
       );
       if (deploymentAuth.gatewayApiKey) {
         await configureGatewayApiKey(
-          { localUrl: handle.localUrl, apiKey: deploymentAuth.gatewayApiKey },
+          { localUrl: handle.localUrl, apiKey: deploymentAuth.gatewayApiKey, sessionCookie: adminSession.cookie },
           { fetch: (input, init) => fetch(input, init), log: (msg) => console.log(msg) }
         );
       }

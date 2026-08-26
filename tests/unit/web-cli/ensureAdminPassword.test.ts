@@ -278,10 +278,18 @@ describe('ensureAdminPassword', () => {
           }),
         () => mockResponse(200, { data: { username: 'opl' } }),
         () => mockResponse(200, {}),
+        () =>
+          new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'content-type': 'application/json', 'set-cookie': 'sid=configured; Path=/; HttpOnly' },
+          }),
       ],
     });
 
-    await provisionConfiguredAdmin({ backendPort: 25808, username: 'opl', password: 'ConfiguredPassword123' }, deps);
+    const session = await provisionConfiguredAdmin(
+      { backendPort: 25808, username: 'opl', password: 'ConfiguredPassword123' },
+      deps
+    );
 
     expect(calls.map((call) => call.url)).toEqual([
       'http://127.0.0.1:25808/api/auth/status',
@@ -290,6 +298,7 @@ describe('ensureAdminPassword', () => {
       'http://127.0.0.1:25808/login',
       'http://127.0.0.1:25808/api/webui/change-username',
       'http://127.0.0.1:25808/api/webui/change-password',
+      'http://127.0.0.1:25808/login',
     ]);
     expect(calls[3].init?.body).toBe(
       JSON.stringify({ username: 'admin', password: 'TemporaryBootPassword', remember: true })
@@ -298,8 +307,12 @@ describe('ensureAdminPassword', () => {
     expect(calls[4].init?.body).toBe(JSON.stringify({ new_username: 'opl' }));
     expect(calls[5].init?.headers).toMatchObject({ cookie: 'sid=abc123' });
     expect(calls[5].init?.body).toBe(JSON.stringify({ new_password: 'ConfiguredPassword123' }));
+    expect(calls[6].init?.body).toBe(
+      JSON.stringify({ username: 'opl', password: 'ConfiguredPassword123', remember: true })
+    );
     expect(logs).toEqual(['[aionui-web] WebUI password login configured for username "opl".']);
     expect(JSON.stringify(logs)).not.toContain('ConfiguredPassword123');
+    expect(session).toEqual({ cookie: 'sid=configured' });
   });
 
   it('fails configured cloud provisioning when login returns no session cookie', async () => {

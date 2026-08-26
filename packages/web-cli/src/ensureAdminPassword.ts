@@ -70,6 +70,10 @@ export type ProvisionConfiguredAdminOptions = {
   statusPollIntervalMs?: number;
 };
 
+export type ConfiguredAdminSession = {
+  cookie: string;
+};
+
 async function waitForStatus(
   deps: EnsureAdminPasswordDeps,
   url: string,
@@ -203,7 +207,7 @@ export async function ensureAdminPassword(
 export async function provisionConfiguredAdmin(
   opts: ProvisionConfiguredAdminOptions,
   deps: EnsureAdminPasswordDeps
-): Promise<void> {
+): Promise<ConfiguredAdminSession> {
   const timeoutMs = opts.statusTimeoutMs ?? 15_000;
   const intervalMs = opts.statusPollIntervalMs ?? 500;
   const base = `http://127.0.0.1:${opts.backendPort}`;
@@ -256,5 +260,21 @@ export async function provisionConfiguredAdmin(
     throw new Error(`/api/webui/change-password returned ${passwordRes.status}`);
   }
 
+  // Password changes may invalidate the bootstrap session. Re-authenticate
+  // with the configured credentials before calling any protected runtime route.
+  const configuredLoginRes = await postJson(deps, `${base}/login`, {
+    username: opts.username,
+    password: opts.password,
+    remember: true,
+  });
+  if (!configuredLoginRes.ok) {
+    throw new Error(`/login after credential provisioning returned ${configuredLoginRes.status}`);
+  }
+  const configuredCookie = cookieHeaderFromSetCookies(setCookiesFrom(configuredLoginRes.headers));
+  if (!configuredCookie) {
+    throw new Error('/login after credential provisioning returned no session cookie');
+  }
+
   deps.log(`[aionui-web] WebUI password login configured for username "${opts.username}".`);
+  return { cookie: configuredCookie };
 }
