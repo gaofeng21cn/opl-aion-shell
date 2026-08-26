@@ -34,7 +34,7 @@ RUN npm install -g --prefix /opt/codex-cli "${OPL_CODEX_NPM_SPEC}" \
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 ARG OPL_WEBUI_IMAGE_PROFILE=webui-full
-ARG OPL_WEBUI_BUN_VERSION=1.2.23
+ARG OPL_WEBUI_BUN_VERSION=1.4.0
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates curl git \
