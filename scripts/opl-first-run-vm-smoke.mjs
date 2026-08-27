@@ -1956,6 +1956,19 @@ function probeCodexCli(options = {}) {
   };
 }
 
+function resolvePackagedCodexCliForSmoke(options = {}) {
+  if (options.runtimeProfile === 'full') {
+    const fullRuntime = resolveFullRuntimeForSmoke(options);
+    if (!fullRuntime.runtime_home) {
+      throw new Error(
+        `Full Codex CLI probe requires the installed App packaged runtime: ${fullRuntime.missing_reason ?? 'missing'}.`
+      );
+    }
+    return path.join(fullRuntime.runtime_home, 'bin', 'codex');
+  }
+  return resolvePackagedCodexPluginManager(options.appPath);
+}
+
 function assistantRouteIds(assistantRouteSmoke) {
   return Array.isArray(assistantRouteSmoke)
     ? assistantRouteSmoke.map((assistant) => assistant?.id).filter((id) => typeof id === 'string')
@@ -2000,15 +2013,17 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
     });
   const assistantRoutesPassed = runtimeProfile === 'full' && assistantTargetsPresent;
   const deterministicFieldsPassed =
-    runtimeProfile === 'standard' ? standardLaunchAdmissionsPassed : assistantRoutesPassed;
+    codexCliProbe.detected && (runtimeProfile === 'standard' ? standardLaunchAdmissionsPassed : assistantRoutesPassed);
   const hasCredentials = Boolean(input.codexApiKey);
-  const status = hasCredentials
-    ? deterministicFieldsPassed
-      ? 'passed'
-      : 'failed'
-    : deterministicFieldsPassed
-      ? 'diagnostic_skipped'
-      : 'blocked_missing_codex_credentials';
+  const status = !codexCliProbe.detected
+    ? 'failed'
+    : hasCredentials
+      ? deterministicFieldsPassed
+        ? 'passed'
+        : 'failed'
+      : deterministicFieldsPassed
+        ? 'diagnostic_skipped'
+        : 'blocked_missing_codex_credentials';
 
   return {
     schema: 'opl_codex_functional_check_receipt.v1',
@@ -2060,7 +2075,11 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
     },
     future_codex_invocation: {
       status: hasCredentials ? 'not_invoked' : 'diagnostic_skipped',
-      reason: hasCredentials ? 'deterministic_receipt_only' : 'missing_codex_credentials',
+      reason: !codexCliProbe.detected
+        ? 'codex_cli_unavailable'
+        : hasCredentials
+          ? 'deterministic_receipt_only'
+          : 'missing_codex_credentials',
     },
   };
 }
@@ -2068,6 +2087,9 @@ function buildCodexFunctionalCheckReceipt(input = {}) {
 function assertCodexFunctionalCheckReceipt(receipt) {
   if (!receipt || receipt.schema !== 'opl_codex_functional_check_receipt.v1') {
     throw new Error('Codex functional check receipt is missing or has an unexpected schema.');
+  }
+  if (receipt.codex_cli_invokable?.detected !== true || receipt.codex_cli_invokable?.status !== 'passed') {
+    throw new Error('Packaged Codex CLI is not callable for the VM release gate.');
   }
   if (receipt.blocking_release_gate?.deterministic_fields_passed !== true) {
     throw new Error('Codex functional check deterministic fields did not pass.');
@@ -8770,6 +8792,12 @@ async function main() {
         )
       : [];
 
+    const codexCliProbe =
+      options.codexFunctionalCheck || options.codexAiSelfCheck
+        ? probeCodexCli({
+            command: resolvePackagedCodexCliForSmoke(installedAppOptions),
+          })
+        : null;
     const codexFunctionalCheck = options.codexFunctionalCheck
       ? await runSmokePhase(
           writeSmokeEvent,
@@ -8779,6 +8807,7 @@ async function main() {
               codexApiKey,
               runtimeProfile: options.runtimeProfile,
               assistantRouteSmoke,
+              codexCliProbe,
             });
             assertCodexFunctionalCheckReceipt(receipt);
             writeJsonArtifact(
@@ -8826,6 +8855,7 @@ async function main() {
                     pages: settingsSmoke.map((page) => page.id),
                   }
                 : null,
+              codexCliProbe,
             });
             writeJsonArtifact(path.join(options.artifacts, 'codex-ai-self-check-summary.json'), receipt, codexApiKey);
             return receipt;
@@ -9132,6 +9162,7 @@ export const __test =
         runOplJson,
         describePackagedFullRuntime,
         resolveFullRuntimeForSmoke,
+        resolvePackagedCodexCliForSmoke,
         resolveManagedOplBin,
         resolveManagedNodeBin,
         buildStandardBootstrapPathPrefix,
