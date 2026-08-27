@@ -2766,6 +2766,7 @@ function buildManagedComputerUseQualification(appStatePayload, runtimeProfile) {
   const mcp = isRecord(companion.mcp) ? companion.mcp : {};
   const service = isRecord(companion.service) ? companion.service : {};
   const permissions = isRecord(companion.permissions) ? companion.permissions : {};
+  const functionalProbe = isRecord(mcp.functional_probe) ? mcp.functional_probe : {};
   const requiredTools = [...new Set(listStringValues(mcp.required_tools).filter(Boolean))].sort();
   const observedTools = [...new Set(listStringValues(mcp.observed_tools).filter(Boolean))].sort();
   const lifecycleReady = companion.installed === true && companion.registered === true && companion.enabled === true;
@@ -2791,21 +2792,28 @@ function buildManagedComputerUseQualification(appStatePayload, runtimeProfile) {
     requiredTools.length === MANAGED_COMPUTER_USE_TOOL_COUNT &&
     observedTools.length === MANAGED_COMPUTER_USE_TOOL_COUNT &&
     JSON.stringify(requiredTools) === JSON.stringify(observedTools);
+  const mcpListAppsCallPassed =
+    functionalProbe.tool_name === 'list_apps' &&
+    functionalProbe.called === true &&
+    functionalProbe.passed === true &&
+    ['content', 'structured_content', 'empty'].includes(functionalProbe.result_kind);
+  const codexBackendConfigured =
+    mcp.registered === true &&
+    typeof mcp.config_path === 'string' &&
+    mcp.config_path.endsWith('/.codex/config.toml');
   const permissionAxes = [permissions.accessibility, permissions.screen_recording];
-  const permissionDetailsValid = permissionAxes.every((value) => value === 'granted' || value === 'required');
+  const permissionDetailsValid = permissionAxes.every((value) => value === 'granted');
   const permissionProjectionConsistent =
-    (companion.permission === 'granted' && permissionAxes.every((value) => value === 'granted')) ||
-    (companion.permission === 'required' && permissionAxes.some((value) => value === 'required'));
-  const readyConsistent =
-    companion.permission === 'granted'
-      ? companion.ready === true && companion.status === 'ready'
-      : companion.permission === 'required' && companion.ready === false && companion.status === 'permission_required';
+    companion.permission === 'granted' && permissionAxes.every((value) => value === 'granted');
+  const readyConsistent = companion.ready === true && companion.status === 'ready';
   const acceptance = {
     lifecycle_ready: lifecycleReady,
     projection_identity_bound: projectionIdentityBound,
     bundle_identity_verified: bundleIdentityVerified,
     service_ready: serviceReady,
     mcp_10_tools_exact: mcpTenToolsExact,
+    mcp_list_apps_call_passed: mcpListAppsCallPassed,
+    codex_backend_configured: codexBackendConfigured,
     permission_details_valid: permissionDetailsValid,
     permission_projection_consistent: permissionProjectionConsistent,
     ready_consistent: readyConsistent,
@@ -2848,9 +2856,11 @@ function buildManagedComputerUseQualification(appStatePayload, runtimeProfile) {
       server_id: mcp.server_id,
       registered: mcp.registered,
       enabled: mcp.enabled,
+      config_path: mcp.config_path,
       required_tools: requiredTools,
       observed_tools: observedTools,
       tools_exact: mcp.tools_exact,
+      functional_probe: functionalProbe,
     },
     service: {
       registered: service.registered,
@@ -8720,6 +8730,18 @@ async function main() {
       writeJsonArtifact(path.join(options.artifacts, 'guid-entry-cdp.json'), guidEntry.cdpState, qualificationSecrets);
     }
 
+    const computerUseQualification = await runSmokePhase(
+      writeSmokeEvent,
+      'computer_use_qualification',
+      () => collectManagedComputerUseQualification(installedAppOptions, codexApiKey),
+      {
+        runtime_profile: options.runtimeProfile,
+        provider_id: MANAGED_COMPUTER_USE_PROVIDER_ID,
+        required_mcp_tool_count: MANAGED_COMPUTER_USE_TOOL_COUNT,
+        timeout_ms: options.codexReadinessPhaseTimeoutMs,
+      }
+    );
+
     const officialProfileFirstInstall = await runSmokePhase(
       writeSmokeEvent,
       'official_profile_first_install',
@@ -8730,18 +8752,6 @@ async function main() {
         ),
       {
         desired_root_package_ids: options.officialProfileRoots,
-        timeout_ms: options.codexReadinessPhaseTimeoutMs,
-      }
-    );
-
-    const computerUseQualification = await runSmokePhase(
-      writeSmokeEvent,
-      'computer_use_qualification',
-      () => collectManagedComputerUseQualification(installedAppOptions, codexApiKey),
-      {
-        runtime_profile: options.runtimeProfile,
-        provider_id: MANAGED_COMPUTER_USE_PROVIDER_ID,
-        required_mcp_tool_count: MANAGED_COMPUTER_USE_TOOL_COUNT,
         timeout_ms: options.codexReadinessPhaseTimeoutMs,
       }
     );
