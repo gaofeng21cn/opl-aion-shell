@@ -513,9 +513,11 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
   const codexRoot = `cli/codex/0.146.0/${runtimeKey}`;
   const codexExecutable = 'vendor/bin/codex';
   const codexPath = path.join(managedResourcesRoot, codexRoot, codexExecutable);
+  const fullCodexPath = path.join(runtimeHome, 'bin', 'codex');
   fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
   writeFile(codexPath, '#!/usr/bin/env bash\n', 0o755);
+  writeFile(fullCodexPath, '#!/usr/bin/env bash\nprintf "codex 0.146.0\\n"\n', 0o755);
   writeFile(
     path.join(managedResourcesRoot, 'manifest.json'),
     `${JSON.stringify({
@@ -538,7 +540,7 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
       resolved_refs: { opl_framework: { resolved_commit: frameworkSha } },
     })}\n`
   );
-  return { root, appPath, runtimeHome, codexPath };
+  return { root, appPath, runtimeHome, codexPath, fullCodexPath };
 }
 
 function installedFrameworkAppState(frameworkSha = 'b'.repeat(40)) {
@@ -779,6 +781,18 @@ describe('OPL first-run VM smoke scripts', () => {
         opl_path: path.join(fixture.runtimeHome, 'bin', 'opl'),
         missing_reason: null,
       });
+      expect(
+        vmSmoke.probeCodexCli({
+          command: vmSmoke.resolvePackagedCodexCliForSmoke({
+            appPath: fixture.appPath,
+            runtimeProfile: 'full',
+          }),
+        })
+      ).toMatchObject({
+        command: fixture.fullCodexPath,
+        detected: true,
+        version: 'codex 0.146.0',
+      });
       expect(command.runtimeHome).toBe(fixture.runtimeHome);
       expect(command.fullRuntime).toMatchObject({
         source: 'packaged_app_resource',
@@ -839,6 +853,11 @@ describe('OPL first-run VM smoke scripts', () => {
       });
 
       expect(vmSmoke.resolvePackagedCodexPluginManager(appPath)).toBe(codexPath);
+      expect(
+        vmSmoke.probeCodexCli({
+          command: vmSmoke.resolvePackagedCodexCliForSmoke({ appPath, runtimeProfile: 'standard' }),
+        })
+      ).toMatchObject({ command: codexPath, detected: true });
       expect(command.command).toContain(`export CODEX_HOME='${path.join(root, '.codex')}'`);
       expect(command.command).toContain(`export OPL_CODEX_BIN='${codexPath}'`);
       expect(command.command).toContain(`export OPL_CODEX_PLUGIN_BIN='${codexPath}'`);

@@ -2608,7 +2608,7 @@ describe('packaged first-run VM smoke helpers', () => {
     dom.window.close();
   });
 
-  it('builds a deterministic Codex functional check receipt without requiring LLM credentials', () => {
+  it('fails the deterministic Codex functional check when the packaged CLI is unavailable', () => {
     const receipt = __test.buildCodexFunctionalCheckReceipt({
       codexApiKey: null,
       codexCliProbe: { detected: false, command: 'codex', version: null },
@@ -2617,7 +2617,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
     expect(receipt).toMatchObject({
       schema: 'opl_codex_functional_check_receipt.v1',
-      status: 'diagnostic_skipped',
+      status: 'failed',
       runtime_profile: 'full',
       ui_language: 'zh-CN',
       opl_flow_context_expected: {
@@ -2648,14 +2648,15 @@ describe('packaged first-run VM smoke helpers', () => {
       },
       blocking_release_gate: {
         stable_vm_gate: 'receipt_file_exists_and_deterministic_fields_passed',
-        deterministic_fields_passed: true,
+        deterministic_fields_passed: false,
         llm_invocation_required: false,
       },
       future_codex_invocation: {
         status: 'diagnostic_skipped',
-        reason: 'missing_codex_credentials',
+        reason: 'codex_cli_unavailable',
       },
     });
+    expect(() => __test.assertCodexFunctionalCheckReceipt(receipt)).toThrow(/Packaged Codex CLI is not callable/);
   });
 
   it('records available and unavailable Standard launch admission without claiming Full route receipts', () => {
