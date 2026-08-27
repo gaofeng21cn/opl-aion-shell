@@ -77,7 +77,44 @@ describe('ConversationRow worktree indicator', () => {
     const indicator = screen.getByRole('img', { name: '隔离工作树' });
     expect(indicator).toHaveAttribute('data-opl-worktree-indicator', 'true');
     expect(indicator).toHaveAttribute('title', '隔离工作树');
-    expect(indicator.querySelector('svg')).not.toBeNull();
+    const icon = indicator.querySelector('[data-opl-icon="branch"]');
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'icon-park-compatibility');
+    expect(icon?.querySelector('svg')).not.toBeNull();
+  });
+
+  it('keeps the branch indicator from the recorded worktree after runtime fallback', () => {
+    const recovered = conversation('/runtime/conversations/thread-1');
+    recovered.extra = {
+      ...recovered.extra,
+      workspace_unavailable: true,
+      canonical_recorded_workspace: '/Users/example/.codex/worktrees/abc123/one-person-lab-app',
+      is_temporary_workspace: true,
+    };
+    const noop = vi.fn();
+
+    render(
+      <ConversationRow
+        conversation={recovered}
+        isGenerating={false}
+        hasCompletionUnread={false}
+        collapsed={false}
+        tooltipEnabled={false}
+        batchMode={false}
+        checked={false}
+        selected={false}
+        menuVisible={false}
+        onToggleChecked={noop}
+        onConversationClick={noop}
+        onOpenMenu={noop}
+        onMenuVisibleChange={noop}
+        onEditStart={noop}
+        onDelete={noop}
+        onTogglePin={noop}
+        getJobStatus={() => 'none'}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: '隔离工作树' })).toBeInTheDocument();
   });
 
   it('does not show the indicator for a main workspace conversation', () => {

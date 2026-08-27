@@ -84,6 +84,7 @@
     "pinFailed": "置顶操作失败",
     "pinnedSection": "置顶",
     "managedWorktree": "隔离工作树",
+    "workspaceCleaned": "工作区目录已清理",
     "deleteSuccess": "删除成功",
     "deleteFailed": "删除失败",
     "today": "今天",

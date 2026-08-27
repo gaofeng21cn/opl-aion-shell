@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   threadRead: vi.fn(),
+  threadUpdateSettings: vi.fn(),
   threadAssignProjectAffinity: vi.fn(),
   threadRename: vi.fn(),
   threadArchive: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock('@/common', () => ({
     },
     codexThreads: {
       read: { invoke: mocks.threadRead },
+      updateSettings: { invoke: mocks.threadUpdateSettings },
       assignProjectAffinity: { invoke: mocks.threadAssignProjectAffinity },
       rename: { invoke: mocks.threadRename },
       archive: { invoke: mocks.threadArchive },
@@ -99,6 +101,7 @@ describe('conversation archive actions', () => {
     mocks.messageError.mockClear();
     mocks.messageSuccess.mockClear();
     mocks.threadRead.mockReset();
+    mocks.threadUpdateSettings.mockReset();
     mocks.threadAssignProjectAffinity.mockReset();
     mocks.threadRename.mockReset();
     mocks.threadArchive.mockReset();
@@ -195,9 +198,9 @@ describe('conversation archive actions', () => {
     expect(markAsRead).toHaveBeenCalledWith('local-conversation-1');
   });
 
-  it('opens project selection for an unbound canonical workspace and materializes after affinity readback', async () => {
+  it('continues a canonical task in a temporary workspace when its recorded directory was cleaned', async () => {
     const staleWorkspace = '/workspace/removed-project';
-    const selectedWorkspace = '/workspace/recovered-project';
+    const temporaryWorkspace = '/runtime/conversations/thread-stale-workspace';
     const canonicalStub = {
       id: 'thread-stale-workspace',
       name: 'Stale canonical task',
@@ -219,27 +222,24 @@ describe('conversation archive actions', () => {
       backendMessage: 'Workspace path is unavailable.',
       details: { workspace_path: staleWorkspace },
     };
-    mocks.createWithConversation
-      .mockRejectedValueOnce(workspaceError)
-      .mockResolvedValueOnce({ id: 'local-recovered-conversation' });
-    mocks.threadRead
-      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: '' } })
-      .mockResolvedValueOnce({ thread: { workspace: staleWorkspace, projectId: selectedWorkspace } });
-    mocks.threadAssignProjectAffinity.mockResolvedValue({
-      id: 'thread-stale-workspace',
-      workspace: staleWorkspace,
-      projectId: selectedWorkspace,
-    });
-    mocks.get.mockResolvedValue({
+    mocks.createWithConversation.mockRejectedValueOnce(workspaceError).mockResolvedValueOnce({
       ...canonicalStub,
       id: 'local-recovered-conversation',
       extra: {
         ...canonicalStub.extra,
-        custom_workspace: true,
-        canonical_project_id: selectedWorkspace,
+        workspace: temporaryWorkspace,
+        custom_workspace: false,
+        is_temporary_workspace: true,
+        canonical_recorded_workspace: staleWorkspace,
+        workspace_unavailable: true,
         canonical_thread_stub: false,
       },
     });
+    mocks.threadUpdateSettings.mockResolvedValue(undefined);
+    mocks.threadRead.mockResolvedValue({
+      thread: { id: 'thread-stale-workspace', workspace: temporaryWorkspace, projectId: '' },
+    });
+    const markAsRead = vi.fn();
     const { result } = renderHook(() =>
       useConversationActions({
         batchMode: false,
@@ -247,30 +247,31 @@ describe('conversation archive actions', () => {
         selectedConversationIds: new Set(),
         setSelectedConversationIds: vi.fn(),
         toggleSelectedConversation: vi.fn(),
-        markAsRead: vi.fn(),
+        markAsRead,
       })
     );
 
     act(() => result.current.handleConversationClick(canonicalStub));
-    await waitFor(() => expect(result.current.projectAdoptionConversation).toBe(canonicalStub));
-    expect(mocks.messageError).not.toHaveBeenCalled();
-
-    await act(() => result.current.handleProjectAdoption(canonicalStub, selectedWorkspace));
-
-    expect(mocks.threadAssignProjectAffinity).toHaveBeenCalledWith({
-      threadId: 'thread-stale-workspace',
-      projectId: selectedWorkspace,
-    });
-    expect(mocks.threadRead).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/conversation/local-recovered-conversation'));
+    expect(result.current.projectAdoptionConversation).toBeNull();
     expect(mocks.createWithConversation).toHaveBeenLastCalledWith({
       conversation: expect.objectContaining({
         extra: expect.objectContaining({
-          workspace: staleWorkspace,
-          canonical_project_id: selectedWorkspace,
+          workspace: '',
+          custom_workspace: false,
+          canonical_recorded_workspace: staleWorkspace,
+          workspace_unavailable: true,
           canonical_thread_stub: false,
         }),
       }),
     });
+    expect(mocks.threadUpdateSettings).toHaveBeenCalledWith({
+      threadId: 'thread-stale-workspace',
+      cwd: temporaryWorkspace,
+    });
+    expect(mocks.threadAssignProjectAffinity).not.toHaveBeenCalled();
+    expect(markAsRead).toHaveBeenCalledWith('local-recovered-conversation');
+    expect(mocks.messageError).not.toHaveBeenCalled();
   });
 
   it('routes canonical lifecycle actions with the canonical id during ACP id migration', async () => {

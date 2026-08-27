@@ -539,6 +539,41 @@ describe('mergeCanonicalThreadDirectory', () => {
     expect(merged[0]?.extra).not.toHaveProperty('acp_session_id');
   });
 
+  it('preserves cleaned-workspace metadata when the canonical directory refreshes', () => {
+    const temporaryWorkspace = '/runtime/conversations/thread-1';
+    const recordedWorkspace = '/Users/example/.codex/worktrees/removed/repository';
+    const cached = {
+      id: 'local-1',
+      name: 'Recovered task',
+      created_at: 1,
+      type: 'acp',
+      extra: {
+        backend: 'codex',
+        canonical_thread_id: 'thread-1',
+        workspace: temporaryWorkspace,
+        canonical_recorded_workspace: recordedWorkspace,
+        workspace_unavailable: true,
+        is_temporary_workspace: true,
+      },
+    } as TChatConversation;
+
+    const merged = mergeCanonicalThreadDirectory(
+      [cached],
+      directory([thread({ workspace: temporaryWorkspace, projectId: '' })])
+    );
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      id: 'local-1',
+      extra: {
+        workspace: temporaryWorkspace,
+        canonical_recorded_workspace: recordedWorkspace,
+        workspace_unavailable: true,
+        is_temporary_workspace: true,
+      },
+    });
+  });
+
   it('deduplicates local canonical rows only when the App Server returns that task', () => {
     const duplicate = (id: string): TChatConversation =>
       ({

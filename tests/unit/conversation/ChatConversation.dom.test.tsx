@@ -122,10 +122,14 @@ vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
     loadedMcpServers,
     loadedMcpStatuses,
     timelineHeaderSlot,
+    timelineFooterSlot,
+    hideSendBox,
   }: {
     loadedMcpServers?: string[];
     loadedMcpStatuses?: Array<{ id: string; name: string; status: string }>;
     timelineHeaderSlot?: React.ReactNode;
+    timelineFooterSlot?: React.ReactNode;
+    hideSendBox?: boolean;
   }) => (
     <div
       data-testid='acp-chat'
@@ -133,6 +137,8 @@ vi.mock('@/renderer/pages/conversation/platforms/acp/AcpChat', () => ({
       data-mcp-statuses={JSON.stringify(loadedMcpStatuses ?? [])}
     >
       <div data-testid='message-list-scroller'>{timelineHeaderSlot}</div>
+      {timelineFooterSlot}
+      {!hideSendBox && <div data-testid='acp-composer' />}
     </div>
   ),
 }));
@@ -224,6 +230,24 @@ describe('ChatConversation composer and side-panel surface', () => {
     expect(screen.queryByTestId('acp-model-selector')).not.toBeInTheDocument();
     expect(screen.queryByTestId('cron-job-manager')).not.toBeInTheDocument();
     expect(screen.getByTestId('chat-side-title')).toHaveTextContent('Files & Workspace');
+  });
+
+  it('shows a cleaned-workspace status without disabling the conversation composer', () => {
+    const conversation = acpConversation('codex');
+    conversation.extra = {
+      ...conversation.extra,
+      workspace: '/runtime/conversations/codex-conversation',
+      canonical_thread_id: 'thread-1',
+      canonical_recorded_workspace: '/Users/example/.codex/worktrees/removed/repository',
+      workspace_unavailable: true,
+      is_temporary_workspace: true,
+    };
+
+    render(<ChatConversation conversation={conversation} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('conversation.history.workspaceCleaned');
+    expect(screen.getByTestId('acp-composer')).toBeInTheDocument();
+    expect(screen.getByTestId('chat-side-panel')).toBeInTheDocument();
   });
 
   it('keeps legacy Codex history free of conversation side actions', () => {

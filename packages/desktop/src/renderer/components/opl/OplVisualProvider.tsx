@@ -7,6 +7,7 @@
 import React, { createContext, useContext, useLayoutEffect } from 'react';
 import type { IIconBase } from '@icon-park/react/es/runtime';
 import {
+  Branch,
   Export,
   FolderUpload,
   Info,
@@ -27,7 +28,6 @@ import {
   IconAgentPresetOutline16,
   IconApiOutline14,
   IconArchiveOutline20,
-  IconBranchOutline16,
   IconBrowseOutline16,
   IconCheckOutline14,
   IconCheckOutline16,
@@ -94,7 +94,6 @@ const OPL_DSH_ICONS = {
   agent: IconAgentPresetOutline16,
   api: IconApiOutline14,
   archive: IconArchiveOutline20,
-  branch: IconBranchOutline16,
   browse: IconBrowseOutline16,
   check: IconCheckOutline16,
   checkSmall: IconCheckOutline14,
@@ -157,6 +156,7 @@ const OPL_DSH_ICONS = {
 // DSH intentionally has a compact glyph set. Keep exact semantic gaps explicit
 // here instead of substituting a visually similar but misleading DSH glyph.
 const OPL_ICON_COMPATIBILITY_GLYPHS = {
+  branch: Branch,
   export: Export,
   folderUpload: FolderUpload,
   info: Info,

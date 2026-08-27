@@ -15,7 +15,11 @@ import { useTranslation } from 'react-i18next';
 import { OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 
 import type { ConversationRowProps } from './types';
-import { isCodexManagedWorktreeConversation, isConversationPinned } from './utils/groupingHelpers';
+import {
+  isCodexManagedWorktreeConversation,
+  isCodexManagedWorktreeWorkspace,
+  isConversationPinned,
+} from './utils/groupingHelpers';
 
 const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const {
@@ -50,7 +54,13 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   } = props;
   const { t } = useTranslation();
   const isPinned = isConversationPinned(conversation);
-  const isManagedWorktree = isCodexManagedWorktreeConversation(conversation);
+  const recordedWorkspace =
+    conversation.type === 'acp' && conversation.extra.workspace_unavailable
+      ? conversation.extra.canonical_recorded_workspace
+      : undefined;
+  const isManagedWorktree =
+    isCodexManagedWorktreeConversation(conversation) ||
+    (typeof recordedWorkspace === 'string' && isCodexManagedWorktreeWorkspace(recordedWorkspace));
   const cronStatus = getJobStatus(conversation.id);
   const siderTooltipProps = getSiderTooltipProps(tooltipEnabled);
   const inlineNameTooltipEnabled = !collapsed && !isMobile && !!conversation.name;

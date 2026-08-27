@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import type { TChatConversation } from '@/common/config/storage';
 import { refreshConversationCache } from '@/renderer/pages/conversation/utils/conversationCache';
 import { emitter } from '@/renderer/utils/emitter';
@@ -14,7 +15,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import { normalizeConversationCreateErrorCode } from '../../utils/conversationCreateError';
 import { isConversationPinned } from '../utils/groupingHelpers';
 import {
   adoptProjectlessCanonicalConversation,
@@ -56,7 +56,6 @@ export const useConversationActions = ({
   const navigate = useNavigate();
   const materializingThreadIdsRef = useRef(new Set<string>());
   const adoptingThreadIdsRef = useRef(new Set<string>());
-  const workspaceRepairThreadIdsRef = useRef(new Set<string>());
 
   // Close dropdown when entering batch mode
   useEffect(() => {
@@ -93,15 +92,54 @@ export const useConversationActions = ({
           } catch (error) {
             console.error('Failed to materialize canonical Codex task:', error);
             if (
-              normalizeConversationCreateErrorCode(error) === 'WORKSPACE_PATH_UNAVAILABLE' &&
+              isBackendHttpError(error) &&
+              error.code === 'WORKSPACE_PATH_UNAVAILABLE' &&
               conversation.extra.workspace?.trim()
             ) {
-              workspaceRepairThreadIdsRef.current.add(threadId);
-              setProjectAdoptionConversation(conversation);
+              const recordedWorkspace = conversation.extra.workspace.trim();
+              let fallbackConversation: TChatConversation | null = null;
+              try {
+                fallbackConversation = await ipcBridge.conversation.createWithConversation.invoke({
+                  conversation: {
+                    ...conversation,
+                    extra: {
+                      ...conversation.extra,
+                      workspace: '',
+                      custom_workspace: false,
+                      canonical_recorded_workspace: recordedWorkspace,
+                      workspace_unavailable: true,
+                      canonical_thread_stub: false,
+                    },
+                  },
+                });
+                const fallbackWorkspace = fallbackConversation.extra.workspace?.trim();
+                if (!fallbackWorkspace) {
+                  throw new Error('Temporary workspace materialization did not return a workspace.', { cause: error });
+                }
+                await ipcBridge.codexThreads.updateSettings.invoke({ threadId, cwd: fallbackWorkspace });
+                const canonicalReadback = await ipcBridge.codexThreads.read.invoke({ threadId });
+                if (
+                  canonicalReadback.thread.id !== threadId ||
+                  canonicalReadback.thread.workspace !== fallbackWorkspace
+                ) {
+                  throw new Error('Canonical workspace fallback readback did not match the temporary workspace.', {
+                    cause: error,
+                  });
+                }
+                conversationId = fallbackConversation.id;
+                emitter.emit('chat.history.refresh');
+              } catch (fallbackError) {
+                console.error('Failed to continue canonical task without its recorded workspace:', fallbackError);
+                if (fallbackConversation) {
+                  await ipcBridge.conversation.remove.invoke({ id: fallbackConversation.id }).catch(() => false);
+                }
+                Message.error(t('conversation.createFailed'));
+                return;
+              }
+            } else {
+              Message.error(t('conversation.createFailed'));
               return;
             }
-            Message.error(t('conversation.createFailed'));
-            return;
           } finally {
             materializingThreadIdsRef.current.delete(threadId);
           }
@@ -375,20 +413,16 @@ export const useConversationActions = ({
   const handleProjectAdoption = useCallback(
     async (conversation: TChatConversation, workspace: string): Promise<boolean> => {
       const threadId = canonicalCodexThreadId(conversation);
-      const repairingUnavailableWorkspace = threadId ? workspaceRepairThreadIdsRef.current.has(threadId) : false;
-      if (!isProjectlessCanonicalConversation(conversation) && !repairingUnavailableWorkspace) return false;
+      if (!isProjectlessCanonicalConversation(conversation)) return false;
       if (!threadId || adoptingThreadIdsRef.current.has(threadId)) return false;
 
       adoptingThreadIdsRef.current.add(threadId);
       try {
-        const success = await adoptProjectlessCanonicalConversation(conversation, workspace, {
-          allowExistingWorkspace: repairingUnavailableWorkspace,
-        });
+        const success = await adoptProjectlessCanonicalConversation(conversation, workspace);
         if (!success) {
           Message.error(t('conversation.history.moveToProjectFailed'));
           return false;
         }
-        workspaceRepairThreadIdsRef.current.delete(threadId);
         emitter.emit('chat.history.refresh');
         Message.success(t('conversation.history.moveToProjectSuccess'));
         return true;
@@ -417,10 +451,8 @@ export const useConversationActions = ({
   );
 
   const handleProjectAdoptionCancel = useCallback(() => {
-    const threadId = canonicalCodexThreadId(projectAdoptionConversation);
-    if (threadId) workspaceRepairThreadIdsRef.current.delete(threadId);
     setProjectAdoptionConversation(null);
-  }, [projectAdoptionConversation]);
+  }, []);
 
   const handleMenuVisibleChange = useCallback((conversation_id: string, visible: boolean) => {
     setDropdownVisibleId(visible ? conversation_id : null);

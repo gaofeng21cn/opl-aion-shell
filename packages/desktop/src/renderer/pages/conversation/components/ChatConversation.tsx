@@ -262,6 +262,19 @@ const ChatConversation: React.FC<{
       runtimeView.view.state,
     ]
   );
+  const timelineFooterSlot = useMemo(
+    () =>
+      conversation?.type === 'acp' && conversation.extra.workspace_unavailable ? (
+        <div
+          role='status'
+          data-testid='conversation-workspace-cleaned-status'
+          className='px-20px pb-8px text-center text-12px text-t-secondary'
+        >
+          {t('conversation.history.workspaceCleaned')}
+        </div>
+      ) : undefined,
+    [conversation, t]
+  );
 
   const conversationNode = useMemo(() => {
     if (!conversation || isAionrsConversation) return null;
@@ -293,6 +306,7 @@ const ChatConversation: React.FC<{
             loadedMcpServers={(ordinaryExtra as { mcp_servers?: string[] } | undefined)?.mcp_servers}
             loadedMcpStatuses={(ordinaryExtra as { mcp_statuses?: IConversationMcpStatus[] } | undefined)?.mcp_statuses}
             timelineHeaderSlot={timelineHeaderSlot}
+            timelineFooterSlot={timelineFooterSlot}
           ></AcpChat>
         );
       default:
@@ -307,6 +321,7 @@ const ChatConversation: React.FC<{
     resolvedHideSendBox,
     ordinaryExtra,
     timelineHeaderSlot,
+    timelineFooterSlot,
   ]);
 
   const sliderTitle = useMemo(() => {

@@ -1210,6 +1210,7 @@ export type I18nKey =
   | 'conversation.history.title'
   | 'conversation.history.today'
   | 'conversation.history.unpin'
+  | 'conversation.history.workspaceCleaned'
   | 'conversation.history.yesterday'
   | 'conversation.historySearch.description'
   | 'conversation.historySearch.empty'

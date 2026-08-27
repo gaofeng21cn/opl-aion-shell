@@ -36,6 +36,7 @@ const AcpChat: React.FC<{
   hideSendBox?: boolean;
   emptySlot?: React.ReactNode;
   timelineHeaderSlot?: React.ReactNode;
+  timelineFooterSlot?: React.ReactNode;
   loadedSkills?: string[];
   loadedMcpServers?: string[];
   loadedMcpStatuses?: IConversationMcpStatus[];
@@ -52,6 +53,7 @@ const AcpChat: React.FC<{
   hideSendBox,
   emptySlot,
   timelineHeaderSlot,
+  timelineFooterSlot,
   loadedSkills,
   loadedMcpServers,
   loadedMcpStatuses,
@@ -87,6 +89,7 @@ const AcpChat: React.FC<{
           <FlexFullContainer>
             <MessageList className='flex-1' emptySlot={emptySlot} timelineHeaderSlot={timelineHeaderSlot} />
           </FlexFullContainer>
+          {timelineFooterSlot}
           <AcpE2EStreamInjector conversationId={conversation_id} />
           {!hideSendBox && (
             <AcpSendBox

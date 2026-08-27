@@ -84,6 +84,7 @@
     "pinFailed": "Pin operation failed",
     "pinnedSection": "Pinned",
     "managedWorktree": "Isolated worktree",
+    "workspaceCleaned": "Workspace directory has been cleaned up",
     "deleteSuccess": "Deleted successfully",
     "deleteFailed": "Delete failed",
     "today": "Today",

@@ -314,6 +314,10 @@ export type TChatConversation =
           canonical_thread_host?: string;
           /** Explicit sidebar project affinity. Independent of the canonical thread runtime cwd. */
           canonical_project_id?: string;
+          /** Original canonical cwd retained after its directory is no longer available. */
+          canonical_recorded_workspace?: string;
+          /** The original canonical cwd was cleaned; runtime continues in a temporary workspace. */
+          workspace_unavailable?: boolean;
           /** Last context usage from usage_update */
           last_token_usage?: TokenUsageData;
           /** Context window capacity from usage_update */
