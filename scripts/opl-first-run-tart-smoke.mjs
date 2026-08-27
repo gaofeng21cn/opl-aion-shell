@@ -2499,20 +2499,16 @@ function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null)
       : [];
     const permissionAxes = [computerUse?.permissions?.accessibility, computerUse?.permissions?.screen_recording];
     const permissionProjectionConsistent =
-      (computerUse?.state?.permission === 'granted' && permissionAxes.every((value) => value === 'granted')) ||
-      (computerUse?.state?.permission === 'required' && permissionAxes.some((value) => value === 'required'));
-    const readyConsistent =
-      computerUse?.state?.permission === 'granted'
-        ? computerUse?.state?.ready === true && computerUse?.state?.status === 'ready'
-        : computerUse?.state?.permission === 'required' &&
-          computerUse?.state?.ready === false &&
-          computerUse?.state?.status === 'permission_required';
+      computerUse?.state?.permission === 'granted' && permissionAxes.every((value) => value === 'granted');
+    const readyConsistent = computerUse?.state?.ready === true && computerUse?.state?.status === 'ready';
     const acceptancePassed = [
       acceptance?.lifecycle_ready,
       acceptance?.projection_identity_bound,
       acceptance?.bundle_identity_verified,
       acceptance?.service_ready,
       acceptance?.mcp_10_tools_exact,
+      acceptance?.mcp_list_apps_call_passed,
+      acceptance?.codex_backend_configured,
       acceptance?.permission_details_valid,
       acceptance?.permission_projection_consistent,
       acceptance?.ready_consistent,
@@ -2544,10 +2540,15 @@ function assertGuestSmokeSummary(options, guestSummary, hostArtifactsDir = null)
       computerUse?.mcp?.enabled !== true ||
       computerUse?.mcp?.server_id !== 'kimi-cu' ||
       computerUse?.mcp?.tools_exact !== true ||
+      computerUse?.mcp?.functional_probe?.tool_name !== 'list_apps' ||
+      computerUse?.mcp?.functional_probe?.called !== true ||
+      computerUse?.mcp?.functional_probe?.passed !== true ||
+      typeof computerUse?.mcp?.config_path !== 'string' ||
+      !computerUse.mcp.config_path.endsWith('/.codex/config.toml') ||
       requiredTools.length !== 10 ||
       observedTools.length !== 10 ||
       JSON.stringify(requiredTools) !== JSON.stringify(observedTools) ||
-      !permissionAxes.every((value) => value === 'granted' || value === 'required') ||
+      !permissionAxes.every((value) => value === 'granted') ||
       !permissionProjectionConsistent ||
       !readyConsistent ||
       !acceptancePassed

@@ -71,7 +71,7 @@ const KIMI_CU_TOOLS = [
   'drag',
 ];
 
-function managedComputerUseAppState(permission: 'granted' | 'required' = 'required') {
+function managedComputerUseAppState(permission: 'granted' | 'required' = 'granted') {
   const granted = permission === 'granted';
   return {
     app_state: {
@@ -103,9 +103,16 @@ function managedComputerUseAppState(permission: 'granted' | 'required' = 'requir
             server_id: 'kimi-cu',
             registered: true,
             enabled: true,
+            config_path: '/Users/opl-test/.codex/config.toml',
             required_tools: KIMI_CU_TOOLS,
             observed_tools: KIMI_CU_TOOLS.toReversed(),
             tools_exact: true,
+            functional_probe: {
+              tool_name: 'list_apps',
+              called: true,
+              passed: true,
+              result_kind: 'content',
+            },
           },
           service: { registered: true, xpc_ping: 'passed' },
           permissions: {
@@ -2926,9 +2933,9 @@ describe('packaged first-run VM smoke helpers', () => {
         installed: true,
         registered: true,
         enabled: true,
-        permission: 'required',
-        ready: false,
-        status: 'permission_required',
+        permission: 'granted',
+        ready: true,
+        status: 'ready',
       },
       bundle: {
         bundle_id: 'ai.kimi.cu',
@@ -2941,6 +2948,12 @@ describe('packaged first-run VM smoke helpers', () => {
         registered: true,
         enabled: true,
         tools_exact: true,
+        functional_probe: {
+          tool_name: 'list_apps',
+          called: true,
+          passed: true,
+          result_kind: 'content',
+        },
       },
       acceptance: {
         lifecycle_ready: true,
@@ -2948,6 +2961,8 @@ describe('packaged first-run VM smoke helpers', () => {
         bundle_identity_verified: true,
         service_ready: true,
         mcp_10_tools_exact: true,
+        mcp_list_apps_call_passed: true,
+        codex_backend_configured: true,
         permission_details_valid: true,
         permission_projection_consistent: true,
         ready_consistent: true,
