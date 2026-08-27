@@ -2798,9 +2798,7 @@ function buildManagedComputerUseQualification(appStatePayload, runtimeProfile) {
     functionalProbe.passed === true &&
     ['content', 'structured_content', 'empty'].includes(functionalProbe.result_kind);
   const codexBackendConfigured =
-    mcp.registered === true &&
-    typeof mcp.config_path === 'string' &&
-    mcp.config_path.endsWith('/.codex/config.toml');
+    mcp.registered === true && typeof mcp.config_path === 'string' && mcp.config_path.endsWith('/.codex/config.toml');
   const permissionAxes = [permissions.accessibility, permissions.screen_recording];
   const permissionDetailsValid = permissionAxes.every((value) => value === 'granted');
   const permissionProjectionConsistent =
