@@ -1957,15 +1957,6 @@ function probeCodexCli(options = {}) {
 }
 
 function resolvePackagedCodexCliForSmoke(options = {}) {
-  if (options.runtimeProfile === 'full') {
-    const fullRuntime = resolveFullRuntimeForSmoke(options);
-    if (!fullRuntime.runtime_home) {
-      throw new Error(
-        `Full Codex CLI probe requires the installed App packaged runtime: ${fullRuntime.missing_reason ?? 'missing'}.`
-      );
-    }
-    return path.join(fullRuntime.runtime_home, 'bin', 'codex');
-  }
   return resolvePackagedCodexPluginManager(options.appPath);
 }
 

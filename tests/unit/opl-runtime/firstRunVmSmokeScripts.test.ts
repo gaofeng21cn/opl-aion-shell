@@ -513,11 +513,9 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
   const codexRoot = `cli/codex/0.146.0/${runtimeKey}`;
   const codexExecutable = 'vendor/bin/codex';
   const codexPath = path.join(managedResourcesRoot, codexRoot, codexExecutable);
-  const fullCodexPath = path.join(runtimeHome, 'bin', 'codex');
   fs.mkdirSync(path.join(runtimeHome, 'bin'), { recursive: true });
   fs.mkdirSync(path.join(payloadRoot, 'manifest'), { recursive: true });
-  writeFile(codexPath, '#!/usr/bin/env bash\n', 0o755);
-  writeFile(fullCodexPath, '#!/usr/bin/env bash\nprintf "codex 0.146.0\\n"\n', 0o755);
+  writeFile(codexPath, '#!/usr/bin/env bash\nprintf "codex 0.146.0\\n"\n', 0o755);
   writeFile(
     path.join(managedResourcesRoot, 'manifest.json'),
     `${JSON.stringify({
@@ -540,7 +538,7 @@ function createPackagedFullRuntimeAppFixture(frameworkSha = 'a'.repeat(40)) {
       resolved_refs: { opl_framework: { resolved_commit: frameworkSha } },
     })}\n`
   );
-  return { root, appPath, runtimeHome, codexPath, fullCodexPath };
+  return { root, appPath, runtimeHome, codexPath };
 }
 
 function installedFrameworkAppState(frameworkSha = 'b'.repeat(40)) {
@@ -789,7 +787,7 @@ describe('OPL first-run VM smoke scripts', () => {
           }),
         })
       ).toMatchObject({
-        command: fixture.fullCodexPath,
+        command: fixture.codexPath,
         detected: true,
         version: 'codex 0.146.0',
       });
