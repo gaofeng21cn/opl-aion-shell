@@ -30,33 +30,33 @@
       "repository": "https://github.com/iOfficeAI/AionCore",
       "authority": "official_release_assets_only",
       "source_fork": "forbidden",
-      "version": "v0.1.70",
-      "commit": "405912c895de3890d4de01d6aaaaed195e60cb5a",
-      "archive_sha256": "a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d",
+      "version": "v0.1.72",
+      "commit": "57a34cc1b1a3b17bcc023de06b9e6768fceac36f",
+      "archive_sha256": "7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca",
       "release_assets": {
         "darwin-arm64": {
-          "name": "aioncore-v0.1.70-aarch64-apple-darwin.tar.gz",
-          "sha256": "a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d"
+          "name": "aioncore-v0.1.72-aarch64-apple-darwin.tar.gz",
+          "sha256": "7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca"
         },
         "darwin-x64": {
-          "name": "aioncore-v0.1.70-x86_64-apple-darwin.tar.gz",
-          "sha256": "26389f9434850ca89179cc058c0944079d40fc8ad3aecf3d97c24a8aeb99448e"
+          "name": "aioncore-v0.1.72-x86_64-apple-darwin.tar.gz",
+          "sha256": "813b5aac0d143e1cc357aefe00095cd9e9340f1bdd0bc7c540aa4b70bf3c5f78"
         },
         "linux-arm64": {
-          "name": "aioncore-v0.1.70-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "61531381e91999d5244026183d09bfdc02818f50c467031955857bb27471e413"
+          "name": "aioncore-v0.1.72-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "e38044108488ff20568d03efa7bf8f5c35687ff521bac157722b6cef836f39a6"
         },
         "linux-x64": {
-          "name": "aioncore-v0.1.70-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "a146f3af4a03de740d4b705a4cf318f621e1c37d19475f23ce0a38432da63409"
+          "name": "aioncore-v0.1.72-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "3d867d3d92dad68f78e4a1460c9a766bf2f29a0a556cc7d099dfce6d94f8e196"
         },
         "win32-arm64": {
-          "name": "aioncore-v0.1.70-aarch64-pc-windows-msvc.zip",
-          "sha256": "8b114f94288e7c08d829e4d441abf467004088568132fa6ccdf0e614a133794c"
+          "name": "aioncore-v0.1.72-aarch64-pc-windows-msvc.zip",
+          "sha256": "737786e68bbef305bf1fc312a4b2257eb975c9f90c63654255aa780a637f6c38"
         },
         "win32-x64": {
-          "name": "aioncore-v0.1.70-x86_64-pc-windows-msvc.zip",
-          "sha256": "075589d5dc5f99f444c1073bd5145bcb8d300d7bcb2849d995b45b21a02d4d87"
+          "name": "aioncore-v0.1.72-x86_64-pc-windows-msvc.zip",
+          "sha256": "307e5c1d4627aaba9a6530ee3c50a028a8ead2af528a26dacf33b04d507326fd"
         }
       }
     },
@@ -93,7 +93,7 @@
       "version": "0.146.0",
       "binary_sha256": "ae1d3ffe6d48aec6a4dc3f50e7eb8e0d11962485a6a9406c5a7012139383da02",
       "carrier": "opl_app_official_npm_platform_package",
-      "verified_by_aioncore": "v0.1.70"
+      "verified_by_aioncore": "v0.1.72"
     }
   },
   "policy": {

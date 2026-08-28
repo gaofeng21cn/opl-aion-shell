@@ -149,7 +149,7 @@ function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runt
     manifest.projection?.codexSource?.version !== MANAGED_CODEX_VERSION ||
     manifest.projection?.codexSource?.packageSpec !== `@openai/codex@${MANAGED_CODEX_VERSION}-${runtimeKey}` ||
     manifest.projection?.codexSource?.authority !== 'official_npm_platform_package' ||
-    manifest.projection?.codexSource?.verifiedByAioncore !== 'v0.1.70'
+    manifest.projection?.codexSource?.verifiedByAioncore !== 'v0.1.72'
   ) {
     throw new Error('Managed resources manifest Codex-only projection policy is invalid');
   }

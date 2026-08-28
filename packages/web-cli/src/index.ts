@@ -1,5 +1,6 @@
 import {
   buildDefaultWebuiDataLifecycleConfig,
+  repairStaleManagedWorkspaceProjectBindings,
   resolveWebuiDataLifecycleRecoveryRoot,
   startWebHost,
   startStaticServer,
@@ -198,6 +199,23 @@ async function runStart(flags: Map<string, string | true>): Promise<void> {
   console.log(`[aionui-web] launching  : port=${port} allowRemote=${allowRemote}`);
 
   const backendAvailable = fs.existsSync(backendBin);
+  const managedWorkspaceRoot = process.env.OPL_WORKSPACE_ROOT?.trim();
+  if (backendAvailable && managedWorkspaceRoot) {
+    const normalizedManagedWorkspaceRoot = path.resolve(managedWorkspaceRoot);
+    if (normalizedManagedWorkspaceRoot !== projectsDir) {
+      throw new Error(
+        `OPL_WORKSPACE_ROOT must resolve to the active projects directory (${projectsDir}), received ${normalizedManagedWorkspaceRoot}`
+      );
+    }
+    const repair = repairStaleManagedWorkspaceProjectBindings({
+      aioncoreBinaryPath: backendBin,
+      dataDir,
+      workspaceRoot: normalizedManagedWorkspaceRoot,
+    });
+    if (repair.repairedBindings > 0) {
+      console.log(`[aionui-web] repaired ${repair.repairedBindings} stale managed-workspace project binding(s)`);
+    }
+  }
   const deploymentAuth = resolveDeploymentAuth();
   console.log(`[aionui-web] auth mode  : ${deploymentAuth.mode}`);
 

@@ -46,7 +46,7 @@ const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.
 const REQUIRED_AIONCORE_SOURCE_CLI_NAMES = [];
 const REQUIRED_CODEX_PACKAGE = '@openai/codex';
 const REQUIRED_CODEX_VERSION = '0.146.0';
-const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.70';
+const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.72';
 const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-composed-codex-v2';
 const REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS = [
   'cli/claude',

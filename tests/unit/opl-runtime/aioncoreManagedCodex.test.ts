@@ -77,7 +77,7 @@ function makeManifest(): TestManifest {
         version: CODEX_VERSION,
         packageSpec: `@openai/codex@${CODEX_VERSION}-${RUNTIME_KEY}`,
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: 'v0.1.70',
+        verifiedByAioncore: 'v0.1.72',
       },
     },
     clis: [

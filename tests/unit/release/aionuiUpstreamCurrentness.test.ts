@@ -47,17 +47,17 @@ describe('AionUI upstream currentness', () => {
         repository: 'https://github.com/iOfficeAI/AionCore',
         authority: 'official_release_assets_only',
         source_fork: 'forbidden',
-        version: 'v0.1.70',
-        commit: '405912c895de3890d4de01d6aaaaed195e60cb5a',
-        archive_sha256: 'a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d',
+        version: 'v0.1.72',
+        commit: '57a34cc1b1a3b17bcc023de06b9e6768fceac36f',
+        archive_sha256: '7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca',
         release_assets: {
           'darwin-arm64': {
-            name: 'aioncore-v0.1.70-aarch64-apple-darwin.tar.gz',
-            sha256: 'a88b63af64fdcc84c1c753e2ad4e8e4f46793a3a61983185a2574b979e38e26d',
+            name: 'aioncore-v0.1.72-aarch64-apple-darwin.tar.gz',
+            sha256: '7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca',
           },
           'linux-x64': {
-            name: 'aioncore-v0.1.70-x86_64-unknown-linux-gnu.tar.gz',
-            sha256: 'a146f3af4a03de740d4b705a4cf318f621e1c37d19475f23ce0a38432da63409',
+            name: 'aioncore-v0.1.72-x86_64-unknown-linux-gnu.tar.gz',
+            sha256: '3d867d3d92dad68f78e4a1460c9a766bf2f29a0a556cc7d099dfce6d94f8e196',
           },
         },
       },
@@ -88,7 +88,7 @@ describe('AionUI upstream currentness', () => {
         package: '@openai/codex',
         version: '0.146.0',
         carrier: 'opl_app_official_npm_platform_package',
-        verified_by_aioncore: 'v0.1.70',
+        verified_by_aioncore: 'v0.1.72',
       },
     });
   });

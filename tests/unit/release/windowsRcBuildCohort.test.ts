@@ -66,7 +66,7 @@ function seedWindowsRcCohortFixture() {
         version: '0.146.0',
         packageSpec: '@openai/codex@0.146.0-linux-x64',
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: 'v0.1.70',
+        verifiedByAioncore: 'v0.1.72',
       },
     },
   };

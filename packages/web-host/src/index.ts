@@ -45,6 +45,8 @@ export {
   startBackend,
   stopBackend,
 } from './backend-launcher.js';
+export { repairStaleManagedWorkspaceProjectBindings } from './aioncoreCompatibility.js';
+export type { ManagedWorkspaceProjectBindingRepairResult } from './aioncoreCompatibility.js';
 export type {
   BackendDirConfig,
   BackendLaunchFlags,

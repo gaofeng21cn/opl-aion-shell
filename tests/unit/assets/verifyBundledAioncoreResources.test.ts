@@ -117,7 +117,7 @@ function writeManagedResources(managedResourcesDir: string, runtimeKey: string):
         version: CODEX_VERSION,
         packageSpec: `@openai/codex@${CODEX_VERSION}-${runtimeKey}`,
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: 'v0.1.70',
+        verifiedByAioncore: 'v0.1.72',
       },
     },
   });
@@ -131,8 +131,8 @@ function seedRuntime(resourcesDir: string, runtimeKey: string): string {
   writeJson(join(runtimeRoot, 'manifest.json'), {
     platform,
     arch,
-    version: 'v0.1.70',
-    compatibility: { reportedVersion: '0.1.70' },
+    version: 'v0.1.72',
+    compatibility: { reportedVersion: '0.1.72' },
   });
   writeManagedResources(managedResourcesDir, runtimeKey);
   return managedResourcesDir;
@@ -402,7 +402,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.1.70 for win32-x64 with reported version 0.1.70'
+      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.1.72 for win32-x64 with reported version 0.1.72'
     );
   });
 });
