@@ -27,7 +27,7 @@ const PROJECT_BINDING_REPAIR_TIMEOUT_MS = 15_000;
 const STALE_PROJECT_BINDING_REPAIR_SCRIPT = String.raw`
 const { DatabaseSync } = require('node:sqlite');
 
-const [databasePath, workspaceRoot] = process.argv.slice(1);
+const [databasePath] = process.argv.slice(1);
 const database = new DatabaseSync(databasePath);
 
 function hasColumns(tableName, requiredColumns) {
@@ -47,14 +47,14 @@ try {
   } else {
     database.exec('BEGIN IMMEDIATE');
     try {
+      // Invocation is already limited to managed WebUI. The owner-scoped
+      // Project row, not legacy extra.workspace metadata, decides validity.
       const result = database
         .prepare([
           'UPDATE conversations AS c',
           'SET project_id = NULL, folder_id = NULL',
           'WHERE c.project_id IS NOT NULL',
           "  AND trim(c.project_id) <> ''",
-          '  AND json_valid(c.extra)',
-          "  AND json_extract(c.extra, '$.workspace') = ?",
           '  AND NOT EXISTS (',
           '    SELECT 1',
           '    FROM projects p',
@@ -62,7 +62,7 @@ try {
           '      AND p.user_id = c.user_id',
           '  )',
         ].join('\n'))
-        .run(workspaceRoot);
+        .run();
       database.exec('COMMIT');
       process.stdout.write(JSON.stringify({ status: 'repaired', repairedBindings: Number(result.changes) }));
     } catch (error) {

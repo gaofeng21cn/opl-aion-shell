@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it } from 'vitest';
-import { repairStaleManagedWorkspaceProjectBindings } from './aioncoreCompatibility.js';
+import { repairStaleManagedWorkspaceProjectBindings } from '../../../packages/web-host/src/aioncoreCompatibility';
 
 describe('managed workspace stale project binding repair', () => {
   const temporaryDirectories: string[] = [];
@@ -43,7 +43,7 @@ describe('managed workspace stale project binding repair', () => {
     return execFileSync(process.execPath, [...args], { encoding: 'utf8' });
   }
 
-  it('clears only missing same-user bindings in the exact managed workspace and is idempotent', () => {
+  it('clears every owner-invalid binding in the managed WebUI database and is idempotent', () => {
     const input = fixture();
     const database = new DatabaseSync(input.databasePath);
     database.exec(`
@@ -94,7 +94,7 @@ describe('managed workspace stale project binding repair', () => {
     };
     expect(repairStaleManagedWorkspaceProjectBindings(options, runWithCurrentNode)).toEqual({
       status: 'repaired',
-      repairedBindings: 2,
+      repairedBindings: 4,
     });
     expect(repairStaleManagedWorkspaceProjectBindings(options, runWithCurrentNode)).toEqual({
       status: 'repaired',
@@ -111,10 +111,10 @@ describe('managed workspace stale project binding repair', () => {
         folder_id: row.folder_id,
       }));
     expect(rows).toEqual([
-      { id: 'invalid-extra', project_id: 'missing-invalid', folder_id: 'folder-e' },
+      { id: 'invalid-extra', project_id: null, folder_id: null },
       { id: 'missing', project_id: null, folder_id: null },
       { id: 'other-user', project_id: null, folder_id: null },
-      { id: 'other-workspace', project_id: 'missing-other', folder_id: 'folder-d' },
+      { id: 'other-workspace', project_id: null, folder_id: null },
       { id: 'valid', project_id: 'valid-project', folder_id: 'folder-b' },
     ]);
     readback.close();
