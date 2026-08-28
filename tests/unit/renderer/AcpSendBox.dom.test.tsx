@@ -196,12 +196,18 @@ vi.mock('@/renderer/utils/emitter', () => ({
   useAddEventListener: vi.fn(),
 }));
 vi.mock('@/renderer/utils/file/fileSelection', () => ({
-  mergeFileSelectionItems: vi.fn(),
+  mergeFileSelectionItems: (current: unknown[], additions: unknown[]) => [...current, ...additions],
+  localSelectionItems: (paths: string[]) => paths.map((path) => ({ path, name: path, isFile: true })),
 }));
 vi.mock('@/renderer/utils/file/messageFiles', () => ({
-  buildDisplayMessage: (input: string) => input,
-  collectSelectedFiles: (uploadFile: string[], atPath: Array<string | { path: string }>) =>
-    Array.from(new Set([...uploadFile, ...atPath.map((item) => (typeof item === 'string' ? item : item.path))])),
+  collectChatFileRefs: (uploadFile: string[], atPath: Array<string | { path: string }>) => [
+    ...uploadFile.map((path) => ({ kind: 'upload', path })),
+    ...atPath.map((item) => ({ kind: 'local', path: typeof item === 'string' ? item : item.path })),
+  ],
+  splitChatFileRefs: (files: Array<{ kind: string; path: string }>) => ({
+    uploadFiles: files.filter((file) => file.kind === 'upload').map((file) => file.path),
+    atPath: [],
+  }),
 }));
 vi.mock('@/renderer/pages/conversation/platforms/acp/useAcpInitialMessage', () => ({
   useAcpInitialMessage: vi.fn(),
@@ -312,6 +318,11 @@ describe('AcpSendBox', () => {
       screen.getByRole('button', { name: 'send' }).click();
     });
     await waitFor(() => expect(sendMessageInvokeMock).toHaveBeenCalled());
+    expect(sendMessageInvokeMock).toHaveBeenCalledWith({
+      input: 'Hello',
+      conversation_id: 'conv-1',
+      files: [{ kind: 'upload', path: '/tmp/failed.pdf' }],
+    });
 
     draftState.current = {
       _type: 'acp',

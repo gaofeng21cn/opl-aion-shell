@@ -1,34 +1,51 @@
-import { AIONUI_FILES_MARKER, AIONUI_TIMESTAMP_REGEX } from '@/common/config/constants';
+import { type ChatFileRef, chatFileRefKey, localFileRef, uploadFileRef } from '@/common/types/chatFile';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 
-export const collectSelectedFiles = (uploadFile: string[], atPath: Array<string | FileOrFolderItem>): string[] => {
-  const atPathFiles = atPath.map((item) => (typeof item === 'string' ? item : item.path)).filter(Boolean);
-  return Array.from(new Set([...uploadFile, ...atPathFiles]));
+export const collectChatFileRefs = (uploadFile: string[], atPath: Array<string | FileOrFolderItem>): ChatFileRef[] => {
+  const refs: ChatFileRef[] = [];
+  const seen = new Set<string>();
+  const append = (ref: ChatFileRef): void => {
+    const key = chatFileRefKey(ref);
+    if (seen.has(key)) return;
+    seen.add(key);
+    refs.push(ref);
+  };
+
+  for (const path of uploadFile) {
+    if (path) append(uploadFileRef(path));
+  }
+  for (const item of atPath) {
+    if (typeof item === 'string') {
+      if (item) append(localFileRef(item));
+    } else if (item.chatRef) {
+      append(item.chatRef);
+    } else if (item.path) {
+      // Compatibility for the pre-Project-Explorer workspace tree: these are
+      // backend-machine paths, not browser uploads under the managed /tmp root.
+      append(localFileRef(item.path));
+    }
+  }
+  return refs;
 };
 
-export const buildDisplayMessage = (input: string, files: string[], workspacePath: string): string => {
-  if (!files.length) return input;
-  const normalizedWorkspace = workspacePath?.replace(/[\\/]+$/, '');
-  const displayPaths = files.map((file_path) => {
-    const sanitizedPath = file_path.replace(AIONUI_TIMESTAMP_REGEX, '$1');
-    if (!normalizedWorkspace) {
-      return sanitizedPath;
+export const splitChatFileRefs = (
+  refs: Array<ChatFileRef | string>
+): { uploadFiles: string[]; atPath: FileOrFolderItem[] } => {
+  const uploadFiles: string[] = [];
+  const atPath: FileOrFolderItem[] = [];
+  for (const rawRef of refs) {
+    const ref = typeof rawRef === 'string' ? uploadFileRef(rawRef) : rawRef;
+    if (ref.kind === 'upload') {
+      uploadFiles.push(ref.path);
+      continue;
     }
-
-    const isAbsolute = file_path.startsWith('/') || /^[A-Za-z]:/.test(file_path);
-    if (isAbsolute) {
-      // If file is inside workspace, preserve relative path (including subdirectories like uploads/)
-      const normalizedFile = file_path.replace(/\\/g, '/');
-      const normalizedWorkspaceWithForwardSlash = normalizedWorkspace.replace(/\\/g, '/');
-      if (normalizedFile.startsWith(normalizedWorkspaceWithForwardSlash + '/')) {
-        const relativePath = normalizedFile.slice(normalizedWorkspaceWithForwardSlash.length + 1);
-        return `${normalizedWorkspace}/${relativePath.replace(AIONUI_TIMESTAMP_REGEX, '$1')}`;
-      }
-      // Keep external absolute paths unchanged so preview and metadata lookups
-      // continue to read the real file instead of a non-existent workspace path.
-      return sanitizedPath;
-    }
-    return `${normalizedWorkspace}/${sanitizedPath}`;
-  });
-  return `${input}\n\n${AIONUI_FILES_MARKER}\n${displayPaths.join('\n')}`;
+    const path = ref.kind === 'project' ? ref.relative_path : ref.path;
+    atPath.push({
+      path,
+      name: path.split(/[\\/]/).pop() || path,
+      isFile: true,
+      chatRef: ref,
+    });
+  }
+  return { uploadFiles, atPath };
 };

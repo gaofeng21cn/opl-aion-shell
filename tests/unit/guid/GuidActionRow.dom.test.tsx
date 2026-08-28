@@ -200,6 +200,7 @@ vi.mock('react-i18next', () => ({
 const buildProps = () => ({
   files: [] as string[],
   onFilesUploaded: vi.fn(),
+  onFilesPicked: vi.fn(),
   modelSelectorNode: <button data-testid='model-selector'>Model</button>,
   selectedAgent: 'codex',
   effectiveModeAgent: 'codex',

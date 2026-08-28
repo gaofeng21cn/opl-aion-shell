@@ -1,4 +1,5 @@
 import { ipcBridge } from '@/common';
+import { type ChatFileRef, chatFileRefPath } from '@/common/types/chatFile';
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import { isBackendHttpError } from '@/common/adapter/httpBridge';
 import { isSideQuestionSupported } from '@/common/chat/sideQuestion';
@@ -63,8 +64,8 @@ import {
 import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionContext';
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
-import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
-import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
+import { localSelectionItems, mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
+import { collectChatFileRefs, splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 import { filterNonPermissionAccessModes } from '@/renderer/utils/model/agentModes';
 import {
   buildOplCodexAutoModelOption,
@@ -125,7 +126,7 @@ const useSendBoxDraft = (conversation_id: string) => {
   );
 
   const restoreFailedSend = useCallback(
-    (failedContent: string, failedFiles: string[]) => {
+    (failedContent: string, failedFiles: ChatFileRef[]) => {
       mutate((prev) => mergeFailedSendDraft(prev, failedContent, failedFiles));
     },
     [mutate]
@@ -398,7 +399,6 @@ const AcpSendBox: React.FC<{
   useAcpInitialMessage({
     conversation_id: conversation_id,
     backend,
-    workspacePath,
     disabled: Boolean(canonicalThreadId),
     setAiProcessing,
     resetState,
@@ -412,8 +412,6 @@ const AcpSendBox: React.FC<{
 
   const executeCommand = useCallback(
     async ({ input, files }: Pick<ConversationCommandQueueItem, 'input' | 'files'>) => {
-      const displayMessage = buildDisplayMessage(input, files, workspacePath || '');
-
       runtimeView.markSendStarted();
       setAiProcessing(true);
 
@@ -430,15 +428,15 @@ const AcpSendBox: React.FC<{
               type: 'text',
               position: 'right',
               created_at: Date.now(),
-              content: { content: displayMessage },
+              content: { content: input },
             },
             true
           );
           const result = await ipcBridge.codexThreads.startTurn.invoke({
             threadId: canonicalThreadId,
             conversationId: conversation_id,
-            input: displayMessage,
-            files,
+            input,
+            files: files.map(chatFileRefPath),
             msgId,
             model: model_info?.current_model_id ?? getOplDefaultCodexModel(),
             effort: currentCodexReasoningEffort,
@@ -459,7 +457,7 @@ const AcpSendBox: React.FC<{
           );
         } else {
           const result = await ipcBridge.acpConversation.sendMessage.invoke({
-            input: displayMessage,
+            input,
             conversation_id,
             files,
           });
@@ -547,7 +545,6 @@ Please check your local CLI tool authentication status`,
       setAiProcessing,
       t,
       teamPermission,
-      workspacePath,
     ]
   );
 
@@ -578,7 +575,7 @@ Please check your local CLI tool authentication status`,
   });
 
   const onSendHandler = async (message: string) => {
-    const allFiles = collectSelectedFiles(uploadFile, atPath);
+    const allFiles = collectChatFileRefs(uploadFile, atPath);
 
     clearFiles();
     emitter.emit('acp.selected.file.clear');
@@ -607,8 +604,9 @@ Please check your local CLI tool authentication status`,
     (item: ConversationCommandQueueItem) => {
       remove(item.id);
       setContent(item.input);
-      setUploadFile(Array.from(new Set(item.files)));
-      setAtPath([]);
+      const restored = splitChatFileRefs(item.files);
+      setUploadFile(restored.uploadFiles);
+      setAtPath(restored.atPath);
       emitter.emit('acp.selected.file.clear');
     },
     [remove, setAtPath, setContent, setUploadFile]
@@ -616,9 +614,12 @@ Please check your local CLI tool authentication status`,
 
   const appendSelectedFiles = useCallback(
     (files: string[]) => {
-      setUploadFile((prev) => [...prev, ...files]);
+      const merged = mergeFileSelectionItems(atPathRef.current, localSelectionItems(files));
+      if (merged !== atPathRef.current) {
+        setAtPath(merged as Array<string | FileOrFolderItem>);
+      }
     },
-    [setUploadFile]
+    [setAtPath]
   );
   const { openFileSelector, openDirectorySelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,

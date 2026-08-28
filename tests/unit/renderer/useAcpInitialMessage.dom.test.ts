@@ -65,7 +65,6 @@ describe('useAcpInitialMessage', () => {
       useAcpInitialMessage({
         conversation_id: 'conv-1',
         backend: 'codex',
-        workspacePath: '/workspace',
         setAiProcessing: mocks.setAiProcessing,
         resetState: vi.fn(),
         checkAndUpdateTitle: mocks.checkAndUpdateTitle,
@@ -99,7 +98,6 @@ describe('useAcpInitialMessage', () => {
       useAcpInitialMessage({
         conversation_id: 'conv-1',
         backend: 'codex',
-        workspacePath: '/workspace',
         setAiProcessing: mocks.setAiProcessing,
         resetState: vi.fn(),
         checkAndUpdateTitle: mocks.checkAndUpdateTitle,
@@ -108,7 +106,11 @@ describe('useAcpInitialMessage', () => {
       })
     );
 
-    await waitFor(() => expect(mocks.restoreFailedSend).toHaveBeenCalledWith('hello from guid', ['/tmp/failed.pdf']));
+    await waitFor(() =>
+      expect(mocks.restoreFailedSend).toHaveBeenCalledWith('hello from guid', [
+        { kind: 'upload', path: '/tmp/failed.pdf' },
+      ])
+    );
     expect(sessionStorage.getItem('acp_initial_message_conv-1')).toBeNull();
   });
 

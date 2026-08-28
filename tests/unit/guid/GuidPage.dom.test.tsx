@@ -351,6 +351,7 @@ vi.mock('@/renderer/pages/guid/hooks/useGuidInput', () => ({
     handleTextareaFocus: vi.fn(),
     handleTextareaBlur: vi.fn(),
     handleFilesUploaded: vi.fn(),
+    handleFilesPicked: vi.fn(),
     handleRemoveFile: vi.fn(),
     onPaste: mocks.onPaste,
     dragHandlers: { onDrop: mocks.onDrop },

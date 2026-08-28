@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { type ChatFileRef, chatFileRefPath, localFileRef, uploadFileRef } from '@/common/types/chatFile';
 import { useDragUpload } from '@/renderer/hooks/file/useDragUpload';
 import { usePasteService } from '@/renderer/hooks/file/usePasteService';
 import { allSupportedExts, type FileMetadata } from '@/renderer/services/FileService';
@@ -13,8 +14,8 @@ import { useCallback, useEffect, useState } from 'react';
 export type GuidInputResult = {
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
-  files: string[];
-  setFiles: React.Dispatch<React.SetStateAction<string[]>>;
+  files: ChatFileRef[];
+  setFiles: React.Dispatch<React.SetStateAction<ChatFileRef[]>>;
   dir: string;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   isInputFocused: boolean;
@@ -22,6 +23,7 @@ export type GuidInputResult = {
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
   handleFilesPasted: (pastedFiles: FileMetadata[]) => void;
   handleFilesUploaded: (uploadedPaths: string[]) => void;
+  handleFilesPicked: (pickedPaths: string[]) => void;
   handleRemoveFile: (targetPath: string) => void;
   handleTextareaFocus: () => void;
   handleTextareaBlur: () => void;
@@ -45,7 +47,7 @@ export const useGuidInput = ({
   onFileAccessBlocked,
 }: UseGuidInputOptions): GuidInputResult => {
   const [input, setInput] = useState('');
-  const [files, setFiles] = useState<string[]>([]);
+  const [files, setFiles] = useState<ChatFileRef[]>([]);
   const [dir, setDir] = useState<string>('');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,8 +68,7 @@ export const useGuidInput = ({
         onFileAccessBlocked?.();
         return;
       }
-      const file_paths = pastedFiles.map((file) => file.path);
-      setFiles((prevFiles) => [...prevFiles, ...file_paths]);
+      setFiles((prevFiles) => [...prevFiles, ...pastedFiles.map((file) => uploadFileRef(file.path))]);
     },
     [fileAccessEnabled, onFileAccessBlocked]
   );
@@ -79,13 +80,24 @@ export const useGuidInput = ({
         onFileAccessBlocked?.();
         return;
       }
-      setFiles((prevFiles) => [...prevFiles, ...uploadedPaths]);
+      setFiles((prevFiles) => [...prevFiles, ...uploadedPaths.map(uploadFileRef)]);
+    },
+    [fileAccessEnabled, onFileAccessBlocked]
+  );
+
+  const handleFilesPicked = useCallback(
+    (pickedPaths: string[]) => {
+      if (!fileAccessEnabled) {
+        onFileAccessBlocked?.();
+        return;
+      }
+      setFiles((prevFiles) => [...prevFiles, ...pickedPaths.map(localFileRef)]);
     },
     [fileAccessEnabled, onFileAccessBlocked]
   );
 
   const handleRemoveFile = useCallback((targetPath: string) => {
-    setFiles((prevFiles) => prevFiles.filter((file) => file !== targetPath));
+    setFiles((prevFiles) => prevFiles.filter((file) => chatFileRefPath(file) !== targetPath));
   }, []);
 
   // Use drag upload hook (drag treated like paste, appends to existing files)
@@ -140,6 +152,7 @@ export const useGuidInput = ({
     setLoading,
     handleFilesPasted,
     handleFilesUploaded,
+    handleFilesPicked,
     handleRemoveFile,
     handleTextareaFocus,
     handleTextareaBlur,
