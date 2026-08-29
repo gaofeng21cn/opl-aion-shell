@@ -185,6 +185,43 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     );
   });
 
+  it('retries the fast-state refresh when the Framework carrier is still settling after maintenance', async () => {
+    vi.useFakeTimers();
+    seedCachedGateway();
+    getAppStateInvoke
+      .mockRejectedValueOnce(new Error('The Framework-managed OPL base carrier is missing.'))
+      .mockResolvedValueOnce({
+        ok: true,
+        parsed: {
+          app_state: {
+            schema_version: 'opl_app_state.v1',
+            core: { codex: { installed: true, model_access_ready: false } },
+            ...appStateWithGateway(gatewayProjection()),
+          },
+        },
+      });
+    const { result } = renderHook(() => useOplAppState('fast', { autoLoad: false }));
+
+    act(() => {
+      startupMaintenanceEmitter.callback?.();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
+    expect(result.current.appState.schema_version).toBeUndefined();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(2);
+    expect(result.current.appState).toMatchObject({
+      schema_version: 'opl_app_state.v1',
+      core: { codex: { installed: true, model_access_ready: false } },
+    });
+  });
+
   it('coalesces queued force-fresh and poll callers into one fresh fast read', async () => {
     let resolveShared!: (value: { ok: true; parsed: { app_state: { version: string } } }) => void;
     const sharedRequest = new Promise<{ ok: true; parsed: { app_state: { version: string } } }>((resolve) => {

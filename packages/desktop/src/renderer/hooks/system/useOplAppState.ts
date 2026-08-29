@@ -16,6 +16,8 @@ const DERIVED_BOOTSTRAP_PROVENANCE = 'derived_bootstrap' as const;
 export const OPL_APP_STATE_PERSISTED_CACHE_MAX_BYTES = 262_144;
 const AUTOMATIC_APP_STATE_MAX_ATTEMPTS = 2;
 const AUTOMATIC_APP_STATE_RETRY_DELAY_MS = 250;
+const STARTUP_MAINTENANCE_REFRESH_MAX_ATTEMPTS = 3;
+const STARTUP_MAINTENANCE_REFRESH_RETRY_DELAY_MS = 1_000;
 const inflightAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
 const freshAppStateLoads = new Map<OplAppStateProfile, Promise<OplAppStatePayload | null>>();
 const appStateRequestGenerations = new Map<OplAppStateProfile, number>();
@@ -47,19 +49,32 @@ export function resetOplAppStateLoadsForTest(): void {
   automaticAppStateLoadsStarted.clear();
 }
 
+async function waitForStartupMaintenanceRefreshRetry(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, STARTUP_MAINTENANCE_REFRESH_RETRY_DELAY_MS);
+  });
+}
+
 function refreshFastStateAfterStartupMaintenance(): void {
   if (startupMaintenanceRefreshInFlight) return;
-  startupMaintenanceRefreshInFlight = loadOplAppStateFromBridge('fast', { forceFresh: true })
-    .then((payload) => {
-      if (!payload) return;
-      cacheFastOplAppState(payload, new Date().toLocaleTimeString());
-    })
-    .catch(() => {
-      // Overview's bounded recovery loop remains the fallback when this best-effort refresh fails.
-    })
-    .finally(() => {
-      startupMaintenanceRefreshInFlight = null;
-    });
+  startupMaintenanceRefreshInFlight = (async () => {
+    for (let attempt = 1; attempt <= STARTUP_MAINTENANCE_REFRESH_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const payload = await loadOplAppStateFromBridge('fast', { forceFresh: true });
+        if (payload) {
+          cacheFastOplAppState(payload, new Date().toLocaleTimeString());
+          return;
+        }
+      } catch {
+        // The Framework carrier can still be settling immediately after maintenance exits.
+      }
+      if (attempt < STARTUP_MAINTENANCE_REFRESH_MAX_ATTEMPTS) {
+        await waitForStartupMaintenanceRefreshRetry();
+      }
+    }
+  })().finally(() => {
+    startupMaintenanceRefreshInFlight = null;
+  });
 }
 
 function ensureStartupMaintenanceRefreshSubscription(): void {
