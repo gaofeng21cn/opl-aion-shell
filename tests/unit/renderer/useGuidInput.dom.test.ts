@@ -38,7 +38,10 @@ describe('useGuidInput — ELECTRON-1K6', () => {
       ]);
     });
 
-    expect(result.current.files).toEqual(['/tmp/a.png', '/tmp/b.txt']);
+    expect(result.current.files).toEqual([
+      { kind: 'upload', path: '/tmp/a.png' },
+      { kind: 'upload', path: '/tmp/b.txt' },
+    ]);
     expect(result.current.dir).toBe('/Users/me/projects/my-project');
   });
 
@@ -50,7 +53,7 @@ describe('useGuidInput — ELECTRON-1K6', () => {
       result.current.handleFilesUploaded(['/tmp/c.pdf']);
     });
 
-    expect(result.current.files).toEqual(['/tmp/c.pdf']);
+    expect(result.current.files).toEqual([{ kind: 'upload', path: '/tmp/c.pdf' }]);
     expect(result.current.dir).toBe('/Users/me/projects/my-project');
   });
 

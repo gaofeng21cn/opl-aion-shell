@@ -4,9 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { localFileRef } from '@/common/types/chatFile';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 
 export type FileSelectionItem = string | FileOrFolderItem;
+
+/** Tag backend-machine picker paths as `local`, never as managed uploads. */
+export const localSelectionItems = (paths: string[]): FileOrFolderItem[] =>
+  paths.filter(Boolean).map((path) => ({
+    path,
+    name: path.split(/[\\/]/).pop() || path,
+    isFile: true,
+    chatRef: localFileRef(path),
+  }));
 
 /**
  * 剥离 Windows 扩展长度路径前缀（`\\?\C:\DEV` → `C:\DEV`，`\\?\UNC\srv\share` → `\\srv\share`）

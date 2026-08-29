@@ -299,13 +299,9 @@ export function isTextFile(file_name: string): boolean {
 
 class FileServiceClass {
   /**
-   * Process files from drag and drop events, uploading any file that lacks a
-   * native disk path via HTTP multipart.
-   *
-   * In Electron, files dragged from the OS file manager already expose an
-   * absolute `path`, so we skip upload for those. Anything without a path
-   * (WebUI, synthetic File objects, browser-sourced drags) is uploaded to the
-   * backend, which returns the absolute stored path.
+   * Upload drag/drop and browser-selected bytes into the managed upload root.
+   * Native picker paths use a separate `local` ChatFileRef lane; File objects
+   * always become `upload` refs and therefore must always be copied here.
    */
   async processDroppedFiles(
     files: FileList,
@@ -316,41 +312,29 @@ class FileServiceClass {
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      // In Electron environment, dragged files have additional path property
-      const electronFile = file as File & { path?: string };
-
-      let file_path = electronFile.path || '';
-
-      // If no valid path (WebUI or some dragged files may not have paths), upload via HTTP multipart
-      if (!file_path) {
-        // Each upload owns its own AbortController; the tracker exposes an `abort()`
-        // that triggers the signal so user-driven cancel and conversation-switch
-        // bulk-abort go through the same path.
-        const controller = new AbortController();
-        const tracker = trackUpload(file.size, {
-          source,
-          name: file.name,
-          conversationId: conversation_id || undefined,
-          onAbort: () => controller.abort(),
+      const controller = new AbortController();
+      const tracker = trackUpload(file.size, {
+        source,
+        name: file.name,
+        conversationId: conversation_id || undefined,
+        onAbort: () => controller.abort(),
+      });
+      let file_path = '';
+      try {
+        file_path = await uploadFileViaHttp(file, conversation_id || '', tracker.onProgress, undefined, {
+          signal: controller.signal,
         });
-        try {
-          file_path = await uploadFileViaHttp(file, conversation_id || '', tracker.onProgress, undefined, {
-            signal: controller.signal,
-          });
-        } catch (error) {
-          // Re-throw size errors so caller can show user-facing toast
-          if (error instanceof Error && error.message === 'FILE_TOO_LARGE') {
-            throw error;
-          }
-          if (error instanceof Error && error.message === UPLOAD_ABORTED_ERROR) {
-            // User-initiated abort: drop this file silently (the UI already reflects it).
-            continue;
-          }
-          console.error('Failed to upload dragged file:', error);
-          continue;
-        } finally {
-          tracker.finish();
+      } catch (error) {
+        if (error instanceof Error && error.message === 'FILE_TOO_LARGE') {
+          throw error;
         }
+        if (error instanceof Error && error.message === UPLOAD_ABORTED_ERROR) {
+          continue;
+        }
+        console.error('Failed to upload dropped file:', error);
+        continue;
+      } finally {
+        tracker.finish();
       }
 
       processedFiles.push({

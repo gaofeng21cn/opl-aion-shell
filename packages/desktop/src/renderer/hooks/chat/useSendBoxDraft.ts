@@ -1,6 +1,9 @@
 import { useCallback } from 'react';
 import useSWR from 'swr';
+import type { ChatFileRef } from '@/common/types/chatFile';
 import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
+import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
+import { splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 export type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
 
 type Draft =
@@ -43,16 +46,19 @@ export const mergeFailedSendContent = (failedContent: string, currentContent: st
 export const mergeFailedSendDraft = <T extends SendBoxDraftValue>(
   currentDraft: T,
   failedContent: string,
-  failedFiles: string[]
+  failedFiles: ChatFileRef[]
 ): T => {
-  const atPathFiles = new Set(currentDraft.atPath.map(filePathOf));
+  const restored = splitChatFileRefs(failedFiles);
+  const atPath = mergeFileSelectionItems(restored.atPath, currentDraft.atPath) as Array<string | FileOrFolderItem>;
+  const atPathFiles = new Set(atPath.map(filePathOf));
   const uploadFile = Array.from(
-    new Set([...failedFiles.filter(Boolean), ...currentDraft.uploadFile.filter(Boolean)])
+    new Set([...restored.uploadFiles.filter(Boolean), ...currentDraft.uploadFile.filter(Boolean)])
   ).filter((file) => !atPathFiles.has(file));
 
   return {
     ...currentDraft,
     content: mergeFailedSendContent(failedContent, currentDraft.content),
+    atPath,
     uploadFile,
   };
 };

@@ -106,6 +106,7 @@ import type {
   UpdateDownloadResult,
 } from '../update/updateTypes';
 import type { Theme } from '@/common/theme/types';
+import type { ChatFileRef } from '@/common/types/chatFile';
 import type { ProtocolDetectionRequest, ProtocolDetectionResponse } from '../utils/protocolDetector';
 import { TEAM_MODE_ENABLED } from '../config/constants';
 import {
@@ -2207,7 +2208,7 @@ export interface ICronJobUpdateParams {
 interface ISendMessageParams {
   input: string;
   conversation_id: string;
-  files?: string[];
+  files?: ChatFileRef[];
   loading_id?: string;
   inject_skills?: string[];
 }

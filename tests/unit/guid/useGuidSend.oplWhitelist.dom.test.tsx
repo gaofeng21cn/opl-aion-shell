@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { uploadFileRef } from '@/common/types/chatFile';
 import type { GuidSendDeps } from '@/renderer/pages/guid/hooks/useGuidSend';
 import { useGuidSend } from '@/renderer/pages/guid/hooks/useGuidSend';
 import { resolveOplActiveShortcut } from '@/renderer/pages/guid/utils/activeShortcut';
@@ -679,7 +680,11 @@ describe('useGuidSend OPL ordinary capability policy', () => {
 
   it('sends only explicit session attachments and deduplicates them in insertion order', async () => {
     const deps = buildDeps();
-    deps.files = ['/tmp/opl/draft.pdf', '/tmp/opl/evidence.csv', '/tmp/opl/draft.pdf'];
+    deps.files = [
+      uploadFileRef('/tmp/opl/draft.pdf'),
+      uploadFileRef('/tmp/opl/evidence.csv'),
+      uploadFileRef('/tmp/opl/draft.pdf'),
+    ];
 
     const { result } = renderHook(() => useGuidSend(deps));
     await act(async () => {
@@ -690,8 +695,8 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(payload.extra.default_files).toEqual(['/tmp/opl/draft.pdf', '/tmp/opl/evidence.csv']);
     expect(payload.extra.project_context_refs).toBeUndefined();
     expect(JSON.parse(sessionStorage.getItem('acp_initial_message_conversation-1') || '{}').files).toEqual([
-      '/tmp/opl/draft.pdf',
-      '/tmp/opl/evidence.csv',
+      { kind: 'upload', path: '/tmp/opl/draft.pdf' },
+      { kind: 'upload', path: '/tmp/opl/evidence.csv' },
     ]);
   });
 });

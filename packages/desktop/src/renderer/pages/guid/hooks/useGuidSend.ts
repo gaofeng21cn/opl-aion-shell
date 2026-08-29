@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { type ChatFileRef, chatFileRefKey, chatFileRefPath } from '@/common/types/chatFile';
 import { filterOplOrdinaryMcpServers } from '@/common/config/oplProductProfile';
 import type { IMcpServer, TProviderWithModel } from '@/common/config/storage';
 import {
@@ -48,8 +49,8 @@ export type GuidSendDeps = {
   // Input state
   input: string;
   setInput: React.Dispatch<React.SetStateAction<string>>;
-  files: string[];
-  setFiles: React.Dispatch<React.SetStateAction<string[]>>;
+  files: ChatFileRef[];
+  setFiles: React.Dispatch<React.SetStateAction<ChatFileRef[]>>;
   dir: string;
   setDir: React.Dispatch<React.SetStateAction<string>>;
   setLoading: React.Dispatch<React.SetStateAction<boolean>>;
@@ -190,7 +191,14 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
     }
     const isCustomWorkspace = !!dir;
     const finalWorkspace = dir || '';
-    const initialFiles = Array.from(new Set(files));
+    const seenFileRefs = new Set<string>();
+    const initialFiles = files.filter((file) => {
+      const key = chatFileRefKey(file);
+      if (seenFileRefs.has(key)) return false;
+      seenFileRefs.add(key);
+      return true;
+    });
+    const initialFilePaths = initialFiles.map(chatFileRefPath);
 
     const agentInfo = selectedAgentInfo;
     const is_preset = is_presetAgent;
@@ -261,7 +269,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         language,
         opl_flow_installed: oplFlowInstalled,
         extra: {
-          default_files: initialFiles,
+          default_files: initialFilePaths,
           runtime_validation: {
             expected_workspace: finalWorkspace,
             expected_backend: openclawAgentInfo?.backend,
@@ -291,7 +299,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: initialFiles.length > 0 ? initialFiles : undefined,
+          files: initialFilePaths.length > 0 ? initialFilePaths : undefined,
         };
         sessionStorage.setItem(`openclaw_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -318,7 +326,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         language,
         opl_flow_installed: oplFlowInstalled,
         extra: {
-          default_files: initialFiles,
+          default_files: initialFilePaths,
           preset_enabled_skills: enabled_skills_to_send,
           exclude_auto_inject_skills: excludeBuiltinSkills,
         },
@@ -340,7 +348,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
         const initialMessage = {
           input,
-          files: initialFiles.length > 0 ? initialFiles : undefined,
+          files: initialFilePaths.length > 0 ? initialFilePaths : undefined,
         };
         sessionStorage.setItem(`nanobot_initial_message_${conversation.id}`, JSON.stringify(initialMessage));
 
@@ -367,7 +375,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
             ? { id: selectedAgentInfo.backend_assistant_id, locale: resolveLocaleKey(language) }
             : undefined,
           extra: {
-            default_files: initialFiles,
+            default_files: initialFilePaths,
             workspace: finalWorkspace,
             custom_workspace: isCustomWorkspace,
             preset_rules: is_preset ? preset_rules : undefined,
@@ -465,7 +473,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
         language,
         opl_flow_installed: oplFlowInstalled,
         extra: {
-          default_files: initialFiles,
+          default_files: initialFilePaths,
           exclude_auto_inject_skills: excludeBuiltinSkills,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,

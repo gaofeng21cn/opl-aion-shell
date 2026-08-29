@@ -5,44 +5,53 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { buildDisplayMessage } from '@/renderer/utils/file/messageFiles';
+import { localFileRef, projectFileRef, uploadFileRef } from '@/common/types/chatFile';
+import { localSelectionItems } from '@/renderer/utils/file/fileSelection';
+import type { FileOrFolderItem } from '@/renderer/utils/file/fileTypes';
+import { collectChatFileRefs, splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 
-describe('buildDisplayMessage', () => {
-  const workspace = '/tmp/aion/workspace-1';
-
-  it('stores workspace files with workspace prefix', () => {
-    const files = [`${workspace}/uploads/photo.jpg`];
-    const result = buildDisplayMessage('hello', files, workspace);
-    expect(result).toContain(`${workspace}/uploads/photo.jpg`);
+describe('collectChatFileRefs', () => {
+  const projectItem = (pe_id: string, relative_path: string): FileOrFolderItem => ({
+    path: `/projects/${relative_path}`,
+    name: relative_path.split('/').pop() ?? relative_path,
+    isFile: true,
+    chatRef: projectFileRef(pe_id, relative_path),
   });
 
-  it('preserves nested subdirectories inside workspace with prefix', () => {
-    const files = [`${workspace}/uploads/subdir/doc.pdf`];
-    const result = buildDisplayMessage('hello', files, workspace);
-    expect(result).toContain(`${workspace}/uploads/subdir/doc.pdf`);
+  it('tags browser/device uploads as upload refs', () => {
+    expect(collectChatFileRefs(['/tmp/a.txt'], [])).toEqual([{ kind: 'upload', path: '/tmp/a.txt' }]);
   });
 
-  it('keeps absolute paths outside workspace unchanged', () => {
-    const files = ['/other/path/external.txt'];
-    const result = buildDisplayMessage('hello', files, workspace);
-    expect(result).toContain('/other/path/external.txt');
-    expect(result).not.toContain(`${workspace}/external.txt`);
+  it('preserves Project Explorer and backend-machine source identity', () => {
+    expect(
+      collectChatFileRefs([], [projectItem('pe-1', 'src/main.ts'), ...localSelectionItems(['/projects/note.md'])])
+    ).toEqual([
+      { kind: 'project', pe_id: 'pe-1', relative_path: 'src/main.ts' },
+      { kind: 'local', path: '/projects/note.md' },
+    ]);
   });
 
-  it('converts relative paths into workspace-prefixed paths', () => {
-    const files = ['relative/file.txt'];
-    const result = buildDisplayMessage('hello', files, workspace);
-    expect(result).toContain(`${workspace}/relative/file.txt`);
+  it('treats untagged legacy workspace selections as local backend paths', () => {
+    expect(collectChatFileRefs([], [{ path: '/projects/legacy.txt', name: 'legacy.txt', isFile: true }])).toEqual([
+      { kind: 'local', path: '/projects/legacy.txt' },
+    ]);
   });
 
-  it('returns input unchanged when no files', () => {
-    const result = buildDisplayMessage('hello', [], workspace);
-    expect(result).toBe('hello');
+  it('deduplicates by source-tagged identity', () => {
+    expect(
+      collectChatFileRefs(['/tmp/a.txt', '/tmp/a.txt'], [projectItem('pe-1', 'a.txt'), projectItem('pe-1', 'a.txt')])
+    ).toEqual([
+      { kind: 'upload', path: '/tmp/a.txt' },
+      { kind: 'project', pe_id: 'pe-1', relative_path: 'a.txt' },
+    ]);
   });
+});
 
-  it('strips AIONUI timestamp separators from filenames while keeping prefix', () => {
-    const files = [`${workspace}/uploads/photo_aionui_1234567890123.jpg`];
-    const result = buildDisplayMessage('hello', files, workspace);
-    expect(result).toContain(`${workspace}/uploads/photo.jpg`);
+describe('splitChatFileRefs', () => {
+  it('round-trips upload, project, and local refs through send-box lanes', () => {
+    const refs = [uploadFileRef('/tmp/a.txt'), projectFileRef('pe-1', 'src/main.ts'), localFileRef('/projects/b.md')];
+    const restored = splitChatFileRefs(refs);
+    expect(restored.uploadFiles).toEqual(['/tmp/a.txt']);
+    expect(collectChatFileRefs(restored.uploadFiles, restored.atPath)).toEqual(refs);
   });
 });

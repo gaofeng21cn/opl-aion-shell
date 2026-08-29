@@ -52,6 +52,7 @@ type GuidActionRowProps = {
   // File handling
   files: string[];
   onFilesUploaded: (paths: string[]) => void;
+  onFilesPicked: (paths: string[]) => void;
   fileAccessDisabled?: boolean;
   fileAccessDisabledReason?: string;
 
@@ -110,6 +111,7 @@ type GuidMobileCodexModelSelection = {
 const GuidActionRow: React.FC<GuidActionRowProps> = ({
   files,
   onFilesUploaded,
+  onFilesPicked,
   fileAccessDisabled = false,
   fileAccessDisabledReason,
   modelSelectorNode,
@@ -190,7 +192,7 @@ const GuidActionRow: React.FC<GuidActionRowProps> = ({
   const isWebUI = !isElectronDesktop();
 
   const { openFileSelector, openDirectorySelector } = useOpenFileSelector({
-    onFilesSelected: onFilesUploaded,
+    onFilesSelected: onFilesPicked,
   });
 
   const openHostFilePicker = useCallback(() => {

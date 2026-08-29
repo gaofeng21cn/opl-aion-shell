@@ -9,6 +9,7 @@ import { buildGuidSlashCommands } from '@/common/chat/slash/guidSlashCommands';
 import type { SlashCommandItem } from '@/common/chat/slash/types';
 import { filterOplOrdinaryMcpServers, getOplOrdinaryCapabilitySelectorPolicy } from '@/common/config/oplProductProfile';
 import type { IMcpServer } from '@/common/config/storage';
+import { chatFileRefPath } from '@/common/types/chatFile';
 import {
   getOplDirectorySkillIds,
   parseOplStandardAgentDirectoryEntries,
@@ -281,9 +282,9 @@ const GuidPage: React.FC = () => {
 
   const appendSlashSelectedFiles = useCallback(
     (selectedFiles: string[]) => {
-      guidInput.setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
+      guidInput.handleFilesPicked(selectedFiles);
     },
-    [guidInput.setFiles]
+    [guidInput.handleFilesPicked]
   );
   const { onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSlashSelectedFiles,
@@ -813,12 +814,14 @@ const GuidPage: React.FC = () => {
     [guidInput.setInput]
   );
   const { handleLiveTranscript } = useLiveTranscriptInsertion(guidInput.setInput);
+  const displayFilePaths = useMemo(() => guidInput.files.map(chatFileRefPath), [guidInput.files]);
 
   // Build the action row
   const actionRowNode = (
     <GuidActionRow
-      files={guidInput.files}
+      files={displayFilePaths}
       onFilesUploaded={guidInput.handleFilesUploaded}
+      onFilesPicked={guidInput.handleFilesPicked}
       fileAccessDisabled={false}
       modelSelectorNode={modelSelectorNode}
       mobileCodexModelSelection={
@@ -957,7 +960,7 @@ const GuidPage: React.FC = () => {
               dragHandlers={guidInput.dragHandlers}
               mentionOpen={mention.mentionOpen}
               mentionDropdown={mentionDropdownNode}
-              files={guidInput.files}
+              files={displayFilePaths}
               onRemoveFile={guidInput.handleRemoveFile}
               actionRow={actionRowNode}
               slashCommandMenu={slashCommandMenuNode}

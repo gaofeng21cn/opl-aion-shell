@@ -303,7 +303,8 @@ vi.mock('@/renderer/utils/file/fileSelection', () => ({
 }));
 
 vi.mock('@/renderer/utils/file/messageFiles', () => ({
-  buildDisplayMessage: (input: string) => input,
+  collectChatFileRefs: () => [],
+  splitChatFileRefs: () => ({ uploadFiles: [], atPath: [] }),
 }));
 
 vi.mock('@/renderer/pages/conversation/platforms/acp/useAcpInitialMessage', () => ({

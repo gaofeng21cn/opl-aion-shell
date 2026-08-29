@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import { type ChatFileRef, isChatFileRef, uploadFileRef } from '@/common/types/chatFile';
 import { filterOplOrdinaryMcpStatuses, filterOplOrdinarySkillNames } from '@/common/config/oplProductProfile';
 import type { IConversationMcpStatus } from '@/common/config/storage';
 import AgentModeSelector from '@/renderer/components/agent/AgentModeSelector';
@@ -48,8 +49,8 @@ import { useTeamPermission } from '@/renderer/pages/team/hooks/TeamPermissionCon
 import { allSupportedExts } from '@/renderer/services/FileService';
 import { iconColors } from '@/renderer/styles/colors';
 import { emitter, useAddEventListener } from '@/renderer/utils/emitter';
-import { mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
-import { buildDisplayMessage, collectSelectedFiles } from '@/renderer/utils/file/messageFiles';
+import { localSelectionItems, mergeFileSelectionItems } from '@/renderer/utils/file/fileSelection';
+import { collectChatFileRefs, splitChatFileRefs } from '@/renderer/utils/file/messageFiles';
 import {
   filterNonPermissionAccessModes,
   getAgentModes,
@@ -102,7 +103,7 @@ const useSendBoxDraft = (conversation_id: string) => {
   );
 
   const restoreFailedSend = useCallback(
-    (failedContent: string, failedFiles: string[]) => {
+    (failedContent: string, failedFiles: ChatFileRef[]) => {
       mutate((prev) => mergeFailedSendDraft(prev, failedContent, failedFiles));
     },
     [mutate]
@@ -259,11 +260,10 @@ const AionrsSendBox: React.FC<{
       runtimeView.markSendStarted();
       setWaitingResponse(true);
 
-      const displayMessage = buildDisplayMessage(input, files, workspacePath);
       try {
         void checkAndUpdateTitle(conversation_id, input);
         const res = await ipcBridge.conversation.sendMessage.invoke({
-          input: displayMessage,
+          input,
           conversation_id,
           files,
         });
@@ -282,16 +282,7 @@ const AionrsSendBox: React.FC<{
         throw error;
       }
     },
-    [
-      checkAndUpdateTitle,
-      conversation_id,
-      current_model?.use_model,
-      runtimeView,
-      setActiveMsgId,
-      setWaitingResponse,
-      t,
-      workspacePath,
-    ]
+    [checkAndUpdateTitle, conversation_id, current_model?.use_model, runtimeView, setActiveMsgId, setWaitingResponse, t]
   );
 
   const {
@@ -336,12 +327,14 @@ const AionrsSendBox: React.FC<{
       sessionStorage.removeItem(storageKey);
 
       let input = '';
-      let initialFiles: string[] = [];
+      let initialFiles: ChatFileRef[] = [];
       try {
         const initialMessage = JSON.parse(storedMessage);
         input = typeof initialMessage.input === 'string' ? initialMessage.input : '';
         initialFiles = Array.isArray(initialMessage.files)
-          ? initialMessage.files.filter((file: unknown): file is string => typeof file === 'string')
+          ? initialMessage.files
+              .map((file: unknown) => (typeof file === 'string' ? uploadFileRef(file) : file))
+              .filter(isChatFileRef)
           : [];
         await executeCommand({ input, files: initialFiles });
       } catch (error) {
@@ -355,7 +348,7 @@ const AionrsSendBox: React.FC<{
   }, [conversation_id, current_model?.use_model, executeCommand, restoreFailedSend]);
 
   const onSendHandler = async (message: string) => {
-    const filesToSend = collectSelectedFiles(uploadFile, atPath);
+    const filesToSend = collectChatFileRefs(uploadFile, atPath);
     clearFiles();
     emitter.emit('aionrs.selected.file.clear');
 
@@ -383,8 +376,9 @@ const AionrsSendBox: React.FC<{
     (item: ConversationCommandQueueItem) => {
       remove(item.id);
       setContent(item.input);
-      setUploadFile(Array.from(new Set(item.files)));
-      setAtPath([]);
+      const restored = splitChatFileRefs(item.files);
+      setUploadFile(restored.uploadFiles);
+      setAtPath(restored.atPath);
       emitter.emit('aionrs.selected.file.clear');
     },
     [remove, setAtPath, setContent, setUploadFile]
@@ -392,9 +386,12 @@ const AionrsSendBox: React.FC<{
 
   const appendSelectedFiles = useCallback(
     (files: string[]) => {
-      setUploadFile((prev) => [...prev, ...files]);
+      const merged = mergeFileSelectionItems(atPathRef.current, localSelectionItems(files));
+      if (merged !== atPathRef.current) {
+        setAtPath(merged as Array<string | FileOrFolderItem>);
+      }
     },
-    [setUploadFile]
+    [setAtPath]
   );
   const { openFileSelector, openDirectorySelector, onSlashBuiltinCommand } = useOpenFileSelector({
     onFilesSelected: appendSelectedFiles,
