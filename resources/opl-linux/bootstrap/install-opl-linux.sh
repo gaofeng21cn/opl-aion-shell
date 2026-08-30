@@ -127,7 +127,7 @@ managed_codex_path() {
     jq -er '
       select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
       | select(.source.schemaVersion == 2)
-      | select(.source.cliNames == ["claude", "codex"])
+      | select(.source.cliNames == [])
       | select(.projection.includedCliNames == ["codex"])
       | select(.projection.excludedCliNames == ["claude"])
       | [.clis[]? | select(.name == "codex")] as $matches

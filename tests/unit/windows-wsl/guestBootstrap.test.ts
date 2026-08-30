@@ -68,6 +68,8 @@ describe('OPL Linux guest bootstrap', () => {
     expect(installer).toContain(
       'select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")'
     );
+    expect(installer).toContain('select(.source.cliNames == [])');
+    expect(installer).not.toContain('select(.source.cliNames == ["claude", "codex"])');
     expect(installer).toContain('select(.projection.includedCliNames == ["codex"])');
     expect(installer).toContain('select(.projection.excludedCliNames == ["claude"])');
     expect(installer).toContain('node_modules/@anthropic-ai/claude-code');
@@ -76,6 +78,8 @@ describe('OPL Linux guest bootstrap', () => {
     expect(installer).toContain('codex_command_digest: $codex_command_digest');
 
     const inspect = read('opl-runtime-inspect');
+    expect(inspect).toContain('select(.source.cliNames == [])');
+    expect(inspect).not.toContain('select(.source.cliNames == ["claude", "codex"])');
     expect(inspect).toContain('export OPL_CODEX_BIN=/usr/local/bin/codex');
     expect(inspect).toContain('codex_command_realpath="$(readlink -f "$codex_command_path")"');
     expect(inspect).toContain('"sha256:$codex_command_sha256" != "$identity_codex_digest"');

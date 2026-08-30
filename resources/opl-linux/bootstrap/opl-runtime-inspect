@@ -27,7 +27,7 @@ fi
 if ! jq -e '
   select(.schema == "opl_aioncore_managed_resources_projection.v1" and .runtimeKey == "linux-x64")
   | select(.source.schemaVersion == 2)
-  | select(.source.cliNames == ["claude", "codex"])
+  | select(.source.cliNames == [])
   | select(.projection.includedCliNames == ["codex"])
   | select(.projection.excludedCliNames == ["claude"])
 ' "$managed_manifest" >/dev/null; then

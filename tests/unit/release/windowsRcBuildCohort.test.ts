@@ -300,6 +300,8 @@ describe('Windows RC build cohort', () => {
     expect(manual).not.toContain('inputs.branch');
     expect(reusable).not.toContain('inputs.ref');
     expect(reusable).toContain('Verify prepared Linux managed Node runtime');
+    expect(reusable).toContain('select(.source.cliNames == [])');
+    expect(reusable).not.toContain('select(.source.cliNames == ["claude", "codex"])');
     expect(reusable).toContain('"$node_bin/npm" --version');
     expect(reusable).toContain('"$node_bin/npx" --version');
     expect(reusable).toContain('lib/node_modules/npm/lib/cli.js');
