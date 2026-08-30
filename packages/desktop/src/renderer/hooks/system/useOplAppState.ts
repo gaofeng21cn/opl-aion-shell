@@ -318,6 +318,33 @@ const OWNER_STORAGE_CACHE_FIELDS = [
 
 const OWNER_STORAGE_ACTION_CACHE_FIELDS = ['kind', 'action_id', 'execution_owner'] as const;
 
+const STANDARD_AGENT_DIRECTORY_ENTRY_CACHE_FIELDS = [
+  'package_id',
+  'package_role',
+  'installed',
+  'package_short_name',
+  'display_name',
+  'description',
+] as const;
+
+const STANDARD_AGENT_READINESS_CACHE_FIELDS = ['operational_ready', 'launch_allowed', 'reason'] as const;
+
+const STANDARD_AGENT_PACKAGE_STATUS_CACHE_FIELDS = [
+  'package_id',
+  'operational_ready',
+  'launch_allowed',
+  'launch_blocked_reason',
+] as const;
+
+const STANDARD_AGENT_PRESENCE_CACHE_FIELDS = [
+  'registered',
+  'installed',
+  'present',
+  'callable',
+  'status',
+  'reason',
+] as const;
+
 function pickCacheFields(value: unknown, fields: readonly string[]): OplAppStateRecord | null {
   if (value === null) return null;
   if (!isOplRecord(value)) return null;
@@ -438,6 +465,156 @@ function sanitizeStorageLifecycleForCache(value: unknown): OplAppStateRecord | n
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
+function sanitizeLocalizedTextForCache(value: unknown): OplAppStateRecord | null {
+  return pickScalarCacheFields(value, ['zh-CN', 'en-US']);
+}
+
+function sanitizeStringListForCache(value: unknown, maxItems = 50): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value.flatMap((item) => {
+        const text = oplString(item);
+        return text ? [text] : [];
+      })
+    ),
+  ].slice(0, maxItems);
+}
+
+function sanitizeStandardAgentHomeShortcutForCache(value: unknown): OplAppStateRecord | null {
+  const shortcut = oplRecord(value);
+  const shortcutId = oplString(shortcut.shortcut_id);
+  const labelI18n = sanitizeLocalizedTextForCache(shortcut.label_i18n);
+  const route = pickScalarCacheFields(shortcut.route, ['route_kind', 'executor', 'codex_visible_entry']);
+  if (
+    !shortcutId ||
+    !labelI18n ||
+    typeof shortcut.default_visible !== 'boolean' ||
+    typeof shortcut.user_configurable !== 'boolean' ||
+    route?.route_kind !== 'agent_package_shortcut' ||
+    route.executor !== 'codex_cli' ||
+    !oplString(route.codex_visible_entry)
+  ) {
+    return null;
+  }
+  const iconId = oplString(shortcut.icon_id);
+  return {
+    shortcut_id: shortcutId,
+    ...(iconId ? { icon_id: iconId } : {}),
+    label_i18n: labelI18n,
+    default_visible: shortcut.default_visible,
+    user_configurable: shortcut.user_configurable,
+    route,
+  };
+}
+
+function sanitizeStandardAgentDirectoryEntryForCache(value: unknown): OplAppStateRecord | null {
+  const entry = pickScalarCacheFields(value, STANDARD_AGENT_DIRECTORY_ENTRY_CACHE_FIELDS);
+  if (!entry || entry.package_role !== 'standard_agent' || !oplString(entry.package_id)) return null;
+  const source = oplRecord(value);
+  for (const field of ['display_name_i18n', 'description_i18n', 'session_routing_summary_i18n'] as const) {
+    const localized = sanitizeLocalizedTextForCache(source[field]);
+    if (localized) entry[field] = localized;
+  }
+  entry.home_shortcuts = oplRecordList(source.home_shortcuts)
+    .slice(0, 20)
+    .flatMap((shortcut) => {
+      const sanitized = sanitizeStandardAgentHomeShortcutForCache(shortcut);
+      return sanitized ? [sanitized] : [];
+    });
+  const capabilityMetadata = oplRecord(source.capability_metadata);
+  const capabilitySource = oplString(capabilityMetadata.source);
+  if (capabilitySource) {
+    entry.capability_metadata = {
+      source: capabilitySource,
+      required_skill_ids: sanitizeStringListForCache(capabilityMetadata.required_skill_ids),
+      optional_skill_refs: sanitizeStringListForCache(capabilityMetadata.optional_skill_refs),
+    };
+  }
+  const readiness = pickScalarCacheFields(source.readiness, STANDARD_AGENT_READINESS_CACHE_FIELDS);
+  if (readiness) entry.readiness = readiness;
+  return entry;
+}
+
+function sanitizeHomeShortcutPreferenceForCache(
+  value: unknown,
+  validShortcutKeys: ReadonlySet<string>
+): OplAppStateRecord | null {
+  const preference = oplRecord(value);
+  const packageId = oplString(preference.package_id);
+  const shortcutId = oplString(preference.shortcut_id);
+  if (!packageId || !shortcutId || !validShortcutKeys.has(`${packageId}\n${shortcutId}`)) return null;
+  const sanitized: OplAppStateRecord = { package_id: packageId, shortcut_id: shortcutId };
+  if (typeof preference.visible === 'boolean') sanitized.visible = preference.visible;
+  if (typeof preference.sort_order === 'number' && Number.isFinite(preference.sort_order)) {
+    sanitized.sort_order = preference.sort_order;
+  }
+  if (preference.source === 'default' || preference.source === 'user_preference') {
+    sanitized.source = preference.source;
+  }
+  return sanitized;
+}
+
+function sanitizeStandardAgentPackageStatusForCache(value: unknown, packageId: string): OplAppStateRecord {
+  const status = pickScalarCacheFields(value, STANDARD_AGENT_PACKAGE_STATUS_CACHE_FIELDS) ?? {};
+  status.package_id = packageId;
+  const presence = pickScalarCacheFields(oplRecord(value).presence, STANDARD_AGENT_PRESENCE_CACHE_FIELDS);
+  if (presence) status.presence = presence;
+  const allowedWhenBlocked = sanitizeStringListForCache(oplRecord(value).allowed_when_blocked, 20);
+  if (allowedWhenBlocked.length > 0) status.allowed_when_blocked = allowedWhenBlocked;
+  return status;
+}
+
+function sanitizeAgentPackagesForCache(value: unknown): OplAppStateRecord | null {
+  const agentPackages = oplRecord(value);
+  const directory = oplRecord(agentPackages.directory);
+  const entries = oplRecordList(directory.entries)
+    .slice(0, 100)
+    .flatMap((entry) => {
+      const sanitized = sanitizeStandardAgentDirectoryEntryForCache(entry);
+      return sanitized ? [sanitized] : [];
+    });
+  const packageIds = new Set(
+    entries.flatMap((entry) => (oplString(entry.package_id) ? [entry.package_id as string] : []))
+  );
+  const validShortcutKeys = new Set(
+    entries.flatMap((entry) =>
+      oplRecordList(entry.home_shortcuts).flatMap((shortcut) => {
+        const packageId = oplString(entry.package_id);
+        const shortcutId = oplString(shortcut.shortcut_id);
+        return packageId && shortcutId ? [`${packageId}\n${shortcutId}`] : [];
+      })
+    )
+  );
+  const statusIndex = oplRecord(agentPackages.status_index);
+  const homeShortcutPreferences = oplRecordList(statusIndex.home_shortcut_preferences)
+    .slice(0, 200)
+    .flatMap((preference) => {
+      const sanitized = sanitizeHomeShortcutPreferenceForCache(preference, validShortcutKeys);
+      return sanitized ? [sanitized] : [];
+    });
+  const packageStatuses = Object.fromEntries(
+    Object.entries(oplRecord(statusIndex.packages)).flatMap(([key, packageStatus]) => {
+      const packageId = oplString(oplRecord(packageStatus).package_id) ?? oplString(key);
+      return packageId && packageIds.has(packageId)
+        ? [[packageId, sanitizeStandardAgentPackageStatusForCache(packageStatus, packageId)] as const]
+        : [];
+    })
+  );
+  const sanitized: OplAppStateRecord = {};
+  if (entries.length > 0) sanitized.directory = { entries };
+  if (homeShortcutPreferences.length > 0 || Object.keys(packageStatuses).length > 0) {
+    sanitized.status_index = {};
+    if (homeShortcutPreferences.length > 0) {
+      (sanitized.status_index as OplAppStateRecord).home_shortcut_preferences = homeShortcutPreferences;
+    }
+    if (Object.keys(packageStatuses).length > 0) {
+      (sanitized.status_index as OplAppStateRecord).packages = packageStatuses;
+    }
+  }
+  return Object.keys(sanitized).length > 0 ? sanitized : null;
+}
+
 function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecord {
   const sanitized: OplAppStateRecord = {};
   const topLevel = pickScalarCacheFields(appState, ['schema_version', 'surface_kind', 'update_channel']);
@@ -458,10 +635,12 @@ function sanitizeAppStateForCache(appState: OplAppStateRecord): OplAppStateRecor
   const release = pickScalarCacheFields(appState.release, RELEASE_CACHE_FIELDS);
   if (release) sanitized.release = release;
 
+  const agentPackages = sanitizeAgentPackagesForCache(appState.agent_packages) ?? {};
   const agentPackageStorage = sanitizeOwnerStorageProjectionForCache(
     oplRecord(appState.agent_packages).storage_inventory
   );
-  if (agentPackageStorage) sanitized.agent_packages = { storage_inventory: agentPackageStorage };
+  if (agentPackageStorage) agentPackages.storage_inventory = agentPackageStorage;
+  if (Object.keys(agentPackages).length > 0) sanitized.agent_packages = agentPackages;
 
   const settingsControlCenter = oplRecord(appState.settings_control_center);
   const appSettingsReadModel = oplRecord(settingsControlCenter.app_settings_read_model);

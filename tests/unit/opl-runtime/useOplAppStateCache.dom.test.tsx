@@ -31,6 +31,7 @@ import {
   resetOplAppStateLoadsForTest,
   useOplAppState,
 } from '@/renderer/hooks/system/useOplAppState';
+import { resolveOplHomeAssistants } from '@/renderer/pages/guid/utils/oplHomeAssistants';
 
 const CACHE_KEY = 'opl.appState.fast.v1';
 const GATEWAY_CACHE_KEY = 'opl.gatewayAccount.projection.v1';
@@ -111,6 +112,87 @@ function seedCachedGateway() {
       loadedAt: '20:00:00',
     })
   );
+}
+
+const HOME_AGENT_SPECS = {
+  mas: { shortcutId: 'research', label: '科研', entry: 'med-autoscience' },
+  rca: { shortcutId: 'ppt', label: '演示', entry: 'redcube-ai' },
+  mag: { shortcutId: 'grant', label: '基金', entry: 'med-autogrant' },
+  obf: { shortcutId: 'book', label: '写书', entry: 'opl-bookforge' },
+  oma: { shortcutId: 'oma', label: '元智能体', entry: 'opl-meta-agent' },
+  future: { shortcutId: 'future', label: '未来', entry: 'future-agent' },
+} as const;
+
+type HomeAgentId = keyof typeof HOME_AGENT_SPECS;
+
+function homeAgentAppState(
+  agentIds: HomeAgentId[] = ['mas', 'rca', 'mag', 'obf', 'oma'],
+  preferenceOrder: HomeAgentId[] = agentIds,
+  hiddenAgentIds: HomeAgentId[] = []
+) {
+  const hidden = new Set(hiddenAgentIds);
+  return {
+    agent_packages: {
+      directory: {
+        entries: agentIds.map((packageId) => {
+          const spec = HOME_AGENT_SPECS[packageId];
+          return {
+            package_id: packageId,
+            package_role: 'standard_agent',
+            installed: true,
+            display_name: packageId.toUpperCase(),
+            description: `${packageId.toUpperCase()} work`,
+            display_name_i18n: { 'zh-CN': packageId.toUpperCase(), 'en-US': packageId.toUpperCase() },
+            description_i18n: { 'zh-CN': `${packageId} work`, 'en-US': `${packageId} work` },
+            home_shortcuts: [
+              {
+                shortcut_id: spec.shortcutId,
+                label_i18n: { 'zh-CN': spec.label, 'en-US': spec.label },
+                default_visible: true,
+                user_configurable: true,
+                route: {
+                  route_kind: 'agent_package_shortcut',
+                  executor: 'codex_cli',
+                  codex_visible_entry: spec.entry,
+                },
+              },
+            ],
+            readiness: { operational_ready: true, launch_allowed: true, reason: null },
+          };
+        }),
+      },
+      status_index: {
+        home_shortcut_preferences: preferenceOrder.map((packageId, sortOrder) => ({
+          package_id: packageId,
+          shortcut_id: HOME_AGENT_SPECS[packageId].shortcutId,
+          visible: !hidden.has(packageId),
+          sort_order: sortOrder,
+          source: hidden.has(packageId) ? 'user_preference' : 'default',
+        })),
+        packages: Object.fromEntries(
+          agentIds.map((packageId) => [
+            packageId,
+            {
+              package_id: packageId,
+              operational_ready: true,
+              launch_allowed: true,
+              launch_blocked_reason: null,
+              presence: { registered: true, installed: true, present: true, callable: true, status: 'present' },
+            },
+          ])
+        ),
+      },
+    },
+  };
+}
+
+function homeAgentPackageIds(appState: Record<string, unknown>): string[] {
+  return resolveOplHomeAssistants([], appState).map((assistant) => assistant.opl_package_id);
+}
+
+function seedCachedHomeAgents(): void {
+  cacheFastOplAppState({ app_state: homeAgentAppState() }, '20:00:00');
+  resetOplAppStateLoadsForTest();
 }
 
 function deferred<T>(): {
@@ -310,6 +392,44 @@ describe('useOplAppState Gateway account bootstrap cache', () => {
     });
     expect(gateway.capabilities).toEqual({ account_login_supported: false, manual_key_supported: false });
     expect(result.current.loading).toBe(false);
+    expect(result.current.provenance).toBe('derived_bootstrap');
+  });
+
+  it('renders five cached Home agents before live state resolves and replaces them with the live projection', async () => {
+    seedCachedHomeAgents();
+    const freshState = deferred<unknown>();
+    getAppStateInvoke.mockReturnValue(freshState.promise);
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    expect(homeAgentPackageIds(result.current.appState)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    expect(result.current.provenance).toBe('derived_bootstrap');
+    expect(getAppStateInvoke).toHaveBeenCalledTimes(1);
+
+    freshState.resolve({
+      ok: true,
+      parsed: {
+        app_state: homeAgentAppState(
+          ['mas', 'rca', 'mag', 'oma', 'future'],
+          ['oma', 'future', 'mas', 'mag', 'rca'],
+          ['mas']
+        ),
+      },
+    });
+
+    await waitFor(() => expect(homeAgentPackageIds(result.current.appState)).toEqual(['oma', 'future', 'mag', 'rca']));
+    expect(result.current.provenance).toBe('live');
+  });
+
+  it('keeps five cached Home agents visible when the background refresh fails', async () => {
+    seedCachedHomeAgents();
+    getAppStateInvoke.mockRejectedValue(new Error('offline'));
+
+    const { result } = renderHook(() => useOplAppState('fast'));
+
+    expect(homeAgentPackageIds(result.current.appState)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
+    await waitFor(() => expect(result.current.error).toBe('offline'));
+    expect(homeAgentPackageIds(result.current.appState)).toEqual(['mas', 'rca', 'mag', 'obf', 'oma']);
     expect(result.current.provenance).toBe('derived_bootstrap');
   });
 

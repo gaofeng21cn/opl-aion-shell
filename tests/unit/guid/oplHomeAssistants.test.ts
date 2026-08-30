@@ -291,7 +291,7 @@ describe('OPL home assistants', () => {
     expect(resolveOplActiveShortcut('unclaimed-runtime', appState)).toBeNull();
   });
 
-  it('keeps uninstalled directory packages in the catalog but omits their shortcuts from Home', () => {
+  it('keeps selectable uninstalled directory packages visible on Home and launch-gates them', () => {
     const appState = {
       agent_packages: {
         directory: {
@@ -360,9 +360,13 @@ describe('OPL home assistants', () => {
       'oma',
       'rca',
     ]);
-    expect(resolveOplHomeAssistants([], appState)).toEqual([]);
-    delete (appState.agent_packages.directory.entries[0] as { installed?: boolean }).installed;
-    expect(resolveOplHomeAssistants([], appState)).toEqual([]);
+    expect(resolveOplHomeAssistants([], appState).map((item) => item.opl_package_id)).toEqual([
+      'mag',
+      'mas',
+      'obf',
+      'oma',
+      'rca',
+    ]);
     expect(resolveOplPackageLaunchGate(appState, 'mas')).toEqual({
       state: 'package_unavailable',
       launchAllowed: false,

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { sanitizeOplAppStatePayloadForCache } from '@/renderer/hooks/system/useOplAppState';
 
 describe('OPL App state cache privacy boundary', () => {
-  it('keeps only bounded startup read models and the public Gateway projection', () => {
+  it('keeps only bounded startup read models plus public Gateway and Home Agent projections', () => {
     const sanitized = sanitizeOplAppStatePayloadForCache({
       app_state: {
         schema_version: 'opl_app_state.v1',
@@ -35,17 +35,73 @@ describe('OPL App state cache privacy boundary', () => {
           directory: {
             entries: [
               {
-                package_id: 'private-agent',
+                package_id: 'future-agent',
                 package_role: 'standard_agent',
+                installed: true,
+                package_short_name: 'Future',
+                display_name: 'Future Agent',
+                description: 'Future work',
+                display_name_i18n: { 'zh-CN': '未来智能体', 'en-US': 'Future Agent', internal: 'private' },
+                description_i18n: { 'zh-CN': '未来工作', 'en-US': 'Future work', internal: 'private' },
+                session_routing_summary_i18n: { 'zh-CN': '未来会话', 'en-US': 'Future session' },
+                home_shortcuts: [
+                  {
+                    shortcut_id: 'future-main',
+                    icon_id: 'sparkles',
+                    label_i18n: { 'zh-CN': '未来', 'en-US': 'Future', internal: 'private' },
+                    default_visible: true,
+                    user_configurable: true,
+                    route: {
+                      route_kind: 'agent_package_shortcut',
+                      executor: 'codex_cli',
+                      codex_visible_entry: 'future-agent',
+                      action_ref: 'agent_package_launch_action',
+                    },
+                    receipt: 'private',
+                  },
+                ],
                 capability_metadata: {
-                  source: 'private-owner-manifest',
-                  required_skill_ids: ['private-skill'],
-                  optional_skill_refs: ['private-optional-skill'],
+                  source: 'normalized_owner_manifest',
+                  required_skill_ids: ['future-agent'],
+                  optional_skill_refs: ['officecli-docx'],
+                  credential_path: '/private/agent-credential',
                 },
+                readiness: { operational_ready: true, launch_allowed: true, reason: null, raw_receipt: 'private' },
+                manifest_path: '/private/agent-manifest.json',
               },
             ],
           },
-          status_index: { packages: { 'private-agent': { launch_allowed: true } } },
+          status_index: {
+            home_shortcut_preferences: [
+              {
+                package_id: 'future-agent',
+                shortcut_id: 'future-main',
+                visible: true,
+                sort_order: 3,
+                source: 'user_preference',
+                updated_at: 'private',
+              },
+            ],
+            packages: {
+              'future-agent': {
+                package_id: 'future-agent',
+                operational_ready: true,
+                launch_allowed: true,
+                launch_blocked_reason: null,
+                allowed_when_blocked: ['status', 'doctor'],
+                presence: {
+                  registered: true,
+                  installed: true,
+                  present: true,
+                  callable: true,
+                  status: 'present',
+                  reason: null,
+                  source_path: '/private/agent-source',
+                },
+                action_ref: 'agent_package_launch_action',
+              },
+            },
+          },
           storage_inventory: {
             status: 'available',
             observed_at: '2026-07-13T12:00:00.000Z',
@@ -236,8 +292,69 @@ describe('OPL App state cache privacy boundary', () => {
       reason_code: null,
       projected_action: { kind: 'navigate', action_id: null },
     });
-    expect(agentPackages.directory).toBeUndefined();
-    expect(agentPackages.status_index).toBeUndefined();
+    expect(agentPackages.directory).toEqual({
+      entries: [
+        {
+          package_id: 'future-agent',
+          package_role: 'standard_agent',
+          installed: true,
+          package_short_name: 'Future',
+          display_name: 'Future Agent',
+          description: 'Future work',
+          display_name_i18n: { 'zh-CN': '未来智能体', 'en-US': 'Future Agent' },
+          description_i18n: { 'zh-CN': '未来工作', 'en-US': 'Future work' },
+          session_routing_summary_i18n: { 'zh-CN': '未来会话', 'en-US': 'Future session' },
+          home_shortcuts: [
+            {
+              shortcut_id: 'future-main',
+              icon_id: 'sparkles',
+              label_i18n: { 'zh-CN': '未来', 'en-US': 'Future' },
+              default_visible: true,
+              user_configurable: true,
+              route: {
+                route_kind: 'agent_package_shortcut',
+                executor: 'codex_cli',
+                codex_visible_entry: 'future-agent',
+              },
+            },
+          ],
+          capability_metadata: {
+            source: 'normalized_owner_manifest',
+            required_skill_ids: ['future-agent'],
+            optional_skill_refs: ['officecli-docx'],
+          },
+          readiness: { operational_ready: true, launch_allowed: true, reason: null },
+        },
+      ],
+    });
+    expect(agentPackages.status_index).toEqual({
+      home_shortcut_preferences: [
+        {
+          package_id: 'future-agent',
+          shortcut_id: 'future-main',
+          visible: true,
+          sort_order: 3,
+          source: 'user_preference',
+        },
+      ],
+      packages: {
+        'future-agent': {
+          package_id: 'future-agent',
+          operational_ready: true,
+          launch_allowed: true,
+          launch_blocked_reason: null,
+          presence: {
+            registered: true,
+            installed: true,
+            present: true,
+            callable: true,
+            status: 'present',
+            reason: null,
+          },
+          allowed_when_blocked: ['status', 'doctor'],
+        },
+      },
+    });
     expect(storageLifecycle.webui_data_volume).toEqual({
       status: 'unavailable',
       observed_at: null,
@@ -253,7 +370,7 @@ describe('OPL App state cache privacy boundary', () => {
       },
     });
     expect(JSON.stringify(sanitized)).not.toMatch(
-      /private\.package|private-agent|private-skill|private-optional-skill|private\/package-store|private\/webui-data|docker system prune/
+      /private\.package|private\/agent-|private\/package-store|private\/webui-data|agent_package_launch_action|docker system prune/
     );
     expect(readModel.codex_model_policy).toEqual({
       source_ref: 'app_state.core.codex',

@@ -28,7 +28,6 @@ type OplAgentPackageDirectoryEntry = {
   displayNameI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
   description: string;
   descriptionI18n: Partial<Record<'zh-CN' | 'en-US', string>>;
-  installed: boolean;
 };
 
 export type OplHomeAssistant = Assistant & {
@@ -195,7 +194,6 @@ function agentPackageDirectoryEntries(appState: unknown): OplAgentPackageDirecto
         displayNameI18n: parsed.displayNameI18n,
         description,
         descriptionI18n: parsed.descriptionI18n,
-        installed: parsed.installed,
       },
     ];
   });
@@ -311,18 +309,13 @@ function resolveOplAssistantsFromProfiles(
 /** Resolve the user-configured shortcut subset rendered on Home. */
 export function resolveOplHomeAssistants(backendAssistants: Assistant[], appState: unknown): OplHomeAssistant[] {
   const shortcuts = getOplHomeAgentShortcutsFromAppState(appState);
-  const installedPackageIds = new Set(
-    agentPackageDirectoryEntries(appState)
-      .filter((entry) => entry.installed)
-      .map((entry) => entry.packageId)
-  );
   const assistantsByPackage = new Map(
     resolveOplProfessionalAgentAssistants(backendAssistants, appState).map(
       (assistant) => [assistant.id, assistant] as const
     )
   );
   return shortcuts
-    .filter((shortcut) => installedPackageIds.has(shortcut.package_id) && shortcut.visible)
+    .filter((shortcut) => shortcut.visible)
     .flatMap((shortcut, index) => {
       const assistant = assistantsByPackage.get(shortcut.package_id);
       if (!assistant) return [];
@@ -362,7 +355,7 @@ export function resolveOplHomeAppContributions(appState: unknown): OplHomeAppCon
   });
 }
 
-/** Resolve installed Agent Packages from the Framework directory for selection surfaces. */
+/** Resolve selectable Agent Packages from the Framework directory for selection surfaces. */
 export function resolveOplProfessionalAgentAssistants(backendAssistants: Assistant[], appState: unknown): Assistant[] {
   return resolveOplAssistantsFromProfiles(backendAssistants, agentPackageProfiles(appState));
 }
