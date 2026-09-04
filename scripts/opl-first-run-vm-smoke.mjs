@@ -2279,12 +2279,14 @@ function runCodexAiSelfCheck(input = {}) {
   const outputPath = path.join(artifacts, 'codex-ai-self-check-output.json');
   const stderrPath = path.join(artifacts, 'codex-ai-self-check-stderr.txt');
   writeTextArtifact(promptPath, prompt, input.secret);
-  const result = spawnSync(
+  const spawnSyncImpl = input.spawnSync ?? spawnSync;
+  const result = spawnSyncImpl(
     codexCliProbe.command,
     [
       'exec',
       '--sandbox',
       input.mode === 'fix' ? 'workspace-write' : 'read-only',
+      '--skip-git-repo-check',
       '--output-last-message',
       outputPath,
       '-',
