@@ -2761,6 +2761,37 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(prompt).toContain('"runtime_profile": "full"');
   });
 
+  it('skips the Codex CLI Git trust-directory guard for the read-only AI self-check', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-codex-ai-self-check-'));
+    try {
+      let observedArgs: string[] = [];
+      const receipt = __test.runCodexAiSelfCheck({
+        requested: true,
+        mode: 'diagnose',
+        artifacts,
+        cwd: '/private/tmp/untrusted-checkout',
+        codexCliProbe: { detected: true, command: '/usr/local/bin/codex', version: 'codex-cli 0.146.0' },
+        spawnSync: (_command: string, args: string[]) => {
+          observedArgs = args;
+          return {
+            status: 0,
+            stdout: '{"status":"passed","checks":{}}',
+            stderr: '',
+          };
+        },
+      });
+
+      expect(observedArgs).toContain('--skip-git-repo-check');
+      expect(receipt).toMatchObject({
+        status: 'passed',
+        mode: 'diagnose',
+        blocking_release_gate: false,
+      });
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
   it('builds a skipped Codex AI self-check receipt when the diagnostic is not requested', () => {
     const receipt = __test.buildSkippedCodexAiSelfCheckReceipt({
       requested: false,
