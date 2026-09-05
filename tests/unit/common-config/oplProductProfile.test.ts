@@ -1097,16 +1097,20 @@ describe('OPL generated product profile', () => {
   });
 
   it('selects Astra with max reasoning when the live catalog supports it', () => {
-    expect(resolveOplCodexAutoSelection({
-      current_model_id: 'gpt-6-astra',
-      current_model_label: 'GPT-6 Astra',
-      available_models: [{
-        id: 'gpt-6-astra',
-        label: 'GPT-6 Astra',
-        isDefault: true,
-        supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
-      }],
-    })).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+    expect(
+      resolveOplCodexAutoSelection({
+        current_model_id: 'gpt-6-astra',
+        current_model_label: 'GPT-6 Astra',
+        available_models: [
+          {
+            id: 'gpt-6-astra',
+            label: 'GPT-6 Astra',
+            isDefault: true,
+            supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
+          },
+        ],
+      })
+    ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
   });
 
   it('preserves owner- or carrier-projected Skill names while trimming blanks and duplicates', () => {

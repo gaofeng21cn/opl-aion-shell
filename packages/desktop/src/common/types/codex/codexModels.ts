@@ -229,12 +229,12 @@ export function resolveOplCodexAutoSelection(
     ? null
     : recommendedModel
       ? recommendation?.reasoningEffort
-    : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
-      ? USE_HIGHEST_UNKNOWN_REASONING
-        ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
-        : acceptedCatalogDefault.defaultReasoningEffort
-      : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
-        selectedModel?.defaultReasoningEffort);
+      : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
+        ? USE_HIGHEST_UNKNOWN_REASONING
+          ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
+          : acceptedCatalogDefault.defaultReasoningEffort
+        : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
+          selectedModel?.defaultReasoningEffort);
   return {
     modelId,
     reasoningEffort: resolveSupportedReasoningEffort(

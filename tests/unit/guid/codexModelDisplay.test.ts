@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  getOplDefaultCodexModelDisplayLabel,
-  getOplDefaultCodexReasoningEffort,
-} from '@/common/config/oplProductProfile';
-import {
   buildOplCodexAutoModelOption,
   formatOplCodexCompactModelLabel,
   formatOplCodexModelDisplay,
@@ -39,7 +35,7 @@ describe('oplCodexModelDisplay', () => {
     expect(display.label).not.toContain('gpt-5.3-codex');
   });
 
-  it('explains the model and reasoning that Auto will resolve after selection', () => {
+  it('explains the compatible fallback when the live Codex catalog is unavailable', () => {
     const option = buildOplCodexAutoModelOption({
       modelInfo: {
         current_model_id: null,
@@ -51,12 +47,8 @@ describe('oplCodexModelDisplay', () => {
       },
       localeKey: 'zh-CN',
     });
-    const defaultReasoning = getOplDefaultCodexReasoningEffort();
-
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe(
-      `当前 ${getOplDefaultCodexModelDisplayLabel()} · ${formatOplCodexReasoningLabel(defaultReasoning, 'zh-CN')} · 跟随最新最强`
-    );
+    expect(option.description).toBe('当前 5.6 Sol · 超高 · 跟随最新最强');
   });
 
   it('displays an unknown catalog default and its highest advertised reasoning effort', () => {
