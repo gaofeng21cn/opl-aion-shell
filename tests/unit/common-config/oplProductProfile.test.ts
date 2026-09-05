@@ -215,15 +215,16 @@ describe('OPL generated product profile', () => {
   });
 
   it('exposes the App-generated Codex default model profile', () => {
-    expect(getOplDefaultCodexModel()).toBe('gpt-5.6-sol');
+    expect(getOplDefaultCodexModel()).toBe('gpt-6-astra');
     expect(getOplDefaultCodexReasoningEffort()).toBe('max');
-    expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-5.6-sol');
+    expect(DEFAULT_CODEX_MODEL_ID).toBe('gpt-6-astra');
     expect(DEFAULT_CODEX_REASONING_EFFORT).toBe('max');
-    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-5.6-sol/max');
-    expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('5.6 Sol');
-    expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-5.6-sol');
-    expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('5.6 Sol');
+    expect(DEFAULT_CODEX_MODEL_WITH_REASONING_ID).toBe('gpt-6-astra/max');
+    expect(DEFAULT_CODEX_MODEL_DISPLAY_LABEL).toBe('6 Astra');
+    expect(DEFAULT_CODEX_MODELS[0]?.id).toBe('gpt-6-astra');
+    expect(DEFAULT_CODEX_MODELS[0]?.label).toBe('6 Astra');
     expect(DEFAULT_CODEX_MODELS.map((model) => model.id)).toEqual([
+      'gpt-6-astra',
       'gpt-5.6-sol',
       'gpt-5.6-terra',
       'gpt-5.6-luna',
@@ -343,12 +344,12 @@ describe('OPL generated product profile', () => {
     expect(shouldShowOplCodexModelSelector()).toBe(true);
     expect(shouldShowOplCodexModelList()).toBe(true);
     expect(shouldShowOplCodexModelAutoOption()).toBe(true);
-    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('5.6 Sol');
-    expect(getOplHomeModelStatusLabel('en-US')).toBe('5.6 Sol');
-    expect(getOplModelStatusDisplayText('zh-CN')).toBe('模型: 5.6 Sol');
-    expect(getOplModelStatusDisplayText('en-US')).toBe('Model: 5.6 Sol');
+    expect(getOplHomeModelStatusLabel('zh-CN')).toBe('6 Astra');
+    expect(getOplHomeModelStatusLabel('en-US')).toBe('6 Astra');
+    expect(getOplModelStatusDisplayText('zh-CN')).toBe('模型: 6 Astra');
+    expect(getOplModelStatusDisplayText('en-US')).toBe('Model: 6 Astra');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_model_policy).toBe('codex_cli_latest_strongest_model_selector_visible');
-    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('gpt-5.6-sol');
+    expect(OPL_PRODUCT_PROFILE.gui.home.codex_default_model).toBe('gpt-6-astra');
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_precise_model_display_policy).toBe(
       'friendly_model_with_discoverable_model_and_reasoning_summary_rows'
     );
@@ -359,7 +360,7 @@ describe('OPL generated product profile', () => {
     expect(OPL_PRODUCT_PROFILE.gui.home.codex_auto_model_selection.user_can_restore_auto).toBe(true);
     expect(getOplCodexAutoModelPolicy()).toMatchObject({
       mode_default: 'auto',
-      configured_default: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      configured_default: { model: 'gpt-6-astra', reasoning_effort: 'max' },
       model_catalog_source: 'codex_cli_model_list',
       catalog_response_models_field: 'data',
       catalog_default_model_field: 'isDefault',
@@ -370,7 +371,7 @@ describe('OPL generated product profile', () => {
       catalog_pagination_completion_policy: 'exhaust_pages_until_next_cursor_is_null',
       unknown_default_model_policy: 'accept_catalog_default_even_when_not_in_frontier_model_preference_order',
       unknown_model_reasoning_effort_policy: 'highest_supported_reasoning_effort_from_catalog',
-      catalog_unavailable_fallback: { model: 'gpt-5.6-sol', reasoning_effort: 'max' },
+      catalog_unavailable_fallback: { model: 'gpt-6-astra', reasoning_effort: 'max' },
       persistence_policy: {
         auto: 'persist_auto_mode_only_resolve_model_and_reasoning_from_fresh_catalog',
         fixed: 'persist_selected_model_and_reasoning_effort',
@@ -400,10 +401,11 @@ describe('OPL generated product profile', () => {
       auto_option: {
         label_zh: '自动（推荐）',
         description_zh: '跟随 Codex CLI 当前默认模型与 App 推理策略',
-        catalog_unavailable_fallback_model: 'gpt-5.6-sol',
+        catalog_unavailable_fallback_model: 'gpt-6-astra',
         catalog_unavailable_fallback_reasoning_effort: 'max',
       },
       visible_models: [
+        { id: 'gpt-6-astra', label_zh: '6 Astra' },
         { id: 'gpt-5.6-sol', label_zh: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label_zh: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label_zh: '5.6 Luna' },
@@ -932,7 +934,7 @@ describe('OPL generated product profile', () => {
     expect(selectDefaultCodexModelId([{ id: 'gpt-5.6-luna' }, { id: 'gpt-5.6-terra' }, { id: 'gpt-5.5' }])).toBe(
       'gpt-5.6-terra'
     );
-    expect(selectDefaultCodexModelId()).toBe('gpt-5.6-sol');
+    expect(selectDefaultCodexModelId()).toBe('gpt-6-astra');
     expect(
       buildCodexDefaultModelInfo({
         current_model_id: 'gpt-5.2-codex',
@@ -943,9 +945,10 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
+        { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
@@ -970,9 +973,10 @@ describe('OPL generated product profile', () => {
         available_models: [],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
+        { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
@@ -1000,9 +1004,10 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
+        { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
@@ -1014,9 +1019,10 @@ describe('OPL generated product profile', () => {
       ],
     });
     expect(buildCodexDefaultModelInfo()).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
+        { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
         { id: 'gpt-5.6-terra', label: '5.6 Terra' },
         { id: 'gpt-5.6-luna', label: '5.6 Luna' },
@@ -1083,11 +1089,24 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
+    ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
   });
 
   it('falls back to the App default when the Codex catalog is unavailable', () => {
-    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'max' });
+    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+  });
+
+  it('selects Astra with max reasoning when the live catalog supports it', () => {
+    expect(resolveOplCodexAutoSelection({
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6 Astra',
+      available_models: [{
+        id: 'gpt-6-astra',
+        label: 'GPT-6 Astra',
+        isDefault: true,
+        supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
+      }],
+    })).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
   });
 
   it('preserves owner- or carrier-projected Skill names while trimming blanks and duplicates', () => {

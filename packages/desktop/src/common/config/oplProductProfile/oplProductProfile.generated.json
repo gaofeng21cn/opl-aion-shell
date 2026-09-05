@@ -247,7 +247,7 @@
       "product_name": "One Person Lab",
       "role": "containerized_shared_host_core_and_webui",
       "technical_evaluation_candidate": "opl-studio",
-      "implementation_status": "successor_oci_source_implemented_install_update_release_admission_open",
+      "implementation_status": "successor_oci_preview_admission_implemented_cloud_activation_open",
       "mainline_implementation_assigned": false,
       "host_technology": "shared_node_host_core",
       "transport": "http_sse",
@@ -273,8 +273,9 @@
         "arm64": "ubuntu-24.04-arm",
         "emulation_allowed_as_runtime_qualification": false
       },
-      "signature_verification_implemented": false,
-      "security_admission_complete": false,
+      "signature_verification_implemented": true,
+      "security_admission_complete": true,
+      "preview_release_admission_implemented": true,
       "release_admission_complete": false,
       "existing_aionui_container_counts_as_successor_implementation": false,
       "electron_in_container_allowed": false,
@@ -285,6 +286,7 @@
       "codex_state_volume_required": true,
       "multi_tenant_claim_allowed": false,
       "security_admission_ref": "contracts/app-install-exposure-policy.json#installer_surfaces.docker_webui.installer_model.cloud_deployment_model",
+      "preview_admission_ref": "contracts/app-shell-candidates.json#candidates/opl-studio/carrier_evidence_contract/preview_oci_admission",
       "release_contract_ref": "contracts/app-release-channel.json#distribution_semantics.cohort_policy"
     },
     "mobile": {
@@ -788,7 +790,7 @@
     "existing_provider_name_policy": "preserve_existing_provider_name_no_migration",
     "base_url": "https://gateway.medopl.com/v1",
     "executor": "codex_cli",
-    "model": "gpt-5.6-sol",
+    "model": "gpt-6-astra",
     "reasoning_effort": "max",
     "applies_after": "codex_openai_api_key_configured",
     "authority": "app_session_default_only"
@@ -825,7 +827,7 @@
       "codex_model_list_visible": true,
       "codex_model_policy": "codex_cli_latest_strongest_model_selector_visible",
       "codex_model_auto_option_visible": true,
-      "codex_default_model": "gpt-5.6-sol",
+      "codex_default_model": "gpt-6-astra",
       "codex_default_reasoning_effort": "max",
       "codex_default_permission_mode": "full-access",
       "permission_mode_selector_visible": true,
@@ -895,8 +897,8 @@
       "conversation_backend_selector_visible": false,
       "conversation_model_selector_visible": true,
       "conversation_permission_mode_selector_visible": true,
-      "codex_home_model_status_label": "5.6 Sol",
-      "codex_home_model_status_label_en": "5.6 Sol",
+      "codex_home_model_status_label": "6 Astra",
+      "codex_home_model_status_label_en": "6 Astra",
       "codex_precise_model_display_policy": "friendly_model_with_discoverable_model_and_reasoning_summary_rows",
       "home_layout": {
         "default_mode": "composer_first_chat_canvas",
@@ -1093,7 +1095,7 @@
           "label_en": "Auto (recommended)",
           "description_zh": "跟随 Codex CLI 当前默认模型与 App 推理策略",
           "description_en": "Follows the current Codex CLI default model and App reasoning policy",
-          "catalog_unavailable_fallback_model": "gpt-5.6-sol",
+          "catalog_unavailable_fallback_model": "gpt-6-astra",
           "catalog_unavailable_fallback_reasoning_effort": "max",
           "follows_latest_strongest": true
         },
@@ -1127,6 +1129,11 @@
         },
         "user_reasoning_effort_options": ["low", "medium", "high", "xhigh", "max", "ultra"],
         "visible_models": [
+          {
+            "id": "gpt-6-astra",
+            "label_zh": "6 Astra",
+            "label_en": "6 Astra"
+          },
           {
             "id": "gpt-5.6-sol",
             "label_zh": "5.6 Sol",
@@ -1276,7 +1283,7 @@
           },
           {
             "id": "agent_packages",
-            "scope": "new_session_configuration_only",
+            "scope": "new_session_configuration_or_existing_turn_invocation",
             "label_i18n": {
               "zh-CN": "OPL 标准智能体",
               "en-US": "OPL standard agents"
@@ -1304,9 +1311,30 @@
             "action_policy": "render_only_directory_available_actions_and_recommended_action_ref",
             "unknown_standard_agent_policy": "include_unknown_package_ids_only_when_they_match_opl_standard_agent_membership",
             "existing_session_rebinding_allowed": false,
+            "existing_conversation_invocation_policy": "invoke_selected_standard_agent_for_current_turn_without_rebinding_the_codex_thread",
             "surface_actions": {
               "home_new_session": ["select_new_session_agent_package"],
-              "existing_conversation": []
+              "existing_conversation": ["invoke_agent_package_for_current_turn"]
+            }
+          },
+          {
+            "id": "opl_capabilities",
+            "scope": "current_turn_invocation_only",
+            "label_i18n": {
+              "zh-CN": "OPL 能力",
+              "en-US": "OPL capabilities"
+            },
+            "source_ref": "app_state.agent_packages.directory.entries + ordinary_capability_selector_policy",
+            "membership_policy": "official_OPL_non_standard_agent_packages_with_enabled_required_skills_projected_by_the_active_adapter",
+            "package_entry_cardinality": "one_shortcut_per_package_using_first_enabled_required_skill",
+            "duplicate_package_entries_for_multiple_required_skills": false,
+            "availability_policy": "render_only_owner_or_carrier_projected_skill_matches_without_app_package_allowlist",
+            "activation_policy": "skill_injection_for_current_turn_only_no_package_activation_or_lifecycle_mutation",
+            "thread_ownership_policy": "does_not_change_codex_thread_agent_identity_or_create_a_second_scheduler",
+            "existing_session_rebinding_allowed": false,
+            "surface_actions": {
+              "home_new_session": ["invoke_opl_capability_for_current_turn"],
+              "existing_conversation": ["invoke_opl_capability_for_current_turn"]
             }
           },
           {
@@ -1751,7 +1779,7 @@
     }
   },
   "codex": {
-    "default_model": "gpt-5.6-sol",
+    "default_model": "gpt-6-astra",
     "default_model_description": "System Codex default model when configured",
     "default_reasoning_effort": "max",
     "app_runtime_home": {
@@ -1777,7 +1805,7 @@
       ],
       "app_fallback_role": "configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve",
       "configured_default": {
-        "model": "gpt-5.6-sol",
+        "model": "gpt-6-astra",
         "reasoning_effort": "max"
       },
       "configured_default_role": "app_fallback_not_flow_recommendation_authority",
@@ -1795,6 +1823,7 @@
       "catalog_hidden_model_policy": "exclude_hidden_models_from_auto_and_fixed_options",
       "frontier_model_preference_order_role": "known_model_fallback_and_fixed_option_preference_not_allowlist",
       "frontier_model_preference_order": [
+        "gpt-6-astra",
         "gpt-5.6-sol",
         "gpt-5.6-terra",
         "gpt-5.6-luna",
@@ -1804,13 +1833,14 @@
         "gpt-5.2"
       ],
       "known_model_reasoning_effort_overrides": {
-        "gpt-5.6-sol": "max"
+        "gpt-5.6-sol": "max",
+        "gpt-6-astra": "max"
       },
       "unknown_default_model_policy": "accept_catalog_default_even_when_not_in_frontier_model_preference_order",
       "unknown_model_reasoning_effort_policy": "highest_supported_reasoning_effort_from_catalog",
       "catalog_without_default_policy": "first_available_known_model_then_first_catalog_model",
       "catalog_unavailable_fallback": {
-        "model": "gpt-5.6-sol",
+        "model": "gpt-6-astra",
         "reasoning_effort": "max"
       },
       "persistence_policy": {
