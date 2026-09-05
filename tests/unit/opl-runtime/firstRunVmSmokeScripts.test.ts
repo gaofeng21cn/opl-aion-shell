@@ -1049,10 +1049,54 @@ describe('OPL first-run VM smoke scripts', () => {
     expect(scriptSource).toContain('if (!gatekeeperRequired && quarantineAttributeCount !== 0)');
     expect(scriptSource).toContain('Stable local authorization failed to clear quarantine before first launch.');
     expect(scriptSource).toContain('Production App failed the blocking Gatekeeper assessment before first launch.');
-    expect(scriptSource).toContain('const blockingCodesignFailure = codesign.status !== 0;');
+    expect(scriptSource).toContain('const blockingCodesignFailure = codesignRequired && codesign.status !== 0;');
+    expect(mainSource).toContain('runtimeProfile: options.runtimeProfile');
     expect(scriptSource).toContain('if (blockingCodesignFailure)');
     expect(scriptSource).not.toContain('if (codesign.status !== 0 || spctl.status !== 0)');
     expect(mainSource.indexOf('verify_gatekeeper_launch_policy')).toBeLessThan(mainSource.indexOf("'launch_app'"));
+  });
+
+  it('keeps unsigned Standard launch diagnostics separate from Full and production signature gates', () => {
+    const appPath = '/Applications/One Person Lab.app';
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-nightly-signature-policy-'));
+    const unsigned = {
+      runtimeProfile: 'standard',
+      requireGatekeeper: false,
+      countQuarantineAttributes: () => 0,
+      spawnSync: () => ({ status: 1, stdout: '', stderr: 'unsigned Nightly fixture' }),
+    };
+    try {
+      expect(vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, unsigned)).toMatchObject({
+        status: 'passed',
+        gatekeeper_required: false,
+        quarantine_status: 'absent',
+        local_authorization_status: 'failed_allowed_unsigned',
+        codesign: { status: 1 },
+        spctl: { status: 1 },
+      });
+      for (const override of [
+        { runtimeProfile: 'full' },
+        { runtimeProfile: undefined },
+        { runtimeProfile: 'unknown' },
+        { requireGatekeeper: true },
+        { installOrigin: 'homebrew_full_cask' },
+      ]) {
+        expect(() => vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, { ...unsigned, ...override })).toThrow(
+          /blocking deep codesign verification/
+        );
+        expect(JSON.parse(fs.readFileSync(path.join(artifacts, 'gatekeeper-launch-policy.json'), 'utf8')).status).toBe(
+          'failed'
+        );
+      }
+      expect(() =>
+        vmSmoke.verifyGatekeeperLaunchPolicy(appPath, artifacts, {
+          ...unsigned,
+          countQuarantineAttributes: () => 1,
+        })
+      ).toThrow(/failed to clear quarantine/);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
   });
 
   it('preserves quarantine and requires Gatekeeper for production DMG smokes', () => {

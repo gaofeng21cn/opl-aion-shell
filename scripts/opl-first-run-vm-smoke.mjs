@@ -1344,6 +1344,7 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   const installOrigin = hooks.installOrigin ?? 'direct_app_or_dmg';
   const homebrewFullCask = installOrigin === 'homebrew_full_cask';
   const gatekeeperRequired = hooks.requireGatekeeper === true || homebrewFullCask;
+  const codesignRequired = gatekeeperRequired || hooks.runtimeProfile !== 'standard';
   const codesign = runCommand('codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath], {
     encoding: 'utf8',
   });
@@ -1354,7 +1355,8 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
   const localAuthorizationStatus =
     codesign.status === 0 ? (spctl.status === 0 ? 'passed' : 'rejected_allowed_unsigned') : 'failed_allowed_unsigned';
   const status =
-    codesign.status === 0 && (gatekeeperRequired ? spctl.status === 0 : quarantineAttributeCount === 0)
+    (!codesignRequired || codesign.status === 0) &&
+    (gatekeeperRequired ? spctl.status === 0 : quarantineAttributeCount === 0)
       ? 'passed'
       : 'failed';
   const receipt = {
@@ -1397,11 +1399,11 @@ function verifyGatekeeperLaunchPolicy(appPath, artifactsDir, hooks = {}) {
         .join('\n')
     );
   }
-  const blockingCodesignFailure = codesign.status !== 0;
+  const blockingCodesignFailure = codesignRequired && codesign.status !== 0;
   if (blockingCodesignFailure) {
     throw new Error(
       [
-        'Packaged Full App failed the blocking deep codesign verification before first launch.',
+        'Packaged App failed the blocking deep codesign verification before first launch.',
         `codesign status=${codesign.status}`,
         codesign.stdout ? `codesign stdout:\n${codesign.stdout}` : '',
         codesign.stderr ? `codesign stderr:\n${codesign.stderr}` : '',
@@ -8493,6 +8495,7 @@ async function main() {
       verifyGatekeeperLaunchPolicy(appPath, options.artifacts, {
         installOrigin: options.installOrigin,
         requireGatekeeper: options.requireGatekeeper,
+        runtimeProfile: options.runtimeProfile,
       })
     );
     const launchStartedAtMs = Date.now() - 1_000;
