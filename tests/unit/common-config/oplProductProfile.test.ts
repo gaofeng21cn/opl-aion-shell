@@ -945,8 +945,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-6-astra',
-      current_model_label: '6 Astra',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -973,8 +973,8 @@ describe('OPL generated product profile', () => {
         available_models: [],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-6-astra',
-      current_model_label: '6 Astra',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1004,8 +1004,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-6-astra',
-      current_model_label: '6 Astra',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1019,8 +1019,8 @@ describe('OPL generated product profile', () => {
       ],
     });
     expect(buildCodexDefaultModelInfo()).toMatchObject({
-      current_model_id: 'gpt-6-astra',
-      current_model_label: '6 Astra',
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1089,11 +1089,11 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
   });
 
-  it('falls back to the App default when the Codex catalog is unavailable', () => {
-    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+  it('falls back to a CLI-compatible model when the Codex catalog is unavailable', () => {
+    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
   });
 
   it('selects Astra with max reasoning when the live catalog supports it', () => {

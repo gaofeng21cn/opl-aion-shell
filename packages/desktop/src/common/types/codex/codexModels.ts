@@ -27,6 +27,11 @@ export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFF
   : DEFAULT_CODEX_MODEL_ID;
 export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
 const CODEX_AUTO_MODEL_POLICY = getOplCodexAutoModelPolicy();
+// Used only when an older Codex CLI cannot return a model catalog. Keep the
+// product default for current CLIs, but never force a frontier model that the
+// legacy runtime may not understand.
+const CATALOG_UNAVAILABLE_COMPATIBLE_MODEL = 'gpt-5.6-sol';
+const CATALOG_UNAVAILABLE_COMPATIBLE_REASONING_EFFORT = 'xhigh';
 const ACCEPT_UNKNOWN_CATALOG_DEFAULT =
   CODEX_AUTO_MODEL_POLICY.unknown_default_model_policy ===
   'accept_catalog_default_even_when_not_in_frontier_model_preference_order';
@@ -212,15 +217,18 @@ export function resolveOplCodexAutoSelection(
       ? catalogDefault
       : null;
   const knownModel = CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.find((id) => catalogModels.some((model) => model.id === id));
+  const hasCatalog = catalogModels.length > 0;
   const modelId =
     recommendedModel?.id ??
     acceptedCatalogDefault?.id ??
     knownModel ??
     catalogModels[0]?.id ??
-    CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model;
+    (hasCatalog ? CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model : CATALOG_UNAVAILABLE_COMPATIBLE_MODEL);
   const selectedModel = catalogModels.find((model) => model.id === modelId);
-  const preferredReasoningEffort = recommendedModel
-    ? recommendation?.reasoningEffort
+  const preferredReasoningEffort = !hasCatalog
+    ? null
+    : recommendedModel
+      ? recommendation?.reasoningEffort
     : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
       ? USE_HIGHEST_UNKNOWN_REASONING
         ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
@@ -232,7 +240,9 @@ export function resolveOplCodexAutoSelection(
     reasoningEffort: resolveSupportedReasoningEffort(
       selectedModel,
       preferredReasoningEffort,
-      CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
+      hasCatalog
+        ? CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
+        : CATALOG_UNAVAILABLE_COMPATIBLE_REASONING_EFFORT
     ),
   };
 }
