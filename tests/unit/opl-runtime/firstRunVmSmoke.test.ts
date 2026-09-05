@@ -2730,6 +2730,7 @@ describe('packaged first-run VM smoke helpers', () => {
 
   it('builds the Codex AI self-check prompt from deterministic post-install evidence', () => {
     const prompt = __test.buildCodexAiSelfCheckPrompt({
+      mode: 'fix',
       runtimeProfile: 'full',
       uiLanguage: 'zh-CN',
       coreFirstLaunch: {
@@ -2752,7 +2753,7 @@ describe('packaged first-run VM smoke helpers', () => {
     expect(prompt).toContain(
       'Read the evidence and judge whether the installed OPL working mode matches the target state'
     );
-    expect(prompt).toContain('Do not modify user files');
+    expect(prompt).toContain('narrow, reversible fixes');
     expect(prompt).toContain('Output strict JSON only');
     expect(prompt).toContain('opl-flow');
     expect(prompt).toContain('MAS/MAG/RCA');
@@ -2775,7 +2776,7 @@ describe('packaged first-run VM smoke helpers', () => {
           observedArgs = args;
           return {
             status: 0,
-            stdout: '{"status":"passed","checks":{}}',
+            stdout: '{"status":"passed","probe":"opl_vm_connectivity"}',
             stderr: '',
           };
         },
@@ -2812,6 +2813,70 @@ describe('packaged first-run VM smoke helpers', () => {
     });
   });
 
+  it('probes connectivity without sending installation evidence or requesting tools', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-ai-connectivity-'));
+    try {
+      let calls = 0;
+      const receipt = __test.runCodexAiSelfCheck({
+        requested: true,
+        mode: 'diagnose',
+        artifacts,
+        timeoutMs: 120_000,
+        coreFirstLaunch: { unrelated: 'do-not-send-installation-evidence' },
+        codexCliProbe: { detected: true, command: '/usr/local/bin/codex', version: 'codex-cli 0.146.0' },
+        spawnSync: (_command: string, args: string[], options: any) => {
+          calls++;
+          expect(args).toContain('read-only');
+          expect(options.timeout).toBe(30_000);
+          expect(options.input).toContain('Do not call tools, inspect files, run commands');
+          expect(options.input).not.toContain('do-not-send-installation-evidence');
+          return {
+            status: 1,
+            stdout: '',
+            stderr:
+              'ERROR: unexpected status 403 Forbidden: {"code":"INSUFFICIENT_BALANCE","message":"Insufficient account balance"}, url: https://gateway.medopl.com/v1/responses',
+          };
+        },
+      });
+      expect(calls).toBe(1);
+      expect(receipt).toMatchObject({
+        status: 'passed',
+        scope: 'connectivity_and_prompt_only',
+        connectivity: { status: 'reachable', evidence: 'INSUFFICIENT_BALANCE' },
+        model_generation: 'not_executed_insufficient_balance',
+        complex_self_check_performed: false,
+        prompt_target_state: { ai_first_post_install_inspection: false },
+      });
+      expect(fs.readFileSync(receipt.prompt_path, 'utf8')).toBe(__test.buildCodexAiSelfCheckPrompt());
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('does not accept generic auth failures, timeouts, malformed quota text or unrelated JSON as connectivity proof', () => {
+    for (const stderr of [
+      'unexpected status 403 Forbidden: {"code":"FORBIDDEN"}',
+      'unexpected status 401 Unauthorized: {"code":"INSUFFICIENT_BALANCE"}',
+      'unexpected status 403 Forbidden: INSUFFICIENT_BALANCE',
+      'connection timed out',
+    ]) {
+      const receipt = __test.buildCodexAiSelfCheckReceipt({
+        mode: 'diagnose',
+        codexCliProbe: { detected: true, command: 'codex' },
+        result: { status: 'error', stderr },
+      });
+      expect(receipt.status).toBe('error');
+      expect(receipt.connectivity.status).toBe('not_verified');
+    }
+    expect(
+      __test.buildCodexAiSelfCheckReceipt({
+        mode: 'diagnose',
+        codexCliProbe: { detected: true, command: 'codex' },
+        result: { status: 'completed', parsed: { status: 'passed' } },
+      }).status
+    ).toBe('error');
+  });
+
   it('accepts stable ready and empty Runtime states instead of optional status copy as readiness evidence', () => {
     const expression = __test.runtimeStatusReadinessExpression();
 
@@ -2832,10 +2897,11 @@ describe('packaged first-run VM smoke helpers', () => {
       prompt: 'target state brief',
       result: {
         status: 'passed',
-        stdout: '{"status":"passed","checks":{"opl_flow_context":{"status":"passed"}}}',
+        stdout: '{"status":"passed","probe":"opl_vm_connectivity"}',
         stderr: '',
         parsed: {
           status: 'passed',
+          probe: 'opl_vm_connectivity',
           checks: {
             opl_flow_context: { status: 'passed' },
           },

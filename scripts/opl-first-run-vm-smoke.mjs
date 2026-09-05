@@ -305,14 +305,14 @@ Options:
                          post-install Codex behavior fields. This does not call an LLM.
   --codex-ai-self-check
                          After deterministic initialization and Codex functional checks,
-                         ask Codex CLI to inspect the target installed OPL working mode.
+                         probe Codex CLI connectivity with a minimal acknowledgement.
                          This writes codex-ai-self-check-summary.json as non-blocking
                          AI-first diagnostic evidence.
   --codex-ai-self-check-mode <mode>
                          Codex AI self-check mode: diagnose or fix. Default: diagnose.
-                         Release VM gates use diagnose.
+                         Release VM gates use diagnose (no tools or full inspection).
   --codex-ai-self-check-timeout-ms <n>
-                         Codex AI self-check timeout. Default: 120000.
+                         Codex AI self-check timeout. Default: 120000; diagnose caps at 30000.
   --cdp-port <n>         CDP port used by packaged-app DOM smoke probes. Default: 9230.
   --host-deadline-epoch-ms <n>
                          Optional absolute host SSH deadline in Unix epoch milliseconds.
@@ -2096,6 +2096,15 @@ function assertCodexFunctionalCheckReceipt(receipt) {
 }
 
 function buildCodexAiSelfCheckPrompt(input = {}) {
+  if (input.mode !== 'fix') {
+    return [
+      'One Person Lab VM connectivity probe.',
+      'This checks request transport only, not installation quality or task completion.',
+      'Do not call tools, inspect files, run commands, or modify anything, including user AGENTS.md.',
+      'Do not perform an OPL self-check. Reply only with this JSON acknowledgement:',
+      '{"status":"passed","probe":"opl_vm_connectivity"}',
+    ].join('\n');
+  }
   const evidence = {
     runtime_profile: input.runtimeProfile ?? 'unknown',
     ui_language: input.uiLanguage ?? 'follow_app_locale',
@@ -2221,6 +2230,23 @@ function buildCodexAiSelfCheckReceipt(input = {}) {
   const result = input.result ?? {};
   const parsed = result.parsed ?? parseCodexJsonOutput(result.stdout);
   const parsedStatus = codexAiSelfCheckStatusFromParsed(parsed);
+  const connectivityOnly = input.mode !== 'fix';
+  // Codex exposes provider failures in diagnostics; accept only the exact structured quota response.
+  const quotaResponse = String(result.stderr ?? '')
+    .split('\n')
+    .some((line) => {
+      if (!line.includes('unexpected status 403 Forbidden:')) return false;
+      const start = line.indexOf('{');
+      const end = line.lastIndexOf('}');
+      if (start < 0 || end < start) return false;
+      try {
+        return JSON.parse(line.slice(start, end + 1)).code === 'INSUFFICIENT_BALANCE';
+      } catch {
+        return false;
+      }
+    });
+  const acknowledged =
+    result.status !== 'error' && parsed?.status === 'passed' && parsed?.probe === 'opl_vm_connectivity';
   const processStatus =
     result.status === 'error'
       ? 'error'
@@ -2231,10 +2257,26 @@ function buildCodexAiSelfCheckReceipt(input = {}) {
           : 'needs_attention';
   return {
     schema: 'opl_codex_ai_self_check_receipt.v1',
-    status: processStatus,
+    status: connectivityOnly ? (acknowledged || quotaResponse ? 'passed' : 'error') : processStatus,
     mode: input.mode || 'diagnose',
     mutations_allowed: input.mode === 'fix',
     blocking_release_gate: false,
+    ...(connectivityOnly
+      ? {
+          scope: 'connectivity_and_prompt_only',
+          connectivity: {
+            status: acknowledged || quotaResponse ? 'reachable' : 'not_verified',
+            evidence: acknowledged ? 'model_acknowledgement' : quotaResponse ? 'INSUFFICIENT_BALANCE' : 'probe_failed',
+          },
+          model_generation: acknowledged
+            ? 'completed'
+            : quotaResponse
+              ? 'not_executed_insufficient_balance'
+              : 'not_verified',
+          complex_self_check_performed: false,
+          prompt_path: result.promptPath ?? null,
+        }
+      : {}),
     codex_cli: {
       command: codexCliProbe.command,
       detected: codexCliProbe.detected,
@@ -2242,9 +2284,9 @@ function buildCodexAiSelfCheckReceipt(input = {}) {
     },
     prompt_target_state: {
       programmatic_initialization_first: true,
-      ai_first_post_install_inspection: true,
+      ai_first_post_install_inspection: !connectivityOnly,
       user_agents_md_overwrite_allowed: false,
-      module_update_skill_plugin_continuity_checked: true,
+      module_update_skill_plugin_continuity_checked: !connectivityOnly,
     },
     codex_result: {
       parsed_status: parsedStatus,
@@ -2298,7 +2340,7 @@ function runCodexAiSelfCheck(input = {}) {
       input: prompt,
       encoding: 'utf8',
       env: process.env,
-      timeout: input.timeoutMs || 300_000,
+      timeout: input.mode === 'fix' ? input.timeoutMs || 300_000 : Math.min(input.timeoutMs || 30_000, 30_000),
       maxBuffer: 10 * 1024 * 1024,
     }
   );
@@ -2318,6 +2360,7 @@ function runCodexAiSelfCheck(input = {}) {
       stdout: rawOutput,
       stderr,
       parsed,
+      promptPath,
       outputPath,
       stderrPath,
     },

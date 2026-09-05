@@ -220,12 +220,12 @@ Options:
                            This implies --assistant-route-smoke and does not call an LLM.
   --codex-ai-self-check
                            Generate a non-blocking guest Codex AI self-check receipt after
-                           deterministic initialization and Codex functional checks.
+                           deterministic checks; diagnose only probes connectivity.
                            This implies --codex-functional-check.
   --codex-ai-self-check-mode <mode>
                            Codex AI self-check mode: diagnose or fix. Default: diagnose.
   --codex-ai-self-check-timeout-ms <n>
-                           Codex AI self-check timeout. Default: 120000.
+                           Codex AI self-check timeout. Default: 120000; diagnose caps at 30000.
   --cdp-port <n>           CDP port used by packaged GUI smoke probes. Default: 9230.
   --runtime-profile <profile>
                            First-run package profile to verify: full or standard. Default: full.
