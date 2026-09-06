@@ -6,8 +6,8 @@ const REQUIRED_AIONCORE_REPORTED_VERSION = '0.2.1';
 const REQUIRED_MANAGED_NODE_VERSION = '24.11.0';
 const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
 const REQUIRED_CODEX_PACKAGE = '@openai/codex';
-const REQUIRED_CODEX_VERSION = '0.151.0';
-const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.2.1';
+const REQUIRED_CODEX_VERSION = '0.153.4';
+const REQUIRED_OPL_VERIFIED_AIONCORE_VERSION = 'v0.2.1';
 const REQUIRED_SOURCE_CLI_NAMES = [];
 const REQUIRED_INCLUDED_CLI_NAMES = ['codex'];
 const REQUIRED_EXCLUDED_CLI_NAMES = ['claude'];
@@ -337,7 +337,7 @@ function requireManagedDirectCliContract(baseDir, runtimeKey, checked, missing, 
     codexSource?.version !== REQUIRED_CODEX_VERSION ||
     codexSource?.packageSpec !== `${REQUIRED_CODEX_PACKAGE}@${REQUIRED_CODEX_VERSION}-${runtimeKey}` ||
     codexSource?.authority !== 'official_npm_platform_package' ||
-    codexSource?.verifiedByAioncore !== REQUIRED_CODEX_VERIFIED_BY_AIONCORE
+    codexSource?.oplVerifiedAioncoreVersion !== REQUIRED_OPL_VERIFIED_AIONCORE_VERSION
   ) {
     invalid.push(`${rootManifestRelativePath}: invalid OPL Codex carrier source`);
   }

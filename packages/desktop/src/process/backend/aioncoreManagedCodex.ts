@@ -17,8 +17,8 @@ type ResolveAioncoreManagedCodexInput = {
 
 const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
 const REQUIRED_CODEX_PACKAGE = '@openai/codex';
-const REQUIRED_CODEX_VERSION = '0.151.0';
-const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.2.1';
+const REQUIRED_CODEX_VERSION = '0.153.4';
+const REQUIRED_OPL_VERIFIED_AIONCORE_VERSION = 'v0.2.1';
 const REQUIRED_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -136,7 +136,7 @@ export function resolveAioncoreManagedCodex(
     manifest.projection.codexSource.packageSpec !==
       `${REQUIRED_CODEX_PACKAGE}@${REQUIRED_CODEX_VERSION}-${runtimeKey}` ||
     manifest.projection.codexSource.authority !== 'official_npm_platform_package' ||
-    manifest.projection.codexSource.verifiedByAioncore !== REQUIRED_CODEX_VERIFIED_BY_AIONCORE
+    manifest.projection.codexSource.oplVerifiedAioncoreVersion !== REQUIRED_OPL_VERIFIED_AIONCORE_VERSION
   ) {
     fail(`manifest Codex-only projection policy is invalid: ${manifestPath}`);
   }

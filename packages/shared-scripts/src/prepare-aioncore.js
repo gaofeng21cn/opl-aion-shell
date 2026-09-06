@@ -45,9 +45,9 @@ const MANAGED_NODE_PRUNE_RELATIVE_PATHS = [
 const OPL_MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
 const REQUIRED_AIONCORE_SOURCE_CLI_NAMES = [];
 const REQUIRED_CODEX_PACKAGE = '@openai/codex';
-const REQUIRED_CODEX_VERSION = '0.151.0';
-const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.2.1';
-const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-composed-codex-v2';
+const REQUIRED_CODEX_VERSION = '0.153.4';
+const REQUIRED_OPL_VERIFIED_AIONCORE_VERSION = 'v0.2.1';
+const OPL_AIONCORE_CACHE_PROJECTION_VERSION = 'opl-composed-codex-v3';
 const REQUIRED_MANAGED_RESOURCE_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -204,7 +204,7 @@ function readUpstreamManagedResourcesContract(stagingDir, runtimeKey) {
   const clis = Array.isArray(manifest.clis) ? manifest.clis : null;
   if (!clis || clis.length !== 0) {
     throw new Error(
-      `AionCore ${REQUIRED_CODEX_VERIFIED_BY_AIONCORE} managed resources must expose clis=[] for ${runtimeKey}`
+      `AionCore ${REQUIRED_OPL_VERIFIED_AIONCORE_VERSION} managed resources must expose clis=[] for ${runtimeKey}`
     );
   }
   return { manifest, manifestPath };
@@ -301,7 +301,7 @@ function materializeCodexCarrier(targetDir, runtimeKey, options = {}) {
         version: REQUIRED_CODEX_VERSION,
         packageSpec,
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: REQUIRED_CODEX_VERIFIED_BY_AIONCORE,
+        oplVerifiedAioncoreVersion: REQUIRED_OPL_VERIFIED_AIONCORE_VERSION,
       },
     };
   } finally {

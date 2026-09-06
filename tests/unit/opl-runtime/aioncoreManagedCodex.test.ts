@@ -10,7 +10,7 @@ import {
 } from '@/process/backend/oplCodexRuntimeIdentity';
 
 const RUNTIME_KEY = 'darwin-arm64';
-const CODEX_VERSION = '0.151.0';
+const CODEX_VERSION = '0.153.4';
 const CODEX_ROOT = `cli/codex/${CODEX_VERSION}/${RUNTIME_KEY}`;
 const CODEX_EXECUTABLE = 'codex-aarch64-apple-darwin/codex-aarch64-apple-darwin';
 const REQUIRED_ABSENT_PATHS = [
@@ -47,7 +47,7 @@ type TestManifest = {
       version: string;
       packageSpec: string;
       authority: string;
-      verifiedByAioncore: string;
+      oplVerifiedAioncoreVersion: string;
     };
   };
   clis: TestCli[];
@@ -77,7 +77,7 @@ function makeManifest(): TestManifest {
         version: CODEX_VERSION,
         packageSpec: `@openai/codex@${CODEX_VERSION}-${RUNTIME_KEY}`,
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: 'v0.2.1',
+        oplVerifiedAioncoreVersion: 'v0.2.1',
       },
     },
     clis: [
@@ -238,7 +238,7 @@ describe('resolveAioncoreManagedCodex', () => {
     const emptyVersion = makeManifest();
     emptyVersion.clis.find((entry) => entry.name === 'codex')!.version = ' ';
     const versionBundle = writeBundle(emptyVersion);
-    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/Codex version must be 0\.151\.0/);
+    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/Codex version must be 0\.153\.4/);
   });
 
   it.each(['../escape', '/absolute', 'cli\\codex', 'cli//codex', './cli'])(

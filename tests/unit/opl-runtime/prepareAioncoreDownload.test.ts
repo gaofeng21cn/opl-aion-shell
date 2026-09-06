@@ -43,7 +43,7 @@ function writeCodexPackage(runtimeKey: string) {
   const packageDir = makeTempDir();
   fs.writeFileSync(
     path.join(packageDir, 'package.json'),
-    JSON.stringify({ name: '@openai/codex', version: `0.151.0-${runtimeKey}` })
+    JSON.stringify({ name: '@openai/codex', version: `0.153.4-${runtimeKey}` })
   );
   const executablePath = path.join(packageDir, ...executable.split('/'));
   fs.mkdirSync(path.dirname(executablePath), { recursive: true });
@@ -500,9 +500,9 @@ describe('prepare-aioncore managed resources preparation', () => {
         excludedCliNames: ['claude'],
         codexSource: {
           package: '@openai/codex',
-          version: '0.151.0',
-          packageSpec: '@openai/codex@0.151.0-darwin-arm64',
-          verifiedByAioncore: 'v0.2.1',
+          version: '0.153.4',
+          packageSpec: '@openai/codex@0.153.4-darwin-arm64',
+          oplVerifiedAioncoreVersion: 'v0.2.1',
         },
       },
     });
@@ -554,7 +554,7 @@ describe('prepare-aioncore managed resources preparation', () => {
     );
 
     expect(() => __test__.projectManagedResources(stagingDir, targetDir, 'darwin-arm64', { codexPackageDir })).toThrow(
-      /must be @openai\/codex@0\.151\.0-darwin-arm64/
+      /must be @openai\/codex@0\.153\.4-darwin-arm64/
     );
     expect(fs.existsSync(targetDir)).toBe(false);
     expect(fs.readdirSync(dir).some((entry) => entry.startsWith('managed-resources.projection-'))).toBe(false);
@@ -633,7 +633,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
 
     const cachePaths = __test__.getAioncoreCachePaths(projectRoot, 'darwin-arm64', 'v0.1.53');
     expect(cachePaths.resourcesRoot.startsWith(path.join(projectRoot, 'out'))).toBe(false);
-    expect(cachePaths.resourcesRoot).toMatch(/-opl-composed-codex-v2$/);
+    expect(cachePaths.resourcesRoot).toMatch(/-opl-composed-codex-v3$/);
   });
 
   it('reuses a complete prepared runtime cache without downloading or preparing managed resources', () => {
@@ -642,7 +642,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const cacheRoot = path.join(dir, 'cache');
     const cacheRuntimeDir = path.join(
       cacheRoot,
-      'darwin-arm64-v0.2.1-56fe721f956301d5a37bab5d34fdbdbc77148d9e679d884254b66589c8caf32d-opl-composed-codex-v2',
+      'darwin-arm64-v0.2.1-56fe721f956301d5a37bab5d34fdbdbc77148d9e679d884254b66589c8caf32d-opl-composed-codex-v3',
       'bundled-aioncore',
       'darwin-arm64'
     );
@@ -673,7 +673,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'), 'npm runtime');
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.151.0', 'darwin-arm64');
+    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.153.4', 'darwin-arm64');
     const codexExecutable = 'vendor/aarch64-apple-darwin/bin/codex';
     fs.mkdirSync(path.join(codexRoot, ...codexExecutable.split('/').slice(0, -1)), { recursive: true });
     fs.writeFileSync(path.join(codexRoot, ...codexExecutable.split('/')), 'codex');
@@ -695,8 +695,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
         clis: [
           {
             name: 'codex',
-            version: '0.151.0',
-            root: 'cli/codex/0.151.0/darwin-arm64',
+            version: '0.153.4',
+            root: 'cli/codex/0.153.4/darwin-arm64',
             platformDirectory: 'darwin-arm64',
             executable: codexExecutable,
             requiredFiles: [],
@@ -715,10 +715,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
           ],
           codexSource: {
             package: '@openai/codex',
-            version: '0.151.0',
-            packageSpec: '@openai/codex@0.151.0-darwin-arm64',
+            version: '0.153.4',
+            packageSpec: '@openai/codex@0.153.4-darwin-arm64',
             authority: 'official_npm_platform_package',
-            verifiedByAioncore: 'v0.2.1',
+            oplVerifiedAioncoreVersion: 'v0.2.1',
           },
         },
       })
@@ -756,7 +756,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'managed-resources',
             'cli',
             'codex',
-            '0.151.0',
+            '0.153.4',
             'darwin-arm64',
             ...codexExecutable.split('/')
           )

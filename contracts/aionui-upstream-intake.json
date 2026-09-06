@@ -91,10 +91,10 @@
     },
     "codex_cli": {
       "package": "@openai/codex",
-      "version": "0.151.0",
-      "binary_sha256": "98491713ffb196061003ee148636e743997cc31d76144ba7c53462269896891d",
+      "version": "0.153.4",
+      "binary_sha256": "b973d440acac501fd2594a43e7ca9ce41e0a65b9dfb28d0d7a7837c99e1261e3",
       "carrier": "opl_app_official_npm_platform_package",
-      "verified_by_aioncore": "v0.2.1"
+      "opl_verified_aioncore_version": "v0.2.1"
     }
   },
   "policy": {

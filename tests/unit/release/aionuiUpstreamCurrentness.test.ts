@@ -86,9 +86,9 @@ describe('AionUI upstream currentness', () => {
       },
       codex_cli: {
         package: '@openai/codex',
-        version: '0.151.0',
+        version: '0.153.4',
         carrier: 'opl_app_official_npm_platform_package',
-        verified_by_aioncore: 'v0.2.1',
+        opl_verified_aioncore_version: 'v0.2.1',
       },
     });
   });
