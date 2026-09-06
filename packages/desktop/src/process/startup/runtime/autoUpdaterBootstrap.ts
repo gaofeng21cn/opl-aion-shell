@@ -24,6 +24,9 @@ export type AutoUpdaterBootstrapDeps = {
   loadUpdateChannel: () => Promise<UpdaterReleaseChannel>;
   resolveUpdateCheck: (channel: UpdaterReleaseChannel) => Promise<UpdateCheckResult>;
   schedule: (callback: () => void, delayMs: number) => unknown;
+  cancelSchedule?: (timer: unknown) => void;
+  onResume?: (callback: () => void) => void;
+  now?: () => number;
   logInfo: (message: string) => void;
   logError: (message: string, error: unknown) => void;
 };
@@ -40,6 +43,13 @@ const defaultDeps: AutoUpdaterBootstrapDeps = {
   loadUpdateChannel: async () => (await import('../../bridge/oplRuntimeBridge')).readOplAppUpdaterReleaseChannel(),
   resolveUpdateCheck: async (channel) => (await import('../../bridge/updateBridge')).resolveUpdateCheck({ channel }),
   schedule: (callback, delayMs) => setTimeout(callback, delayMs),
+  cancelSchedule: (timer) => clearTimeout(timer as ReturnType<typeof setTimeout>),
+  onResume: (callback) => {
+    void import('electron').then(({ powerMonitor, app }) => {
+      powerMonitor.on('resume', callback);
+      app.once('before-quit', () => powerMonitor.removeListener('resume', callback));
+    });
+  },
   logInfo: (message) => console.log(message),
   logError: (message, error) => console.error(message, error),
 };
@@ -59,8 +69,22 @@ export function createAutoUpdaterBootstrap(deps: AutoUpdaterBootstrapDeps = defa
     bootstrap = Promise.all([deps.loadAutoUpdater(), deps.loadStatusBroadcast()])
       .then(([autoUpdater, statusBroadcast]) => {
         autoUpdater.initialize(statusBroadcast);
-        deps.schedule(() => {
-          void (async () => {
+        const now = deps.now ?? Date.now;
+        let timer: unknown;
+        let dueAt = 0;
+        let running = false;
+        let failures = 0;
+        const scheduleCheck = (delayMs: number) => {
+          dueAt = now() + delayMs;
+          timer = deps.schedule(() => {
+            void check();
+          }, delayMs);
+        };
+        const check = async () => {
+          if (running) return;
+          running = true;
+          let delayMs = 6 * 60 * 60 * 1000;
+          try {
             const channel = await deps.loadUpdateChannel();
             const decision = await deps.resolveUpdateCheck(channel);
             const target =
@@ -72,8 +96,23 @@ export function createAutoUpdaterBootstrap(deps: AutoUpdaterBootstrapDeps = defa
                   }
                 : null;
             await autoUpdater.checkForUpdatesAndNotify(target);
-          })().catch((error) => deps.logError('[App] Startup auto-update check failed:', error));
-        }, 3000);
+            failures = 0;
+          } catch (error) {
+            deps.logError('[App] Background auto-update check failed:', error);
+            failures += 1;
+            if (failures <= 3) delayMs = 30 * 60 * 1000;
+            else failures = 0;
+          } finally {
+            running = false;
+            scheduleCheck(delayMs);
+          }
+        };
+        deps.onResume?.(() => {
+          if (running || now() < dueAt) return;
+          deps.cancelSchedule?.(timer);
+          void check();
+        });
+        scheduleCheck(3000);
       })
       .catch((error) => {
         deps.logError('[App] Failed to initialize autoUpdaterService:', error);

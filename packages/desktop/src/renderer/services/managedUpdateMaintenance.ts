@@ -63,6 +63,7 @@ const MAX_RETRY_COUNT = 3;
 const SNAPSHOT_STORAGE_KEY = 'opl.managedUpdateMaintenance.v1';
 const MANAGED_UPDATE_COMPONENT_STATES = new Set([
   'current',
+  'currentness_not_checked',
   'update_available',
   'staged',
   'needs_restart',
@@ -72,6 +73,7 @@ const MANAGED_UPDATE_COMPONENT_STATES = new Set([
 ]);
 
 let retryCount = 0;
+let lastAttemptedCarrierCheckpoint: string | null = null;
 let schedulerStarted = false;
 let schedulerTimer: ReturnType<typeof setTimeout> | null = null;
 let inflight: Promise<IOplRuntimeCommandResult | null> | null = null;
@@ -175,11 +177,15 @@ function readReloadGuidance(result: IOplRuntimeCommandResult | null | undefined)
   for (const component of components) {
     const postApplyGuidance = nestedRecord(component, 'post_apply_guidance');
     const receipt = nestedRecord(component, 'receipt');
+    const structured = nestedRecord(postApplyGuidance, 'reload_guidance') ?? nestedRecord(receipt, 'reload_guidance');
     const guidance =
       stringValue(component.reload_guidance) ??
       stringValue(component.restart_guidance) ??
       stringValue(postApplyGuidance?.reload_guidance) ??
-      stringValue(receipt?.reload_guidance);
+      stringValue(receipt?.reload_guidance) ??
+      (structured && (booleanValue(structured.reload_required) || booleanValue(structured.reload_recommended))
+        ? (stringValue(structured.reason) ?? stringValue(structured.command_ref))
+        : null);
     if (guidance) return guidance;
   }
   return null;
@@ -190,7 +196,10 @@ function readRestartRequired(result: IOplRuntimeCommandResult | null | undefined
   return (
     booleanValue(root.restart_required) ||
     componentRecords(root).some(
-      (component) => booleanValue(component.needs_restart) || booleanValue(component.restart_required)
+      (component) =>
+        component.state === 'needs_restart' ||
+        booleanValue(component.needs_restart) ||
+        booleanValue(component.restart_required)
     )
   );
 }
@@ -310,10 +319,20 @@ function readPersistedSnapshot(): Partial<ManagedUpdateMaintenanceSnapshot> {
     const raw = localStorage.getItem(SNAPSHOT_STORAGE_KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, unknown>;
+    lastAttemptedCarrierCheckpoint =
+      stringValue(parsed.lastAttemptedCarrierCheckpoint) ?? stringValue(parsed.lastReconciledCarrierCheckpoint);
+    retryCount =
+      typeof parsed.retryCount === 'number' && Number.isInteger(parsed.retryCount)
+        ? Math.max(0, Math.min(MAX_RETRY_COUNT + 1, parsed.retryCount))
+        : 0;
     return {
       lastRunAt: stringValue(parsed.lastRunAt),
       nextRunAt: stringValue(parsed.nextRunAt),
       lastReconciledCarrierCheckpoint: stringValue(parsed.lastReconciledCarrierCheckpoint),
+      lastFailure: stringValue(parsed.lastFailure),
+      lastSkipReason: stringValue(parsed.lastSkipReason),
+      reloadGuidance: stringValue(parsed.reloadGuidance),
+      restartRequired: parsed.restartRequired === true,
     };
   } catch {
     return {};
@@ -328,6 +347,12 @@ function persistSnapshot(): void {
         lastRunAt: snapshot.lastRunAt,
         nextRunAt: snapshot.nextRunAt,
         lastReconciledCarrierCheckpoint: snapshot.lastReconciledCarrierCheckpoint,
+        retryCount,
+        lastAttemptedCarrierCheckpoint,
+        lastFailure: snapshot.lastFailure,
+        lastSkipReason: snapshot.lastSkipReason,
+        reloadGuidance: snapshot.reloadGuidance,
+        restartRequired: snapshot.restartRequired,
       })
     );
   } catch {
@@ -561,6 +586,7 @@ export async function executeManagedUpdateReconciliation(
     return inflight;
   }
 
+  lastAttemptedCarrierCheckpoint = currentCarrierCheckpoint();
   emit({
     running: true,
     operation: 'status',
@@ -809,17 +835,43 @@ export async function executeManagedUpdateMutation(
 }
 
 export function startManagedUpdateMaintenanceScheduler(): () => void {
+  const resumeWhenDue = () => {
+    if (document.visibilityState === 'hidden' || navigator.onLine === false || inflight) return;
+    const dueAt = Date.parse(snapshot.nextRunAt ?? '');
+    if (!Number.isFinite(dueAt) || Date.now() >= dueAt) {
+      if (schedulerTimer) clearTimeout(schedulerTimer);
+      void executeManagedUpdateReconciliation('daily_background_maintenance');
+    }
+  };
   if (!schedulerStarted) {
     schedulerStarted = true;
-    scheduleNextRun(DAILY_BACKGROUND_INTERVAL_MS);
-    const trigger =
-      snapshot.lastReconciledCarrierCheckpoint === currentCarrierCheckpoint()
-        ? 'app_startup_after_core_ready'
-        : 'app_carrier_changed';
-    void executeManagedUpdateReconciliation(trigger);
+    const carrierChanged = lastAttemptedCarrierCheckpoint !== currentCarrierCheckpoint();
+    const dueAt = Date.parse(snapshot.nextRunAt ?? '');
+    if (carrierChanged || !Number.isFinite(dueAt) || dueAt <= Date.now()) {
+      void executeManagedUpdateReconciliation(carrierChanged ? 'app_carrier_changed' : 'app_startup_after_core_ready');
+    } else {
+      scheduleNextRun(dueAt - Date.now());
+      void invokeRead('status')
+        .then((result) => {
+          if (!schedulerStarted || inflight || resultErrorMessage(result)) return;
+          emit({
+            result,
+            reloadGuidance: readReloadGuidance(result),
+            restartRequired: readRestartRequired(result),
+            lockStatus: readLockStatus(result),
+          });
+        })
+        .catch(() => {
+          /* Preserve recovery hints until a valid owner readback arrives. */
+        });
+    }
+    window.addEventListener('online', resumeWhenDue);
+    document.addEventListener('visibilitychange', resumeWhenDue);
   }
 
   return () => {
+    window.removeEventListener('online', resumeWhenDue);
+    document.removeEventListener('visibilitychange', resumeWhenDue);
     if (schedulerTimer) {
       clearTimeout(schedulerTimer);
       schedulerTimer = null;
@@ -834,6 +886,7 @@ export function resetManagedUpdateMaintenanceForTest(): void {
     schedulerTimer = null;
   }
   retryCount = 0;
+  lastAttemptedCarrierCheckpoint = null;
   schedulerStarted = false;
   inflight = null;
   snapshot = { ...EMPTY_SNAPSHOT };

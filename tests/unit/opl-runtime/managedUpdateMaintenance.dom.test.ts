@@ -184,7 +184,55 @@ describe('managed update background maintenance scheduler', () => {
     });
   });
 
-  it('restores only scheduler hints from localStorage and starts lifecycle state as idle', async () => {
+  it('keeps failed-startup backoff and retry budget across reload and resumes an overdue check once', async () => {
+    bridgeMocks.runUpdateCheckInvoke.mockRejectedValue(new Error('offline'));
+    const stop = startManagedUpdateMaintenanceScheduler();
+    await waitFor(() => expect(getManagedUpdateMaintenanceSnapshot().lastFailure).toBe('offline'));
+    stop();
+    const saved = JSON.parse(localStorage.getItem('opl.managedUpdateMaintenance.v1')!);
+    expect(saved.lastAttemptedCarrierCheckpoint).toBeTruthy();
+    expect(saved.lastReconciledCarrierCheckpoint).toBeNull();
+    saved.retryCount = 3;
+    saved.restartRequired = true;
+    saved.reloadGuidance = 'Previous pending restart';
+    localStorage.setItem('opl.managedUpdateMaintenance.v1', JSON.stringify(saved));
+    vi.resetModules();
+    const reloaded = await import('@/renderer/services/managedUpdateMaintenance');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(saved.nextRunAt).getTime() - 1000);
+    vi.clearAllMocks();
+    const stopReloaded = reloaded.startManagedUpdateMaintenanceScheduler();
+    try {
+      await vi.advanceTimersByTimeAsync(0);
+      expect(reloaded.getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+        restartRequired: false,
+        reloadGuidance: null,
+        lastFailure: 'offline',
+        nextRunAt: saved.nextRunAt,
+      });
+      expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
+      window.dispatchEvent(new Event('online'));
+      expect(bridgeMocks.runUpdateCheckInvoke).not.toHaveBeenCalled();
+      vi.setSystemTime(new Date(saved.nextRunAt).getTime() + 1000);
+      window.dispatchEvent(new Event('online'));
+      window.dispatchEvent(new Event('online'));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1);
+      expect(Date.parse(reloaded.getManagedUpdateMaintenanceSnapshot().nextRunAt!) - Date.now()).toBe(
+        24 * 60 * 60 * 1000
+      );
+      stopReloaded();
+      vi.setSystemTime(Date.now() + 25 * 60 * 60 * 1000);
+      window.dispatchEvent(new Event('online'));
+      expect(bridgeMocks.runUpdateCheckInvoke).toHaveBeenCalledTimes(1);
+    } finally {
+      stopReloaded();
+      reloaded.resetManagedUpdateMaintenanceForTest();
+      vi.useRealTimers();
+    }
+  });
+
+  it('restores recovery hints without restoring an execution or successful result', async () => {
     localStorage.setItem(
       'opl.managedUpdateMaintenance.v1',
       JSON.stringify({
@@ -216,15 +264,49 @@ describe('managed update background maintenance scheduler', () => {
       nextRunAt: '2026-07-23T01:00:00.000Z',
       lastReconciledCarrierCheckpoint: '26.5.27:2.1.5',
       lastTrigger: null,
-      lastFailure: null,
+      lastFailure: 'stale failure',
       lastAction: null,
-      lastSkipReason: null,
-      reloadGuidance: null,
-      restartRequired: false,
+      lastSkipReason: 'stale skip',
+      reloadGuidance: 'stale reload guidance',
+      restartRequired: true,
       lockStatus: null,
       result: null,
     });
     reloaded.resetManagedUpdateMaintenanceForTest();
+  });
+
+  it('projects Framework structured restart guidance and unknown Package freshness', async () => {
+    bridgeMocks.getUpdateStatusInvoke.mockResolvedValue({
+      ...managedUpdateStatusResult,
+      parsed: {
+        managed_update: {
+          ...managedUpdateStatusResult.parsed.managed_update,
+          components: [
+            {
+              component_id: 'opl_base',
+              state: 'needs_restart',
+              post_apply_guidance: {
+                reload_guidance: {
+                  reload_required: true,
+                  reload_recommended: false,
+                  reload_targets: ['one_person_lab_app'],
+                  command_ref: 'Restart One Person Lab App',
+                  reason: 'Verified runtime staged for restart',
+                },
+              },
+            },
+            { component_id: 'opl_packages', state: 'currentness_not_checked' },
+          ],
+        },
+      },
+    });
+    await executeManagedUpdateRead('status', { trigger: 'manual_refresh_status' });
+    expect(getManagedUpdateMaintenanceSnapshot()).toMatchObject({
+      executionStatus: 'completed',
+      restartRequired: true,
+      reloadGuidance: 'Verified runtime staged for restart',
+      lastFailure: null,
+    });
   });
 
   it('publishes status before startup check, plan, and one Framework-owned apply', async () => {
@@ -364,16 +446,7 @@ describe('managed update background maintenance scheduler', () => {
       string,
       unknown
     >;
-    for (const lifecycleOutcome of [
-      'executionStatus',
-      'lastAction',
-      'lastFailure',
-      'lastSkipReason',
-      'reloadGuidance',
-      'restartRequired',
-      'lockStatus',
-      'result',
-    ]) {
+    for (const lifecycleOutcome of ['executionStatus', 'lastAction', 'lockStatus', 'result']) {
       expect(persisted).not.toHaveProperty(lifecycleOutcome);
     }
 

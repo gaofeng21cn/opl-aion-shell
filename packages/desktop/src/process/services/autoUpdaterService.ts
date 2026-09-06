@@ -99,7 +99,6 @@ class AutoUpdaterService extends EventEmitter {
   private _allowPrerelease = false;
   private _statusBroadcastCallback: StatusBroadcastCallback | null = null;
   private _statusSnapshot: AutoUpdateStatus | null = null;
-  private _startupCheckStarted = false;
   private readonly _updateOperations = new Map<string, PendingUpdateOperation>();
   private readonly _verifiedTargets = new Set<string>();
   private _updateOperationTail: Promise<void> = Promise.resolve();
@@ -180,7 +179,6 @@ class AutoUpdaterService extends EventEmitter {
     this._allowPrerelease = false;
     this._statusBroadcastCallback = null;
     this._statusSnapshot = null;
-    this._startupCheckStarted = false;
     this._updateOperations.clear();
     this._verifiedTargets.clear();
     this._updateOperationTail = Promise.resolve();
@@ -196,7 +194,6 @@ class AutoUpdaterService extends EventEmitter {
     this._allowPrerelease = false;
     this._statusBroadcastCallback = null;
     this._statusSnapshot = null;
-    this._startupCheckStarted = false;
     this._updateOperations.clear();
     this._verifiedTargets.clear();
     this._updateOperationTail = Promise.resolve();
@@ -534,16 +531,17 @@ class AutoUpdaterService extends EventEmitter {
   }
 
   /**
-   * Check for updates and notify (for startup)
+   * Background checks preserve an active download or pending installation.
    */
   async checkForUpdatesAndNotify(target?: AutoUpdaterReleaseTarget | null): Promise<void> {
-    if (this._startupCheckStarted) return;
-    this._startupCheckStarted = true;
+    const status = this.getStatusSnapshot()?.status;
+    if (status === 'downloading' || status === 'downloaded') return;
     if (target === null) {
       this.broadcastStatus({ status: 'not-available' });
       return;
     }
-    await this.runUpdateCheck(target, true);
+    const result = await this.runUpdateCheck(target, true);
+    if (!result.success) throw new Error(result.error || 'Background update check failed');
   }
 }
 

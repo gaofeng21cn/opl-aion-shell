@@ -125,6 +125,40 @@ describe('createAutoUpdaterBootstrap', () => {
     expect(deps.logInfo).toHaveBeenCalledTimes(1);
   });
 
+  it('checks periodically, bounds retries, and retries an overdue resume only once', async () => {
+    const { deps, schedule, resolveUpdateCheck } = createDeps();
+    let clock = 0;
+    let resume = () => {};
+    deps.now = () => clock;
+    deps.onResume = (callback) => {
+      resume = callback;
+    };
+    deps.cancelSchedule = vi.fn();
+    await createAutoUpdaterBootstrap(deps)();
+    const runScheduled = async () => {
+      const count = schedule.mock.calls.length;
+      schedule.mock.calls.at(-1)?.[0]();
+      await vi.waitFor(() => expect(schedule).toHaveBeenCalledTimes(count + 1));
+    };
+    await runScheduled();
+    expect(schedule.mock.calls.at(-1)?.[1]).toBe(6 * 60 * 60 * 1000);
+    resolveUpdateCheck.mockRejectedValue(new Error('offline'));
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await runScheduled();
+      expect(schedule.mock.calls.at(-1)?.[1]).toBe(30 * 60 * 1000);
+    }
+    await runScheduled();
+    expect(schedule.mock.calls.at(-1)?.[1]).toBe(6 * 60 * 60 * 1000);
+    const calls = resolveUpdateCheck.mock.calls.length;
+    resume();
+    expect(resolveUpdateCheck).toHaveBeenCalledTimes(calls);
+    clock = 7 * 60 * 60 * 1000;
+    resume();
+    resume();
+    await vi.waitFor(() => expect(resolveUpdateCheck).toHaveBeenCalledTimes(calls + 1));
+    expect(deps.cancelSchedule).toHaveBeenCalledTimes(1);
+  });
+
   it('fails open once when updater modules cannot be loaded', async () => {
     const { deps } = createDeps();
     vi.mocked(deps.loadAutoUpdater).mockRejectedValue(new Error('missing updater config'));
