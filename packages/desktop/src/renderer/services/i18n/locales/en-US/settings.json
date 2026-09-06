@@ -198,6 +198,12 @@
   "hardwareAccelerationRestartConfirm": "Restart One Person Lab to apply the new hardware acceleration setting?",
   "hardwareAccelerationUpdateFailed": "Failed to update hardware acceleration setting",
   "notification": "Notifications",
+  "browserNotification": {
+    "bodyConfirmation": "A conversation needs your input.",
+    "bodyConfirmationNamed": "{{name}} needs your input.",
+    "bodyTurnCompleted": "A conversation has finished responding.",
+    "bodyTurnCompletedNamed": "{{name}} has finished responding."
+  },
   "notificationPreferencesDesc": "Choose which completed work should notify you.",
   "cronNotificationEnabled": "Scheduled Task Completion",
   "promptTimeout": "Model response timeout (seconds)",

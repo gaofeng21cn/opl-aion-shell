@@ -3,17 +3,17 @@
   "upstream_repository": "https://github.com/iOfficeAI/AionUi.git",
   "channel": "stable_tags_only",
   "reviewed_release": {
-    "tag": "v2.1.59",
-    "commit": "5be70015a243be2ae8696be85e01b281e6f872ec",
-    "published_at": "2026-08-19T14:05:20Z",
+    "tag": "v2.2.1",
+    "commit": "dc47f4a0173ff506b08f13c97b10944d61e422d5",
+    "published_at": "2026-09-01T13:13:26Z",
     "draft": false,
     "prerelease": false,
-    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.1.59",
-    "disposition": "reviewed_deferred"
+    "url": "https://github.com/iOfficeAI/AionUi/releases/tag/v2.2.1",
+    "disposition": "selectively_absorbed"
   },
   "absorbed_release": {
-    "tag": "v2.1.39",
-    "commit": "1b215f2fcb9d220bc66bf3b4961835ded07d5797"
+    "tag": "v2.2.1",
+    "commit": "dc47f4a0173ff506b08f13c97b10944d61e422d5"
   },
   "shell_projection": {
     "implementation_refs": [
@@ -22,7 +22,7 @@
       "8b8029f3fd0f94a8dcacc2f6f96bc0e4f562c82a",
       "d912b54ace25ffc37fdbcd46753fc69edb28cd85"
     ],
-    "human_record": "docs/history/aionui-upstream-intake-2026-07-22.md",
+    "human_record": "docs/history/aionui-upstream-intake-2026-09-06.md",
     "aioncore_version_source": "package.json#aioncoreVersion"
   },
   "managed_runtime": {
@@ -30,33 +30,33 @@
       "repository": "https://github.com/iOfficeAI/AionCore",
       "authority": "official_release_assets_only",
       "source_fork": "forbidden",
-      "version": "v0.1.72",
-      "commit": "57a34cc1b1a3b17bcc023de06b9e6768fceac36f",
-      "archive_sha256": "7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca",
+      "version": "v0.2.1",
+      "commit": "a9e113437a5cf0552075de618ee9458be24ef756",
+      "archive_sha256": "56fe721f956301d5a37bab5d34fdbdbc77148d9e679d884254b66589c8caf32d",
       "release_assets": {
         "darwin-arm64": {
-          "name": "aioncore-v0.1.72-aarch64-apple-darwin.tar.gz",
-          "sha256": "7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca"
+          "name": "aioncore-v0.2.1-aarch64-apple-darwin.tar.gz",
+          "sha256": "56fe721f956301d5a37bab5d34fdbdbc77148d9e679d884254b66589c8caf32d"
         },
         "darwin-x64": {
-          "name": "aioncore-v0.1.72-x86_64-apple-darwin.tar.gz",
-          "sha256": "813b5aac0d143e1cc357aefe00095cd9e9340f1bdd0bc7c540aa4b70bf3c5f78"
+          "name": "aioncore-v0.2.1-x86_64-apple-darwin.tar.gz",
+          "sha256": "e356d1f94420c7240592fc02b29a3fa8afd7669b817d15b27789f99eaf2b951b"
         },
         "linux-arm64": {
-          "name": "aioncore-v0.1.72-aarch64-unknown-linux-gnu.tar.gz",
-          "sha256": "e38044108488ff20568d03efa7bf8f5c35687ff521bac157722b6cef836f39a6"
+          "name": "aioncore-v0.2.1-aarch64-unknown-linux-gnu.tar.gz",
+          "sha256": "5daca3fbbfac6c548717f1f9de5bd7986bf7ce8e3f9fe7a2a759b9a0b0d57614"
         },
         "linux-x64": {
-          "name": "aioncore-v0.1.72-x86_64-unknown-linux-gnu.tar.gz",
-          "sha256": "3d867d3d92dad68f78e4a1460c9a766bf2f29a0a556cc7d099dfce6d94f8e196"
+          "name": "aioncore-v0.2.1-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "57e6faf22213f1d6d5de7bd21a3f5328f1059f44d4595a14889c88fc57674057"
         },
         "win32-arm64": {
-          "name": "aioncore-v0.1.72-aarch64-pc-windows-msvc.zip",
-          "sha256": "737786e68bbef305bf1fc312a4b2257eb975c9f90c63654255aa780a637f6c38"
+          "name": "aioncore-v0.2.1-aarch64-pc-windows-msvc.zip",
+          "sha256": "11843175830311df5c0ae377ce0e1f995726dae92b6cd08bc7fa00a146098761"
         },
         "win32-x64": {
-          "name": "aioncore-v0.1.72-x86_64-pc-windows-msvc.zip",
-          "sha256": "307e5c1d4627aaba9a6530ee3c50a028a8ead2af528a26dacf33b04d507326fd"
+          "name": "aioncore-v0.2.1-x86_64-pc-windows-msvc.zip",
+          "sha256": "1416b4a9e46577ee550aabace5eaf95a7d02514a02f4aa9c2d1a2b4047c1a8d6"
         }
       }
     },
@@ -90,10 +90,10 @@
     },
     "codex_cli": {
       "package": "@openai/codex",
-      "version": "0.146.0",
-      "binary_sha256": "ae1d3ffe6d48aec6a4dc3f50e7eb8e0d11962485a6a9406c5a7012139383da02",
+      "version": "0.151.0",
+      "binary_sha256": "98491713ffb196061003ee148636e743997cc31d76144ba7c53462269896891d",
       "carrier": "opl_app_official_npm_platform_package",
-      "verified_by_aioncore": "v0.1.72"
+      "verified_by_aioncore": "v0.2.1"
     }
   },
   "policy": {

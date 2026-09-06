@@ -1131,6 +1131,58 @@ describe('static-server', () => {
     expect(status).toMatch(/HTTP\/1\.1 101/i);
   });
 
+  it('POST body with a large payload is fully forwarded to backend (no byte drop during splice)', async () => {
+    const bodyLength = 512 * 1024;
+    const backend = await startMockBackend((req, res) => {
+      let received = 0;
+      req.on('data', (chunk: Buffer) => {
+        received += chunk.length;
+      });
+      req.on('end', () => {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ received }));
+      });
+    });
+    stopBackend = backend.close;
+    handle = await startStaticServer({ staticDir, backendPort: backend.port, port: 0 });
+
+    const received: number = await new Promise((resolve, reject) => {
+      const request = http.request(
+        {
+          host: '127.0.0.1',
+          port: handle!.port,
+          method: 'POST',
+          path: '/api/fs/upload',
+          headers: {
+            'content-type': 'application/octet-stream',
+            'content-length': bodyLength,
+          },
+        },
+        (res) => {
+          let raw = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            raw += chunk;
+          });
+          res.on('end', () => {
+            try {
+              resolve((JSON.parse(raw) as { received: number }).received);
+            } catch (error) {
+              reject(error as Error);
+            }
+          });
+        }
+      );
+      request.on('error', reject);
+      request.setTimeout(5000, () => {
+        request.destroy(new Error('timeout: backend never received the full body (bytes dropped in splice)'));
+      });
+      request.end(Buffer.alloc(bodyLength, 0x61));
+    });
+
+    expect(received).toBe(bodyLength);
+  });
+
   it('network URL populated only when allowRemote=true', async () => {
     const backend = await startMockBackend((_req, res) => res.end('nope'));
     stopBackend = backend.close;

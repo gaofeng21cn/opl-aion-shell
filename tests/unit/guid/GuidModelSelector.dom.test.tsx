@@ -68,7 +68,7 @@ describe('GuidModelSelector Codex display', () => {
     );
 
     const selector = screen.getByTestId('guid-model-selector');
-    expect(selector).toHaveTextContent('5.6 Sol 最高');
+    expect(selector).toHaveTextContent('5.6 Sol 超高');
     expect(selector).not.toHaveTextContent('自动（推荐）');
     expect(selector.querySelector('[data-opl-icon="chevronDown"]')).toHaveStyle({
       width: '16px',
@@ -88,7 +88,7 @@ describe('GuidModelSelector Codex display', () => {
     expect(modelItem).not.toHaveFocus();
     fireEvent.click(modelItem);
     const autoChoice = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 最高 · 跟随最新最强');
+    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 超高 · 跟随最新最强');
     expect(autoChoice).toHaveAttribute('role', 'menuitemradio');
     expect(autoChoice).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByTestId('opl-codex-session-menu-model-choice-gpt-5.5')).toHaveAttribute('aria-checked', 'false');
@@ -103,8 +103,8 @@ describe('GuidModelSelector Codex display', () => {
     expect(await screen.findByTestId('opl-codex-session-menu-reasoning-choice-low')).toBeInTheDocument();
     expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-medium')).toBeInTheDocument();
     expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-high')).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-xhigh')).toBeInTheDocument();
-    expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-max')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-xhigh')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-max')).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByTestId('opl-codex-session-menu-reasoning-choice-ultra')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('opl-codex-session-menu-reasoning-choice-high'));

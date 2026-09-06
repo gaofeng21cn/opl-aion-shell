@@ -198,6 +198,12 @@
   "hardwareAccelerationRestartConfirm": "重启 One Person Lab 以应用新的硬件加速设置？",
   "hardwareAccelerationUpdateFailed": "更新硬件加速设置失败",
   "notification": "通知",
+  "browserNotification": {
+    "bodyConfirmation": "有任务需要你确认或回答。",
+    "bodyConfirmationNamed": "{{name}}需要你确认或回答。",
+    "bodyTurnCompleted": "有任务已完成回复。",
+    "bodyTurnCompletedNamed": "{{name}}已完成回复。"
+  },
   "notificationPreferencesDesc": "选择哪些任务完成后需要提醒你。",
   "cronNotificationEnabled": "定时任务完成通知",
   "promptTimeout": "模型响应超时（秒）",

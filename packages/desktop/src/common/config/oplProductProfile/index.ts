@@ -711,13 +711,24 @@ type AppProductProfile = {
         settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar';
         icon_text_action_geometry: {
           icon_size_px: 16;
-          icon_slot_px: 20;
+          icon_slot_px: 16;
           icon_color: 'currentColor';
           icon_background: 'transparent_none';
-          icon_label_gap_px: 8;
+          icon_label_gap_px: 4;
+          source: 'pinned_dsh_Button.module.css';
+          normal_typography: 'var(--dsw-font-s-14)';
+          compact_typography: 'var(--dsw-font-xxs-12)';
           alignment: 'icon_slot_and_label_share_one_vertical_centerline';
           contrast_policy: 'button_foreground_color_applies_to_icon_and_label_together';
           disabled_policy: 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon';
+        };
+        settings_navigation_geometry: {
+          source: 'pinned_dsh_Menu.module.css_dense_item';
+          icon_slot_px: 16;
+          icon_label_gap_px: 8;
+          typography: 'var(--dsw-font-s-14)';
+          min_height_px: 34;
+          radius_px: 10;
         };
         upstream_fork_body_bulk_icon_rewrite: 'forbidden';
         refresh_actions: 'icon_only_with_tooltip_and_accessible_name';
@@ -2025,6 +2036,9 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
   const utilityIconPolicy = guiHome.utility_icon_policy;
   const accountIdentityAvatar = isRecord(utilityIconPolicy) ? utilityIconPolicy.account_identity_avatar : null;
   const iconTextActionGeometry = isRecord(utilityIconPolicy) ? utilityIconPolicy.icon_text_action_geometry : null;
+  const settingsNavigationGeometry = isRecord(utilityIconPolicy)
+    ? utilityIconPolicy.settings_navigation_geometry
+    : null;
   const globalFeedbackAction = isRecord(utilityIconPolicy) ? utilityIconPolicy.global_feedback_action : null;
   const startupFailureAction = isRecord(globalFeedbackAction) ? globalFeedbackAction.startup_failure_action : null;
   const globalFeedbackPrefillFields = isRecord(globalFeedbackAction)
@@ -2045,13 +2059,23 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
       'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar' ||
     !isRecord(iconTextActionGeometry) ||
     iconTextActionGeometry.icon_size_px !== 16 ||
-    iconTextActionGeometry.icon_slot_px !== 20 ||
+    iconTextActionGeometry.icon_slot_px !== 16 ||
     iconTextActionGeometry.icon_color !== 'currentColor' ||
     iconTextActionGeometry.icon_background !== 'transparent_none' ||
-    iconTextActionGeometry.icon_label_gap_px !== 8 ||
+    iconTextActionGeometry.icon_label_gap_px !== 4 ||
+    iconTextActionGeometry.source !== 'pinned_dsh_Button.module.css' ||
+    iconTextActionGeometry.normal_typography !== 'var(--dsw-font-s-14)' ||
+    iconTextActionGeometry.compact_typography !== 'var(--dsw-font-xxs-12)' ||
     iconTextActionGeometry.alignment !== 'icon_slot_and_label_share_one_vertical_centerline' ||
     iconTextActionGeometry.contrast_policy !== 'button_foreground_color_applies_to_icon_and_label_together' ||
     iconTextActionGeometry.disabled_policy !== 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon' ||
+    !isRecord(settingsNavigationGeometry) ||
+    settingsNavigationGeometry.source !== 'pinned_dsh_Menu.module.css_dense_item' ||
+    settingsNavigationGeometry.icon_slot_px !== 16 ||
+    settingsNavigationGeometry.icon_label_gap_px !== 8 ||
+    settingsNavigationGeometry.typography !== 'var(--dsw-font-s-14)' ||
+    settingsNavigationGeometry.min_height_px !== 34 ||
+    settingsNavigationGeometry.radius_px !== 10 ||
     utilityIconPolicy.upstream_fork_body_bulk_icon_rewrite !== 'forbidden' ||
     utilityIconPolicy.refresh_actions !== 'icon_only_with_tooltip_and_accessible_name' ||
     utilityIconPolicy.model_reasoning_control !== 'text_and_disclosure_without_brain_icon' ||
@@ -2228,13 +2252,24 @@ function validateOplProductProfile(value: unknown): AppProductProfile {
           settings_icon_geometry: 'stable_16px_slot_1_5_to_1_75px_visual_stroke_no_colored_tile_or_letter_avatar',
           icon_text_action_geometry: {
             icon_size_px: 16,
-            icon_slot_px: 20,
+            icon_slot_px: 16,
             icon_color: 'currentColor',
             icon_background: 'transparent_none',
-            icon_label_gap_px: 8,
+            icon_label_gap_px: 4,
+            source: 'pinned_dsh_Button.module.css',
+            normal_typography: 'var(--dsw-font-s-14)',
+            compact_typography: 'var(--dsw-font-xxs-12)',
             alignment: 'icon_slot_and_label_share_one_vertical_centerline',
             contrast_policy: 'button_foreground_color_applies_to_icon_and_label_together',
             disabled_policy: 'apply_disabled_opacity_to_the_whole_control_never_hide_only_the_icon',
+          },
+          settings_navigation_geometry: {
+            source: 'pinned_dsh_Menu.module.css_dense_item',
+            icon_slot_px: 16,
+            icon_label_gap_px: 8,
+            typography: 'var(--dsw-font-s-14)',
+            min_height_px: 34,
+            radius_px: 10,
           },
           upstream_fork_body_bulk_icon_rewrite: 'forbidden',
           refresh_actions: 'icon_only_with_tooltip_and_accessible_name',

@@ -248,7 +248,7 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(screen.queryByTestId('opl-codex-session-menu-model-choice-__auto')).not.toBeInTheDocument();
     fireEvent.click(modelItem);
     const autoChoice = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 最高 · 跟随最新最强');
+    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 超高 · 跟随最新最强');
     expect(autoChoice).toHaveAttribute('role', 'menuitemradio');
     expect(autoChoice).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByTestId('opl-codex-session-menu-model-choice-gpt-5.5')).toHaveAttribute('aria-checked', 'false');
@@ -329,7 +329,7 @@ describe('AcpModelSelector Codex model switching', () => {
     await userEvent.click(trigger);
     fireEvent.click(await screen.findByTestId('opl-codex-session-menu-model'));
     const autoOption = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoOption).toHaveTextContent('当前 5.6 Sol · 最高 · 跟随最新最强');
+    expect(autoOption).toHaveTextContent('当前 5.6 Sol · 超高 · 跟随最新最强');
     fireEvent.click(autoOption);
 
     await waitFor(() => {
@@ -340,7 +340,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'max',
+        value: 'xhigh',
       });
       expect(mocks.clientConfigSet).toHaveBeenCalledWith('acp.config', { codex: {} });
       expect(trigger).toHaveFocus();
@@ -370,7 +370,7 @@ describe('AcpModelSelector Codex model switching', () => {
     });
   });
 
-  it('restores Codex auto reasoning to the product-profile default from Reset', async () => {
+  it('restores Codex auto reasoning to the compatible fallback from Reset without a runtime catalog', async () => {
     mocks.configOptions = [
       {
         id: 'reasoning_effort',
@@ -400,7 +400,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'max',
+        value: 'xhigh',
       });
       expect(autoButton).toHaveFocus();
     });

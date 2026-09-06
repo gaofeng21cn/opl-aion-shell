@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { refreshSession } from '@/common/adapter/sessionRefresh';
 // M6: CSRF removed with legacy webserver — stub functions for compatibility, re-implement in M7
 const withCsrfToken = <T extends Record<string, unknown>>(data: T): T => data;
 const hasValidCsrfToken = (): boolean => true;
@@ -77,11 +78,15 @@ function clearAuthCache(): void {
 
 async function fetchCurrentUser(signal?: AbortSignal): Promise<AuthUser | null> {
   try {
-    const response = await fetch(AUTH_USER_ENDPOINT, {
+    let response = await fetch(AUTH_USER_ENDPOINT, {
       method: 'GET',
       credentials: 'include',
       signal,
     });
+
+    if (response.status === 401 && !signal?.aborted && (await refreshSession())) {
+      response = await fetch(AUTH_USER_ENDPOINT, { method: 'GET', credentials: 'include', signal });
+    }
 
     if (!response.ok) {
       return null;

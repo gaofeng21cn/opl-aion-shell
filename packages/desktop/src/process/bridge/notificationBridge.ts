@@ -13,9 +13,17 @@
 
 import { getPlatformServices } from '@/common/platform';
 import { ipcBridge } from '@/common';
+import { electronNotification } from '@/common/electronSafe';
+import type { BrowserWindow } from 'electron';
 import { ProcessConfig } from '@process/utils/initStorage';
 import path from 'path';
 import fs from 'fs';
+
+let mainWindowRef: BrowserWindow | null = null;
+
+export const setNotificationMainWindow = (window: BrowserWindow): void => {
+  mainWindowRef = window;
+};
 
 /**
  * Get app icon path for notifications
@@ -43,6 +51,7 @@ const getNotificationIcon = (): string | undefined => {
 export async function showNotification({
   title,
   body,
+  conversation_id,
 }: {
   title: string;
   body: string;
@@ -54,9 +63,25 @@ export async function showNotification({
     return;
   }
 
+  if (mainWindowRef && !mainWindowRef.isDestroyed() && mainWindowRef.isFocused()) return;
+
   const iconPath = getNotificationIcon();
 
   try {
+    if (electronNotification) {
+      const notification = new electronNotification({ title, body, ...(iconPath ? { icon: iconPath } : {}) });
+      notification.on('click', () => {
+        const window = mainWindowRef;
+        if (window && !window.isDestroyed()) {
+          if (window.isMinimized()) window.restore();
+          window.show();
+          window.focus();
+          ipcBridge.notification.clicked.emit({ conversation_id });
+        }
+      });
+      notification.show();
+      return;
+    }
     getPlatformServices().notification.send({ title, body, icon: iconPath });
   } catch (error) {
     console.error('[Notification] Error creating notification:', error);

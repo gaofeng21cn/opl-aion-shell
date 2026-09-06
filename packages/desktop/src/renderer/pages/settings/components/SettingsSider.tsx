@@ -1,4 +1,3 @@
-import FlexFullContainer from '@/renderer/components/layout/FlexFullContainer';
 import { getOplVisualPrimitiveProps, OplIcon } from '@/renderer/components/opl/OplVisualProvider';
 import { useLayoutContext } from '@/renderer/hooks/context/LayoutContext';
 import { resolveSettingsReturnPath } from '@/renderer/utils/ui/settingsReturnPath';
@@ -88,11 +87,7 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               <span className='settings-sider__icon-slot'>
                 <OplIcon name='chevronLeft' aria-hidden='true' />
               </span>
-              {!collapsed ? (
-                <FlexFullContainer className='h-24px'>
-                  <span className='settings-sider__item-label'>{t('settings.backToApp')}</span>
-                </FlexFullContainer>
-              ) : null}
+              {!collapsed ? <span className='settings-sider__item-label'>{t('settings.backToApp')}</span> : null}
             </Button>
           </Tooltip>
           <div className='settings-sider__secondary-divider' role='separator' />
@@ -127,9 +122,7 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
                   <span className='settings-sider__icon-slot'>{group.icon}</span>
                   {!collapsed ? (
                     <>
-                      <FlexFullContainer className='h-24px'>
-                        <span className='settings-sider__item-label'>{group.label}</span>
-                      </FlexFullContainer>
+                      <span className='settings-sider__item-label'>{group.label}</span>
                       {expandable ? (
                         active ? (
                           <OplIcon name='chevronDown' aria-hidden='true' />
@@ -171,11 +164,7 @@ const SettingsSider: React.FC<SettingsSiderProps> = ({ collapsed = false, toolti
               onClick={() => selectPath(aboutItem.path)}
             >
               <span className='settings-sider__icon-slot'>{aboutItem.icon}</span>
-              {!collapsed ? (
-                <FlexFullContainer className='h-24px'>
-                  <span className='settings-sider__item-label'>{aboutItem.label}</span>
-                </FlexFullContainer>
-              ) : null}
+              {!collapsed ? <span className='settings-sider__item-label'>{aboutItem.label}</span> : null}
             </Button>
           </Tooltip>
         </div>

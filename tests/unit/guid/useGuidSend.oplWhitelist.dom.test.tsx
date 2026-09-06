@@ -354,7 +354,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(payload.extra.opl_agent_package_activation).toBeUndefined();
     expect(payload.extra.opl_assistant_route).toBeUndefined();
-    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
   });
 
   it('injects OPL Flow metadata from fresh canonical installed presence', async () => {

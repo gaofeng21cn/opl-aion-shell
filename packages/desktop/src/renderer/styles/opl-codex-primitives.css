@@ -84,6 +84,28 @@
     color 140ms ease;
 }
 
+/* Navigation consumes the pinned DSH Menu icon/label geometry. */
+.opl-navigation-icon-slot {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  align-items: center;
+  justify-content: center;
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 0;
+}
+
+.opl-navigation-label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--dsw-font-s-14-font-size);
+  font-weight: var(--dsw-font-s-14-font-weight);
+  line-height: var(--dsw-font-s-14-line-height);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .opl-codex-rail-row:hover {
   background: var(--dsw-specific-sidebar-nav-item-hover);
   color: var(--dsw-alias-label-primary);

@@ -18,6 +18,7 @@ describe('OPL visual adapter', () => {
 
   it('resolves only DSH dynamic tokens and uses agent for missing or compatibility-only values', () => {
     expect(resolveOplDshIconName('send')).toBe('send');
+    expect(resolveOplDshIconName('branch')).toBe('branch');
     expect(resolveOplDshIconName('research')).toBe('agent');
     expect(resolveOplDshIconName('folderUpload')).toBe('agent');
     expect(resolveOplDshIconName(undefined)).toBe('agent');
@@ -52,6 +53,15 @@ describe('OPL visual adapter', () => {
     expect(icon).toHaveAttribute('data-opl-icon-source', 'icon-park-compatibility');
     expect(icon).toHaveAttribute('data-opl-icon-compatibility', 'dsh-glyph-unavailable');
     expect(icon.querySelector('svg')).not.toBeNull();
+  });
+
+  it('uses the available pinned DSH branch glyph instead of a compatibility glyph', () => {
+    render(<OplIcon name='branch' aria-label='Worktree' />);
+
+    const icon = screen.getByRole('img', { name: 'Worktree' });
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
+    expect(icon).not.toHaveAttribute('data-opl-icon-compatibility');
+    expect(icon.querySelector('svg')).toHaveAttribute('viewBox', '0 0 16 16');
   });
 
   it('bridges current AionUI light and dark state to the DSH body attribute', async () => {

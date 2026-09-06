@@ -115,6 +115,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
   const {
     conversations,
     isConversationGenerating,
+    isConversationWaitingConfirmation,
     hasCompletionUnread,
     expandedWorkspaces,
     pinnedConversations,
@@ -200,6 +201,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       return {
         conversation,
         isGenerating,
+        isWaitingConfirmation: isConversationWaitingConfirmation(conversation.id),
         hasCompletionUnread: hasCompletionUnread(conversation.id),
         collapsed,
         tooltipEnabled,
@@ -231,6 +233,7 @@ const WorkspaceGroupedHistory: React.FC<WorkspaceGroupedHistoryProps> = ({
       tooltipEnabled,
       batchMode,
       isConversationGenerating,
+      isConversationWaitingConfirmation,
       hasCompletionUnread,
       selectedConversationIds,
       id,

@@ -166,11 +166,11 @@ describe('browser WebSocket realtime error handling', () => {
 
     socket.dispatchClose(1006);
     const socketCountAfterClose = FakeWebSocket.instances.length;
-    vi.advanceTimersByTime(8000);
+    await vi.advanceTimersByTimeAsync(8000);
 
     expect(FakeWebSocket.instances).toHaveLength(socketCountAfterClose);
 
-    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(location.hash).toBe('/login');
   });
 
@@ -232,13 +232,13 @@ describe('browser WebSocket realtime error handling', () => {
     expect(location.hash).toBe('');
   });
 
-  it('does not redirect to login from close code 1008 without an auth error event', async () => {
+  it('stops and redirects when policy-close cannot refresh the session', async () => {
     const { location, socket } = await loadBrowserAdapter();
 
     socket.dispatchClose(1008);
-    vi.advanceTimersByTime(500);
+    await vi.advanceTimersByTimeAsync(1500);
 
-    expect(location.hash).toBe('');
-    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(location.hash).toBe('/login');
+    expect(FakeWebSocket.instances).toHaveLength(1);
   });
 });

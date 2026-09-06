@@ -75,8 +75,8 @@ const SiderPrimaryNav: React.FC<SiderPrimaryNavProps> = ({
             onClick={entry.onClick}
             data-testid={`sider-nav-${entry.key}`}
           >
-            <span className='size-22px flex-center shrink-0'>{entry.icon}</span>
-            {!collapsed && <span className='text-14px font-[500] leading-24px'>{entry.label}</span>}
+            <span className='opl-navigation-icon-slot'>{entry.icon}</span>
+            {!collapsed && <span className='opl-navigation-label'>{entry.label}</span>}
           </Button>
         </Tooltip>
       ))}

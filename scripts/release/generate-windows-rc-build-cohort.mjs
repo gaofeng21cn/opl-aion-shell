@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const RC_VERSION_PATTERN = /^\d+\.\d+\.\d+-rc\.\d+$/;
 const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
-const MANAGED_CODEX_VERSION = '0.146.0';
+const MANAGED_CODEX_VERSION = '0.151.0';
 const MANAGED_ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -149,7 +149,7 @@ function resolveManagedCodexPath(managedResourcesRoot, managedManifestPath, runt
     manifest.projection?.codexSource?.version !== MANAGED_CODEX_VERSION ||
     manifest.projection?.codexSource?.packageSpec !== `@openai/codex@${MANAGED_CODEX_VERSION}-${runtimeKey}` ||
     manifest.projection?.codexSource?.authority !== 'official_npm_platform_package' ||
-    manifest.projection?.codexSource?.verifiedByAioncore !== 'v0.1.72'
+    manifest.projection?.codexSource?.verifiedByAioncore !== 'v0.2.1'
   ) {
     throw new Error('Managed resources manifest Codex-only projection policy is invalid');
   }

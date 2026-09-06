@@ -22,18 +22,49 @@
   border-color: var(--border-base);
 }
 
-.settings-page-wrapper .arco-btn,
 .settings-page-wrapper .arco-input-wrapper,
 .settings-page-wrapper .arco-select-view,
 .settings-page-wrapper .arco-input-number {
   border-radius: 6px;
 }
 
-.settings-page-wrapper .arco-btn > .i-icon {
+/* Keep Arco behavior while projecting the pinned DSH Button geometry. */
+.settings-page-wrapper .arco-btn {
   display: inline-flex;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-inline: 14px;
+  border-radius: 18px;
+  font-family: inherit;
+  font-size: var(--dsw-font-s-14-font-size);
+  font-weight: var(--dsw-font-s-14-font-weight);
+  line-height: var(--dsw-font-s-14-line-height);
+}
+
+.settings-page-wrapper .arco-btn-size-small,
+.settings-page-wrapper .arco-btn-size-mini {
+  height: 28px;
+  padding-inline: 10px;
+  border-radius: 14px;
+  font-size: var(--dsw-font-xxs-12-font-size);
+  line-height: var(--dsw-font-xxs-12-line-height);
+}
+
+.settings-page-wrapper .arco-btn-icon-only {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  padding: 0;
+  border-radius: var(--opl-codex-control-radius);
+}
+
+.settings-page-wrapper .arco-btn > :is(.i-icon, .opl-icon) {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   align-items: center;
   justify-content: center;
   border: 0;
@@ -43,12 +74,6 @@
   vertical-align: middle;
 }
 
-.settings-page-wrapper .arco-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .settings-page-wrapper .arco-btn > .i-icon svg {
   width: 16px;
   height: 16px;
@@ -56,8 +81,8 @@
   color: inherit;
 }
 
-.settings-page-wrapper .arco-btn:not(.arco-btn-icon-only) > .i-icon + span {
-  margin-left: 8px;
+.settings-page-wrapper .arco-btn > :is(.i-icon, .opl-icon) + span {
+  margin-left: 0;
 }
 
 .settings-sider .arco-input-wrapper,
@@ -93,8 +118,9 @@
   border: 1px solid transparent;
   border-radius: 10px;
   color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--dsw-font-s-14-font-size);
+  font-weight: var(--dsw-font-s-14-font-weight);
+  line-height: var(--dsw-font-s-14-line-height);
   text-align: left;
   box-shadow: none;
 }
@@ -117,9 +143,9 @@
 
 .settings-sider__icon-slot {
   display: inline-flex;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
   align-items: center;
   justify-content: center;
   color: var(--dsw-alias-label-tertiary);
@@ -127,11 +153,13 @@
 }
 
 .settings-sider__item-label {
+  min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   color: var(--text-primary) !important;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 24px;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

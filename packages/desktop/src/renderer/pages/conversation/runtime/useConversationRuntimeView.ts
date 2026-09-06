@@ -7,6 +7,7 @@
 import { ipcBridge } from '@/common';
 import type { TConversationRuntimeSummary } from '@/common/config/storage';
 import { getConversationOrNull } from '@/renderer/pages/conversation/utils/conversationCache';
+import { reconcileWaitingConfirmationFromRuntime } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import {
   conversationDeleted,
@@ -88,6 +89,8 @@ export const useConversationRuntimeView = (
           return;
         }
         flushRuntimeViewLogs(hydrateSucceeded(conversation_id, getRuntimeOrNull(conversation?.runtime)));
+        if (!canonicalThreadId)
+          reconcileWaitingConfirmationFromRuntime(conversation_id, conversation?.runtime?.pending_confirmations ?? 0);
       })
       .catch((error: unknown) => {
         if (cancelled) {
@@ -100,7 +103,7 @@ export const useConversationRuntimeView = (
     return () => {
       cancelled = true;
     };
-  }, [conversation_id]);
+  }, [canonicalThreadId, conversation_id]);
 
   useEffect(() => {
     if (!conversation_id) {
@@ -144,8 +147,9 @@ export const useConversationRuntimeView = (
   const markSendAccepted = useCallback(
     (turn_id: string, runtime: TConversationRuntimeSummary, msg_id?: string) => {
       flushRuntimeViewLogs(localSendAccepted(conversation_id, turn_id, runtime, msg_id));
+      if (!canonicalThreadId) reconcileWaitingConfirmationFromRuntime(conversation_id, runtime.pending_confirmations);
     },
-    [conversation_id]
+    [canonicalThreadId, conversation_id]
   );
 
   const markSendFailed = useCallback(

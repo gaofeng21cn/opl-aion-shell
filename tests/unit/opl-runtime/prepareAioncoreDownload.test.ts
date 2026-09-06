@@ -43,7 +43,7 @@ function writeCodexPackage(runtimeKey: string) {
   const packageDir = makeTempDir();
   fs.writeFileSync(
     path.join(packageDir, 'package.json'),
-    JSON.stringify({ name: '@openai/codex', version: `0.146.0-${runtimeKey}` })
+    JSON.stringify({ name: '@openai/codex', version: `0.151.0-${runtimeKey}` })
   );
   const executablePath = path.join(packageDir, ...executable.split('/'));
   fs.mkdirSync(path.dirname(executablePath), { recursive: true });
@@ -281,15 +281,15 @@ describe('prepare-aioncore official release archive integrity', () => {
     ];
 
     const assets = targets.map(([platform, arch]) =>
-      __test__.resolveOfficialReleaseAsset(projectRoot, platform, arch, 'v0.1.72')
+      __test__.resolveOfficialReleaseAsset(projectRoot, platform, arch, 'v0.2.1')
     );
 
     expect(new Set(assets.map((asset: { sha256: string }) => asset.sha256)).size).toBe(6);
     expect(assets).toContainEqual({
       runtimeKey: 'linux-x64',
-      name: 'aioncore-v0.1.72-x86_64-unknown-linux-gnu.tar.gz',
-      sha256: '3d867d3d92dad68f78e4a1460c9a766bf2f29a0a556cc7d099dfce6d94f8e196',
-      url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.1.72/aioncore-v0.1.72-x86_64-unknown-linux-gnu.tar.gz',
+      name: 'aioncore-v0.2.1-x86_64-unknown-linux-gnu.tar.gz',
+      sha256: '57e6faf22213f1d6d5de7bd21a3f5328f1059f44d4595a14889c88fc57674057',
+      url: 'https://github.com/iOfficeAI/AionCore/releases/download/v0.2.1/aioncore-v0.2.1-x86_64-unknown-linux-gnu.tar.gz',
     });
   });
 
@@ -298,7 +298,7 @@ describe('prepare-aioncore official release archive integrity', () => {
     let extractionAttempted = false;
 
     expect(() =>
-      __test__.downloadAndExtract(projectRoot, 'linux', 'x64', 'v0.1.72', {
+      __test__.downloadAndExtract(projectRoot, 'linux', 'x64', 'v0.2.1', {
         downloadFile(_url: string, outputPath: string) {
           fs.writeFileSync(outputPath, 'wrong archive bytes');
         },
@@ -308,7 +308,7 @@ describe('prepare-aioncore official release archive integrity', () => {
       })
     ).toThrow(/linux-x64 archive SHA-256 mismatch/);
     expect(extractionAttempted).toBe(false);
-    expect(fs.existsSync(path.join(os.tmpdir(), 'aioncore-prepare', 'v0.1.72', 'linux-x64'))).toBe(false);
+    expect(fs.existsSync(path.join(os.tmpdir(), 'aioncore-prepare', 'v0.2.1', 'linux-x64'))).toBe(false);
   });
 });
 
@@ -500,9 +500,9 @@ describe('prepare-aioncore managed resources preparation', () => {
         excludedCliNames: ['claude'],
         codexSource: {
           package: '@openai/codex',
-          version: '0.146.0',
-          packageSpec: '@openai/codex@0.146.0-darwin-arm64',
-          verifiedByAioncore: 'v0.1.72',
+          version: '0.151.0',
+          packageSpec: '@openai/codex@0.151.0-darwin-arm64',
+          verifiedByAioncore: 'v0.2.1',
         },
       },
     });
@@ -554,7 +554,7 @@ describe('prepare-aioncore managed resources preparation', () => {
     );
 
     expect(() => __test__.projectManagedResources(stagingDir, targetDir, 'darwin-arm64', { codexPackageDir })).toThrow(
-      /must be @openai\/codex@0\.146\.0-darwin-arm64/
+      /must be @openai\/codex@0\.151\.0-darwin-arm64/
     );
     expect(fs.existsSync(targetDir)).toBe(false);
     expect(fs.readdirSync(dir).some((entry) => entry.startsWith('managed-resources.projection-'))).toBe(false);
@@ -642,7 +642,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     const cacheRoot = path.join(dir, 'cache');
     const cacheRuntimeDir = path.join(
       cacheRoot,
-      'darwin-arm64-v0.1.72-7bc90f738e738456a87d770d2d5868f7f1029b0dd1fe63927e786108db1a32ca-opl-composed-codex-v2',
+      'darwin-arm64-v0.2.1-56fe721f956301d5a37bab5d34fdbdbc77148d9e679d884254b66589c8caf32d-opl-composed-codex-v2',
       'bundled-aioncore',
       'darwin-arm64'
     );
@@ -661,8 +661,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
       JSON.stringify({
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.72',
-        compatibility: { reportedVersion: '0.1.72' },
+        version: 'v0.2.1',
+        compatibility: { reportedVersion: '0.2.1' },
       })
     );
     fs.writeFileSync(path.join(cachedNodeRoot, 'bin', 'node'), 'node');
@@ -673,7 +673,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
     fs.writeFileSync(path.join(cachedNodeRoot, 'lib', 'node_modules', 'npm', 'lib', 'cli.js'), 'npm runtime');
 
     const managedResourcesDir = path.join(cacheRuntimeDir, 'managed-resources');
-    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.146.0', 'darwin-arm64');
+    const codexRoot = path.join(managedResourcesDir, 'cli', 'codex', '0.151.0', 'darwin-arm64');
     const codexExecutable = 'vendor/aarch64-apple-darwin/bin/codex';
     fs.mkdirSync(path.join(codexRoot, ...codexExecutable.split('/').slice(0, -1)), { recursive: true });
     fs.writeFileSync(path.join(codexRoot, ...codexExecutable.split('/')), 'codex');
@@ -695,8 +695,8 @@ describe('prepare-aioncore prepared runtime cache', () => {
         clis: [
           {
             name: 'codex',
-            version: '0.146.0',
-            root: 'cli/codex/0.146.0/darwin-arm64',
+            version: '0.151.0',
+            root: 'cli/codex/0.151.0/darwin-arm64',
             platformDirectory: 'darwin-arm64',
             executable: codexExecutable,
             requiredFiles: [],
@@ -715,10 +715,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
           ],
           codexSource: {
             package: '@openai/codex',
-            version: '0.146.0',
-            packageSpec: '@openai/codex@0.146.0-darwin-arm64',
+            version: '0.151.0',
+            packageSpec: '@openai/codex@0.151.0-darwin-arm64',
             authority: 'official_npm_platform_package',
-            verifiedByAioncore: 'v0.1.72',
+            verifiedByAioncore: 'v0.2.1',
           },
         },
       })
@@ -730,10 +730,10 @@ describe('prepare-aioncore prepared runtime cache', () => {
         projectRoot,
         platform: 'darwin',
         arch: 'arm64',
-        version: 'v0.1.72',
+        version: 'v0.2.1',
         compatibilityExecFileSync(_command: string, args: string[]) {
           return args[0] === '--version'
-            ? 'aioncore 0.1.72\n'
+            ? 'aioncore 0.2.1\n'
             : 'Options:\n  --recover-corrupted-database\n  -V, --version\n';
         },
       });
@@ -756,7 +756,7 @@ describe('prepare-aioncore prepared runtime cache', () => {
             'managed-resources',
             'cli',
             'codex',
-            '0.146.0',
+            '0.151.0',
             'darwin-arm64',
             ...codexExecutable.split('/')
           )

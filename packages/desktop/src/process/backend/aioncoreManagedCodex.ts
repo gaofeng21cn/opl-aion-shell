@@ -17,8 +17,8 @@ type ResolveAioncoreManagedCodexInput = {
 
 const MANAGED_RESOURCES_SCHEMA = 'opl_aioncore_managed_resources_projection.v1';
 const REQUIRED_CODEX_PACKAGE = '@openai/codex';
-const REQUIRED_CODEX_VERSION = '0.146.0';
-const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.1.72';
+const REQUIRED_CODEX_VERSION = '0.151.0';
+const REQUIRED_CODEX_VERIFIED_BY_AIONCORE = 'v0.2.1';
 const REQUIRED_ABSENT_PATHS = [
   'cli/claude',
   'acp',

@@ -12,6 +12,7 @@ import type {
   CodexThreadUserInputQuestion,
 } from '@/common/types/codex/appServerThreads';
 import { openExternalUrl } from '@/renderer/utils/platform';
+import { clearWaitingConfirmationById } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
 import { Button, Card, Checkbox, Input, InputNumber, Radio, Select, Typography } from '@arco-design/web-react';
 import { BookOpen, CheckOne, Earth, Edit, Lightning, Lock } from '@icon-park/react';
 import React, { useMemo, useState } from 'react';
@@ -160,6 +161,7 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
           ...(answers ? { answers } : {}),
           ...(content ? { content } : {}),
         });
+        clearWaitingConfirmationById(message.conversation_id, tool_call.tool_call_id);
         setHasResponded(true);
         return;
       }
@@ -171,6 +173,7 @@ const MessageAcpPermission: React.FC<MessageAcpPermissionProps> = React.memo(({ 
       };
 
       await conversation.confirmMessage.invoke(invokeData);
+      clearWaitingConfirmationById(message.conversation_id, invokeData.call_id);
       setHasResponded(true);
     } catch (error) {
       // Handle error case - could add error logging here

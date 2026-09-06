@@ -8,7 +8,7 @@ const {
 } = require('../../../packages/shared-scripts/src/verify-bundled-aioncore-resources');
 
 const NODE_VERSION = '24.11.0';
-const CODEX_VERSION = '0.146.0';
+const CODEX_VERSION = '0.151.0';
 const ABSENT_PATHS = [
   'cli/claude',
   'acp',
@@ -117,7 +117,7 @@ function writeManagedResources(managedResourcesDir: string, runtimeKey: string):
         version: CODEX_VERSION,
         packageSpec: `@openai/codex@${CODEX_VERSION}-${runtimeKey}`,
         authority: 'official_npm_platform_package',
-        verifiedByAioncore: 'v0.1.72',
+        verifiedByAioncore: 'v0.2.1',
       },
     },
   });
@@ -131,8 +131,8 @@ function seedRuntime(resourcesDir: string, runtimeKey: string): string {
   writeJson(join(runtimeRoot, 'manifest.json'), {
     platform,
     arch,
-    version: 'v0.1.72',
-    compatibility: { reportedVersion: '0.1.72' },
+    version: 'v0.2.1',
+    compatibility: { reportedVersion: '0.2.1' },
   });
   writeManagedResources(managedResourcesDir, runtimeKey);
   return managedResourcesDir;
@@ -187,7 +187,7 @@ describe('verifyBundledAioncoreResources', () => {
     expect(result.checked).toEqual(
       expect.arrayContaining([
         'bundled-aioncore/darwin-arm64/managed-resources/node/node-v24.11.0-darwin-arm64/bin/node',
-        'bundled-aioncore/darwin-arm64/managed-resources/cli/codex/0.146.0/darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
+        'bundled-aioncore/darwin-arm64/managed-resources/cli/codex/0.151.0/darwin-arm64/vendor/aarch64-apple-darwin/bin/codex',
       ])
     );
   });
@@ -287,7 +287,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.missing).toContain(
-      'bundled-aioncore/win32-x64/managed-resources/cli/codex/0.146.0/win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe'
+      'bundled-aioncore/win32-x64/managed-resources/cli/codex/0.151.0/win32-x64/vendor/x86_64-pc-windows-msvc/bin/codex.exe'
     );
   });
 
@@ -384,7 +384,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/managed-resources/manifest.json: codex CLI directory versions do not match 0.146.0'
+      'bundled-aioncore/win32-x64/managed-resources/manifest.json: codex CLI directory versions do not match 0.151.0'
     );
   });
 
@@ -402,7 +402,7 @@ describe('verifyBundledAioncoreResources', () => {
     });
 
     expect(result.invalid).toContain(
-      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.1.72 for win32-x64 with reported version 0.1.72'
+      'bundled-aioncore/win32-x64/manifest.json: expected AionCore v0.2.1 for win32-x64 with reported version 0.2.1'
     );
   });
 });

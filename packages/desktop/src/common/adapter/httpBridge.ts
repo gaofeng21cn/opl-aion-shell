@@ -6,6 +6,8 @@
  * so existing renderer code works without changes.
  */
 
+import { refreshSession, WS_CLOSE_POLICY_VIOLATION } from './sessionRefresh';
+
 // ---------------------------------------------------------------------------
 // Base URL
 // ---------------------------------------------------------------------------
@@ -189,11 +191,17 @@ export async function httpRequest<T>(
     body !== undefined ? JSON.stringify(redactForLog(body)).slice(0, 500) : '(no body)'
   );
 
-  const response = await fetch(url, {
+  const request = {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  };
+  let response = await fetch(url, request);
+  const endpoint = path.split('?')[0];
+  const credentialRequest = endpoint === '/login' || endpoint === '/logout' || endpoint.startsWith('/api/auth/');
+  if (response.status === 401 && !credentialRequest && (await refreshSession())) {
+    response = await fetch(url, request);
+  }
 
   if (!response.ok) {
     // Response body can only be consumed once — read as text, then try JSON
@@ -339,12 +347,23 @@ const wsListeners = new Map<string, Set<WsCallback>>();
 let ws: WebSocket | null = null;
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let wsReconnectAttempt = 0;
+let wsAuthBlocked = false;
+let wsConnectedAt = 0;
+
+export function reconnectHttpWebSocket(): void {
+  wsAuthBlocked = false;
+  wsReconnectAttempt = 0;
+  if (wsReconnectTimer !== null) clearTimeout(wsReconnectTimer);
+  wsReconnectTimer = null;
+  if (wsListeners.size > 0) ensureWs();
+}
 
 function ensureWs(): void {
   if (typeof window === 'undefined') {
     console.debug('[ensureWs] skipped: no window');
     return;
   }
+  if (wsAuthBlocked || wsReconnectTimer !== null) return;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     console.debug('[ensureWs] skipped: already open/connecting, readyState=', ws.readyState);
     return;
@@ -364,12 +383,25 @@ function ensureWs(): void {
 
   current.addEventListener('open', () => {
     console.debug('[ensureWs] CONNECTED');
-    wsReconnectAttempt = 0;
+    wsConnectedAt = Date.now();
   });
 
   current.addEventListener('close', (e) => {
     console.debug('[ensureWs] CLOSED code=' + e.code + ' reason=' + e.reason);
-    if (ws === current) ws = null;
+    if (ws !== current) return;
+    ws = null;
+    if (wsConnectedAt !== 0 && Date.now() - wsConnectedAt >= 5000) wsReconnectAttempt = 0;
+    wsConnectedAt = 0;
+    if (e.code === WS_CLOSE_POLICY_VIOLATION) {
+      wsAuthBlocked = true;
+      void refreshSession().then((refreshed) => {
+        if (refreshed) {
+          wsAuthBlocked = false;
+          scheduleWsReconnect();
+        }
+      });
+      return;
+    }
     scheduleWsReconnect();
   });
 
@@ -408,7 +440,7 @@ function ensureWs(): void {
 }
 
 function scheduleWsReconnect(): void {
-  if (wsReconnectTimer) return;
+  if (wsAuthBlocked || wsReconnectTimer !== null) return;
   const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempt), 30000);
   wsReconnectAttempt++;
   wsReconnectTimer = setTimeout(() => {

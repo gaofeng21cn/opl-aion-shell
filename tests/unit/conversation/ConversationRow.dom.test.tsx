@@ -33,7 +33,7 @@ const conversation = (workspace: string): TChatConversation =>
     extra: { backend: 'codex', workspace },
   }) as unknown as TChatConversation;
 
-const renderRow = (workspace: string) => {
+const renderRow = (workspace: string, overrides: Partial<ConversationRowProps> = {}) => {
   const noop = vi.fn();
   const props: ConversationRowProps = {
     conversation: conversation(workspace),
@@ -53,12 +53,21 @@ const renderRow = (workspace: string) => {
     onDelete: noop,
     onTogglePin: noop,
     getJobStatus: () => 'none',
+    ...overrides,
   };
 
   return render(<ConversationRow {...props} />);
 };
 
 describe('ConversationRow worktree indicator', () => {
+  it('shows a quiet waiting marker instead of the generating spinner only while input is pending', () => {
+    const { container } = renderRow('/tmp/project', { isGenerating: true, isWaitingConfirmation: true });
+    expect(screen.getByRole('img', { name: 'conversation.history.waitingConfirmation' })).toBeInTheDocument();
+    expect(container.querySelector('[data-opl-icon="warning"]')).not.toBeNull();
+    expect(container.querySelector('.arco-spin')).toBeNull();
+    expect(container.querySelector('[data-opl-icon="message"]')).toBeNull();
+  });
+
   it('keeps an ordinary expanded conversation row text-only like DSH history', () => {
     renderRow('/Users/example/workspace/one-person-lab-app');
 
@@ -78,7 +87,7 @@ describe('ConversationRow worktree indicator', () => {
     expect(indicator).toHaveAttribute('data-opl-worktree-indicator', 'true');
     expect(indicator).toHaveAttribute('title', '隔离工作树');
     const icon = indicator.querySelector('[data-opl-icon="branch"]');
-    expect(icon).toHaveAttribute('data-opl-icon-source', 'icon-park-compatibility');
+    expect(icon).toHaveAttribute('data-opl-icon-source', 'deepseek-harness');
     expect(icon?.querySelector('svg')).not.toBeNull();
   });
 

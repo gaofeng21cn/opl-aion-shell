@@ -369,10 +369,10 @@ describe('Codex visual parity overlay', () => {
       /\.opl-settings-details\s*{[^}]*border:\s*0;[^}]*border-top:\s*1px solid var\(--border-base\);[^}]*background:\s*transparent;[^}]*box-shadow:\s*none;/
     );
     expect(settingsStyles).toMatch(
-      /\.settings-page-wrapper \.arco-btn > \.i-icon\s*{[^}]*width:\s*20px;[^}]*height:\s*20px;[^}]*background:\s*transparent;[^}]*color:\s*inherit;/
+      /\.settings-page-wrapper \.arco-btn > :is\(\.i-icon, \.opl-icon\)\s*{[^}]*width:\s*16px;[^}]*height:\s*16px;[^}]*background:\s*transparent;[^}]*color:\s*inherit;/
     );
     expect(settingsStyles).toMatch(
-      /\.settings-page-wrapper \.arco-btn:not\(\.arco-btn-icon-only\) > \.i-icon \+ span\s*{[^}]*margin-left:\s*8px;/
+      /\.settings-page-wrapper \.arco-btn\s*{[^}]*gap:\s*4px;[^}]*font-family:\s*inherit;/
     );
     expect(resources).toMatch(
       /data-testid='settings-resources-primary'[\s\S]*?<OplConnectionsSection[\s\S]*?id='workspace-resources'/
@@ -429,8 +429,8 @@ describe('Codex visual parity overlay', () => {
     expect(oneClickImport).toContain('fill={iconColors.brand}');
     expect(oneClickImport).not.toContain('borderRadius: 16');
     expect(oneClickImport).not.toContain("fill='#165dff'");
-    expect(refreshButton).toContain("from '@icon-park/react'");
-    expect(refreshButton).toContain("<Refresh aria-hidden='true' theme='outline' size={14} fill='currentColor' />");
+    expect(refreshButton).toContain("from './OplVisualProvider'");
+    expect(refreshButton).toContain("<OplIcon name='refreshSmall' size={14} aria-hidden='true' />");
     expect(refreshButton).not.toContain('@fortawesome');
   });
 

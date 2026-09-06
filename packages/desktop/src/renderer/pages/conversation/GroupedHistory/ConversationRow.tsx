@@ -25,6 +25,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   const {
     conversation,
     isGenerating,
+    isWaitingConfirmation = false,
     hasCompletionUnread,
     collapsed,
     tooltipEnabled,
@@ -95,7 +96,7 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
   };
 
   const renderCompletionUnreadDot = () => {
-    if (batchMode || !hasCompletionUnread || isGenerating) {
+    if (batchMode || !hasCompletionUnread || isGenerating || isWaitingConfirmation) {
       return null;
     }
 
@@ -105,6 +106,22 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
       </span>
     );
   };
+
+  const leadingStatus =
+    !batchMode && isWaitingConfirmation ? (
+      <span
+        role='img'
+        aria-label={t('conversation.history.waitingConfirmation')}
+        title={t('conversation.history.waitingConfirmation')}
+        className='flex items-center text-[rgb(var(--warning-6))]'
+      >
+        <OplIcon name='warning' size={16} aria-hidden='true' />
+      </span>
+    ) : !batchMode && isGenerating ? (
+      <Spin size={16} />
+    ) : (
+      renderLeadingStatus()
+    );
 
   return (
     <Tooltip
@@ -140,9 +157,9 @@ const ConversationRow: React.FC<ConversationRowProps> = (props) => {
             <Checkbox checked={checked} />
           </span>
         )}
-        {(isGenerating && !batchMode ? <Spin size={16} /> : renderLeadingStatus()) && (
+        {leadingStatus && (
           <span className='mr-8px flex h-20px w-16px shrink-0 items-center justify-center leading-none'>
-            {isGenerating && !batchMode ? <Spin size={16} /> : renderLeadingStatus()}
+            {leadingStatus}
           </span>
         )}
         <FlexFullContainer className='h-20px min-w-0 flex-1 collapsed-hidden'>

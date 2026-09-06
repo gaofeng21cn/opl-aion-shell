@@ -64,6 +64,7 @@ export const useConversations = (archived = false) => {
   const {
     conversations,
     isConversationGenerating,
+    isConversationWaitingConfirmation,
     hasCompletionUnread,
     clearCompletionUnread,
     setActiveConversation,
@@ -179,6 +180,7 @@ export const useConversations = (archived = false) => {
   return {
     conversations: visibleConversations,
     isConversationGenerating,
+    isConversationWaitingConfirmation,
     hasCompletionUnread,
     expandedWorkspaces,
     pinnedConversations,

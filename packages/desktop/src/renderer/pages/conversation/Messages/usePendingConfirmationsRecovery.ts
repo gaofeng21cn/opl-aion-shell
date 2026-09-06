@@ -9,6 +9,8 @@ import type { IResponseMessage } from '@/common/adapter/ipcBridge';
 import { transformMessage, type IConfirmation, type IMessagePermission, type TMessage } from '@/common/chat/chatLib';
 import { useEffect } from 'react';
 import { useUpdateMessageList } from './hooks';
+import { markWaitingConfirmation } from '@/renderer/pages/conversation/GroupedHistory/hooks/useConversationListSync';
+import { extractConfirmationId } from '@/renderer/hooks/system/notification/browserNotificationCore';
 
 export const pendingConfirmationMsgId = (confirmationId: string) => `confirmation:${confirmationId}`;
 
@@ -64,6 +66,10 @@ export function usePendingConfirmationsRecovery(conversation_id: string, canonic
         .invoke({ threadId: canonicalThreadId, conversationId: conversation_id })
         .then((responses) => {
           if (cancelled) return;
+          responses.forEach((response) => {
+            const id = extractConfirmationId(response);
+            if (id) markWaitingConfirmation(conversation_id, id);
+          });
           updateMessageList((list) => mergeCanonicalPendingApprovals(list, responses));
         })
         .catch((error) => {
@@ -82,6 +88,9 @@ export function usePendingConfirmationsRecovery(conversation_id: string, canonic
       .invoke({ conversation_id })
       .then((confirmations) => {
         if (cancelled) return;
+        confirmations?.forEach((confirmation) =>
+          markWaitingConfirmation(conversation_id, confirmation.call_id || confirmation.id)
+        );
         updateMessageList((list) => {
           let next = list;
           for (const confirmation of confirmations ?? []) {

@@ -5,6 +5,11 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { IResponseMessage } from '@/common/adapter/ipcBridge';
+import {
+  extractConfirmationId,
+  isWaitingConfirmationStreamMessage,
+} from '@/renderer/hooks/system/notification/browserNotificationCore';
 import type { TChatConversation } from '@/common/config/storage';
 import type { CodexThreadDirectory } from '@/common/types/codex/appServerThreads';
 import { readOplTransportBindingsProjection, type OplTransportBinding } from '@/common/types/opl/uiContributions';
@@ -32,6 +37,7 @@ const isGeneratingStreamMessage = (type: string): boolean => {
     type === 'acp_tool_call' ||
     type === 'acp_permission' ||
     type === 'permission' ||
+    type === 'ask' ||
     type === 'plan'
   );
 };
@@ -104,6 +110,7 @@ export const getSidebarStreamGuardDecision = ({
 type ConversationListSyncSnapshot = {
   conversations: TChatConversation[];
   generatingConversationIds: Set<string>;
+  waitingConfirmationConversationIds: Set<string>;
   completionUnreadConversationIds: Set<string>;
   canonicalArchiveStateByThreadId: ReadonlyMap<string, boolean>;
 };
@@ -193,6 +200,10 @@ let canonicalDirectoryState: CodexThreadDirectory | null = null;
 let projectedTransportBindingsState: ProjectedTransportThreadBinding[] = [];
 let conversationsState: TChatConversation[] = [];
 let generatingConversationIdsState = new Set<string>();
+type PendingConfirmationHint = { ids: Set<string>; unknownCount: number };
+const waitingConfirmationIdsByConversation = new Map<string, PendingConfirmationHint>();
+const resolvedConfirmationIdsByConversation = new Map<string, Set<string>>();
+let waitingConfirmationConversationIdsState = new Set<string>();
 let completionUnreadConversationIdsState = new Set<string>();
 let completedConversationIdsState = new Set<string>();
 let conversation_idsState = new Set<string>();
@@ -204,6 +215,7 @@ let activeConversationIdState: string | null = null;
 let snapshotState: ConversationListSyncSnapshot = {
   conversations: conversationsState,
   generatingConversationIds: generatingConversationIdsState,
+  waitingConfirmationConversationIds: waitingConfirmationConversationIdsState,
   completionUnreadConversationIds: completionUnreadConversationIdsState,
   canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
 };
@@ -212,6 +224,7 @@ const emitStoreChange = () => {
   snapshotState = {
     conversations: conversationsState,
     generatingConversationIds: generatingConversationIdsState,
+    waitingConfirmationConversationIds: waitingConfirmationConversationIdsState,
     completionUnreadConversationIds: completionUnreadConversationIdsState,
     canonicalArchiveStateByThreadId: canonicalArchiveStateByThreadIdState,
   };
@@ -226,6 +239,66 @@ const subscribeConversationListSync = (listener: () => void) => {
 };
 
 const getConversationListSyncSnapshot = (): ConversationListSyncSnapshot => snapshotState;
+
+export const getSnapshotConversationName = (conversationId: string): string | undefined => {
+  const name = conversationsState.find((conversation) => conversation.id === conversationId)?.name?.trim();
+  return name || undefined;
+};
+
+const updateWaitingConfirmations = (conversationId: string, pending: PendingConfirmationHint): void => {
+  const wasWaiting = waitingConfirmationConversationIdsState.has(conversationId);
+  const isWaiting = pending.ids.size + pending.unknownCount > 0;
+  if (isWaiting) waitingConfirmationIdsByConversation.set(conversationId, pending);
+  else waitingConfirmationIdsByConversation.delete(conversationId);
+  if (wasWaiting === isWaiting) return;
+  const waiting = new Set(waitingConfirmationConversationIdsState);
+  if (isWaiting) waiting.add(conversationId);
+  else waiting.delete(conversationId);
+  waitingConfirmationConversationIdsState = waiting;
+  emitStoreChange();
+};
+
+export const markWaitingConfirmation = (conversationId: string, confirmationId: string): void => {
+  if (!conversationId || !confirmationId || completedConversationIdsState.has(conversationId)) return;
+  if (resolvedConfirmationIdsByConversation.get(conversationId)?.has(confirmationId)) return;
+  const current = waitingConfirmationIdsByConversation.get(conversationId);
+  if (current?.ids.has(confirmationId)) return;
+  const ids = new Set(current?.ids).add(confirmationId);
+  updateWaitingConfirmations(conversationId, { ids, unknownCount: Math.max(0, (current?.unknownCount ?? 0) - 1) });
+};
+
+export const clearWaitingConfirmationById = (conversationId: string, confirmationId: string): void => {
+  if (!conversationId || !confirmationId) return;
+  const resolved = resolvedConfirmationIdsByConversation.get(conversationId) ?? new Set<string>();
+  if (resolved.has(confirmationId)) return;
+  resolved.add(confirmationId);
+  resolvedConfirmationIdsByConversation.set(conversationId, resolved);
+  const current = waitingConfirmationIdsByConversation.get(conversationId);
+  if (!current) return;
+  const ids = new Set(current.ids);
+  const removedKnown = ids.delete(confirmationId);
+  updateWaitingConfirmations(conversationId, {
+    ids,
+    unknownCount: removedKnown ? current.unknownCount : Math.max(0, current.unknownCount - 1),
+  });
+};
+
+const clearAllWaitingConfirmations = (conversationId: string): void => {
+  updateWaitingConfirmations(conversationId, { ids: new Set(), unknownCount: 0 });
+};
+
+export const reconcileWaitingConfirmationFromRuntime = (conversationId: string, pendingConfirmations: number): void => {
+  // An idle hydrate may precede a live request; only positive summaries restore the hint.
+  if (
+    conversationId &&
+    pendingConfirmations > 0 &&
+    !completedConversationIdsState.has(conversationId) &&
+    !resolvedConfirmationIdsByConversation.has(conversationId) &&
+    !waitingConfirmationIdsByConversation.has(conversationId)
+  ) {
+    updateWaitingConfirmations(conversationId, { ids: new Set(), unknownCount: pendingConfirmations });
+  }
+};
 
 /**
  * Codex app-server owns task identity and lifecycle. Shell rows only add local
@@ -521,6 +594,7 @@ const initializeConversationListSyncStore = () => {
         (conversation) => conversation.id !== event.conversation_id
       );
       clearGenerating(event.conversation_id);
+      clearAllWaitingConfirmations(event.conversation_id);
       clearCompletionUnreadState(event.conversation_id);
       clearCompleted(event.conversation_id);
       const nextPendingIds = new Set(pendingCanonicalConversationIdsState);
@@ -537,7 +611,10 @@ const initializeConversationListSyncStore = () => {
     deletedConversationIdsState.delete(event.conversation_id);
     refreshConversations();
   });
-  ipcBridge.conversation.responseStream.on((message) => {
+  ipcBridge.conversation.confirmation?.remove?.on((event) => {
+    if (event.conversation_id && event.id) clearWaitingConfirmationById(event.conversation_id, event.id);
+  });
+  const onStreamMessage = (message: IResponseMessage) => {
     const conversation_id = message.conversation_id;
     if (!conversation_id) {
       return;
@@ -547,12 +624,16 @@ const initializeConversationListSyncStore = () => {
       refreshConversations();
     }
 
+    if (message.type === 'start') resolvedConfirmationIdsByConversation.delete(conversation_id);
+
     if (isTerminalStreamMessage(message)) {
       const wasGenerating = generatingConversationIdsState.has(conversation_id);
       if (wasGenerating && activeConversationIdState !== conversation_id) {
         markCompletionUnread(conversation_id);
       }
       clearGenerating(conversation_id);
+      clearAllWaitingConfirmations(conversation_id);
+      markCompleted(conversation_id);
       return;
     }
 
@@ -570,15 +651,24 @@ const initializeConversationListSyncStore = () => {
     if (decision.markGenerating) {
       markGenerating(conversation_id);
     }
-  });
-  ipcBridge.conversation.turnCompleted.on((event) => {
+    if (isWaitingConfirmationStreamMessage(message.type)) {
+      const confirmationId = extractConfirmationId(message) ?? message.msg_id;
+      if (confirmationId) markWaitingConfirmation(conversation_id, confirmationId);
+    }
+  };
+  ipcBridge.conversation.responseStream.on(onStreamMessage);
+  ipcBridge.codexThreads?.responseStream?.on(onStreamMessage);
+  const onTurnCompleted = (event: Parameters<Parameters<typeof ipcBridge.conversation.turnCompleted.on>[0]>[0]) => {
     if (isTerminalTurnState(event.state) && activeConversationIdState !== event.session_id) {
       markCompletionUnread(event.session_id);
     }
     markCompleted(event.session_id);
     clearGenerating(event.session_id);
+    clearAllWaitingConfirmations(event.session_id);
     refreshConversations();
-  });
+  };
+  ipcBridge.conversation.turnCompleted.on(onTurnCompleted);
+  ipcBridge.codexThreads?.turnCompleted?.on(onTurnCompleted);
 };
 
 export const useConversationListSync = () => {
@@ -586,7 +676,12 @@ export const useConversationListSync = () => {
     initializeConversationListSyncStore();
   }, []);
 
-  const { conversations, generatingConversationIds, completionUnreadConversationIds } = useSyncExternalStore(
+  const {
+    conversations,
+    generatingConversationIds,
+    waitingConfirmationConversationIds,
+    completionUnreadConversationIds,
+  } = useSyncExternalStore(
     subscribeConversationListSync,
     getConversationListSyncSnapshot,
     getConversationListSyncSnapshot
@@ -614,9 +709,15 @@ export const useConversationListSync = () => {
     [completionUnreadConversationIds]
   );
 
+  const isConversationWaitingConfirmation = useCallback(
+    (conversationId: string) => waitingConfirmationConversationIds.has(conversationId),
+    [waitingConfirmationConversationIds]
+  );
+
   return {
     conversations,
     isConversationGenerating,
+    isConversationWaitingConfirmation,
     hasCompletionUnread,
     canonicalArchiveStateByThreadId: snapshotState.canonicalArchiveStateByThreadId,
     clearCompletionUnread,

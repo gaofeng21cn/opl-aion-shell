@@ -624,7 +624,10 @@ describe('WorkspaceSettings and LocalServicesSettings', () => {
 
     const refreshButton = screen.getByRole('button', { name: 'Refresh' });
     expect(refreshButton).toHaveTextContent('');
-    expect(refreshButton.querySelector('.i-icon-refresh')).not.toBeNull();
+    expect(refreshButton.querySelector('[data-opl-icon="refreshSmall"]')).toHaveAttribute(
+      'data-opl-icon-source',
+      'deepseek-harness'
+    );
 
     fireEvent.click(refreshButton);
     expect(mocks.load).toHaveBeenCalledWith('fast', { showRefreshing: true });

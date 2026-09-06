@@ -5,8 +5,8 @@
  */
 
 import { Button, Tooltip } from '@arco-design/web-react';
-import { Refresh } from '@icon-park/react';
 import React from 'react';
+import { OplIcon } from './OplVisualProvider';
 
 type OplRefreshIconButtonProps = Omit<React.ComponentProps<typeof Button>, 'children' | 'icon'> & {
   label: string;
@@ -14,11 +14,7 @@ type OplRefreshIconButtonProps = Omit<React.ComponentProps<typeof Button>, 'chil
 
 const OplRefreshIconButton: React.FC<OplRefreshIconButtonProps> = ({ label, ...buttonProps }) => (
   <Tooltip content={label}>
-    <Button
-      {...buttonProps}
-      aria-label={label}
-      icon={<Refresh aria-hidden='true' theme='outline' size={14} fill='currentColor' />}
-    />
+    <Button {...buttonProps} aria-label={label} icon={<OplIcon name='refreshSmall' size={14} aria-hidden='true' />} />
   </Tooltip>
 );
 

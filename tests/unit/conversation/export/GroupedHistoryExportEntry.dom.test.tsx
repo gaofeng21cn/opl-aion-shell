@@ -84,6 +84,7 @@ vi.mock('@/renderer/pages/conversation/GroupedHistory/hooks/useConversations', (
   useConversations: () => ({
     conversations: mocks.emptyHistory ? [] : [conversation, projectlessConversation],
     isConversationGenerating: () => false,
+    isConversationWaitingConfirmation: () => false,
     hasCompletionUnread: () => false,
     expandedWorkspaces: ['/workspace/review'],
     pinnedConversations: [],

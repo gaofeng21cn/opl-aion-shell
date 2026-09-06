@@ -6,6 +6,8 @@
 
 import { bridge, logger } from '@office-ai/platform';
 import { WEBUI_DEFAULT_PORT } from '@/common/config/constants';
+import { refreshSession, WS_CLOSE_POLICY_VIOLATION } from './sessionRefresh';
+import { reconnectHttpWebSocket } from './httpBridge';
 import type { ElectronBridgeAPI } from '@/common/types/platform/electron';
 
 interface CustomWindow extends Window {
@@ -85,6 +87,7 @@ if (win.electronAPI) {
   let reconnectTimer: number | null = null;
   let reconnectDelay = 500;
   let shouldReconnect = true; // Flag to control reconnection
+  let authRefreshPending = false;
 
   const messageQueue: QueuedMessage[] = [];
 
@@ -117,6 +120,7 @@ if (win.electronAPI) {
 
   // 3.建立 WebSocket 连接（或复用已有的 OPEN/CONNECTING 状态）
   const connect = () => {
+    if (!shouldReconnect) return;
     if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -133,9 +137,11 @@ if (win.electronAPI) {
     // Without this guard, a late-firing close event from the OLD socket
     // could wipe the reference to a NEWLY created replacement socket.
     const currentSocket = socket;
+    let connectedAt = 0;
 
     currentSocket.addEventListener('open', () => {
-      reconnectDelay = 500;
+      if (socket !== currentSocket) return;
+      connectedAt = Date.now();
       flushQueue();
     });
 
@@ -163,34 +169,7 @@ if (win.electronAPI) {
         // 处理认证过期 - 停止重连并跳转到登录页
         // Handle auth expiration - stop reconnecting and redirect to login
         if (isRealtimeAuthTerminalError(payload)) {
-          console.warn('[WebSocket] Authentication expired, stopping reconnection');
-          shouldReconnect = false;
-
-          // 清除所有待执行的重连定时器
-          // Clear any pending reconnection timer
-          if (reconnectTimer !== null) {
-            window.clearTimeout(reconnectTimer);
-            reconnectTimer = null;
-          }
-
-          // 关闭 socket 并跳转到登录页
-          // Close the socket and redirect to login page
-          socket?.close();
-
-          // 已在登录页则不再重定向，防止无限刷新循环
-          // Skip redirect if already on login page to prevent infinite reload loop
-          if (window.location.pathname === '/login' || window.location.hash.includes('/login')) {
-            return;
-          }
-
-          // 短暂延迟后跳转到登录页，以便显示 UI 反馈
-          // Redirect to login page after a short delay to show any UI feedback
-          // Use hash navigation to stay within the SPA (HashRouter), avoiding a full
-          // page reload that would land on an empty hash and cause a blank screen.
-          setTimeout(() => {
-            window.location.hash = '/login';
-          }, 1000);
-
+          recoverSession();
           return;
         }
 
@@ -209,8 +188,12 @@ if (win.electronAPI) {
 
     currentSocket.addEventListener('close', (event: CloseEvent) => {
       // Only null the outer reference if it still points at this socket.
-      if (socket === currentSocket) {
-        socket = null;
+      if (socket !== currentSocket) return;
+      socket = null;
+      if (connectedAt !== 0 && Date.now() - connectedAt >= 5000) reconnectDelay = 500;
+      if (event.code === WS_CLOSE_POLICY_VIOLATION) {
+        if (shouldReconnect) recoverSession();
+        return;
       }
 
       scheduleReconnect();
@@ -221,8 +204,29 @@ if (win.electronAPI) {
     });
   };
 
+  const recoverSession = () => {
+    if (authRefreshPending) return;
+    authRefreshPending = true;
+    shouldReconnect = false;
+    if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    socket?.close();
+    void refreshSession().then((refreshed) => {
+      authRefreshPending = false;
+      if (refreshed) {
+        shouldReconnect = true;
+        scheduleReconnect();
+      } else if (window.location.pathname !== '/login' && !window.location.hash.includes('/login')) {
+        window.setTimeout(() => {
+          if (!shouldReconnect) window.location.hash = '/login';
+        }, 1000);
+      }
+    });
+  };
+
   // 4.确保在发送/订阅前已经发起连接
   const ensureSocket = () => {
+    if (!shouldReconnect || reconnectTimer !== null) return;
     if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
       connect();
     }
@@ -265,6 +269,9 @@ if (win.electronAPI) {
   win.__websocketReconnect = () => {
     shouldReconnect = true;
     reconnectDelay = 500;
+    if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+    reconnectHttpWebSocket();
     connect();
   };
 }

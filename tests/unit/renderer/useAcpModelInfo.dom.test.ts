@@ -94,6 +94,7 @@ const buildModelInfo = (overrides: Partial<AcpModelInfo> = {}): AcpModelInfo => 
 });
 
 const CODEX_BASELINE_MODELS = [
+  { id: 'gpt-6-astra', label: '6 Astra' },
   { id: 'gpt-5.6-sol', label: '5.6 Sol' },
   { id: 'gpt-5.6-terra', label: '5.6 Terra' },
   { id: 'gpt-5.6-luna', label: '5.6 Luna' },
@@ -780,7 +781,7 @@ describe('useAcpModelInfo', () => {
     });
   });
 
-  it('falls back to App default Codex model options before the first ACP handshake', async () => {
+  it('keeps App model options with the compatible Sol fallback before the first ACP handshake', async () => {
     fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
@@ -898,8 +899,8 @@ describe('useAcpModelInfo', () => {
     });
 
     expect(result.current.model_info).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: CODEX_BASELINE_MODELS,
     });
     expect(result.current.canSwitch).toBe(true);

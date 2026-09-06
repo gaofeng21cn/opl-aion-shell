@@ -266,6 +266,9 @@ function spliceToTcpEndpoint(client: Socket, targetPort: number, initialBytes: B
   client.setNoDelay(true);
   client.setKeepAlive(true);
   client.setTimeout(0);
+  // The peek listener has been removed, but pipe() is wired only after connect.
+  // Buffer body bytes during that gap; otherwise uploads lose TCP segments.
+  client.pause();
   const upstream = net.connect({ host: '127.0.0.1', port: targetPort });
   upstream.setNoDelay(true);
   upstream.setKeepAlive(true);
