@@ -799,10 +799,10 @@ describe('updateBridge auto-update config handling', () => {
     );
   });
 
-  it('runs the startup update check at most once and preserves the shared status snapshot', async () => {
+  it('allows later background checks after no update and preserves the shared status snapshot', async () => {
     const { autoUpdater } = await import('electron-updater');
     const { autoUpdaterService } = await import('@process/services/autoUpdaterService');
-    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValueOnce({
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
       isUpdateAvailable: false,
       updateInfo: { version: '1.0.0' },
     } as never);
@@ -813,7 +813,7 @@ describe('updateBridge auto-update config handling', () => {
     await autoUpdaterService.checkForUpdatesAndNotify();
     await autoUpdaterService.checkForUpdatesAndNotify();
 
-    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(autoUpdater.checkForUpdates).toHaveBeenCalledTimes(2);
     expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'not-available' });
   });
 
@@ -912,11 +912,13 @@ describe('updateBridge auto-update config handling', () => {
     autoUpdaterService.resetForTest();
     autoUpdaterService.initialize();
 
-    await autoUpdaterService.checkForUpdatesAndNotify({
-      repo: 'gaofeng21cn/one-person-lab-app',
-      tagName: 'v26.7.31-nightly',
-      updaterVersion: '26.7.3190-nightly.0',
-    });
+    await expect(
+      autoUpdaterService.checkForUpdatesAndNotify({
+        repo: 'gaofeng21cn/one-person-lab-app',
+        tagName: 'v26.7.31-nightly',
+        updaterVersion: '26.7.3190-nightly.0',
+      })
+    ).rejects.toThrow('Exact updater release mismatch');
 
     expect(autoUpdater.downloadUpdate).not.toHaveBeenCalled();
     expect(autoUpdaterService.getStatusSnapshot()).toEqual(
