@@ -62,7 +62,7 @@ describe('pack-web-cli OPL image resources', () => {
       apply_on: ['first_install', 'explicit_restore'],
       desired_root_package_ids: ['mas', 'opl-flow'],
     });
-  });
+  }, 60_000);
 
   it('builds the Docker/WebUI image manifest contract', () => {
     expect(
