@@ -1792,7 +1792,18 @@ describe('packaged first-run VM smoke helpers', () => {
     }
   });
 
-  it('separates ordinary send package-readiness stability from the qualification-only Framework guard', () => {
+  it.each([
+    { mode: 'current', routes: ['stage_body_authorized', 'business_action_authorized'] },
+    {
+      mode: 'legacy',
+      routes: [
+        'stage_body_authorized',
+        'business_action_authorized',
+        'publication_authorized',
+        'submission_authorized',
+      ],
+    },
+  ])('keeps qualification-only Stages blocked ($mode)', ({ routes }) => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-stage-runtime-activation-'));
     const runtimeHome = path.join(root, 'runtime', 'current');
     const moduleRoot = path.join(runtimeHome, 'modules', 'mas');
@@ -1885,12 +1896,7 @@ describe('packaged first-run VM smoke helpers', () => {
           lifecycle_state: 'active',
           qualification_only: true,
           business_status: 'qualification_only',
-          explicitly_unauthorized_routes: [
-            'stage_body_authorized',
-            'business_action_authorized',
-            'publication_authorized',
-            'submission_authorized',
-          ],
+          explicitly_unauthorized_routes: routes,
         },
       },
     };

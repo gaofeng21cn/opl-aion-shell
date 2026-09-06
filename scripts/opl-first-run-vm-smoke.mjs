@@ -5694,12 +5694,8 @@ function qualificationOnlyStageAdmissionGuardExpression(input) {
   const error = isRecord(payload?.error) ? payload.error : null;
   const details = isRecord(error?.details) ? error.details : null;
   const forbiddenRoutes = listStringValues(details?.explicitly_unauthorized_routes).toSorted();
-  const expectedForbiddenRoutes = [
-    'business_action_authorized',
-    'publication_authorized',
-    'stage_body_authorized',
-    'submission_authorized',
-  ];
+  const requiredForbiddenRoutes = ['business_action_authorized', 'stage_body_authorized'];
+  const allowedForbiddenRoutes = [...requiredForbiddenRoutes, 'publication_authorized', 'submission_authorized'];
   let lifecyclePath = null;
   try {
     lifecyclePath = typeof details?.lifecycle_ref === 'string' ? fileURLToPath(details.lifecycle_ref) : null;
@@ -5720,7 +5716,8 @@ function qualificationOnlyStageAdmissionGuardExpression(input) {
     details?.lifecycle_state !== input.provisioning.lifecycle_state ||
     details?.qualification_only !== true ||
     details?.business_status !== 'qualification_only' ||
-    JSON.stringify(forbiddenRoutes) !== JSON.stringify(expectedForbiddenRoutes) ||
+    requiredForbiddenRoutes.some((route) => !forbiddenRoutes.includes(route)) ||
+    forbiddenRoutes.some((route) => !allowedForbiddenRoutes.includes(route)) ||
     !lifecyclePath ||
     realpathOrResolve(lifecyclePath) !== realpathOrResolve(expectedLifecyclePath)
   ) {
