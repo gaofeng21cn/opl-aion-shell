@@ -8,7 +8,7 @@ The Workspace module is a core component in AionUi for managing conversation wor
 
 The Workspace module follows the **Container Component Pattern**:
 
-- **index.tsx (550 lines)**: Acts as the container component, composing and coordinating all hooks
+- **index.tsx**: Acts as the container component, composing and coordinating all hooks
 - **hooks/**: 5 specialized hooks, each handling a specific business logic domain
 - **utils/**: Utility functions for tree structure operations and path calculations
 - **types.ts**: TypeScript type definitions
@@ -24,7 +24,7 @@ Advantages of this architecture:
 
 ```
 workspace/
-├── index.tsx                   # Container component (550 lines) - Composes all hooks
+├── index.tsx                   # Container component - Composes all hooks
 ├── hooks/                      # Business logic hooks
 │   ├── useWorkspaceTree.ts     # Tree state management and selection logic
 │   ├── useWorkspaceEvents.ts   # Event listener management
@@ -219,7 +219,7 @@ function ConversationPage() {
       <ChatWorkspace
         conversation_id={conversationId}
         workspace={workspacePath}
-        eventPrefix='gemini'
+        eventPrefix='codex'
         messageApi={messageApi}
       />
     </>
@@ -239,10 +239,10 @@ function MyComponent() {
       console.log('Selected files:', items);
     };
 
-    emitter.on('gemini.selected.file', handleFileSelected);
+    emitter.on('codex.selected.file', handleFileSelected);
 
     return () => {
-      emitter.off('gemini.selected.file', handleFileSelected);
+      emitter.off('codex.selected.file', handleFileSelected);
     };
   }, []);
 }
@@ -255,7 +255,7 @@ import { emitter } from '@/renderer/utils/emitter';
 
 function RefreshButton() {
   const handleRefresh = () => {
-    emitter.emit('gemini.workspace.refresh');
+    emitter.emit('codex.workspace.refresh');
   };
 
   return <button onClick={handleRefresh}>Refresh</button>;
@@ -269,7 +269,7 @@ import { emitter } from '@/renderer/utils/emitter';
 
 function ClearButton() {
   const handleClear = () => {
-    emitter.emit('gemini.selected.file.clear');
+    emitter.emit('codex.selected.file.clear');
   };
 
   return <button onClick={handleClear}>Clear Selection</button>;
@@ -282,7 +282,7 @@ function ClearButton() {
 
 `eventPrefix` is used to distinguish different agent types, supports:
 
-- `gemini` - Gemini AI conversation
+- `codex` - Codex conversation
 - `acp` - ACP (AI Code Partner) conversation
 - `codex` - Codex conversation
 
@@ -403,7 +403,7 @@ if (['new', 'ext'].includes(ext)) {
 
 ### Q: How to customize context menu items?
 
-Modify the context menu rendering logic in `index.tsx` (lines 363-429).
+Modify the `WorkspaceContextMenu` rendering and its corresponding handlers.
 
 ### Q: Why is there a delay after deletion before refresh?
 

@@ -1,13 +1,9 @@
 /**
- * Skills Hub E2E Tests - Extension/Auto Boards Rendering (P1 Priority)
- *
- * Test Cases Covered:
- * - TC-S-27: Render Extension Skills board
- * - TC-S-28: Render Auto-injected Skills board
+ * Skills Hub E2E: extension inventory and exclusion of runtime-managed scopes.
  */
 
 import { test, expect } from '../../../fixtures';
-import { goToSkillsHub, cleanupTestSkills } from '../../../helpers/skillsHub';
+import { goToSkillsHub, getMySkills, cleanupTestSkills } from '../../../helpers/skillsHub';
 import { takeScreenshot } from '../../../helpers/screenshots';
 
 test.describe('Skills Hub - Boards Rendering (P1)', () => {
@@ -27,8 +23,12 @@ test.describe('Skills Hub - Boards Rendering (P1)', () => {
     // Screenshot 01: Initial state
     await takeScreenshot(page, 'skills-hub/tc-s-27/01-initial-state.png');
 
-    // Expected: Extension Skills section exists
+    const extensionSkills = (await getMySkills(page)).filter((skill) => skill.source === 'extension');
     const extensionSection = page.locator('[data-testid="extension-skills-section"]');
+    if (extensionSkills.length === 0) {
+      await expect(extensionSection).toHaveCount(0);
+      return;
+    }
     await expect(extensionSection).toBeVisible();
 
     // Screenshot 02: Extension section visible
@@ -42,12 +42,11 @@ test.describe('Skills Hub - Boards Rendering (P1)', () => {
     // Screenshot 03: Section structure verified
     await takeScreenshot(page, 'skills-hub/tc-s-27/03-structure-verified.png');
 
-    // Additional verification: If extension skills exist, verify cards have Extension badge
-    const extensionCards = page.locator('[data-testid^="my-skill-card-"]').filter({
-      has: page.locator('text=/Extension/i'),
-    });
-    const cardCount = await extensionCards.count();
-    console.log(`[TC-S-27] Extension skills found: ${cardCount}`);
+    await Promise.all(
+      extensionSkills.map((skill) =>
+        expect(extensionSection.getByRole('heading', { name: skill.name, exact: true })).toBeVisible()
+      )
+    );
 
     // Screenshot 04: Final state
     await takeScreenshot(page, 'skills-hub/tc-s-27/04-final-state.png');
@@ -63,7 +62,7 @@ test.describe('Skills Hub - Boards Rendering (P1)', () => {
 
     const autoSection = page.locator('[data-testid="auto-skills-section"]');
     await expect(autoSection).toHaveCount(0);
-    await expect(page.locator('[data-testid="my-skills-section"]')).toContainText(/Global User Skills|My Skills/);
+    await expect(page.getByTestId('manual-and-third-party-capabilities')).toBeVisible();
     await takeScreenshot(page, 'skills-hub/tc-s-28/02-global-scope-only.png');
   });
 });

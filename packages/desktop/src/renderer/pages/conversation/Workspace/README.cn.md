@@ -8,7 +8,7 @@ Workspace 模块是 AionUi 中用于管理对话工作空间文件和文件夹�
 
 Workspace 模块遵循**容器组件模式（Container Component Pattern）**:
 
-- **index.tsx (550行)**: 作为容器组件，负责组合和协调各个 Hook
+- **index.tsx**: 作为容器组件，负责组合和协调各个 Hook
 - **hooks/**: 5个专用 Hook，每个处理特定的业务逻辑领域
 - **utils/**: 工具函数，处理树结构操作和路径计算
 - **types.ts**: TypeScript 类型定义
@@ -24,7 +24,7 @@ Workspace 模块遵循**容器组件模式（Container Component Pattern）**:
 
 ```
 workspace/
-├── index.tsx                   # 容器组件 (550行) - 组合所有 Hook
+├── index.tsx                   # 容器组件 - 组合所有 Hook
 ├── hooks/                      # 业务逻辑 Hooks
 │   ├── useWorkspaceTree.ts     # 树状态管理和选择逻辑
 │   ├── useWorkspaceEvents.ts   # 事件监听器管理
@@ -219,7 +219,7 @@ function ConversationPage() {
       <ChatWorkspace
         conversation_id={conversationId}
         workspace={workspacePath}
-        eventPrefix='gemini'
+        eventPrefix='codex'
         messageApi={messageApi}
       />
     </>
@@ -239,10 +239,10 @@ function MyComponent() {
       console.log('选中的文件:', items);
     };
 
-    emitter.on('gemini.selected.file', handleFileSelected);
+    emitter.on('codex.selected.file', handleFileSelected);
 
     return () => {
-      emitter.off('gemini.selected.file', handleFileSelected);
+      emitter.off('codex.selected.file', handleFileSelected);
     };
   }, []);
 }
@@ -255,7 +255,7 @@ import { emitter } from '@/renderer/utils/emitter';
 
 function RefreshButton() {
   const handleRefresh = () => {
-    emitter.emit('gemini.workspace.refresh');
+    emitter.emit('codex.workspace.refresh');
   };
 
   return <button onClick={handleRefresh}>刷新</button>;
@@ -269,7 +269,7 @@ import { emitter } from '@/renderer/utils/emitter';
 
 function ClearButton() {
   const handleClear = () => {
-    emitter.emit('gemini.selected.file.clear');
+    emitter.emit('codex.selected.file.clear');
   };
 
   return <button onClick={handleClear}>清空选择</button>;
@@ -282,7 +282,7 @@ function ClearButton() {
 
 `eventPrefix` 用于区分不同的 Agent 类型，支持:
 
-- `gemini` - Gemini AI 对话
+- `codex` - Codex 对话
 - `acp` - ACP (AI Code Partner) 对话
 - `codex` - Codex 对话
 
@@ -403,7 +403,7 @@ if (['new', 'ext'].includes(ext)) {
 
 ### Q: 如何自定义右键菜单项？
 
-修改 `index.tsx` 中的右键菜单渲染逻辑（第363-429行）。
+修改 `WorkspaceContextMenu` 的菜单渲染与相应 handler。
 
 ### Q: 为什么删除后需要延迟刷新？
 

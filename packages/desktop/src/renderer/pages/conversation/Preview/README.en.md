@@ -38,7 +38,7 @@ Supported Editors:
 - **Real-time streaming updates** - Auto-update preview when agent writes files (with debounce optimization)
 - **Version history** - View and restore historical versions (Git-based)
 - **Split-screen preview** - Show editor and preview simultaneously with scroll sync
-- **Keyboard shortcuts** - `Cmd/Ctrl + S` to save, `Cmd/Ctrl + W` to close tab
+- **Keyboard shortcuts** - `Cmd/Ctrl + S` to save
 - **Dirty detection** - Automatically detect unsaved changes, show confirmation when closing
 - **Drag to resize** - Freely adjust split-screen ratio
 - **Theme adaptation** - Automatically follows system theme
@@ -338,7 +338,6 @@ Register global keyboard shortcuts.
 Supported shortcuts:
 
 - `Cmd/Ctrl + S` - Save current tab
-- `Cmd/Ctrl + W` - Close current tab (not implemented, reserved)
 
 ```typescript
 usePreviewKeyboardShortcuts({
@@ -432,8 +431,7 @@ In split-screen mode:
 
 Drag the divider in the middle to adjust the left-right ratio:
 
-- Minimum width: 30%
-- Maximum width: 70%
+- Bounds are defined by `MIN_SPLIT_WIDTH` and `MAX_SPLIT_WIDTH` in `constants.ts`.
 - Ratio is automatically saved to LocalStorage
 
 ## Version History
@@ -536,10 +534,10 @@ Defined in `constants.ts`:
 export const DEFAULT_SPLIT_RATIO = 50;
 
 // Minimum split width
-export const MIN_SPLIT_WIDTH = 30;
+export const MIN_SPLIT_WIDTH = 20;
 
 // Maximum split width
-export const MAX_SPLIT_WIDTH = 70;
+export const MAX_SPLIT_WIDTH = 80;
 
 // File types with built-in open button
 export const FILE_TYPES_WITH_BUILTIN_OPEN = ['pdf', 'word', 'excel', 'ppt'];

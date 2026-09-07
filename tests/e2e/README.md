@@ -1,270 +1,70 @@
-# E2E Testing Guide
+# E2E Testing
 
-## Quick Start
+This guide owns the Electron E2E environment and execution boundaries.
+Executable test cases live under `specs/` and `features/`; historical
+discussion and acceptance tables do not define current coverage.
 
-### 1. Build the App
+## Prepare And Run
 
-E2E tests launch Electron directly (`electron .`), loading pre-built files from `out/`. **Source code changes require a rebuild before tests can pick them up.**
-
-```bash
-# Full build (main + preload + renderer)
-bunx electron-vite build
-```
-
-> `bun run start` (`electron-vite dev`) uses Vite's HMR and hot-reloads automatically.
-> E2E tests do NOT use Vite dev server — they load static files from `out/`.
-
-### 2. Ensure `aioncore` is on PATH
-
-The Electron main process spawns the `aioncore` binary during startup and
-exposes its port to the renderer via `window.__backendPort`. The binary is
-located via `which aioncore`, so it must be reachable from the `PATH`
-inherited by the Playwright runner. If it isn't, `__backendPort` will be `0`
-and every HTTP call from the renderer (or from e2e helpers that use
-`tests/e2e/helpers/httpBridge.ts`) will fail with `Failed to fetch`.
+Tests launch prebuilt output rather than the Vite development server. Rebuild
+after changing source:
 
 ```bash
-# Install the backend binary (builds to ~/.cargo/bin/aioncore)
-cd ../AionCore && cargo install --path crates/aionui-app
-
-# Make sure it's on PATH when running tests
-export PATH="$HOME/.cargo/bin:$PATH"
-```
-
-### 3. Run Tests
-
-```bash
-# All E2E tests
+bun run package
 bun run test:e2e
-
-# Specific test file
-npx playwright test --config playwright.config.ts tests/e2e/specs/app-launch.e2e.ts --reporter=list
 ```
 
-### 3. View Results
+For a focused test:
 
 ```bash
-# Open HTML report
-npx playwright show-report tests/e2e/report
+bunx playwright test --config playwright.config.ts tests/e2e/specs/app-launch.e2e.ts
 ```
 
-Screenshots, traces, and videos are saved to `tests/e2e/results/`.
+Use the official unmodified AionCore release prepared by the Shell resource
+toolchain. `fixtures.ts` selects available bundled runtime paths before the
+remaining environment. A backend missing from that resolved environment causes
+real HTTP tests to fail; building an OPL AionCore fork is not a setup step.
 
----
+## Isolation And Lifetime
 
-## Architecture
+`fixtures.ts` owns one Electron instance per worker. `playwright.config.ts`
+keeps `workers: 1` and disables full parallelism because tests share that
+instance. Each launch sets a separate `AIONUI_E2E_STORAGE_ROOT` with data and
+configuration directories, disables automatic updates and DevTools, and turns
+off CDP. Storage isolation does not make arbitrary parallel test execution safe.
 
-### App Lifecycle
+`E2E_PACKAGED=1` selects the packaged carrier; `E2E_DEV=1` forces the local
+development carrier, and CI otherwise selects packaged mode. Both need the
+appropriate built bytes. `AIONUI_E2E_ALLOW_BACKEND_FAILURE=1` is a bounded
+renderer-only bypass, not proof that backend or App workflows pass.
 
-```
-Playwright launches Electron app (singleton per worker)
-    → App loads out/main/index.js
-    → Main process creates BrowserWindow
-    → Renderer loads out/renderer/index.html (HashRouter)
-    → Tests interact with the renderer page
-    → App persists across ALL test files (no restart between describes)
-    → App closes when worker exits
-```
+## Write Tests Against Real Owners
 
-**Key design decision:** One Electron instance shared across all tests. Restarting costs ~25-30 seconds, so tests reuse the same app process.
+Prefer HTTP-backed routes in `helpers/bridge/routes.ts` or the explicit HTTP
+helpers. `invokeBridge` retains a fallback for actual remaining IPC callers;
+do not invent an IPC provider for an HTTP-owned API. Read the actual route in
+`packages/desktop/src/common/adapter/ipcBridge.ts` when diagnosing an endpoint.
 
-### Two Launch Modes
+Import the existing fixture and helpers. Assert visible results and backend
+responses rather than a fixed delay. Use a disposable thread and explicit model
+credentials for tests that submit inference. Mock a native dialog only at its
+existing Electron boundary and restore or isolate mutated state.
 
-| Mode                      | Trigger                   | What it runs                   | Use case          |
-| ------------------------- | ------------------------- | ------------------------------ | ----------------- |
-| **Dev** (default locally) | `E2E_DEV=1` or no env var | `electron .` from project root | Local development |
-| **Packaged**              | `E2E_PACKAGED=1` or CI    | Built app from `out/`          | CI pipelines      |
+Skipped scenarios must explain the actual missing behavior beside the test.
+An inherited mapping or an old percentage-complete table is not proof that a
+scenario remains impossible or is now passing.
 
-Both modes load pre-built files from `out/`. The difference is packaged mode uses `NODE_ENV=production` and the platform-specific executable.
-
-### Directory Structure
-
-```
-tests/e2e/
-├── fixtures.ts         # Electron app launch, page fixture, singleton management
-├── helpers/
-│   ├── index.ts        # Re-exports all helpers
-│   ├── bridge.ts       # invokeBridge() — IPC communication with main process
-│   ├── navigation.ts   # Route helpers (navigateTo, goToGuid, goToSettings)
-│   ├── conversation.ts # Chat helpers (sendMessage, waitForAiReply, selectAgent)
-│   ├── selectors.ts    # CSS selectors for UI elements
-│   ├── assertions.ts   # Custom assertions (expectBodyContainsAny, error collector)
-│   ├── extensions.ts   # Extension snapshot helpers
-│   ├── assistantSettings.ts # Assistant CRUD helpers
-│   └── screenshots.ts  # Manual screenshot helper
-├── specs/
-│   ├── app-launch.e2e.ts
-│   └── ...             # ~30+ test files
-├── results/            # Test artifacts (gitignored)
-├── report/             # HTML report (gitignored)
-└── screenshots/        # Manual screenshots (gitignored)
-```
-
----
-
-## Writing Tests
-
-### Basic Pattern
-
-```ts
-import { test, expect } from '../fixtures';
-import { invokeBridge, navigateTo } from '../helpers';
-
-test.describe('Feature Name', () => {
-  test('what it should do', async ({ page, electronApp }) => {
-    // 1. Navigate
-    await navigateTo(page, '#/some-route');
-
-    // 2. Interact
-    const input = page.locator('textarea').first();
-    await input.fill('Hello');
-    await input.press('Enter');
-
-    // 3. Assert UI
-    await expect(page.locator('text=Hello')).toBeVisible({ timeout: 10_000 });
-
-    // 4. Assert backend (optional)
-    const data = await invokeBridge(page, 'some.bridge-key', { param: 'value' });
-    expect(data.field).toBe('expected');
-  });
-});
-```
-
-### Key Helpers
-
-| Helper                           | Purpose                                            | Import from  |
-| -------------------------------- | -------------------------------------------------- | ------------ |
-| `invokeBridge(page, key, data)`  | Call main process IPC                              | `../helpers` |
-| `navigateTo(page, hash)`         | Navigate via sidebar UI                            | `../helpers` |
-| `waitForAiReply(page)`           | Wait for AI response (handles Shadow DOM)          | `../helpers` |
-| `selectAgent(page, backend)`     | Select agent pill by backend                       | `../helpers` |
-| `sendMessageFromGuid(page, msg)` | Send message and get conversation ID               | `../helpers` |
-| `deleteConversation(page, id)`   | Delete conversation by ID (cleanup)                | `../helpers` |
-| `MODE_SELECTOR`                  | Mode selector pill `[data-testid="mode-selector"]` | `../helpers` |
-| `modeMenuItemByValue(value)`     | Mode dropdown item `[data-mode-value="..."]`       | `../helpers` |
-
-### invokeBridge Rules
-
-Prefer HTTP-backed routes in `tests/e2e/helpers/bridge/routes.ts` or the
-explicit `httpGet` / `httpPost` / `httpDelete` helpers. The legacy IPC fallback
-inside `invokeBridge` remains only for active extension, WebUI, aionrs, and
-conversation keys that do not yet have HTTP helper coverage.
-
-### Timeout Guidelines
-
-| Operation                  | Timeout          |
-| -------------------------- | ---------------- |
-| UI element visibility      | 5,000 - 15,000ms |
-| Navigation + settle        | 10,000ms         |
-| AI response (single model) | 120,000ms        |
-
-### Mocking Native Dialogs (Electron)
-
-```ts
-// Mock file open dialog
-await electronApp.evaluate(async ({ dialog }, targetPath) => {
-  dialog.showOpenDialog = () => Promise.resolve({ canceled: false, filePaths: [targetPath] });
-}, '/path/to/target');
-```
-
-### Shadow DOM
-
-AI message text renders inside Shadow DOM (`.markdown-shadow`). Use the `waitForAiReply()` helper which handles this automatically. If you need raw access:
-
-```ts
-const text = await page.evaluate(() => {
-  const el = document.querySelector('.message-item.text.justify-start:last-child');
-  const shadow = el?.querySelector('.markdown-shadow');
-  return shadow?.shadowRoot?.textContent?.trim() ?? '';
-});
-```
-
-### Screenshots
-
-```ts
-// Manual screenshot (saved to tests/e2e/results/)
-await page.screenshot({ path: 'tests/e2e/results/my-step.png' });
-```
-
-Failed tests automatically get screenshots attached to the HTML report.
-
----
-
-## Environment Variables
-
-| Variable                             | Default          | Purpose                                              |
-| ------------------------------------ | ---------------- | ---------------------------------------------------- |
-| `E2E_PACKAGED=1`                     | unset (dev mode) | Use packaged app from `out/`                         |
-| `E2E_DEV=1`                          | unset            | Force dev mode                                       |
-| `AIONUI_E2E_ALLOW_BACKEND_FAILURE=1` | unset            | Allow renderer-only visual QA when backend is absent |
-| `CI`                                 | unset            | Auto-selects packaged mode                           |
-
-Variables set automatically during test launch:
-
-| Variable                           | Value                    | Purpose                                                |
-| ---------------------------------- | ------------------------ | ------------------------------------------------------ |
-| `AIONUI_E2E_TEST`                  | `1`                      | App recognizes test mode                               |
-| `AIONUI_E2E_STORAGE_ROOT`          | Per-launch absolute root | Keeps App data/config under isolated `data/`/`config/` |
-| `AIONUI_DISABLE_AUTO_UPDATE`       | `1`                      | No update checks                                       |
-| `AIONUI_DISABLE_DEVTOOLS`          | `1`                      | No DevTools windows                                    |
-| `AIONUI_E2E_ALLOW_BACKEND_FAILURE` | inherited or `0`         | Scoped renderer-only backend failure bypass            |
-| `AIONUI_CDP_PORT`                  | `0`                      | CDP disabled                                           |
-
----
-
-## NPM Scripts
-
-| Command            | Scope         |
-| ------------------ | ------------- |
-| `bun run test:e2e` | All E2E tests |
-
-Team E2E scripts were retired after the App-owned product profile disabled
-ordinary AionUI Team mode. The active guard is the focused unit coverage around
-`TEAM_MODE_ENABLED=false` plus App-root active-shell validation.
-
-### Examples
+## Results And Diagnostics
 
 ```bash
-# Run all E2E locally (dev mode, requires build first)
-bunx electron-vite build && bun run test:e2e
-
-# Run specific test file
-npx playwright test --config playwright.config.ts tests/e2e/specs/app-launch.e2e.ts
-
-# Run in packaged mode (CI-like)
-E2E_PACKAGED=1 bun run test:e2e
+bunx playwright show-report tests/e2e/report
 ```
 
----
+Artifacts belong under ignored `tests/e2e/results/` and `report/`.
+For stale UI, verify the build; for blank pages, verify renderer output; for
+bridge failures, inspect the resolved backend and current HTTP/IPC route.
+Live inference latency requires condition-based waits, not repeated submissions.
 
-## Troubleshooting
-
-### Tests fail with stale UI / old behavior
-
-**Cause:** Source changes not rebuilt.
-
-```bash
-bunx electron-vite build
-```
-
-### `Bridge invoke timeout: xxx`
-
-**Cause:** The IPC provider for `xxx` doesn't exist or wasn't registered.
-
-- Check `src/common/adapter/ipcBridge.ts` for the endpoint definition
-- Check the corresponding bridge file (e.g., `src/process/bridge/teamBridge.ts`) for `.provider()` registration
-- Rebuild: `bunx electron-vite build`
-
-### App launches but page is blank
-
-**Cause:** Renderer build is missing or corrupted.
-
-```bash
-bunx electron-vite build
-```
-
-### Tests are flaky with AI responses
-
-- Increase timeout (AI inference varies by load)
-- Use `expect.poll()` instead of fixed `waitForTimeout()`
-- Add retry logic for MCP confirmation dialogs (see `autoApproveMcpDialogs` pattern)
+These tests qualify only their selected carrier and source cohort. Packaged
+runtime, real installation, public release, and App adoption remain separate
+acceptance layers.

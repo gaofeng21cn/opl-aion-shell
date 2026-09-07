@@ -38,7 +38,7 @@ Preview 模块是 AionUi 中的文件预览和编辑系统，支持多种文件�
 - **实时流式更新** - Agent 写入文件时自动更新预览（带防抖优化）
 - **版本历史** - 查看和恢复历史版本（基于 Git）
 - **分屏预览** - 编辑器和预览同时显示，支持滚动同步
-- **快捷键** - `Cmd/Ctrl + S` 保存，`Cmd/Ctrl + W` 关闭 Tab
+- **快捷键** - `Cmd/Ctrl + S` 保存
 - **脏检测** - 自动检测未保存的修改，关闭时弹出确认
 - **拖拽调整** - 自由调整分屏比例
 - **主题适配** - 自动跟随系统主题
@@ -338,7 +338,6 @@ const {
 支持的快捷键：
 
 - `Cmd/Ctrl + S` - 保存当前 Tab
-- `Cmd/Ctrl + W` - 关闭当前 Tab（未实现，预留）
 
 ```typescript
 usePreviewKeyboardShortcuts({
@@ -432,8 +431,7 @@ const currentTheme = useThemeDetection(); // 'light' | 'dark'
 
 拖拽中间的分隔条可以调整左右比例：
 
-- 最小宽度：30%
-- 最大宽度：70%
+- 边界由 `constants.ts` 的 `MIN_SPLIT_WIDTH` 和 `MAX_SPLIT_WIDTH` 定义。
 - 比例会自动保存到 LocalStorage
 
 ## 版本历史
@@ -536,10 +534,10 @@ useEffect(() => {
 export const DEFAULT_SPLIT_RATIO = 50;
 
 // 分屏最小宽度
-export const MIN_SPLIT_WIDTH = 30;
+export const MIN_SPLIT_WIDTH = 20;
 
 // 分屏最大宽度
-export const MAX_SPLIT_WIDTH = 70;
+export const MAX_SPLIT_WIDTH = 80;
 
 // 内置打开按钮的文件类型
 export const FILE_TYPES_WITH_BUILTIN_OPEN = ['pdf', 'word', 'excel', 'ppt'];

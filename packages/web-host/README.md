@@ -32,6 +32,10 @@ console.log(`WebUI running at ${handle.url}`);
 await handle.stop();
 ```
 
-## Status
+## Validation Boundary
 
-M3: skeleton + type definitions + placeholder implementations (all throw `not implemented yet`)
+`src/index.ts` implements backend and static-server startup plus owned-process
+shutdown. With `useExistingBackend`, the external backend remains caller-owned.
+Run `bun run --cwd packages/web-host test` from the repository root for the
+package checks. Deployment configuration belongs to the Web CLI; public release
+and Cloud activation remain App/Cloud responsibilities.

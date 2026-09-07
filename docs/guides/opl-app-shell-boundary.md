@@ -17,10 +17,12 @@ The three-repository relationship is one App product with two replaceable
 Shells: `one-person-lab-app` owns product behavior, navigation, page state,
 Client Cordis profile, GUI contribution ABI, selected shell, version composition,
 and release gates; `opl-aion-shell` owns this AionUI renderer/carrier; `opl-studio`
-owns the DSH-derived candidate renderer/carrier. Both shells consume the same
-Framework Host projection and App state/action contracts. This repository must
-not create a second Host, Package registry, thread/history store, or release
-authority. AionUI-specific renderer, preload, AionCore/Codex adapter, upstream
+owns the independent DSH/Cordis Application Host and Studio carrier. Both consume
+the same Framework Host projection and App state/action contracts. Framework's
+Host scope is runtime, Package graph, and App projection; Studio's Host scope
+is DSH profile/plugin lifecycle, Codex, and delivery transport composition.
+This Shell must not create another owner for either scope, a Package registry,
+thread/history store, or release authority. AionUI-specific renderer, preload, AionCore/Codex adapter, upstream
 intake, cache, and build/test internals remain intentionally independent from
 Studio.
 
@@ -214,26 +216,11 @@ commit does not by itself prove App-ready or release-ready status.
 
 Local CodeGraph indexes and packaged runtime payloads are development/build artifacts. They are ignored in this repository and must not be committed from shell lanes.
 
-## Retirement Ledger
+## Existing Data And Test Callers
 
-- 2026-06-03: Retired the Team-mode E2E compatibility tail after the App-owned
-  product contract made ordinary AionUI Team hidden (`TEAM_MODE_ENABLED=false`).
-  Removed `tests/e2e/cases/teams/`, the Team-only E2E specs, Team E2E helper
-  exports, Team `invokeBridge` HTTP route mappings, Team npm scripts, and
-  Team-workspace E2E files that required the hidden `/team/*` surface. Active
-  proof now lives in the runtime flag,
-  `/team/:id` router redirect, hidden Sider section, and
-  `tests/unit/renderer/useTeamCreatedRedirect.dom.test.tsx`. The Team runtime
-  implementation remains in place as disabled upstream implementation material,
-  not ordinary OPL App product authority.
-- 2026-06-03: Removed `packages/web-host/tests/equivalence.test.ts` and its dedicated `packages/web-host/tests/fixtures/mock-backend.ts` fixture. The test file was a no-op pointer left after N2 legacy test cleanup; active WebUI host coverage now lives in `packages/web-host/src/*.test.ts` and `packages/web-host/tests/start-web-host.test.ts`. Verification: `bun run --cwd packages/web-host test`.
-
-## Remaining Deletion Gates
-
-- Legacy `invokeBridge` IPC fallback still has active E2E callers for extension,
-  WebUI, aionrs, channel, and conversation keys. Delete it only after each
-  active key has an HTTP-backed helper route or an explicit current hosted
-  surface.
+- E2E transport follows the current HTTP/IPC routes in
+  `tests/e2e/helpers/bridge/routes.ts`. Removing a transport requires updating
+  its real callers; an old test plan is not a compatibility requirement.
 - `runLegacyDatabaseMigrations` is still called from `initStorage` for the
   one-shot legacy Electron SQLite catalog migration. Delete it only after the
   legacy catalog window is closed by App/release policy and no supported launch

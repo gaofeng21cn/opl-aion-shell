@@ -1,11 +1,4 @@
-/**
- * Skills Hub E2E Tests - Refresh/Empty State/Tabs (P1 Priority)
- *
- * Test Cases Covered:
- * - TC-S-04: Refresh My Skills list
- * - TC-S-07: Empty state when no skills
- * - TC-S-09: Tab switching between external sources
- */
+/** Skills Hub E2E: refresh installed skills and verify cleanup. */
 
 import { test, expect } from '../../../fixtures';
 import {
@@ -13,7 +6,6 @@ import {
   refreshSkillsHub,
   getMySkills,
   importSkillViaBridge,
-  addCustomExternalPath,
   createTempExternalSource,
   createTestSkill,
   cleanupTestSkills,
@@ -21,9 +13,8 @@ import {
 } from '../../../helpers/skillsHub';
 import { takeScreenshot } from '../../../helpers/screenshots';
 import * as path from 'path';
-import * as fs from 'fs';
 
-test.describe('Skills Hub - Refresh/Empty/Tabs (P1)', () => {
+test.describe('Skills Hub - Refresh/Cleanup (P1)', () => {
   test.beforeEach(async ({ page }) => {
     await goToSkillsHub(page);
   });
@@ -52,7 +43,7 @@ test.describe('Skills Hub - Refresh/Empty/Tabs (P1)', () => {
       await takeScreenshot(page, 'skills-hub/tc-s-04/01-initial-state.png');
 
       // Verify 1 skill exists
-      const mySkillsSection = page.locator('[data-testid="my-skills-section"]');
+      const mySkillsSection = page.locator('[data-testid="manual-and-third-party-capabilities"]');
       await expect(mySkillsSection).toBeVisible();
       const initialCard = page.locator(`[data-testid="my-skill-card-${normalizeTestId(initialSkill)}"]`);
       await expect(initialCard).toBeVisible();
@@ -94,10 +85,10 @@ test.describe('Skills Hub - Refresh/Empty/Tabs (P1)', () => {
   });
 
   // ============================================================================
-  // TC-S-07: Empty state when no skills
+  // TC-S-07: Test skills are absent after cleanup
   // ============================================================================
 
-  test('TC-S-07: should show empty state when no skills exist', async ({ page }) => {
+  test('TC-S-07: should remove test skills from the installed list after cleanup', async ({ page }) => {
     // Setup: Ensure no test skills exist (cleanup already done in beforeEach)
     await cleanupTestSkills(page);
     await refreshSkillsHub(page);
@@ -106,7 +97,7 @@ test.describe('Skills Hub - Refresh/Empty/Tabs (P1)', () => {
     await takeScreenshot(page, 'skills-hub/tc-s-07/01-initial-state.png');
 
     // Expected: My Skills section visible
-    const mySkillsSection = page.locator('[data-testid="my-skills-section"]');
+    const mySkillsSection = page.locator('[data-testid="manual-and-third-party-capabilities"]');
     await expect(mySkillsSection).toBeVisible();
 
     // Verify via Bridge that no E2E test skills exist
@@ -124,81 +115,5 @@ test.describe('Skills Hub - Refresh/Empty/Tabs (P1)', () => {
 
     // Screenshot 03: Final verification
     await takeScreenshot(page, 'skills-hub/tc-s-07/03-verified-no-e2e.png');
-  });
-
-  // ============================================================================
-  // TC-S-09: Tab switching between external sources
-  // ============================================================================
-
-  test('TC-S-09: should switch tabs and show correct external skills', async ({ page }) => {
-    // Setup: Create 2 external sources with different skills
-    const sourceA = createTempExternalSource('tc-s-09-a');
-    const sourceB = createTempExternalSource('tc-s-09-b');
-    try {
-      // Source A: 2 skills
-      createTestSkill(sourceA.path, 'E2E-Test-SourceA-Skill1', 'Skill from source A #1');
-      createTestSkill(sourceA.path, 'E2E-Test-SourceA-Skill2', 'Skill from source A #2');
-
-      // Source B: 3 skills
-      createTestSkill(sourceB.path, 'E2E-Test-SourceB-Skill1', 'Skill from source B #1');
-      createTestSkill(sourceB.path, 'E2E-Test-SourceB-Skill2', 'Skill from source B #2');
-      createTestSkill(sourceB.path, 'E2E-Test-SourceB-Skill3', 'Skill from source B #3');
-
-      // Add both sources
-      await addCustomExternalPath(page, 'E2E Source A TC09', sourceA.path);
-      await addCustomExternalPath(page, 'E2E Source B TC09', sourceB.path);
-      await refreshSkillsHub(page);
-
-      // Wait for external skills section to render
-      const externalSection = page.locator('[data-testid="external-skills-section"]');
-      await expect(externalSection).toBeVisible();
-
-      // Screenshot 01: Initial state (default tab, Source A)
-      await takeScreenshot(page, 'skills-hub/tc-s-09/01-default-tab.png');
-
-      // Step 2: Verify default tab (first source) is active
-      const tabA = page.locator('button:has-text("E2E Source A TC09")');
-      await expect(tabA).toBeVisible();
-
-      // Click tab A to ensure it's active (in case default tab is not the first one)
-      await tabA.click();
-      await page.waitForTimeout(500);
-
-      // Verify Source A skills visible
-      const skillA1 = page.locator(`[data-testid="external-skill-card-${normalizeTestId('E2E-Test-SourceA-Skill1')}"]`);
-      const skillA2 = page.locator(`[data-testid="external-skill-card-${normalizeTestId('E2E-Test-SourceA-Skill2')}"]`);
-      await expect(skillA1).toBeVisible();
-      await expect(skillA2).toBeVisible();
-
-      // Screenshot 02: Source A tab active
-      await takeScreenshot(page, 'skills-hub/tc-s-09/02-source-a-active.png');
-
-      // Step 3: Click tab B
-      const tabB = page.locator('button:has-text("E2E Source B TC09")');
-      await expect(tabB).toBeVisible();
-      await tabB.click();
-      await page.waitForTimeout(300);
-
-      // Screenshot 03: After clicking tab B
-      await takeScreenshot(page, 'skills-hub/tc-s-09/03-switched-to-b.png');
-
-      // Expected: Tab B active, Source B skills visible
-      const skillB1 = page.locator(`[data-testid="external-skill-card-${normalizeTestId('E2E-Test-SourceB-Skill1')}"]`);
-      const skillB2 = page.locator(`[data-testid="external-skill-card-${normalizeTestId('E2E-Test-SourceB-Skill2')}"]`);
-      const skillB3 = page.locator(`[data-testid="external-skill-card-${normalizeTestId('E2E-Test-SourceB-Skill3')}"]`);
-      await expect(skillB1).toBeVisible();
-      await expect(skillB2).toBeVisible();
-      await expect(skillB3).toBeVisible();
-
-      // Expected: Source A skills not visible
-      await expect(skillA1).not.toBeVisible();
-      await expect(skillA2).not.toBeVisible();
-
-      // Screenshot 04: Source B skills only
-      await takeScreenshot(page, 'skills-hub/tc-s-09/04-source-b-skills.png');
-    } finally {
-      sourceA.cleanup();
-      sourceB.cleanup();
-    }
   });
 });

@@ -8,8 +8,8 @@
 
 ## 变更取舍
 
-此前 `v2.1.39` 至 `v2.1.59` 的审阅及已吸收实现见
-[上一份记录](aionui-upstream-intake-2026-07-22.md)。本轮不合并上游历史，
+此前已记录至 `v2.1.56` 的审阅及已吸收实现见
+[上一份记录的 Git 原文](https://github.com/gaofeng21cn/opl-aion-shell/blob/945e8192b/docs/history/aionui-upstream-intake-2026-07-22.md)。本轮不合并上游历史，
 保留已经实现的 OPL 会话、项目、预览、技能、Settings 和打包接口。
 
 | 上游变化                                                      | 本次处理                                                                                                                        |

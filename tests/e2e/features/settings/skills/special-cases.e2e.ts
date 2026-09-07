@@ -66,7 +66,7 @@ test.describe('Skills Hub - Special Cases (P2)', () => {
       await takeScreenshot(page, 'skills-hub/tc-s-24/02-after-import.png');
 
       // Expected: My Skills section visible (page didn't crash)
-      const mySkillsSection = page.locator('[data-testid="my-skills-section"]');
+      const mySkillsSection = page.locator('[data-testid="manual-and-third-party-capabilities"]');
       await expect(mySkillsSection).toBeVisible();
 
       // Screenshot 03: Skills section rendered
@@ -118,7 +118,7 @@ test.describe('Skills Hub - Special Cases (P2)', () => {
       await takeScreenshot(page, 'skills-hub/tc-s-25/02-all-skills-imported.png');
 
       // Expected: My Skills section visible
-      const mySkillsSection = page.locator('[data-testid="my-skills-section"]');
+      const mySkillsSection = page.locator('[data-testid="manual-and-third-party-capabilities"]');
       await expect(mySkillsSection).toBeVisible();
 
       // Screenshot 03: Skills list rendered
@@ -132,7 +132,7 @@ test.describe('Skills Hub - Special Cases (P2)', () => {
 
       // Test scrolling performance
       await page.evaluate(() => {
-        const scrollArea = document.querySelector('[data-testid="my-skills-section"]');
+        const scrollArea = document.querySelector('[data-testid="manual-and-third-party-capabilities"]');
         if (scrollArea) {
           scrollArea.scrollIntoView({ behavior: 'smooth', block: 'end' });
         }
@@ -176,7 +176,7 @@ test.describe('Skills Hub - Special Cases (P2)', () => {
     await takeScreenshot(page, 'skills-hub/tc-s-26/03-after-rapid-clicks.png');
 
     // Expected: Page should not crash, My Skills section still visible
-    const mySkillsSection = page.locator('[data-testid="my-skills-section"]');
+    const mySkillsSection = page.locator('[data-testid="manual-and-third-party-capabilities"]');
     await expect(mySkillsSection).toBeVisible();
 
     // Screenshot 04: Page still functional

@@ -56,13 +56,13 @@ test.describe('Skills Hub - URL Highlight (P1)', () => {
       await takeScreenshot(page, 'skills-hub/tc-s-22/01-before-highlight.png');
 
       // Step 1: Add highlight parameter via history API
-      const hashInfo = await page.evaluate((name) => {
+      await page.evaluate((name) => {
         const url = new URL(window.location.href);
         const currentHash = url.hash;
-        const [path, search] = currentHash.split('?');
+        const [route, search] = currentHash.split('?');
         const params = new URLSearchParams(search || '');
         params.set('highlight', name);
-        const newHash = `${path}?${params.toString()}`;
+        const newHash = `${route}?${params.toString()}`;
         window.location.hash = newHash;
         return { currentHash, newHash, finalHash: window.location.hash };
       }, skillName);
@@ -78,15 +78,14 @@ test.describe('Skills Hub - URL Highlight (P1)', () => {
       // Screenshot 03: Card visible during highlight
       await takeScreenshot(page, 'skills-hub/tc-s-22/03-card-visible.png');
 
-      // Expected: Target card has highlight styles (border-primary-5, bg-primary-1)
+      // Expected: Target card has the current highlight background
       // Check immediately while highlight is still active
       const cardClasses = await targetCard.getAttribute('class');
       console.log(`[TC-S-22] Card classes: ${cardClasses}`);
 
       // Verify highlight styles are applied
       if (cardClasses) {
-        expect(cardClasses).toContain('border-primary-5');
-        expect(cardClasses).toContain('bg-primary-1');
+        expect(cardClasses).toMatch(/(?:^|\s)bg-fill-1(?:\s|$)/);
       }
 
       // Verify URL parameter was cleared by app
@@ -107,8 +106,7 @@ test.describe('Skills Hub - URL Highlight (P1)', () => {
       console.log(`[TC-S-22] Updated classes: ${updatedClasses}`);
 
       if (updatedClasses) {
-        expect(updatedClasses).not.toContain('border-primary-5');
-        expect(updatedClasses).not.toContain('bg-primary-1');
+        expect(updatedClasses).not.toMatch(/(?:^|\s)bg-fill-1(?:\s|$)/);
       }
 
       // Expected: URL parameter cleared
