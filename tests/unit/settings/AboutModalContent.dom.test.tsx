@@ -258,17 +258,15 @@ describe('AboutModalContent OPL release metadata', () => {
       };
     });
     bridgeMocks.autoUpdateDownloadInvoke.mockImplementation(() => new Promise(() => {}));
-    bridgeMocks.getStatusSnapshotInvoke
-      .mockResolvedValueOnce({ status: 'not-available' })
-      .mockResolvedValue({
-        status: 'downloading',
-        progress: {
-          percent: 50,
-          transferred: 200 * 1024 * 1024,
-          total: 400 * 1024 * 1024,
-          bytesPerSecond: 1024 * 1024,
-        },
-      });
+    bridgeMocks.getStatusSnapshotInvoke.mockResolvedValueOnce({ status: 'not-available' }).mockResolvedValue({
+      status: 'downloading',
+      progress: {
+        percent: 50,
+        transferred: 200 * 1024 * 1024,
+        total: 400 * 1024 * 1024,
+        bytesPerSecond: 1024 * 1024,
+      },
+    });
     renderAbout();
     await screen.findByText('You are up to date');
     fireEvent.click(screen.getByTestId('about-check-updates'));
