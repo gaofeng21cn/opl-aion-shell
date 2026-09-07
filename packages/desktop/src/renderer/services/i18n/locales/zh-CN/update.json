@@ -39,5 +39,8 @@
     "checkReturnedNull": "更新检查没有返回结果（开发模式）",
     "autoUpdateMetadataMissing": "当前构建没有自动更新元数据，已改用发布版本检查。",
     "nightlyUsesManualCheck": "Nightly 通过 GitHub Releases 检查。"
-  }
+  },
+  "downloadProgress": "{{transferred}} / {{total}} · {{speed}}",
+  "unknownSize": "大小未知",
+  "preparingDownload": "正在准备下载…"
 }

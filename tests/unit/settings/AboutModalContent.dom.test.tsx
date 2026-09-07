@@ -7,6 +7,7 @@ const bridgeMocks = vi.hoisted(() => ({
   getAppStateInvoke: vi.fn(),
   getStatusSnapshotInvoke: vi.fn(),
   autoUpdateCheckInvoke: vi.fn(),
+  autoUpdateDownloadInvoke: vi.fn(),
   autoUpdateStatusOn: vi.fn(),
   isElectron: true,
 }));
@@ -19,6 +20,7 @@ vi.mock('@/common', () => ({
     autoUpdate: {
       getStatusSnapshot: { invoke: bridgeMocks.getStatusSnapshotInvoke },
       check: { invoke: bridgeMocks.autoUpdateCheckInvoke },
+      download: { invoke: bridgeMocks.autoUpdateDownloadInvoke },
       status: { on: bridgeMocks.autoUpdateStatusOn },
     },
   },
@@ -52,6 +54,7 @@ vi.mock('react-i18next', () => ({
         'common.technical_details': 'Technical details',
         'settings.oplEnvironmentPage.updates.diagnostics.title': 'Diagnostics',
       };
+      if (key === 'update.downloadProgress') return `${options?.transferred} / ${options?.total} · ${options?.speed}`;
       if (key === 'settings.aboutVersionBadge') {
         return `App ${options?.version} · ${options?.channel}`;
       }
@@ -206,6 +209,72 @@ describe('AboutModalContent OPL release metadata', () => {
     expect(await screen.findByText('Version 26.6.27 available')).toBeInTheDocument();
     expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenCalledTimes(1);
     expect(bridgeMocks.autoUpdateCheckInvoke).toHaveBeenLastCalledWith({ channel: 'stable' });
+  });
+
+  it('shows byte progress for an existing background download and observes it on manual click', async () => {
+    bridgeMocks.getStatusSnapshotInvoke.mockResolvedValue({
+      status: 'downloading',
+      version: '26.9.691',
+      progress: {
+        percent: 25,
+        transferred: 100 * 1024 * 1024,
+        total: 400 * 1024 * 1024,
+        bytesPerSecond: 2 * 1024 * 1024,
+      },
+    });
+    renderAbout();
+    expect(await screen.findByText('100.0 MB / 400.0 MB · 2.0 MB/s')).toBeInTheDocument();
+    expect(screen.getByTestId('about-update-progress')).toHaveTextContent('25%');
+    fireEvent.click(screen.getByTestId('about-check-updates'));
+    await waitFor(() => expect(bridgeMocks.getStatusSnapshotInvoke).toHaveBeenCalledTimes(2));
+    expect(bridgeMocks.autoUpdateCheckInvoke).not.toHaveBeenCalled();
+    expect(bridgeMocks.autoUpdateDownloadInvoke).not.toHaveBeenCalled();
+  });
+
+  it('keeps live progress when the manual check completes and downloads the verified target', async () => {
+    const target = { repo: 'gaofeng21cn/one-person-lab-app', tagName: 'v26.9.6', updaterVersion: '26.9.691' };
+    let listener: ((event: any) => void) | undefined;
+    bridgeMocks.autoUpdateStatusOn.mockImplementation((callback) => {
+      listener = callback;
+      return () => {};
+    });
+    bridgeMocks.autoUpdateCheckInvoke.mockImplementation(async () => {
+      listener?.({
+        status: 'downloading',
+        progress: {
+          percent: 50,
+          transferred: 200 * 1024 * 1024,
+          total: 400 * 1024 * 1024,
+          bytesPerSecond: 1024 * 1024,
+        },
+      });
+      return {
+        success: true,
+        data: {
+          decision: { updateAvailable: true, latest: { version: '26.9.6', updaterVersion: '26.9.691' } },
+          target,
+          updateInfo: { version: '26.9.691' },
+        },
+      };
+    });
+    bridgeMocks.autoUpdateDownloadInvoke.mockImplementation(() => new Promise(() => {}));
+    bridgeMocks.getStatusSnapshotInvoke
+      .mockResolvedValueOnce({ status: 'not-available' })
+      .mockResolvedValue({
+        status: 'downloading',
+        progress: {
+          percent: 50,
+          transferred: 200 * 1024 * 1024,
+          total: 400 * 1024 * 1024,
+          bytesPerSecond: 1024 * 1024,
+        },
+      });
+    renderAbout();
+    await screen.findByText('You are up to date');
+    fireEvent.click(screen.getByTestId('about-check-updates'));
+    expect(await screen.findByText('200.0 MB / 400.0 MB · 1.0 MB/s')).toBeInTheDocument();
+    await waitFor(() => expect(bridgeMocks.autoUpdateDownloadInvoke).toHaveBeenCalledWith(target));
+    expect(screen.queryByText('Version 26.9.6 available')).not.toBeInTheDocument();
   });
 
   it('uses a fresh framework Preview readback instead of a stale Stable cache', async () => {

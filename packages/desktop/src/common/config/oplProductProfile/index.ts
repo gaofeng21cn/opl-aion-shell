@@ -18,13 +18,14 @@ export type OplCodexAutoModelPolicy = {
   app_role: 'resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override';
   resolution_precedence: [
     'explicit_user_selection',
+    'fresh_catalog_frontier_then_app_default_when_available',
     'installed_opl_flow_recommendation',
     'fresh_codex_live_default',
     'app_fallback_when_flow_unavailable',
   ];
-  app_fallback_role: 'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve';
+  app_fallback_role: 'configured_default_when_catalog_metadata_is_unavailable';
   configured_default: { model: string; reasoning_effort: OplCodexReasoningEffort };
-  configured_default_role: 'app_fallback_not_flow_recommendation_authority';
+  configured_default_role: 'app_default_with_catalog_compatibility_fallback';
   mode_default: 'auto';
   model_catalog_source: 'codex_cli_model_list';
   catalog_response_models_field: 'data';
@@ -975,13 +976,13 @@ function readOplCodexAutoModelPolicy(
     JSON.stringify(value.resolution_precedence) !==
       JSON.stringify([
         'explicit_user_selection',
+        'fresh_catalog_frontier_then_app_default_when_available',
         'installed_opl_flow_recommendation',
         'fresh_codex_live_default',
         'app_fallback_when_flow_unavailable',
       ]) ||
-    value.app_fallback_role !==
-      'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve' ||
-    value.configured_default_role !== 'app_fallback_not_flow_recommendation_authority' ||
+    value.app_fallback_role !== 'configured_default_when_catalog_metadata_is_unavailable' ||
+    value.configured_default_role !== 'app_default_with_catalog_compatibility_fallback' ||
     value.mode_default !== 'auto' ||
     value.model_catalog_source !== 'codex_cli_model_list' ||
     value.catalog_response_models_field !== 'data' ||
@@ -1055,14 +1056,14 @@ function readOplCodexAutoModelPolicy(
     app_role: 'resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override',
     resolution_precedence: [
       'explicit_user_selection',
+      'fresh_catalog_frontier_then_app_default_when_available',
       'installed_opl_flow_recommendation',
       'fresh_codex_live_default',
       'app_fallback_when_flow_unavailable',
     ],
-    app_fallback_role:
-      'configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve',
+    app_fallback_role: 'configured_default_when_catalog_metadata_is_unavailable',
     configured_default: { model: defaultModel, reasoning_effort: defaultReasoningEffort },
-    configured_default_role: 'app_fallback_not_flow_recommendation_authority',
+    configured_default_role: 'app_default_with_catalog_compatibility_fallback',
     mode_default: 'auto',
     model_catalog_source: 'codex_cli_model_list',
     catalog_response_models_field: 'data',

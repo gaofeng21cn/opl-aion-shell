@@ -103,7 +103,10 @@ function buildModelInfoFromPayload(value: unknown): AcpModelInfo | null {
       : typeof payload.currentModelLabel === 'string'
         ? payload.currentModelLabel
         : available_models.find((model) => model.id === current_model_id)?.label || current_model_id;
-  return { current_model_id, current_model_label, available_models };
+  const catalog_models = Array.isArray(payload.catalog_models)
+    ? payload.catalog_models.map(normalizeModelOption).filter((item) => item !== null)
+    : undefined;
+  return { current_model_id, current_model_label, available_models, ...(catalog_models ? { catalog_models } : {}) };
 }
 
 function buildModelInfoFromConfigOptions(configOptions: AcpSessionConfigOption[]): AcpModelInfo | null {
@@ -123,10 +126,20 @@ function buildModelInfoFromConfigOptions(configOptions: AcpSessionConfigOption[]
 
 export function buildAgentRuntimeModelInfo(agent: AgentRuntimeCatalog | null | undefined): AcpModelInfo | null {
   if (!agent) return null;
-  return (
-    buildModelInfoFromConfigOptions(normalizeConfigOptions(readRuntimeField(agent, 'config_options'))) ||
-    buildModelInfoFromPayload(readRuntimeField(agent, 'available_models'))
-  );
+  const configured = buildModelInfoFromConfigOptions(normalizeConfigOptions(readRuntimeField(agent, 'config_options')));
+  const runtime = buildModelInfoFromPayload(readRuntimeField(agent, 'available_models'));
+  if (!configured) return runtime;
+  if (!runtime) return configured;
+  return {
+    ...runtime,
+    current_model_id: configured.current_model_id,
+    current_model_label: configured.current_model_label,
+    available_models: configured.available_models.map((model) => ({
+      ...runtime.available_models.find((entry) => entry.id === model.id),
+      ...model,
+    })),
+    catalog_models: runtime.catalog_models ?? runtime.available_models,
+  };
 }
 
 function normalizeModeOption(value: unknown): AgentModeOption | null {

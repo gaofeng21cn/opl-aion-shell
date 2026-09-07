@@ -122,7 +122,7 @@ describe('UpdateModal checking layout', () => {
     expect(screen.getByText('正在检查更新').parentElement).toHaveClass('min-h-224px', 'h-full', 'box-border');
   });
 
-  it('replays a downloaded startup snapshot and prompts for restart after a late mount', async () => {
+  it('keeps a downloaded startup snapshot quiet after a late mount', async () => {
     bridgeMocks.autoUpdateGetStatusSnapshotInvoke.mockResolvedValue({
       status: 'downloaded',
       version: '26.7.19',
@@ -130,8 +130,8 @@ describe('UpdateModal checking layout', () => {
 
     render(<UpdateModal />);
 
-    expect(await screen.findByText('准备安装')).toBeInTheDocument();
-    expect(screen.getByText('立即安装')).toBeInTheDocument();
+    await waitFor(() => expect(bridgeMocks.autoUpdateGetStatusSnapshotInvoke).toHaveBeenCalledOnce());
+    expect(screen.queryByTestId('aion-modal')).not.toBeInTheDocument();
     expect(bridgeMocks.autoUpdateCheckInvoke).not.toHaveBeenCalled();
   });
 

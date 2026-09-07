@@ -509,7 +509,7 @@ describe('GuidActionRow composer controls', () => {
     expect(onModelChange).toHaveBeenNthCalledWith(2, null, null);
 
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-reasoning-ultra'));
-    expect(onModelChange).toHaveBeenNthCalledWith(3, 'gpt-5.6-sol', 'ultra');
+    expect(onModelChange).toHaveBeenNthCalledWith(3, 'gpt-6-astra', 'ultra');
 
     fireEvent.click(screen.getByTestId('mobile-action-sheet-option-model-gpt-5.4'));
     expect(onModelChange).toHaveBeenNthCalledWith(4, 'gpt-5.4', 'high');

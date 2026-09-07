@@ -10,7 +10,7 @@ import { useDesktopAutoUpdateStatus } from '@/renderer/hooks/ui/useDesktopAutoUp
 import { getAppState, oplRecord, oplString, useOplAppState } from '@/renderer/hooks/system/useOplAppState';
 import { projectDesktopAutoUpdateStatus } from '@/renderer/services/desktopAutoUpdateProjection';
 import { isElectronDesktop, openExternalUrl } from '@/renderer/utils/platform';
-import { Button, Modal, Typography } from '@arco-design/web-react';
+import { Button, Modal, Progress, Typography } from '@arco-design/web-react';
 import { Help, Info, Refresh, Right } from '@icon-park/react';
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -53,6 +53,7 @@ const AboutModalContent: React.FC = () => {
     supported: updaterSupported,
     status: updaterStatus,
     setStatus: setUpdaterStatus,
+    refreshStatus: refreshUpdaterStatus,
   } = useDesktopAutoUpdateStatus();
   const [technicalDetailsOpen, setTechnicalDetailsOpen] = useState(false);
   const appStateQuery = useOplAppState('fast', { autoLoad: false });
@@ -78,25 +79,34 @@ const AboutModalContent: React.FC = () => {
     if (!isElectron) {
       return;
     }
+    if (updaterStatus?.status === 'downloading' || updaterStatus?.status === 'downloaded') {
+      await refreshUpdaterStatus();
+      return;
+    }
     setUpdaterStatus({ status: 'checking' });
     try {
       const channel = resolveUpdaterReleaseChannel(getAppState(await appStateQuery.load('fast', { background: true })));
       const result = await ipcBridge.autoUpdate.check.invoke({ channel });
       const decision = result?.data?.decision;
-      if (!decision) {
+      if (!result?.success || !decision) {
         setUpdaterStatus({ status: 'error' });
         return;
       }
       const candidate = decision.latest?.updaterVersion || '';
-      setUpdaterStatus(
+      await refreshUpdaterStatus(
         decision.updateAvailable && candidate
           ? { status: 'available', version: decision.latest?.version || candidate }
           : { status: 'not-available' }
       );
+      if (result.data?.target && result.data.updateInfo) {
+        const download = await ipcBridge.autoUpdate.download.invoke(result.data.target);
+        if (!download?.success) throw new Error(download?.msg || 'Update download failed');
+        await refreshUpdaterStatus();
+      }
     } catch {
       setUpdaterStatus({ status: 'error' });
     }
-  }, [appStateQuery, isElectron, setUpdaterStatus]);
+  }, [appStateQuery, isElectron, setUpdaterStatus, refreshUpdaterStatus, updaterStatus?.status]);
 
   const openLink = async (url: string) => {
     try {
@@ -183,6 +193,27 @@ const AboutModalContent: React.FC = () => {
                     <div className='mt-4px text-13px text-t-primary' data-testid='about-update-status'>
                       {updaterProjection.label}
                     </div>
+                    {updaterStatus?.status === 'downloading' && (
+                      <div className='mt-8px min-w-240px' data-testid='about-update-progress'>
+                        <Progress
+                          percent={Math.max(0, Math.min(100, updaterStatus.progress?.percent ?? 0))}
+                          showText={Boolean(updaterStatus.progress?.total)}
+                          aria-label={t('settings.aboutUpdateDownloading')}
+                        />
+                        <div className='mt-4px text-12px text-t-secondary' role='status'>
+                          {updaterStatus.progress
+                            ? t('update.downloadProgress', {
+                                transferred: `${(updaterStatus.progress.transferred / 1024 / 1024).toFixed(1)} MB`,
+                                total:
+                                  updaterStatus.progress.total > 0
+                                    ? `${(updaterStatus.progress.total / 1024 / 1024).toFixed(1)} MB`
+                                    : t('update.unknownSize'),
+                                speed: `${(updaterStatus.progress.bytesPerSecond / 1024 / 1024).toFixed(1)} MB/s`,
+                              })
+                            : t('update.preparingDownload')}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <span data-testid='settings-about-primary-action'>
                     {isElectron && (

@@ -691,7 +691,7 @@ function modelsFromResponse(value: unknown): CodexThreadModelDescriptor[] {
   const data = Array.isArray(response.data) ? response.data.filter(isRecord) : [];
   return data.flatMap((model) => {
     const id = optionalString(model.id) ?? optionalString(model.model);
-    if (!id) return [];
+    if (!id || model.hidden === true) return [];
     const efforts = Array.isArray(model.supportedReasoningEfforts)
       ? model.supportedReasoningEfforts.flatMap((entry) => {
           if (!isRecord(entry)) return [];
@@ -1303,7 +1303,24 @@ export class CodexAppServerAdapter {
         this.writableThreads.add(threadId);
         settings = settingsFromResponse(resumed.response);
         try {
-          models = modelsFromResponse(await this.rpc.request('model/list', { limit: 100, includeHidden: false }));
+          const catalog: CodexThreadModelDescriptor[] = [];
+          const cursors = new Set<string>();
+          let cursor: string | undefined;
+          do {
+            const response = requiredRecord(
+              await this.rpc.request('model/list', {
+                limit: 100,
+                includeHidden: false,
+                ...(cursor ? { cursor } : {}),
+              }),
+              'model list response'
+            );
+            catalog.push(...modelsFromResponse(response));
+            cursor = optionalString(response.nextCursor) ?? undefined;
+            if (cursor && cursors.has(cursor)) throw new Error('Codex model catalog cursor repeated');
+            if (cursor) cursors.add(cursor);
+          } while (cursor);
+          models = [...new Map(catalog.map((model) => [model.id, model])).values()];
         } catch {
           // A current thread remains usable when an older app-server cannot list models.
         }

@@ -127,8 +127,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
     if (selectedAcpModel === null && currentAcpCachedModelInfo?.current_model_id) {
       if (useOplCodexModelDisplay) {
         const currentDisplay = formatOplCodexModelDisplay({
-          id: currentAcpCachedModelInfo.current_model_id,
-          label: currentAcpCachedModelInfo.current_model_label,
+          id: autoCodexSelection?.modelId ?? currentAcpCachedModelInfo.current_model_id,
+          label: autoCodexSelection?.modelId ?? currentAcpCachedModelInfo.current_model_label,
           reasoningEffort: effectiveReasoningEffort,
           localeKey,
         });
@@ -162,6 +162,7 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
       ''
     );
   }, [
+    autoCodexSelection,
     currentAcpCachedModelInfo?.available_models,
     currentAcpCachedModelInfo?.current_model_id,
     currentAcpCachedModelInfo?.current_model_label,
@@ -283,7 +284,8 @@ const GuidModelSelector: React.FC<GuidModelSelectorProps> = ({
         modelInfo: currentAcpCachedModelInfo,
         localeKey,
       });
-      const effectiveModelId = selectedAcpModel ?? currentAcpCachedModelInfo.current_model_id;
+      const effectiveModelId =
+        selectedAcpModel ?? autoCodexSelection?.modelId ?? currentAcpCachedModelInfo.current_model_id;
       const effectiveModel = currentAcpCachedModelInfo.available_models.find((model) => model.id === effectiveModelId);
       const unavailableFixedModelId = selectedAcpModel && !effectiveModel ? selectedAcpModel : null;
       const modelSubmenuTitle =

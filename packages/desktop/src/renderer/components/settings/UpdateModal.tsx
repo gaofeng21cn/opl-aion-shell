@@ -167,7 +167,6 @@ const UpdateModal: React.FC = () => {
             releaseNotes: evt.releaseNotes ?? current?.releaseNotes,
           }));
           setStatus('downloaded');
-          setVisible(true);
           return;
         case 'cancelled':
           setStatus('error');

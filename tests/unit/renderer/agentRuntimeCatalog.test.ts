@@ -82,6 +82,28 @@ describe('managed agent runtime catalog', () => {
     });
   });
 
+  it('keeps full model metadata when config options only provide labels', () => {
+    const model = {
+      id: 'gpt-next',
+      label: 'Next',
+      isDefault: true,
+      supportedReasoningEfforts: [{ reasoningEffort: 'max' }],
+    };
+    const info = buildAgentRuntimeModelInfo({
+      config_options: [
+        {
+          category: 'model',
+          type: 'select',
+          current_value: 'gpt-next',
+          options: [{ value: 'gpt-next', label: 'Next' }],
+        },
+      ],
+      available_models: { available_models: [model], catalog_models: [model] },
+    });
+    expect(info?.available_models[0]).toMatchObject(model);
+    expect(info?.catalog_models?.[0]).toMatchObject(model);
+  });
+
   it('preserves an explicitly empty managed model catalog', () => {
     expect(
       buildAgentRuntimeModelInfo({

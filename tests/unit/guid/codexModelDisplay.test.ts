@@ -48,7 +48,7 @@ describe('oplCodexModelDisplay', () => {
       localeKey: 'zh-CN',
     });
     expect(option.label).toBe('自动（推荐）');
-    expect(option.description).toBe('当前 5.6 Sol · 超高 · 跟随最新最强');
+    expect(option.description).toBe('当前 6 Astra · 最高 · 跟随最新最强');
   });
 
   it('displays an unknown catalog default and its highest advertised reasoning effort', () => {

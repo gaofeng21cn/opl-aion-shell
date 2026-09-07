@@ -54,6 +54,7 @@ import {
 } from '@/common/config/oplProductProfile';
 import {
   buildCodexDefaultModelInfo,
+  normalizeCodexModelInfo,
   DEFAULT_CODEX_MODEL_DISPLAY_LABEL,
   DEFAULT_CODEX_MODEL_ID,
   DEFAULT_CODEX_MODEL_WITH_REASONING_ID,
@@ -957,8 +958,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -985,8 +986,8 @@ describe('OPL generated product profile', () => {
         available_models: [],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1016,8 +1017,8 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1031,8 +1032,8 @@ describe('OPL generated product profile', () => {
       ],
     });
     expect(buildCodexDefaultModelInfo()).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: [
         { id: 'gpt-6-astra', label: '6 Astra' },
         { id: 'gpt-5.6-sol', label: '5.6 Sol' },
@@ -1101,11 +1102,11 @@ describe('OPL generated product profile', () => {
           },
         ],
       })
-    ).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+    ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
   });
 
-  it('falls back to a CLI-compatible model when the Codex catalog is unavailable', () => {
-    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' });
+  it('uses the App default when ACP omits live catalog metadata', () => {
+    expect(resolveOplCodexAutoSelection(null)).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
   });
 
   it('selects Astra with max reasoning when the live catalog supports it', () => {
@@ -1123,6 +1124,30 @@ describe('OPL generated product profile', () => {
         ],
       })
     ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+  });
+
+  it('does not let an older native default or Flow recommendation downgrade supported Astra', () => {
+    const info = {
+      current_model_id: 'gpt-5.6-sol',
+      current_model_label: '5.6 Sol',
+      available_models: [
+        { id: 'gpt-5.6-sol', label: 'Sol', isDefault: true, supportedReasoningEfforts: [{ reasoningEffort: 'xhigh' }] },
+        {
+          id: 'gpt-6-astra',
+          label: 'Astra',
+          supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
+        },
+        { id: 'deepseek-v4-flash', label: 'DeepSeek' },
+      ],
+    };
+    expect(resolveOplCodexAutoSelection(info, { modelId: 'gpt-5.6-sol', reasoningEffort: 'xhigh' })).toEqual({
+      modelId: 'gpt-6-astra',
+      reasoningEffort: 'max',
+    });
+    expect(normalizeCodexModelInfo(info).available_models).toContainEqual({
+      id: 'deepseek-v4-flash',
+      label: 'DeepSeek',
+    });
   });
 
   it('preserves owner- or carrier-projected Skill names while trimming blanks and duplicates', () => {

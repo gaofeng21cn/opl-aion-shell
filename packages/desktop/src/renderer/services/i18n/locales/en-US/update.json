@@ -39,5 +39,8 @@
     "checkReturnedNull": "Update check returned no result (development mode)",
     "autoUpdateMetadataMissing": "Auto-update metadata is not bundled in this build; using the Release check instead.",
     "nightlyUsesManualCheck": "Nightly builds are checked through GitHub Releases."
-  }
+  },
+  "downloadProgress": "{{transferred}} / {{total}} · {{speed}}",
+  "unknownSize": "Size unknown",
+  "preparingDownload": "Preparing download…"
 }

@@ -179,7 +179,7 @@ describe('useGuidAgentSelection', () => {
       })
     );
 
-    await waitFor(() => expect(result.current.currentAcpCachedModelInfo?.current_model_id).toBe('gpt-5.6-sol'));
+    await waitFor(() => expect(result.current.currentAcpCachedModelInfo?.current_model_id).toBe('gpt-6-astra'));
     const setCodexModelSelection = (
       result.current as typeof result.current & {
         setCodexModelSelection?: (modelId: string | null, reasoningEffort: 'high' | null) => void;

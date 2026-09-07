@@ -13,6 +13,7 @@ export type UseDesktopAutoUpdateStatusResult = {
   supported: boolean;
   status: AutoUpdateStatus | null;
   setStatus: (status: AutoUpdateStatus | null) => void;
+  refreshStatus: (fallback?: AutoUpdateStatus) => Promise<void>;
 };
 
 /** Reads the main-process updater store without initiating an update check. */
@@ -24,6 +25,18 @@ export function useDesktopAutoUpdateStatus(): UseDesktopAutoUpdateStatusResult {
     revisionRef.current += 1;
     setStatusState(nextStatus);
   }, []);
+
+  const refreshStatus = useCallback(
+    async (fallback?: AutoUpdateStatus) => {
+      const revision = revisionRef.current;
+      const snapshot = await ipcBridge.autoUpdate.getStatusSnapshot.invoke();
+      if (revisionRef.current === revision) {
+        const activeSnapshot = snapshot && ['downloading', 'downloaded', 'error'].includes(snapshot.status);
+        setStatus(activeSnapshot ? snapshot : (fallback ?? snapshot ?? null));
+      }
+    },
+    [setStatus]
+  );
 
   useEffect(() => {
     if (!supported) {
@@ -51,5 +64,5 @@ export function useDesktopAutoUpdateStatus(): UseDesktopAutoUpdateStatusResult {
     };
   }, [setStatus, supported]);
 
-  return { supported, status, setStatus };
+  return { supported, status, setStatus, refreshStatus };
 }

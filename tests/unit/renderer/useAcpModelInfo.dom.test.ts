@@ -781,7 +781,7 @@ describe('useAcpModelInfo', () => {
     });
   });
 
-  it('keeps App model options with the compatible Sol fallback before the first ACP handshake', async () => {
+  it('keeps App model options with the App Astra default before the first ACP handshake', async () => {
     fetchManagedAgentsMock.mockResolvedValue([
       {
         agent_type: 'acp',
@@ -805,8 +805,8 @@ describe('useAcpModelInfo', () => {
       expect(result.current.canSwitch).toBe(true);
     });
     expect(result.current.model_info).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: CODEX_BASELINE_MODELS,
     });
   });
@@ -821,8 +821,8 @@ describe('useAcpModelInfo', () => {
     });
 
     expect(result.current.model_info).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: CODEX_BASELINE_MODELS,
     });
   });
@@ -862,8 +862,8 @@ describe('useAcpModelInfo', () => {
     });
 
     expect(result.current.model_info).toMatchObject({
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: '5.6 Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: '6 Astra',
       available_models: CODEX_BASELINE_MODELS,
     });
     expect(result.current.canSwitch).toBe(true);
@@ -942,13 +942,13 @@ describe('useAcpModelInfo', () => {
       current_model_label: 'GPT-5.6 Codex',
       available_models: [
         { id: 'gpt-5.6-codex', label: 'GPT-5.6 Codex' },
-        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-6-astra', label: 'GPT-6-Astra' },
         { id: 'gpt-5.5', label: 'GPT-5.5' },
       ],
     };
     const confirmedInfo: AcpModelInfo = {
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: 'GPT-5.6-Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6-Astra',
       available_models: legacyInfo.available_models,
     };
     getModelInvokeMock
@@ -964,11 +964,11 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'legacy-codex-conversation',
-        model_id: 'gpt-5.6-sol',
+        model_id: 'gpt-6-astra',
       });
     });
     await waitFor(() => {
-      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6-astra');
       expect(configServiceSetMock).toHaveBeenCalledWith('acp.config', { codex: {} });
     });
   });
@@ -1112,16 +1112,16 @@ describe('useAcpModelInfo', () => {
     configServiceGetMock.mockReturnValue({
       codex: {
         preferredMode: 'full-access',
-        preferredModelId: 'gpt-5.6-sol',
+        preferredModelId: 'gpt-6-astra',
         preferredReasoningEffort: 'ultra',
       },
     });
     getModelInvokeMock.mockResolvedValue({
       model_info: {
-        current_model_id: 'gpt-5.6-sol',
-        current_model_label: 'GPT-5.6-Sol',
+        current_model_id: 'gpt-6-astra',
+        current_model_label: 'GPT-6-Astra',
         available_models: [
-          { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+          { id: 'gpt-6-astra', label: 'GPT-6-Astra' },
           { id: 'gpt-5.5', label: 'GPT-5.5' },
         ],
       },
@@ -1133,7 +1133,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6-astra');
     });
 
     const selectAutoModel = (result.current as typeof result.current & { selectAutoModel?: () => Promise<void> })
@@ -1162,8 +1162,8 @@ describe('useAcpModelInfo', () => {
     };
     const autoInfo: AcpModelInfo = {
       ...fiveFiveInfo,
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: 'GPT-5.6-Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6-Astra',
     };
     configServiceGetMock.mockReturnValue({ codex: { preferredModelId: 'gpt-5.5' } });
     getModelInvokeMock.mockResolvedValueOnce({ model_info: fiveFiveInfo }).mockResolvedValue({ model_info: autoInfo });
@@ -1185,7 +1185,7 @@ describe('useAcpModelInfo', () => {
     await waitFor(() => {
       expect(setModelInvokeMock).toHaveBeenCalledWith({
         conversation_id: 'active-codex-conversation',
-        model_id: 'gpt-5.6-sol',
+        model_id: 'gpt-6-astra',
       });
     });
     await waitFor(() => {
@@ -1360,10 +1360,10 @@ describe('useAcpModelInfo', () => {
 
   it('saves the requested Codex model when setModel succeeds without a receipt and reload has no model info', async () => {
     const initialInfo: AcpModelInfo = {
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: 'GPT-5.6-Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6-Astra',
       available_models: [
-        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-6-astra', label: 'GPT-6-Astra' },
         { id: 'gpt-5.6-terra', label: 'GPT-5.6-Terra' },
       ],
     };
@@ -1376,7 +1376,7 @@ describe('useAcpModelInfo', () => {
     });
 
     await waitFor(() => {
-      expect(result.current.model_info?.current_model_id).toBe('gpt-5.6-sol');
+      expect(result.current.model_info?.current_model_id).toBe('gpt-6-astra');
     });
 
     act(() => result.current.selectModel('gpt-5.6-terra'));

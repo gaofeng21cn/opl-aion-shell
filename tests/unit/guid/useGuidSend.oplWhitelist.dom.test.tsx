@@ -334,7 +334,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     const payload = mocks.createConversation.mock.calls[0][0];
     expect(payload.type).toBe('acp');
     expect(payload.model.use_model).toBe('gpt-5.6-sol');
-    expect(payload.extra.current_model_id).toBe('gpt-5.6-sol');
+    expect(payload.extra.current_model_id).toBe('gpt-6-astra');
     expect(payload.extra.preset_enabled_skills).toEqual(['med-autoscience']);
     expect(payload.extra.exclude_auto_inject_skills).toEqual([
       'aionui-skills',
@@ -354,7 +354,7 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(mocks.activatePackage).not.toHaveBeenCalled();
     expect(payload.extra.opl_agent_package_activation).toBeUndefined();
     expect(payload.extra.opl_assistant_route).toBeUndefined();
-    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'xhigh' });
+    expect(payload.extra.pending_config_options).toEqual({ reasoning_effort: 'max' });
   });
 
   it('injects OPL Flow metadata from fresh canonical installed presence', async () => {

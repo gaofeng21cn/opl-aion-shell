@@ -1810,16 +1810,17 @@
       "app_role": "resolve_auto_from_fresh_catalog_and_projected_recommendation_then_persist_user_override",
       "resolution_precedence": [
         "explicit_user_selection",
+        "fresh_catalog_frontier_then_app_default_when_available",
         "installed_opl_flow_recommendation",
         "fresh_codex_live_default",
         "app_fallback_when_flow_unavailable"
       ],
-      "app_fallback_role": "configured_default_is_used_only_when_flow_projection_is_absent_invalid_or_unavailable_and_catalog_cannot_resolve",
+      "app_fallback_role": "configured_default_when_catalog_metadata_is_unavailable",
       "configured_default": {
         "model": "gpt-6-astra",
         "reasoning_effort": "max"
       },
-      "configured_default_role": "app_fallback_not_flow_recommendation_authority",
+      "configured_default_role": "app_default_with_catalog_compatibility_fallback",
       "mode_default": "auto",
       "model_catalog_source": "codex_cli_model_list",
       "catalog_response_models_field": "data",
@@ -2113,11 +2114,11 @@
     },
     "updates": {
       "standard_channel": {
-        "implementation_reference": "electron_autoUpdater_background_download_update_downloaded_restart_prompt",
+        "implementation_reference": "electron_autoUpdater_background_download_silent_install_on_quit",
         "metadata_scope": ["latest-mac.yml", "latest-arm64-mac.yml"],
         "download_policy": "background_download",
         "apply_policy": "restart_when_ready",
-        "ready_prompt": "prompt_restart_after_download_ready",
+        "ready_prompt": "status_only_install_on_normal_restart",
         "full_first_install_metadata_allowed": false,
         "blocks_core_ready": false
       }
@@ -2673,7 +2674,10 @@
           ],
           "attention_states": ["available", "downloading", "downloaded", "error"],
           "non_attention_states": ["not_checked", "checking", "not-available", "cancelled"],
-          "manual_check": "refresh_the_same_shared_state"
+          "manual_check": "refresh_the_same_shared_state",
+          "download_progress": "about_displays_percent_transferred_total_and_speed_from_shared_updater_state",
+          "active_download_manual_check": "observe_existing_download_without_restarting",
+          "background_completion": "silent_install_on_normal_app_restart"
         },
         "webui": {
           "fallback_source": "opl app state --profile fast --json#managed_update.components[component_id=opl_app]",

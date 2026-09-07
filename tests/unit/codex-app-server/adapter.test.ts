@@ -167,6 +167,31 @@ describe('CodexAppServerAdapter', () => {
     });
   });
 
+  it('reads later model catalog pages so Auto can discover the next native default', async () => {
+    request.mockImplementation(async (method: string, params: any) => {
+      if (method === 'thread/resume') return resumedThread(rawThread('model-pages'));
+      if (method === 'thread/goal/get') return { goal: null };
+      if (method === 'model/list')
+        return params.cursor
+          ? {
+              data: [
+                {
+                  id: 'gpt-next',
+                  displayName: 'Next',
+                  isDefault: true,
+                  supportedReasoningEfforts: [{ reasoningEffort: 'max' }],
+                },
+              ],
+              nextCursor: null,
+            }
+          : { data: [{ id: 'gpt-6-astra', displayName: 'Astra' }], nextCursor: 'page-2' };
+      throw new Error(`Unexpected method: ${method}`);
+    });
+    const detail = await adapter.readThread('model-pages', 'conversation-model-pages');
+    expect(detail.models?.map((model) => model.id)).toEqual(['gpt-6-astra', 'gpt-next']);
+    expect(detail.models?.[1]).toMatchObject({ isDefault: true, supportedReasoningEfforts: ['max'] });
+  });
+
   it('starts remote tasks in the projected desktop workspace while omitting app-server defaults', async () => {
     request.mockImplementation(async (method: string, params: unknown) => {
       if (method === 'thread/start') return { thread: rawThread('remote-thread', { cwd: '/workspace/selected' }) };

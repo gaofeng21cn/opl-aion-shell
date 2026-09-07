@@ -282,6 +282,7 @@ class AutoUpdaterService extends EventEmitter {
       log.info(`Download progress: ${progress.percent.toFixed(2)}%`);
       this.broadcastStatus({
         status: 'downloading',
+        version: this._statusSnapshot?.version,
         progress: {
           bytesPerSecond: progress.bytesPerSecond,
           percent: progress.percent,
@@ -431,6 +432,7 @@ class AutoUpdaterService extends EventEmitter {
         this._verifiedTargets.add(this.updateTargetKey(target));
       }
       if (operation.downloadRequested) {
+        this.broadcastStatus({ status: 'downloading', version: result.updateInfo.version });
         await autoUpdater.downloadUpdate();
       }
       return {
@@ -458,6 +460,14 @@ class AutoUpdaterService extends EventEmitter {
     downloadRequested: boolean
   ): Promise<AutoUpdateCheckOutcome> {
     const key = target ? this.updateTargetKey(target) : 'packaged-default';
+    if (
+      target &&
+      this._verifiedTargets.has(key) &&
+      this._statusSnapshot?.version === target.updaterVersion &&
+      (this._statusSnapshot?.status === 'downloading' || this._statusSnapshot?.status === 'downloaded')
+    ) {
+      return Promise.resolve({ success: true });
+    }
     const existing = this._updateOperations.get(key);
     if (existing) {
       existing.downloadRequested ||= downloadRequested;

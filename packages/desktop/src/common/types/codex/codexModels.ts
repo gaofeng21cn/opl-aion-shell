@@ -27,11 +27,6 @@ export const DEFAULT_CODEX_MODEL_WITH_REASONING_ID = DEFAULT_CODEX_REASONING_EFF
   : DEFAULT_CODEX_MODEL_ID;
 export const DEFAULT_CODEX_MODEL_DISPLAY_LABEL = getOplDefaultCodexModelDisplayLabel();
 const CODEX_AUTO_MODEL_POLICY = getOplCodexAutoModelPolicy();
-// Used only when an older Codex CLI cannot return a model catalog. Keep the
-// product default for current CLIs, but never force a frontier model that the
-// legacy runtime may not understand.
-const CATALOG_UNAVAILABLE_COMPATIBLE_MODEL = 'gpt-5.6-sol';
-const CATALOG_UNAVAILABLE_COMPATIBLE_REASONING_EFFORT = 'xhigh';
 const ACCEPT_UNKNOWN_CATALOG_DEFAULT =
   CODEX_AUTO_MODEL_POLICY.unknown_default_model_policy ===
   'accept_catalog_default_even_when_not_in_frontier_model_preference_order';
@@ -216,33 +211,49 @@ export function resolveOplCodexAutoSelection(
     catalogDefault && (CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(catalogDefault.id) || ACCEPT_UNKNOWN_CATALOG_DEFAULT)
       ? catalogDefault
       : null;
+  const configuredModel = catalogModels.find((model) => model.id === CODEX_AUTO_MODEL_POLICY.configured_default.model);
+  // A newer native default can advance Auto; an older local default or Flow
+  // recommendation must not downgrade the App's supported frontier default.
+  const configuredRank = CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(CODEX_AUTO_MODEL_POLICY.configured_default.model);
+  const defaultRank = acceptedCatalogDefault
+    ? CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.get(acceptedCatalogDefault.id)
+    : undefined;
+  const frontierDefault =
+    acceptedCatalogDefault &&
+    (defaultRank === undefined || (configuredRank !== undefined && defaultRank <= configuredRank))
+      ? acceptedCatalogDefault
+      : null;
+  const preferredFrontier = frontierDefault ?? configuredModel;
   const knownModel = CODEX_FRONTIER_MODEL_PREFERENCE_ORDER.find((id) => catalogModels.some((model) => model.id === id));
   const hasCatalog = catalogModels.length > 0;
   const modelId =
+    preferredFrontier?.id ??
     recommendedModel?.id ??
     acceptedCatalogDefault?.id ??
     knownModel ??
     catalogModels[0]?.id ??
-    (hasCatalog ? CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model : CATALOG_UNAVAILABLE_COMPATIBLE_MODEL);
+    CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.model;
   const selectedModel = catalogModels.find((model) => model.id === modelId);
   const preferredReasoningEffort = !hasCatalog
-    ? null
-    : recommendedModel
-      ? recommendation?.reasoningEffort
-      : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
-        ? USE_HIGHEST_UNKNOWN_REASONING
-          ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
-          : acceptedCatalogDefault.defaultReasoningEffort
-        : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
-          selectedModel?.defaultReasoningEffort);
+    ? CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
+    : preferredFrontier
+      ? (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
+        preferredFrontier.supportedReasoningEfforts?.at(-1)?.reasoningEffort ??
+        preferredFrontier.defaultReasoningEffort)
+      : recommendedModel
+        ? recommendation?.reasoningEffort
+        : acceptedCatalogDefault && !CODEX_FRONTIER_MODEL_PREFERENCE_INDEX.has(acceptedCatalogDefault.id)
+          ? USE_HIGHEST_UNKNOWN_REASONING
+            ? acceptedCatalogDefault.supportedReasoningEfforts?.at(-1)?.reasoningEffort
+            : acceptedCatalogDefault.defaultReasoningEffort
+          : (CODEX_AUTO_MODEL_POLICY.known_model_reasoning_effort_overrides[modelId] ??
+            selectedModel?.defaultReasoningEffort);
   return {
     modelId,
     reasoningEffort: resolveSupportedReasoningEffort(
       selectedModel,
       preferredReasoningEffort,
-      hasCatalog
-        ? CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
-        : CATALOG_UNAVAILABLE_COMPATIBLE_REASONING_EFFORT
+      CODEX_AUTO_MODEL_POLICY.catalog_unavailable_fallback.reasoning_effort
     ),
   };
 }

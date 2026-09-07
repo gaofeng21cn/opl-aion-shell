@@ -185,10 +185,10 @@ describe('AcpModelSelector Codex model switching', () => {
     mocks.writeRendererLog.mockResolvedValue(undefined);
     mocks.responseStreamOn.mockReturnValue(() => undefined);
     mocks.acpModelInfo = {
-      current_model_id: 'gpt-5.6-sol',
-      current_model_label: 'GPT-5.6-Sol',
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6-Astra',
       available_models: [
-        { id: 'gpt-5.6-sol', label: 'GPT-5.6-Sol' },
+        { id: 'gpt-6-astra', label: 'GPT-6-Astra' },
         { id: 'gpt-5.5', label: 'GPT-5.5' },
       ],
     };
@@ -223,7 +223,7 @@ describe('AcpModelSelector Codex model switching', () => {
     const user = userEvent.setup();
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最高/ });
+    const autoButton = await screen.findByRole('button', { name: /6 Astra 最高/ });
     expect(autoButton).not.toHaveTextContent('自动（推荐）');
     expect(autoButton.querySelector('[data-icon="brain"], .i-icon-brain')).toBeNull();
 
@@ -248,7 +248,7 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(screen.queryByTestId('opl-codex-session-menu-model-choice-__auto')).not.toBeInTheDocument();
     fireEvent.click(modelItem);
     const autoChoice = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoChoice).toHaveTextContent('当前 5.6 Sol · 超高 · 跟随最新最强');
+    expect(autoChoice).toHaveTextContent('当前 6 Astra · 最高 · 跟随最新最强');
     expect(autoChoice).toHaveAttribute('role', 'menuitemradio');
     expect(autoChoice).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByTestId('opl-codex-session-menu-model-choice-gpt-5.5')).toHaveAttribute('aria-checked', 'false');
@@ -280,7 +280,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='new-codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最高/ });
+    const autoButton = await screen.findByRole('button', { name: /6 Astra 最高/ });
 
     await userEvent.click(autoButton);
     fireEvent.click(await screen.findByTestId('opl-codex-session-menu-model'));
@@ -292,7 +292,7 @@ describe('AcpModelSelector Codex model switching', () => {
     expect(screen.queryByText('Model switch not supported')).not.toBeInTheDocument();
   });
 
-  it('keeps the built-in Sol Auto baseline when the runtime catalog omits it', async () => {
+  it('keeps the App Astra Auto baseline when runtime catalog metadata is unavailable', async () => {
     mocks.acpModelInfo = {
       current_model_id: 'gpt-5.5',
       current_model_label: 'GPT-5.5',
@@ -317,8 +317,8 @@ describe('AcpModelSelector Codex model switching', () => {
     ];
     mocks.setModel.mockResolvedValue({
       model_info: {
-        current_model_id: 'gpt-5.6-sol',
-        current_model_label: 'GPT-5.6-Sol',
+        current_model_id: 'gpt-6-astra',
+        current_model_label: 'GPT-6-Astra',
         available_models: mocks.acpModelInfo.available_models,
       },
     });
@@ -329,18 +329,18 @@ describe('AcpModelSelector Codex model switching', () => {
     await userEvent.click(trigger);
     fireEvent.click(await screen.findByTestId('opl-codex-session-menu-model'));
     const autoOption = await screen.findByTestId('opl-codex-session-menu-model-choice-__auto');
-    expect(autoOption).toHaveTextContent('当前 5.6 Sol · 超高 · 跟随最新最强');
+    expect(autoOption).toHaveTextContent('当前 6 Astra · 最高 · 跟随最新最强');
     fireEvent.click(autoOption);
 
     await waitFor(() => {
       expect(mocks.setModel).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
-        model_id: 'gpt-5.6-sol',
+        model_id: 'gpt-6-astra',
       });
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'xhigh',
+        value: 'max',
       });
       expect(mocks.clientConfigSet).toHaveBeenCalledWith('acp.config', { codex: {} });
       expect(trigger).toHaveFocus();
@@ -350,7 +350,7 @@ describe('AcpModelSelector Codex model switching', () => {
   it('lets users override Codex reasoning effort from ACP options in the selector menu', async () => {
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 最高/ });
+    const autoButton = await screen.findByRole('button', { name: /6 Astra 最高/ });
     expect(screen.queryByTestId('opl-reasoning-effort-selector')).not.toBeInTheDocument();
 
     await userEvent.click(autoButton);
@@ -370,7 +370,7 @@ describe('AcpModelSelector Codex model switching', () => {
     });
   });
 
-  it('restores Codex auto reasoning to the compatible fallback from Reset without a runtime catalog', async () => {
+  it('restores Codex auto reasoning to the App default from Reset without a runtime catalog', async () => {
     mocks.configOptions = [
       {
         id: 'reasoning_effort',
@@ -390,7 +390,7 @@ describe('AcpModelSelector Codex model switching', () => {
 
     render(<AcpModelSelector conversation_id='codex-conversation' backend='codex' />);
 
-    const autoButton = await screen.findByRole('button', { name: /5\.6 Sol 高/ });
+    const autoButton = await screen.findByRole('button', { name: /6 Astra 高/ });
     await userEvent.click(autoButton);
     const resetItem = await screen.findByTestId('opl-codex-session-menu-reset');
     expect(resetItem.querySelector('[data-opl-icon="refresh"]')).not.toBeNull();
@@ -400,7 +400,7 @@ describe('AcpModelSelector Codex model switching', () => {
       expect(mocks.setConfigOption).toHaveBeenCalledWith({
         conversation_id: 'codex-conversation',
         option_id: 'reasoning_effort',
-        value: 'xhigh',
+        value: 'max',
       });
       expect(autoButton).toHaveFocus();
     });

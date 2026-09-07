@@ -4988,6 +4988,7 @@ export type I18nKey =
   | 'update.downloadButton'
   | 'update.downloadCompleteTitle'
   | 'update.downloadFailed'
+  | 'update.downloadProgress'
   | 'update.downloadStartFailed'
   | 'update.downloadingTitle'
   | 'update.errorTitle'
@@ -5014,9 +5015,11 @@ export type I18nKey =
   | 'update.noCompatibleAssetManual'
   | 'update.noReleaseNotes'
   | 'update.openFile'
+  | 'update.preparingDownload'
   | 'update.readyToInstall'
   | 'update.readyToInstallDesc'
   | 'update.showInFolder'
+  | 'update.unknownSize'
   | 'update.upToDateTitle';
 
 export type I18nModule =

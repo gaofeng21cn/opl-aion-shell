@@ -52,6 +52,40 @@ describe('background App update service', () => {
     expect(updater.quitAndInstall).not.toHaveBeenCalled();
   });
 
+  it('preserves progress and reuses a verified download when manually checked again', async () => {
+    let complete!: () => void;
+    updater.downloadUpdate.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        })
+    );
+    const background = autoUpdaterService.checkForUpdatesAndNotify(target);
+    await vi.waitFor(() => expect(updater.downloadUpdate).toHaveBeenCalledOnce());
+    expect(autoUpdaterService.getStatusSnapshot()).toEqual({ status: 'downloading', version: target.updaterVersion });
+    autoUpdaterService.triggerEventForTest('download-progress', {
+      percent: 25,
+      transferred: 100,
+      total: 400,
+      bytesPerSecond: 10,
+    });
+    await autoUpdaterService.checkForUpdates(target);
+    await autoUpdaterService.downloadUpdate(target);
+    expect(autoUpdaterService.getStatusSnapshot()).toMatchObject({
+      status: 'downloading',
+      version: target.updaterVersion,
+      progress: { percent: 25, total: 400 },
+    });
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+    expect(updater.downloadUpdate).toHaveBeenCalledOnce();
+    autoUpdaterService.triggerEventForTest('update-downloaded', { version: target.updaterVersion });
+    complete();
+    await background;
+    await autoUpdaterService.checkForUpdates(target);
+    expect(autoUpdaterService.getStatusSnapshot()?.status).toBe('downloaded');
+    expect(updater.checkForUpdates).toHaveBeenCalledOnce();
+  });
+
   it('rejects mismatched release bytes before download', async () => {
     updater.checkForUpdates.mockResolvedValue({ isUpdateAvailable: true, updateInfo: { version: '26.9.292' } });
     await expect(autoUpdaterService.checkForUpdatesAndNotify(target)).rejects.toThrow('Exact updater release mismatch');
