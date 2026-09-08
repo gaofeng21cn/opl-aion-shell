@@ -1784,7 +1784,11 @@ export const AgentPackagesSettingsContent: React.FC<{ supporting?: boolean }> = 
                 {t('settings.capabilitiesPage.packageManager.catalogTitle')}
               </Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary'>
-                {t(supporting ? 'settings.usability.supportingDescription' : 'settings.capabilitiesPage.packageManager.catalogDescription')}
+                {t(
+                  supporting
+                    ? 'settings.usability.supportingDescription'
+                    : 'settings.capabilitiesPage.packageManager.catalogDescription'
+                )}
               </Typography.Text>
             </div>
             <div className='flex flex-wrap items-center gap-8px'>
@@ -1830,7 +1834,11 @@ export const AgentPackagesSettingsContent: React.FC<{ supporting?: boolean }> = 
               value={catalogSearch}
               onChange={setCatalogSearch}
               placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
-              aria-label={t(supporting ? 'settings.usability.supportingPackages' : 'settings.capabilitiesPage.packageManager.searchLabel')}
+              aria-label={t(
+                supporting
+                  ? 'settings.usability.supportingPackages'
+                  : 'settings.capabilitiesPage.packageManager.searchLabel'
+              )}
               data-testid='settings-agents-catalog-search'
             />
             <Select
@@ -1906,7 +1914,8 @@ export const AgentPackagesSettingsContent: React.FC<{ supporting?: boolean }> = 
             >
               <div className='min-w-0 flex-1'>
                 <span>{t('settings.usability.catalogUnavailable')}</span>
-                <details className='mt-8px'><summary>{t('settings.usability.details')}</summary>
+                <details className='mt-8px'>
+                  <summary>{t('settings.usability.details')}</summary>
                   <pre className='whitespace-pre-wrap break-words text-12px'>{catalogError}</pre>
                 </details>
               </div>

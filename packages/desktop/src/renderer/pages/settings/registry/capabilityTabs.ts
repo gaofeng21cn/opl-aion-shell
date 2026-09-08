@@ -1,5 +1,9 @@
 export type SettingsCapabilityDetailTab =
-  'desktop' | 'opl_flow_managed' | 'manual_and_third_party' | 'image_voice' | 'packages';
+  | 'desktop'
+  | 'opl_flow_managed'
+  | 'manual_and_third_party'
+  | 'image_voice'
+  | 'packages';
 
 const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>([
   'desktop',

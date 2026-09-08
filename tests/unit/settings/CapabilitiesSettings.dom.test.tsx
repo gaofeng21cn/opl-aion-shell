@@ -1217,7 +1217,8 @@ describe('Agents and capabilities settings', () => {
         const developerMode = snapshot.developer_mode as Record<string, unknown> | undefined;
         const settingsControlCenter = snapshot.settings_control_center as Record<string, unknown> | undefined;
         const configurationCatalog = settingsControlCenter?.configuration_catalog as
-          Record<string, unknown> | undefined;
+          | Record<string, unknown>
+          | undefined;
         const configurationItems = configurationCatalog?.items as Record<string, unknown>[] | undefined;
         const developerConfiguration = configurationItems?.find(
           (item) => item.configuration_id === 'developer_supervisor'

@@ -145,17 +145,19 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     const builtinKeys = new Set<string>(BUILTIN_TAB_IDS);
     const entryMatches = getSettingsSearchEntries(t, language)
       .filter((item) => item.searchText.includes(query))
-      .map((item): SettingsMenuItem => ({
-        id: `search:${item.id}`,
-        key: item.pageId,
-        label: item.resultLabel,
-        icon: getSettingsTabIcon(item.pageId, 'modal'),
-        searchText: item.searchText,
-        pageLabel: item.pageLabel,
-        itemLabel: item.itemLabel,
-        anchor: item.anchor,
-        isSearchResult: true,
-      }));
+      .map(
+        (item): SettingsMenuItem => ({
+          id: `search:${item.id}`,
+          key: item.pageId,
+          label: item.resultLabel,
+          icon: getSettingsTabIcon(item.pageId, 'modal'),
+          searchText: item.searchText,
+          pageLabel: item.pageLabel,
+          itemLabel: item.itemLabel,
+          anchor: item.anchor,
+          isSearchResult: true,
+        })
+      );
     const extensionMatches = menuItems
       .filter((item) => !builtinKeys.has(item.key) && item.searchText.includes(query))
       .map((item) => ({ ...item, isSearchResult: true }));
