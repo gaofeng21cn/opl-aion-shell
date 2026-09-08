@@ -397,7 +397,7 @@ describe('settingsNav App-owned tabs', () => {
   it('derives capabilities detail tabs from App control-plane legacy subroutes', () => {
     expect(resolveSettingsRenderTarget('skills-hub')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'manual_and_third_party',
+      capabilitiesTab: 'opl_flow_managed',
     });
     expect(resolveSettingsRenderTarget('tools')).toEqual({
       routeId: 'capabilities',
@@ -405,7 +405,7 @@ describe('settingsNav App-owned tabs', () => {
     });
     expect(resolveSettingsRenderTarget('assistants')).toEqual({
       routeId: 'capabilities',
-      capabilitiesTab: 'manual_and_third_party',
+      capabilitiesTab: 'opl_flow_managed',
     });
     expect(capabilityDetailTabFor('tools')).toBe('manual_and_third_party');
     expect(capabilityDetailTabFor('capabilities')).toBe('opl_flow_managed');

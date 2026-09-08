@@ -56,10 +56,12 @@ const useFontScale = (): [number, (scale: number) => Promise<void>] => {
         }
       } catch (error) {
         console.error('Failed to set zoom factor:', error);
-        void fetchZoomFactor();
+        setFontScaleState(fontScale);
+        await fetchZoomFactor();
+        throw error;
       }
     },
-    [fetchZoomFactor]
+    [fetchZoomFactor, fontScale]
   );
 
   return [fontScale, setFontScale];

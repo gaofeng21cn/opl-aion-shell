@@ -31,6 +31,8 @@ const OplPersonalizationSettings: React.FC = () => {
   const [instructionsRestoring, setInstructionsRestoring] = useState(false);
   const [additionalContextDraft, setAdditionalContextDraft] = useState(savedAdditionalContext ?? '');
   const [contextSaving, setContextSaving] = useState(false);
+  const [instructionError, setInstructionError] = useState('');
+  const [contextError, setContextError] = useState('');
 
   useEffect(() => {
     setInstructionsDraft(loadedInstructions);
@@ -42,6 +44,7 @@ const OplPersonalizationSettings: React.FC = () => {
 
   const saveInstructions = async () => {
     setInstructionsSaving(true);
+    setInstructionError('');
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId: 'codex_user_instructions_set',
@@ -55,6 +58,7 @@ const OplPersonalizationSettings: React.FC = () => {
       await appStateQuery.load('fast', { showRefreshing: true });
       Message.success(t('settings.personalization.systemAgentsSaved'));
     } catch (error) {
+      setInstructionError(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
     } finally {
       setInstructionsSaving(false);
@@ -90,10 +94,12 @@ const OplPersonalizationSettings: React.FC = () => {
 
   const saveAdditionalInstructions = async () => {
     setContextSaving(true);
+    setContextError('');
     try {
       await configService.set('codex.oplAppSessionContextAdditional', additionalContextDraft);
       Message.success(t('settings.personalization.additionalInstructionsSaved'));
     } catch (error) {
+      setContextError(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
     } finally {
       setContextSaving(false);
@@ -102,11 +108,13 @@ const OplPersonalizationSettings: React.FC = () => {
 
   const clearAdditionalInstructions = async () => {
     setContextSaving(true);
+    setContextError('');
     try {
       await configService.set('codex.oplAppSessionContextAdditional', '');
       setAdditionalContextDraft('');
       Message.success(t('settings.personalization.additionalInstructionsCleared'));
     } catch (error) {
+      setContextError(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
       Message.error(error instanceof Error ? error.message : t('settings.personalization.saveFailed'));
     } finally {
       setContextSaving(false);
@@ -176,6 +184,16 @@ const OplPersonalizationSettings: React.FC = () => {
           </div>
         </div>
         <div className='opl-personalization-group__body'>
+          <p role='status' aria-live='polite'>
+            {instructionError ||
+              t(
+                instructionsSaving
+                  ? 'settings.preferenceSave.saving'
+                  : instructionsDraft !== loadedInstructions
+                    ? 'settings.personalization.unsaved'
+                    : 'settings.personalization.noUnsaved'
+              )}
+          </p>
           {instructionsUnavailable ? (
             <div className='text-12px text-danger'>{t('settings.personalization.systemAgentsTooLarge')}</div>
           ) : (
@@ -222,6 +240,16 @@ const OplPersonalizationSettings: React.FC = () => {
             autoSize={{ minRows: 4, maxRows: 10 }}
             onChange={setAdditionalContextDraft}
           />
+          <p role='status' aria-live='polite'>
+            {contextError ||
+              t(
+                contextSaving
+                  ? 'settings.preferenceSave.saving'
+                  : contextChanged
+                    ? 'settings.personalization.unsaved'
+                    : 'settings.personalization.noUnsaved'
+              )}
+          </p>
           <div className='mt-10px flex flex-wrap items-center justify-between gap-12px'>
             <div className='text-12px text-t-tertiary'>{t('settings.personalization.nextConversationEffect')}</div>
             <div className='flex shrink-0 items-center gap-8px'>

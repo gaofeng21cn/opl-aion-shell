@@ -96,6 +96,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
   );
   const [mobileGroupId, setMobileGroupId] = useState<SettingsNavigationGroup['id'] | null>(null);
   const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const extensionTabs = useExtensionSettingsTabs();
   const { resolveExtTabName } = useExtI18n();
@@ -144,19 +145,17 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     const builtinKeys = new Set<string>(BUILTIN_TAB_IDS);
     const entryMatches = getSettingsSearchEntries(t, language)
       .filter((item) => item.searchText.includes(query))
-      .map(
-        (item): SettingsMenuItem => ({
-          id: `search:${item.id}`,
-          key: item.pageId,
-          label: item.resultLabel,
-          icon: getSettingsTabIcon(item.pageId, 'modal'),
-          searchText: item.searchText,
-          pageLabel: item.pageLabel,
-          itemLabel: item.itemLabel,
-          anchor: item.anchor,
-          isSearchResult: true,
-        })
-      );
+      .map((item): SettingsMenuItem => ({
+        id: `search:${item.id}`,
+        key: item.pageId,
+        label: item.resultLabel,
+        icon: getSettingsTabIcon(item.pageId, 'modal'),
+        searchText: item.searchText,
+        pageLabel: item.pageLabel,
+        itemLabel: item.itemLabel,
+        anchor: item.anchor,
+        isSearchResult: true,
+      }));
     const extensionMatches = menuItems
       .filter((item) => !builtinKeys.has(item.key) && item.searchText.includes(query))
       .map((item) => ({ ...item, isSearchResult: true }));
@@ -209,7 +208,7 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
 
   const handleMenuItemSelect = useCallback(
     (item: SettingsMenuItem) => {
-      handleTabChange(item.key);
+      handleTabChange(item.anchor ? `${item.key}#${item.anchor}` : item.key);
       setMenuSearchQuery('');
       if (item.anchor) {
         setPendingAnchor(item.anchor);
@@ -236,26 +235,60 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
     <div className='settings-host-mobile-navigation mt-16px mb-20px'>
       <Input
         value={menuSearchQuery}
-        onChange={setMenuSearchQuery}
+        onChange={(value) => {
+          setMenuSearchQuery(value);
+          setSelectedSearchIndex(0);
+        }}
         allowClear
         prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
         className='mb-12px'
         data-testid='settings-search-input'
+        role='combobox'
+        aria-expanded={Boolean(menuSearchQuery.trim())}
+        aria-controls='settings-host-search-results'
+        aria-activedescendant={
+          menuSearchQuery.trim() && filteredMenuItems[selectedSearchIndex]
+            ? `settings-host-search-${selectedSearchIndex}`
+            : undefined
+        }
         onKeyDown={(event) => {
-          if (event.key !== 'Enter' || !menuSearchQuery.trim() || filteredMenuItems.length === 0) return;
-          event.preventDefault();
-          handleMenuItemSelect(filteredMenuItems[0]);
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Escape') {
+            setMenuSearchQuery('');
+            setSelectedSearchIndex(0);
+            return;
+          }
+          if (!menuSearchQuery.trim() || !filteredMenuItems.length) return;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setSelectedSearchIndex(
+              (index) =>
+                (index + (event.key === 'ArrowDown' ? 1 : -1) + filteredMenuItems.length) % filteredMenuItems.length
+            );
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            handleMenuItemSelect(filteredMenuItems[selectedSearchIndex] ?? filteredMenuItems[0]);
+          }
         }}
       />
       {menuSearchQuery.trim() ? (
-        <div className='settings-search-results' data-testid='settings-search-results'>
-          {filteredMenuItems.map((item) => (
+        <div
+          className='settings-search-results'
+          data-testid='settings-search-results'
+          id='settings-host-search-results'
+          role='listbox'
+        >
+          {filteredMenuItems.map((item, index) => (
             <Button
               key={item.id}
               htmlType='button'
               className='settings-search-result'
               data-testid='settings-search-result'
+              data-selected={index === selectedSearchIndex}
+              role='option'
+              id={`settings-host-search-${index}`}
+              aria-selected={index === selectedSearchIndex}
               onClick={() => handleMenuItemSelect(item)}
             >
               <span className='settings-search-result__page'>{item.pageLabel}</span>
@@ -362,20 +395,45 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
       <div className='flex flex-col gap-8px pr-12px'>
         <Input
           value={menuSearchQuery}
-          onChange={setMenuSearchQuery}
+          onChange={(value) => {
+            setMenuSearchQuery(value);
+            setSelectedSearchIndex(0);
+          }}
           allowClear
           prefix={<Search theme='outline' size='15' fill={iconColors.secondary} />}
           placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
           data-testid='settings-search-input'
+          role='combobox'
+          aria-expanded={Boolean(menuSearchQuery.trim())}
+          aria-controls='settings-host-search-results'
+          aria-activedescendant={
+            menuSearchQuery.trim() && filteredMenuItems[selectedSearchIndex]
+              ? `settings-host-search-${selectedSearchIndex}`
+              : undefined
+          }
           onKeyDown={(event) => {
-            if (event.key !== 'Enter' || !menuSearchQuery.trim() || filteredMenuItems.length === 0) return;
-            event.preventDefault();
-            handleMenuItemSelect(filteredMenuItems[0]);
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+            if (event.key === 'Escape') {
+              setMenuSearchQuery('');
+              setSelectedSearchIndex(0);
+              return;
+            }
+            if (!menuSearchQuery.trim() || !filteredMenuItems.length) return;
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault();
+              setSelectedSearchIndex(
+                (index) =>
+                  (index + (event.key === 'ArrowDown' ? 1 : -1) + filteredMenuItems.length) % filteredMenuItems.length
+              );
+            } else if (event.key === 'Enter') {
+              event.preventDefault();
+              handleMenuItemSelect(filteredMenuItems[selectedSearchIndex] ?? filteredMenuItems[0]);
+            }
           }}
         />
         {menuSearchQuery.trim() ? (
-          <div className='flex flex-col gap-2px'>
-            {filteredMenuItems.map((item) => (
+          <div className='flex flex-col gap-2px' id='settings-host-search-results' role='listbox'>
+            {filteredMenuItems.map((item, index) => (
               <Button
                 type='text'
                 htmlType='button'
@@ -383,10 +441,14 @@ const SettingsHost: React.FC<SettingsHostProps> = ({
                 className='settings-modal-navigation__search-result'
                 onClick={() => handleMenuItemSelect(item)}
                 data-testid='settings-search-result'
+                data-selected={index === selectedSearchIndex}
+                role='option'
+                id={`settings-host-search-${index}`}
+                aria-selected={index === selectedSearchIndex}
               >
                 <span className='settings-modal-navigation__icon'>{item.icon}</span>
                 <span className='flex min-w-0 flex-1 flex-col leading-18px'>
-                  <span className='truncate text-12px text-t-tertiary'>{item.pageLabel}</span>
+                  <span className='text-12px text-t-secondary'>{item.pageLabel}</span>
                   <span className='truncate text-14px font-500 text-t-primary'>{item.itemLabel}</span>
                 </span>
               </Button>

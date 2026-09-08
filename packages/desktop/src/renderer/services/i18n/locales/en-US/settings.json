@@ -1453,7 +1453,15 @@
       "openRuntimeStatus": "Open Runtime Status",
       "openRuntimeSettings": "Open Maintenance",
       "openLocalServices": "Open Local Services",
-      "openFoundryAgents": "Open Foundry Agents"
+      "openFoundryAgents": "Open Foundry Agents",
+      "manageAccount": "Manage account",
+      "manageModels": "Manage models",
+      "viewBackgroundTasks": "View background tasks",
+      "manageWorkspace": "Manage workspace",
+      "manageCapabilities": "Manage capabilities",
+      "manageAgents": "Manage agents",
+      "checkUpdates": "View updates",
+      "manageStorage": "Manage storage"
     },
     "workspace": {
       "title": "Workspace Root",
@@ -2076,7 +2084,8 @@
         "todayTokens": "Tokens today",
         "todayCost": "Cost today",
         "totalTokens": "Total tokens",
-        "totalCost": "Total cost"
+        "totalCost": "Total cost",
+        "history": "Lifetime usage"
       },
       "accountStatus": "Account status: {{status}}",
       "balance": "Balance: {{amount}} {{currency}}",
@@ -2134,7 +2143,11 @@
       "autoReasoning": "Auto uses the App reasoning policy for the selected model.",
       "notReported": "Codex path not reported",
       "saved": "Default model preference saved.",
-      "saveFailed": "Could not save model preference."
+      "saveFailed": "Could not save model preference.",
+      "automaticallyManaged": "Automatically managed",
+      "currentReasoning": "Current reasoning effort: {{effort}}",
+      "chooseManualModel": "Choose a model to customize",
+      "saving": "Saving…"
     },
     "remote": {
       "title": "Browser access to this computer",
@@ -2477,7 +2490,7 @@
   },
   "capabilitiesPage": {
     "title": "Capabilities",
-    "description": "Manage OPL Flow recommendations and local skills, plugins, MCP servers, image tools, and voice input.",
+    "description": "Manage desktop operation, skills, tool connections, image, voice and supporting capabilities by purpose.",
     "groups": {
       "managedComputerUse": {
         "title": "OPL managed desktop Computer Use",
@@ -3462,7 +3475,9 @@
     "systemAgentsSaved": "System AGENTS.md saved",
     "additionalInstructionsSaved": "New conversation instructions saved",
     "additionalInstructionsCleared": "New conversation instructions cleared",
-    "saveFailed": "Save failed"
+    "saveFailed": "Save failed",
+    "unsaved": "Unsaved changes",
+    "noUnsaved": "No unsaved changes"
   },
   "appearancePage": {
     "visualTheme": "Interface Theme",
@@ -3622,5 +3637,32 @@
       "scaleDecreaseAria": "Decrease interface scale",
       "scaleIncreaseAria": "Increase interface scale"
     }
+  },
+  "usability": {
+    "details": "Technical details",
+    "catalogUnavailable": "The capability directory is unavailable. Please retry.",
+    "desktop": "Desktop",
+    "skillsPlugins": "Skills & plugins",
+    "connections": "Tool connections",
+    "imageVoice": "Image & voice",
+    "supportingPackages": "Supporting capabilities",
+    "supportingDescription": "Manage capability packages that provide tools, connections and runtime support for Agents.",
+    "addCapability": "Add capability",
+    "moreActions": "More actions",
+    "running": "Working…",
+    "desktopUnavailable": "Managed desktop operation is not provided in this environment."
+  },
+  "preferenceSave": {
+    "saving": "Saving…",
+    "saved": "Saved",
+    "error": "Could not save. Previous value restored. Try again.",
+    "languageError": "Could not save language. Try again.",
+    "retry": "Retry"
+  },
+  "preferencePreview": {
+    "title": "Live preview",
+    "chat": "Your next conversation starts here.",
+    "markdown": "A clear heading and comfortable reading.",
+    "scale": "Interface size preview"
   }
 }

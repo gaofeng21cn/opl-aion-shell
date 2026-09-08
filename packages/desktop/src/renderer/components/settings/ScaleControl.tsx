@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Button, Slider } from '@arco-design/web-react';
 import { useTranslation } from 'react-i18next';
 import { useThemeContext } from '@renderer/hooks/context/ThemeContext';
@@ -34,6 +34,21 @@ const ScaleControl: React.FC = () => {
   // 拖动中的临时值，仅用于驱动滑块和百分比显示，松手前不应用缩放
   // Transient value while dragging — drives the slider/label only, scale is applied on release
   const [draggingValue, setDraggingValue] = useState<number | null>(null);
+  const [saveState, setSaveState] = useState<'saving' | 'saved' | 'error' | null>(null);
+  const pending = useRef(false);
+  const applyScale = async (value: number) => {
+    if (pending.current) return;
+    pending.current = true;
+    setSaveState('saving');
+    try {
+      await setFontScale(value);
+      setSaveState('saved');
+    } catch {
+      setSaveState('error');
+    } finally {
+      pending.current = false;
+    }
+  };
 
   // 拖动时优先展示临时值，否则展示已应用的缩放 / Prefer the dragging value, fall back to the applied scale
   const displayValue = draggingValue ?? fontScale;
@@ -65,7 +80,7 @@ const ScaleControl: React.FC = () => {
    */
   const handleSliderAfterChange = (value: number | number[]) => {
     if (typeof value === 'number') {
-      void setFontScale(clamp(Number(value.toFixed(2))));
+      void applyScale(clamp(Number(value.toFixed(2))));
     }
     setDraggingValue(null);
   };
@@ -76,14 +91,14 @@ const ScaleControl: React.FC = () => {
    */
   const handleStep = (delta: number) => {
     const next = clamp(Number((fontScale + delta).toFixed(2)));
-    void setFontScale(next);
+    void applyScale(next);
   };
 
   /**
    * 重置到默认值 / Reset to default value
    */
   const handleReset = () => {
-    void setFontScale(FONT_SCALE_DEFAULT);
+    void applyScale(FONT_SCALE_DEFAULT);
   };
   const isResetDisabled = Math.abs(fontScale - FONT_SCALE_DEFAULT) < RESET_THRESHOLD;
 
@@ -98,7 +113,7 @@ const ScaleControl: React.FC = () => {
             shape='circle'
             className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
             onClick={() => handleStep(-FONT_SCALE_STEP)}
-            disabled={fontScale <= FONT_SCALE_MIN + EPSILON}
+            disabled={saveState === 'saving' || fontScale <= FONT_SCALE_MIN + EPSILON}
             aria-label={t('settings.uiOptimization.preferences.scaleDecreaseAria')}
           >
             -
@@ -106,6 +121,7 @@ const ScaleControl: React.FC = () => {
           {/* 滑杆覆盖 80%-150% 区间，随值写入配置 / Slider covers 80%-150% range and persists value */}
           <Slider
             className='flex-1 min-w-180px font-scale-slider p-0 m-0'
+            disabled={saveState === 'saving'}
             showTicks
             min={FONT_SCALE_MIN}
             max={FONT_SCALE_MAX}
@@ -122,7 +138,7 @@ const ScaleControl: React.FC = () => {
             shape='circle'
             className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
             onClick={() => handleStep(FONT_SCALE_STEP)}
-            disabled={fontScale >= FONT_SCALE_MAX - EPSILON}
+            disabled={saveState === 'saving' || fontScale >= FONT_SCALE_MAX - EPSILON}
             aria-label={t('settings.uiOptimization.preferences.scaleIncreaseAria')}
           >
             +
@@ -144,7 +160,7 @@ const ScaleControl: React.FC = () => {
             type='text'
             className='px-4px h-28px'
             onClick={handleReset}
-            disabled={isResetDisabled}
+            disabled={saveState === 'saving' || isResetDisabled}
             style={{
               color: isResetDisabled
                 ? theme === 'dark'
@@ -158,6 +174,25 @@ const ScaleControl: React.FC = () => {
           </Button>
         </div>
       </div>
+      <div
+        className='overflow-hidden rounded-4px border border-solid border-[var(--border-base)] p-8px'
+        data-testid='preferences-scale-preview'
+      >
+        <span style={{ fontSize: `${(14 * displayValue) / fontScale}px` }}>
+          {t('settings.preferencePreview.scale', { defaultValue: 'Interface size preview' })}
+        </span>
+      </div>
+      {saveState && (
+        <span role='status' className='text-12px text-t-secondary'>
+          {saveState === 'saving'
+            ? t('settings.preferenceSave.saving', { defaultValue: 'Saving…' })
+            : saveState === 'saved'
+              ? t('settings.preferenceSave.saved', { defaultValue: 'Saved' })
+              : t('settings.preferenceSave.error', {
+                  defaultValue: 'Could not save. Previous value restored. Try again.',
+                })}
+        </span>
+      )}
     </div>
   );
 };

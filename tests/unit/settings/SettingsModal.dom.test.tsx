@@ -519,6 +519,40 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByTestId('settings-global-search')).toBeInTheDocument();
   });
 
+  it('opens collapsed ancestor groups before focusing a search destination', async () => {
+    render(
+      <MemoryRouter initialEntries={['/settings/appearance?section=performance']}>
+        <SettingsPageWrapper>
+          <details data-testid='performance-group'>
+            <summary>Performance</summary>
+            <section id='performance' data-testid='performance-control'>
+              Waiting behavior
+            </section>
+          </details>
+        </SettingsPageWrapper>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByTestId('performance-control')).toHaveFocus());
+    expect(screen.getByTestId('performance-group')).toHaveAttribute('open');
+  });
+
+  it.each([true, false])('supports keyboard selection and Escape in modal search (mobile=%s)', async (mobile) => {
+    isMobileLayout = mobile;
+    render(<SettingsModal visible onCancel={() => {}} />);
+    const input = screen.getByTestId('settings-search-input');
+    fireEvent.change(input, { target: { value: 'model' } });
+    const results = screen.getAllByTestId('settings-search-result');
+    expect(results.length).toBeGreaterThan(1);
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(input).toHaveValue('model');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(results[1]).toHaveAttribute('aria-selected', 'true');
+    expect(input).toHaveAttribute('aria-activedescendant', results[1].id);
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(input).toHaveValue('');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
   it('focuses the visible canonical anchor when legacy markup contains a hidden duplicate', async () => {
     render(
       <MemoryRouter initialEntries={['/settings/access?section=model']}>
@@ -738,7 +772,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'packages' } });
 
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Runtime & Maintenance > Updates & Repair')).toBeInTheDocument();
     expect(screen.getByText('Updates')).toBeInTheDocument();
     expect(screen.queryByText('Overview')).not.toBeInTheDocument();
     expect(screen.queryByText('Data & Storage')).not.toBeInTheDocument();
@@ -753,7 +787,7 @@ describe('SettingsModal OPL App navigation', () => {
     expect(screen.getByText('Runtime & Maintenance')).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'deployment' } });
-    expect(screen.getByText('Resources & Connections')).toBeInTheDocument();
+    expect(screen.getAllByText('Connections & Deployment > Resources & Connections').length).toBeGreaterThan(0);
     expect(screen.getByText('WebUI access')).toBeInTheDocument();
     expect(screen.queryByText('Account & Models')).not.toBeInTheDocument();
     expect(screen.queryByText('Connections & Deployment')).not.toBeInTheDocument();
@@ -763,7 +797,7 @@ describe('SettingsModal OPL App navigation', () => {
 
     fireEvent.change(screen.getByTestId('settings-search-input'), { target: { value: 'working paths' } });
 
-    expect(screen.getByText('Maintenance')).toBeInTheDocument();
+    expect(screen.getByText('Runtime & Maintenance > Logs & Diagnostics')).toBeInTheDocument();
     expect(screen.getByText('Diagnostics and working paths')).toBeInTheDocument();
     expect(screen.queryByText('Models')).not.toBeInTheDocument();
 

@@ -1,3 +1,4 @@
+import { normalizeCapabilityDetailTab, type SettingsCapabilityDetailTab } from './capabilityTabs';
 import React from 'react';
 import { OplIcon, type OplIconName } from '@/renderer/components/opl/OplVisualProvider';
 import { type IExtensionSettingsTab } from '@/common/adapter/ipcBridge';
@@ -162,7 +163,19 @@ export function getSettingsSearchEntries(_t: TranslateFn, language = 'en'): Sett
     if (!pageExperience) return [];
     const routeId = pageExperience.route_id;
     if (!ordinaryRoutesById.has(routeId) && !secondaryPagesById.has(routeId)) return [];
-    const pageLabel = useChinese ? pageExperience.label_zh : pageExperience.label_en;
+    const selection = getSettingsNavigationSelection(
+      routePathFor(routeId),
+      `?section=${encodeURIComponent(entry.anchor)}`
+    );
+    const groups = getSettingsNavigationGroups(_t, language);
+    const group = groups.find((candidate) => candidate.id === selection?.groupId);
+    const destination = group?.destinations.find((candidate) => candidate.id === selection?.destinationId);
+    const pageLabel =
+      group && destination
+        ? [...new Set([group.label, destination.label])].join(' > ')
+        : useChinese
+          ? pageExperience.label_zh
+          : pageExperience.label_en;
     const itemLabel = useChinese ? entry.label_zh : entry.label_en;
     const route = routePathFor(`${routeId}#${entry.anchor}`).replace(/^\/settings\/?/, '');
     const routeMetadata = ordinaryRoutesById.get(routeId) ?? secondaryPagesById.get(routeId);
@@ -457,17 +470,7 @@ export function normalizeOplSettingsTab(tabId: string): string {
   return LEGACY_SETTINGS_ANCHOR_REMAP[tabId] ?? tabId;
 }
 
-export type SettingsCapabilityDetailTab = 'opl_flow_managed' | 'manual_and_third_party';
-
-const SETTINGS_CAPABILITY_DETAIL_TABS = new Set<string>(['opl_flow_managed', 'manual_and_third_party']);
-
-const normalizeCapabilityDetailTab = (value: string | undefined): SettingsCapabilityDetailTab | null => {
-  if (value === 'opl-flow-managed') return 'opl_flow_managed';
-  if (value === 'third-party' || value === 'skills' || value === 'tools' || value === 'assistants') {
-    return 'manual_and_third_party';
-  }
-  return value && SETTINGS_CAPABILITY_DETAIL_TABS.has(value) ? (value as SettingsCapabilityDetailTab) : null;
-};
+export { normalizeCapabilityDetailTab, type SettingsCapabilityDetailTab } from './capabilityTabs';
 
 export type SettingsRenderTarget = {
   routeId: string;
@@ -486,7 +489,9 @@ export function resolveSettingsRenderTarget(tabId: string): SettingsRenderTarget
     : normalizeOplSettingsTab(routeTarget.routeId);
   const slot = getSettingsRenderSlot(routeId);
   const subrouteParam = slot?.subrouteQueryParam ?? 'tab';
-  const tabFromRoute = normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);
+  const tabFromRoute =
+    normalizeCapabilityDetailTab(routeTarget.queryParams.tab) ??
+    normalizeCapabilityDetailTab(routeTarget.queryParams[subrouteParam]);
   const tabFromAnchor = normalizeCapabilityDetailTab(routeTarget.anchor);
   const tabFromLegacySlot = normalizeCapabilityDetailTab(slot?.legacySubroutes?.[tabId]);
 
@@ -501,11 +506,29 @@ export function focusSettingsAnchor(root: ParentNode, anchor: string): boolean {
   const matchingElements = Array.from(root.querySelectorAll<HTMLElement>('[id]')).filter(
     (element) => element.id === anchor
   );
-  const anchorElement = matchingElements.find((element) => element.closest('[hidden], [aria-hidden="true"]') === null);
-  if (!anchorElement) return false;
+  const matched =
+    matchingElements.find((element) => element.closest('[hidden], [aria-hidden="true"]') === null) ??
+    matchingElements.find(
+      (element) =>
+        element.getAttribute('aria-hidden') === 'true' &&
+        element.parentElement?.closest('[hidden], [aria-hidden="true"]') === null
+    );
+  if (!matched) return false;
+  const anchorElement = matched.getAttribute('aria-hidden') === 'true' ? matched.parentElement : matched;
+  if (!anchorElement || anchorElement.closest('[aria-hidden="true"]')) return false;
+  let parent: HTMLElement | null = anchorElement;
+  while (parent) {
+    if (parent instanceof HTMLDetailsElement) parent.open = true;
+    parent = parent.parentElement;
+  }
   anchorElement.scrollIntoView({ block: 'start' });
   if (anchorElement.tabIndex < 0) anchorElement.tabIndex = -1;
   anchorElement.focus({ preventScroll: true });
+  anchorElement.classList.remove('settings-anchor-highlight');
+  requestAnimationFrame(() => anchorElement.classList.add('settings-anchor-highlight'));
+  anchorElement.addEventListener('animationend', () => anchorElement.classList.remove('settings-anchor-highlight'), {
+    once: true,
+  });
   return true;
 }
 

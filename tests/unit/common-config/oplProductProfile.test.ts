@@ -605,7 +605,7 @@ describe('OPL generated product profile', () => {
       model: 'access',
       agent: 'agents',
       assistants: 'capabilities#third-party',
-      'skills-hub': 'capabilities#third-party',
+      'skills-hub': 'capabilities#opl-flow-managed',
       tools: 'capabilities#third-party',
       display: 'appearance',
       webui: 'resources',

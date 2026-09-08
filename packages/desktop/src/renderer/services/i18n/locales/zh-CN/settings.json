@@ -1454,7 +1454,15 @@
       "openRuntimeStatus": "打开运行状态",
       "openRuntimeSettings": "打开维护",
       "openLocalServices": "打开本机服务",
-      "openFoundryAgents": "打开内置智能体"
+      "openFoundryAgents": "打开内置智能体",
+      "manageAccount": "管理账户",
+      "manageModels": "管理模型",
+      "viewBackgroundTasks": "查看后台任务",
+      "manageWorkspace": "管理工作区",
+      "manageCapabilities": "管理能力",
+      "manageAgents": "管理智能体",
+      "checkUpdates": "查看更新",
+      "manageStorage": "管理存储"
     },
     "workspace": {
       "title": "工作目录",
@@ -2077,7 +2085,8 @@
         "todayTokens": "今日 Token",
         "todayCost": "今日开支",
         "totalTokens": "累计 Token",
-        "totalCost": "累计开支"
+        "totalCost": "累计开支",
+        "history": "累计用量"
       },
       "accountStatus": "账户状态：{{status}}",
       "balance": "余额：{{amount}} {{currency}}",
@@ -2135,7 +2144,11 @@
       "autoReasoning": "自动模式会使用 App 针对当前模型的推理策略。",
       "notReported": "未读取到 Codex 路径",
       "saved": "默认模型偏好已保存。",
-      "saveFailed": "无法保存默认模型偏好。"
+      "saveFailed": "无法保存默认模型偏好。",
+      "automaticallyManaged": "自动管理",
+      "currentReasoning": "当前推理强度：{{effort}}",
+      "chooseManualModel": "选择模型以手动设置",
+      "saving": "正在保存…"
     },
     "remote": {
       "title": "浏览器访问这台电脑",
@@ -2478,7 +2491,7 @@
   },
   "capabilitiesPage": {
     "title": "能力",
-    "description": "管理 OPL Flow 推荐，以及本机 Skill、插件、MCP、图像工具和语音输入。",
+    "description": "按用途管理桌面操作、技能、工具连接、图像、语音和配套能力。",
     "groups": {
       "managedComputerUse": {
         "title": "OPL 托管桌面 Computer Use",
@@ -3463,7 +3476,9 @@
     "systemAgentsSaved": "系统级 AGENTS.md 已保存",
     "additionalInstructionsSaved": "新对话附加说明已保存",
     "additionalInstructionsCleared": "已清空新对话附加说明",
-    "saveFailed": "保存失败"
+    "saveFailed": "保存失败",
+    "unsaved": "未保存的更改",
+    "noUnsaved": "没有未保存的更改"
   },
   "appearancePage": {
     "visualTheme": "界面主题",
@@ -3623,5 +3638,32 @@
       "scaleDecreaseAria": "减小界面缩放",
       "scaleIncreaseAria": "增大界面缩放"
     }
+  },
+  "usability": {
+    "details": "技术详情",
+    "catalogUnavailable": "暂时无法读取能力目录，请重试。",
+    "desktop": "桌面操作",
+    "skillsPlugins": "技能与插件",
+    "connections": "工具连接",
+    "imageVoice": "图像与语音",
+    "supportingPackages": "配套能力",
+    "supportingDescription": "管理为智能体提供工具、连接和运行支持的能力包。",
+    "addCapability": "添加能力",
+    "moreActions": "更多操作",
+    "running": "正在执行…",
+    "desktopUnavailable": "当前环境尚未提供托管桌面操作能力。"
+  },
+  "preferenceSave": {
+    "saving": "正在保存…",
+    "saved": "已保存",
+    "error": "保存失败，已恢复原值。请重试。",
+    "languageError": "语言设置保存失败，请重试。",
+    "retry": "重试"
+  },
+  "preferencePreview": {
+    "title": "即时预览",
+    "chat": "下一次对话，从这里开始。",
+    "markdown": "清晰的标题，舒适的阅读。",
+    "scale": "界面大小预览"
   }
 }

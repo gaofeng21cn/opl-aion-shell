@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@arco-design/web-react';
 
 type FontSizeStepperProps = {
+  disabled?: boolean;
   value: number;
   min: number;
   max: number;
@@ -20,6 +21,7 @@ type FontSizeStepperProps = {
 
 /** Integer-px font size stepper: − [value] + ↺ */
 const FontSizeStepper: React.FC<FontSizeStepperProps> = ({
+  disabled = false,
   value,
   min,
   max,
@@ -40,7 +42,7 @@ const FontSizeStepper: React.FC<FontSizeStepperProps> = ({
         aria-label={t('settings.fontSizeDecrease')}
         className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
         onClick={() => onChange(clamp(value - step))}
-        disabled={value <= min}
+        disabled={disabled || value <= min}
       >
         -
       </Button>
@@ -54,7 +56,7 @@ const FontSizeStepper: React.FC<FontSizeStepperProps> = ({
         aria-label={t('settings.fontSizeIncrease')}
         className='w-28px h-28px !min-w-28px flex items-center justify-center p-0'
         onClick={() => onChange(clamp(value + step))}
-        disabled={value >= max}
+        disabled={disabled || value >= max}
       >
         +
       </Button>
@@ -63,7 +65,7 @@ const FontSizeStepper: React.FC<FontSizeStepperProps> = ({
         type='text'
         className='px-4px h-28px'
         onClick={() => onChange(defaultValue)}
-        disabled={value === defaultValue}
+        disabled={disabled || value === defaultValue}
       >
         {resetLabel}
       </Button>

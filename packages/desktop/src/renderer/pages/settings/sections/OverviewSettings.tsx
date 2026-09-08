@@ -284,31 +284,50 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
       gatewayAccount.status === 'disconnect_pending' ||
       gatewayAccount.freshness.last_error_code)
   );
-  const issueAttentionItems: AttentionItem[] = actionableIssues.map((issue, index) => {
-    const issueId = oplString(issue.issue_id) ?? `issue-${index}`;
-    const route = issueSettingsRoute(issue);
-    const isModelAccessIssue = route === '/settings/gateway';
-    const isProviderIssue = issueId === 'provider_failed_with_repair';
-    return {
-      key: issueId,
-      title: isModelAccessIssue
-        ? t('settings.overviewPage.attention.codexTitle')
-        : isProviderIssue
-          ? t('settings.overviewPage.backgroundTasks.title')
-          : t('settings.overviewPage.attention.capabilitiesTitle'),
-      description: isModelAccessIssue
-        ? t('settings.overviewPage.quickEntries.modelAccount.description')
-        : isProviderIssue
-          ? temporalStatus.server === 'not_configured' && temporalStatus.worker === 'not_configured'
-            ? t('settings.overviewPage.technical.temporalNotConfigured', {
-                defaultValue: 'Temporal server and worker are not configured; the scheduler still needs to be checked.',
-              })
-            : t('settings.overviewPage.technical.temporalNeedsAttention')
-          : t('settings.overviewPage.attention.capabilitiesDescription'),
-      label: t('common.open'),
-      route,
+  const destinationActionLabel = (route: string): string => {
+    const actionKeys: Record<string, string> = {
+      '/settings/gateway': 'manageAccount',
+      '/settings/workspace': 'manageWorkspace',
+      '/settings/capabilities': 'manageCapabilities',
+      '/settings/agents': 'manageAgents',
+      '/settings/about': 'checkUpdates',
+      '/settings/storage': 'manageStorage',
+      '/settings/environment?section=services': 'viewBackgroundTasks',
     };
-  });
+    return t(`settings.overviewPage.actions.${actionKeys[route] ?? 'openRuntimeSettings'}`);
+  };
+  const issueAttentionItems: AttentionItem[] = actionableIssues
+    .filter(
+      (issue, index, issues) =>
+        oplString(issue.issue_id) !== 'provider_failed_with_repair' ||
+        issues.findIndex((candidate) => oplString(candidate.issue_id) === 'provider_failed_with_repair') === index
+    )
+    .map((issue, index) => {
+      const issueId = oplString(issue.issue_id) ?? `issue-${index}`;
+      const route = issueSettingsRoute(issue);
+      const isModelAccessIssue = route === '/settings/gateway';
+      const isProviderIssue = issueId === 'provider_failed_with_repair';
+      return {
+        key: issueId,
+        title: isModelAccessIssue
+          ? t('settings.overviewPage.attention.codexTitle')
+          : isProviderIssue
+            ? t('settings.overviewPage.backgroundTasks.title')
+            : t('settings.overviewPage.attention.capabilitiesTitle'),
+        description: isModelAccessIssue
+          ? t('settings.overviewPage.quickEntries.modelAccount.description')
+          : isProviderIssue
+            ? temporalStatus.server === 'not_configured' && temporalStatus.worker === 'not_configured'
+              ? t('settings.overviewPage.technical.temporalNotConfigured', {
+                  defaultValue:
+                    'Temporal server and worker are not configured; the scheduler still needs to be checked.',
+                })
+              : t('settings.overviewPage.technical.temporalNeedsAttention')
+            : t('settings.overviewPage.attention.capabilitiesDescription'),
+        label: destinationActionLabel(route),
+        route,
+      };
+    });
   const temporalNeedsAction = [temporalStatus.server, temporalStatus.worker, temporalStatus.scheduler].some(
     (status) => status !== 'ready'
   );
@@ -326,7 +345,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
             key: 'temporal-required-components',
             title: t('settings.overviewPage.backgroundTasks.title'),
             description: t('settings.overviewPage.technical.temporalNeedsAttention'),
-            label: t('common.open'),
+            label: t('settings.overviewPage.actions.viewBackgroundTasks'),
             route: '/settings/environment?section=services',
           },
         ]
@@ -430,17 +449,15 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
                   <Typography.Text className='font-500 text-t-primary'>{item.title}</Typography.Text>
                   <Typography.Text className='text-12px text-t-secondary'>{item.description}</Typography.Text>
                 </div>
-                {index === 0 && (
-                  <div className='opl-settings-row__meta'>
-                    <Button
-                      type='primary'
-                      onClick={() => navigate(item.route)}
-                      data-testid='settings-overview-primary-action'
-                    >
-                      {item.label}
-                    </Button>
-                  </div>
-                )}
+                <div className='opl-settings-row__meta'>
+                  <Button
+                    type={index === 0 ? 'primary' : 'secondary'}
+                    onClick={() => navigate(item.route)}
+                    data-testid={index === 0 ? 'settings-overview-primary-action' : undefined}
+                  >
+                    {item.label}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -473,7 +490,7 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           <div className='opl-settings-row__meta'>
             <span className={`opl-settings-status ${codexStatusClass}`.trim()}>{codexStatusLabel}</span>
             <Button type='text' className='px-0' onClick={() => navigate('/settings/access')}>
-              {t('common.open')}
+              {t('settings.overviewPage.actions.manageModels')}
             </Button>
           </div>
         </div>
@@ -501,48 +518,38 @@ const OverviewSettings: React.FC<OverviewSettingsProps> = ({ withWrapper = true 
           <div className='opl-settings-row__meta'>
             <span className={`opl-settings-status ${gatewayStatusClass}`.trim()}>{gatewayStatusLabel}</span>
             <Button type='text' className='px-0' onClick={() => navigate('/settings/gateway')}>
-              {t('common.open')}
+              {t('settings.overviewPage.actions.manageAccount')}
             </Button>
           </div>
         </div>
 
-        <div className='opl-settings-row' id='background-tasks' data-testid='settings-overview-background-tasks'>
-          <div className='opl-settings-row__main'>
-            <div className='flex min-w-0 items-start gap-10px'>
-              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
-                <Server theme='outline' size='16' aria-hidden='true' />
-              </span>
-              <div className='min-w-0 flex-1'>
-                <Typography.Text className='block font-600 text-t-primary'>
-                  {t('settings.overviewPage.backgroundTasks.title')}
-                </Typography.Text>
-                <Typography.Text className='block break-words text-12px text-t-secondary'>
-                  {t(
-                    temporalNeedsAction
-                      ? 'settings.overviewPage.backgroundTasks.attentionDescription'
-                      : 'settings.overviewPage.backgroundTasks.readyDescription'
-                  )}
-                </Typography.Text>
+        {!temporalNeedsAction && !issueQueueHasTemporal && (
+          <div className='opl-settings-row' id='background-tasks' data-testid='settings-overview-background-tasks'>
+            <div className='opl-settings-row__main'>
+              <div className='flex min-w-0 items-start gap-10px'>
+                <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                  <Server theme='outline' size='16' aria-hidden='true' />
+                </span>
+                <div className='min-w-0 flex-1'>
+                  <Typography.Text className='block font-600 text-t-primary'>
+                    {t('settings.overviewPage.backgroundTasks.title')}
+                  </Typography.Text>
+                  <Typography.Text className='block break-words text-12px text-t-secondary'>
+                    {t('settings.overviewPage.backgroundTasks.readyDescription')}
+                  </Typography.Text>
+                </div>
               </div>
             </div>
+            <div className='opl-settings-row__meta'>
+              <span className='opl-settings-status opl-settings-status--ready'>
+                {t('settings.overviewPage.backgroundTasks.status.ready')}
+              </span>
+              <Button type='text' className='px-0' onClick={() => navigate('/settings/environment?section=services')}>
+                {t('settings.overviewPage.actions.viewBackgroundTasks')}
+              </Button>
+            </div>
           </div>
-          <div className='opl-settings-row__meta'>
-            <span
-              className={`opl-settings-status ${
-                temporalNeedsAction ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
-              }`}
-            >
-              {t(
-                temporalNeedsAction
-                  ? 'settings.overviewPage.backgroundTasks.status.attention'
-                  : 'settings.overviewPage.backgroundTasks.status.ready'
-              )}
-            </span>
-            <Button type='text' className='px-0' onClick={() => navigate('/settings/environment?section=services')}>
-              {t('common.open')}
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

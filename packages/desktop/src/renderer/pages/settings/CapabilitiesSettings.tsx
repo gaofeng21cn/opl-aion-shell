@@ -65,20 +65,13 @@ import {
   type CapabilityRefViewModel,
 } from './capabilitiesProjection';
 
-export type CapabilitiesTab = 'opl_flow_managed' | 'manual_and_third_party';
+import { normalizeCapabilityDetailTab, type SettingsCapabilityDetailTab } from './registry/capabilityTabs';
 
+export type CapabilitiesTab = SettingsCapabilityDetailTab;
 type ManifestTrustTier = 'third_party_unverified' | 'third_party_verified';
-
+const normalizeCapabilitiesTab = normalizeCapabilityDetailTab;
 const isCapabilitiesTab = (value: string | null): value is CapabilitiesTab =>
-  value === 'opl_flow_managed' || value === 'manual_and_third_party';
-
-const normalizeCapabilitiesTab = (value: string | null): CapabilitiesTab | null => {
-  if (value === 'opl-flow-managed') return 'opl_flow_managed';
-  if (value === 'third-party' || value === 'skills' || value === 'tools' || value === 'assistants') {
-    return 'manual_and_third_party';
-  }
-  return isCapabilitiesTab(value) ? value : null;
-};
+  value !== null && normalizeCapabilitiesTab(value) === value;
 
 function capabilityStatusColor(status: CapabilityAvailabilityStatus): 'orange' | 'red' | 'gray' {
   if (status === 'sync' || status === 'update' || status === 'attention' || status === 'missing') return 'orange';
@@ -868,7 +861,7 @@ const capabilityExportBundleAction = (action: CapabilityActionRefViewModel | nul
   );
 };
 
-export const AgentPackagesSettingsContent: React.FC = () => {
+export const AgentPackagesSettingsContent: React.FC<{ supporting?: boolean }> = ({ supporting = false }) => {
   const { i18n, t } = useTranslation();
   const navigate = useNavigate();
   const isMobile = Boolean(useLayoutContext()?.isMobile);
@@ -912,8 +905,13 @@ export const AgentPackagesSettingsContent: React.FC = () => {
     [orderedShortcuts]
   );
   const purposeCapabilities = React.useMemo(
-    () => buildCapabilitiesViewModel(appStateQuery.appState, i18n.language),
-    [appStateQuery.appState, i18n.language]
+    () =>
+      buildCapabilitiesViewModel(appStateQuery.appState, i18n.language).filter((item) =>
+        supporting
+          ? ['capability_package', 'framework_capability_package'].includes(item.packageRole ?? '')
+          : ['standard_agent', 'workflow_profile'].includes(item.packageRole ?? '')
+      ),
+    [appStateQuery.appState, i18n.language, supporting]
   );
   const projectedAppActions = oplRecordList(appStateQuery.appState.actions);
   const manifestInstallAction =
@@ -1757,14 +1755,18 @@ export const AgentPackagesSettingsContent: React.FC = () => {
   return (
     <div className='opl-settings-page flex flex-col gap-16px' data-testid='settings-page-agents'>
       <span data-testid='agent-packages-settings-page' aria-hidden='true' />
-      <header className='opl-settings-page-header'>
-        <div className='opl-settings-page-header__copy'>
-          <Typography.Title heading={4} className='mb-6px'>
-            {t('settings.agentsPage.title')}
-          </Typography.Title>
-          <Typography.Text className='text-t-secondary'>{t('settings.agentsPage.description')}</Typography.Text>
-        </div>
-      </header>
+      {!supporting && (
+        <header className='opl-settings-page-header'>
+          <div className='opl-settings-page-header__copy'>
+            <Typography.Title heading={4} className='mb-6px'>
+              {t(supporting ? 'settings.usability.supportingPackages' : 'settings.agentsPage.title')}
+            </Typography.Title>
+            <Typography.Text className='text-t-secondary'>
+              {t(supporting ? 'settings.usability.supportingDescription' : 'settings.agentsPage.description')}
+            </Typography.Text>
+          </div>
+        </header>
+      )}
 
       <div className='flex flex-col gap-14px' data-testid='settings-agents-primary'>
         <section
@@ -1782,16 +1784,10 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                 {t('settings.capabilitiesPage.packageManager.catalogTitle')}
               </Typography.Text>
               <Typography.Text className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.catalogDescription')}
+                {t(supporting ? 'settings.usability.supportingDescription' : 'settings.capabilitiesPage.packageManager.catalogDescription')}
               </Typography.Text>
             </div>
             <div className='flex flex-wrap items-center gap-8px'>
-              <Typography.Text className='text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.packageManager.packageCount', {
-                  count: visibleCapabilities.length,
-                  total: purposeCapabilities.length,
-                })}
-              </Typography.Text>
               <span data-testid='settings-agents-registry-refresh'>
                 <OplRefreshIconButton
                   size='small'
@@ -1802,22 +1798,24 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   data-testid='agent-package-refresh-registry'
                 />
               </span>
-              <Button
-                size='small'
-                onClick={restoreOfficialProfile}
-                loading={busyAction === 'restore_official_profile'}
-                disabled={packageMutationBusy}
-                data-testid='settings-agents-restore-official-profile'
-              >
-                {t('settings.agentsPage.restoreOfficialProfile')}
-              </Button>
+              {!supporting && (
+                <Button
+                  size='small'
+                  onClick={restoreOfficialProfile}
+                  loading={busyAction === 'restore_official_profile'}
+                  disabled={packageMutationBusy}
+                  data-testid='settings-agents-restore-official-profile'
+                >
+                  {t('settings.agentsPage.restoreOfficialProfile')}
+                </Button>
+              )}
               <Button
                 type='primary'
                 size='small'
                 onClick={openAddCapability}
                 data-testid='settings-agents-primary-action'
               >
-                {t('settings.agentsPage.addAgent')}
+                {t(supporting ? 'settings.usability.addCapability' : 'settings.agentsPage.addAgent')}
               </Button>
             </div>
           </div>
@@ -1832,7 +1830,7 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               value={catalogSearch}
               onChange={setCatalogSearch}
               placeholder={t('settings.capabilitiesPage.packageManager.searchPlaceholder')}
-              aria-label={t('settings.capabilitiesPage.packageManager.searchLabel')}
+              aria-label={t(supporting ? 'settings.usability.supportingPackages' : 'settings.capabilitiesPage.packageManager.searchLabel')}
               data-testid='settings-agents-catalog-search'
             />
             <Select
@@ -1906,7 +1904,12 @@ export const AgentPackagesSettingsContent: React.FC = () => {
               className='flex flex-wrap items-center justify-between gap-8px py-10px text-12px text-[rgb(var(--red-6))]'
               data-testid='settings-agents-error'
             >
-              <span>{t('settings.capabilitiesPage.packageManager.failed', { reason: catalogError })}</span>
+              <div className='min-w-0 flex-1'>
+                <span>{t('settings.usability.catalogUnavailable')}</span>
+                <details className='mt-8px'><summary>{t('settings.usability.details')}</summary>
+                  <pre className='whitespace-pre-wrap break-words text-12px'>{catalogError}</pre>
+                </details>
+              </div>
               <Button
                 size='mini'
                 onClick={() => void appStateQuery.load('fast', { showRefreshing: true })}
@@ -1927,22 +1930,27 @@ export const AgentPackagesSettingsContent: React.FC = () => {
                   total: purposeCapabilities.length,
                 })}
               </span>
-              <span data-testid='capability-summary-composition'>
-                {t('settings.capabilitiesPage.packageManager.composition', {
-                  agents: String(catalogAgentCount),
-                  workflows: String(catalogWorkflowCount),
-                  supporting: String(catalogSupportingCount),
-                })}
-              </span>
-              <span data-testid='capability-summary-conversation'>
-                {t('settings.capabilitiesPage.packageManager.directConversationSummary', {
-                  available: String(conversationReadyAgentCount),
-                  total: String(catalogAgentCount),
-                })}
-              </span>
-              <span data-testid='capability-summary-home'>
-                {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {catalogAgentCount}
-              </span>
+              {!supporting && (
+                <>
+                  {' '}
+                  <span data-testid='capability-summary-composition'>
+                    {t('settings.capabilitiesPage.packageManager.composition', {
+                      agents: String(catalogAgentCount),
+                      workflows: String(catalogWorkflowCount),
+                      supporting: String(catalogSupportingCount),
+                    })}
+                  </span>
+                  <span data-testid='capability-summary-conversation'>
+                    {t('settings.capabilitiesPage.packageManager.directConversationSummary', {
+                      available: String(conversationReadyAgentCount),
+                      total: String(catalogAgentCount),
+                    })}
+                  </span>
+                  <span data-testid='capability-summary-home'>
+                    {t('settings.capabilitiesPage.visibility.home')}: {homeShortcutCount} / {catalogAgentCount}
+                  </span>
+                </>
+              )}
               <span
                 className={`opl-settings-status ${
                   hasCapabilityIssue ? 'opl-settings-status--attention' : 'opl-settings-status--ready'
@@ -2535,154 +2543,158 @@ export const AgentPackagesSettingsContent: React.FC = () => {
           </details>
         </section>
 
-        <section
-          className='opl-settings-section opl-settings-agent-advanced'
-          id='source'
-          data-testid='opl-developer-profile-control'
-        >
-          <button
-            type='button'
-            className='opl-settings-agent-disclosure'
-            aria-expanded={developerAdvancedOpen}
-            aria-controls='opl-developer-profile-details'
-            onClick={() => setDeveloperAdvancedOpen((open) => !open)}
-            data-testid='opl-developer-profile-disclosure'
+        {!supporting && (
+          <section
+            className='opl-settings-section opl-settings-agent-advanced'
+            id='source'
+            data-testid='opl-developer-profile-control'
           >
-            <span className='min-w-0 text-left'>
-              <span className='block font-600 text-t-primary'>
-                {t('settings.capabilitiesPage.developerSource.advancedTitle')}
+            <button
+              type='button'
+              className='opl-settings-agent-disclosure'
+              aria-expanded={developerAdvancedOpen}
+              aria-controls='opl-developer-profile-details'
+              onClick={() => setDeveloperAdvancedOpen((open) => !open)}
+              data-testid='opl-developer-profile-disclosure'
+            >
+              <span className='min-w-0 text-left'>
+                <span className='block font-600 text-t-primary'>
+                  {t('settings.capabilitiesPage.developerSource.advancedTitle')}
+                </span>
+                <span className='block text-12px text-t-secondary'>
+                  {t('settings.capabilitiesPage.developerSource.advancedSummary', {
+                    mode: developerModeLabel,
+                    state: developerEffectiveStateLabel,
+                  })}
+                </span>
               </span>
-              <span className='block text-12px text-t-secondary'>
-                {t('settings.capabilitiesPage.developerSource.advancedSummary', {
-                  mode: developerModeLabel,
-                  state: developerEffectiveStateLabel,
-                })}
-              </span>
-            </span>
-            <Down
-              theme='outline'
-              size='14'
-              fill='currentColor'
-              className='opl-settings-agent-disclosure__icon'
-              aria-hidden='true'
-            />
-          </button>
-          {developerAdvancedOpen && (
-            <div className='opl-settings-agent-advanced__content' id='opl-developer-profile-details'>
-              <div className='opl-settings-section__header'>
-                <div>
-                  <Typography.Text className='block font-600 text-t-primary'>
-                    {t('settings.capabilitiesPage.developerSource.title')}
-                  </Typography.Text>
-                  <Typography.Text className='block text-12px text-t-secondary'>
-                    {t('settings.capabilitiesPage.developerSource.description')}
-                  </Typography.Text>
-                </div>
-                <Radio.Group
-                  type='button'
-                  value={developerModeEnabled}
-                  disabled={packageMutationBusy || !developerSupervisorActionAvailable}
-                  onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
-                  aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
-                  data-testid='opl-developer-profile-mode'
-                >
-                  <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
-                  <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
-                  <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
-                </Radio.Group>
-              </div>
-              <div className='opl-settings-list'>
-                <div className='opl-settings-row'>
-                  <div className='opl-settings-row__main'>
-                    <Typography.Text className='block font-500 text-t-primary'>
-                      {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
+              <Down
+                theme='outline'
+                size='14'
+                fill='currentColor'
+                className='opl-settings-agent-disclosure__icon'
+                aria-hidden='true'
+              />
+            </button>
+            {developerAdvancedOpen && (
+              <div className='opl-settings-agent-advanced__content' id='opl-developer-profile-details'>
+                <div className='opl-settings-section__header'>
+                  <div>
+                    <Typography.Text className='block font-600 text-t-primary'>
+                      {t('settings.capabilitiesPage.developerSource.title')}
                     </Typography.Text>
                     <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
+                      {t('settings.capabilitiesPage.developerSource.description')}
                     </Typography.Text>
                   </div>
-                  <div className='opl-settings-row__meta'>
-                    <div className='flex flex-col items-end gap-6px'>
-                      <Tag data-testid='opl-developer-profile-effective-state'>{developerEffectiveStateLabel}</Tag>
-                      <Radio.Group
-                        type='button'
-                        size='small'
-                        value={developerMaintenanceChoice}
-                        disabled={packageMutationBusy || !developerSupervisorActionAvailable}
-                        onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
-                        aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
-                        data-testid='opl-developer-profile-maintenance'
-                      >
-                        <Radio value='auto'>
-                          {t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}
-                        </Radio>
-                        <Radio value='off'>{t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}</Radio>
-                      </Radio.Group>
+                  <Radio.Group
+                    type='button'
+                    value={developerModeEnabled}
+                    disabled={packageMutationBusy || !developerSupervisorActionAvailable}
+                    onChange={(value) => void updateDeveloperMode(value as 'auto' | 'on' | 'off')}
+                    aria-label={t('settings.capabilitiesPage.developerSource.modeLabel')}
+                    data-testid='opl-developer-profile-mode'
+                  >
+                    <Radio value='auto'>{t('settings.capabilitiesPage.developerSource.modes.auto')}</Radio>
+                    <Radio value='off'>{t('settings.capabilitiesPage.developerSource.modes.managed')}</Radio>
+                    <Radio value='on'>{t('settings.capabilitiesPage.developerSource.modes.developer')}</Radio>
+                  </Radio.Group>
+                </div>
+                <div className='opl-settings-list'>
+                  <div className='opl-settings-row'>
+                    <div className='opl-settings-row__main'>
+                      <Typography.Text className='block font-500 text-t-primary'>
+                        {t('settings.capabilitiesPage.developerSource.safeMaintenance')}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t('settings.capabilitiesPage.developerSource.safeMaintenanceDescription')}
+                      </Typography.Text>
+                    </div>
+                    <div className='opl-settings-row__meta'>
+                      <div className='flex flex-col items-end gap-6px'>
+                        <Tag data-testid='opl-developer-profile-effective-state'>{developerEffectiveStateLabel}</Tag>
+                        <Radio.Group
+                          type='button'
+                          size='small'
+                          value={developerMaintenanceChoice}
+                          disabled={packageMutationBusy || !developerSupervisorActionAvailable}
+                          onChange={(value) => void updateDeveloperMaintenance(value as 'auto' | 'off')}
+                          aria-label={t('settings.capabilitiesPage.developerSource.maintenanceModeLabel')}
+                          data-testid='opl-developer-profile-maintenance'
+                        >
+                          <Radio value='auto'>
+                            {t('settings.capabilitiesPage.developerSource.maintenanceModes.auto')}
+                          </Radio>
+                          <Radio value='off'>
+                            {t('settings.capabilitiesPage.developerSource.maintenanceModes.off')}
+                          </Radio>
+                        </Radio.Group>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <div
+                  className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
+                  data-testid='settings-agents-developer-summary'
+                >
+                  <span className='min-w-0'>
+                    {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
+                    {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
+                  </span>
+                  <span className='min-w-0'>
+                    {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
+                    {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
+                      defaultValue: t('settings.capabilitiesPage.developerSource.configurationSources.other'),
+                    })}
+                  </span>
+                  {developerInspectionPending && (
+                    <span data-testid='opl-developer-profile-inspection-pending'>
+                      {t('settings.capabilitiesPage.developerSource.inspectionPending')}
+                    </span>
+                  )}
+                  {!developerInspectionPending && showDeveloperIdentity && (
+                    <span>
+                      {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
+                    </span>
+                  )}
+                  {!developerInspectionPending && showDeveloperAuthority && (
+                    <span>
+                      {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
+                      {t('settings.capabilitiesPage.developerSource.authoritySummary', {
+                        direct: String(directWriteRepoCount),
+                        pullRequest: String(prRouteRepoCount),
+                        total: String(requiredRepoCount),
+                      })}
+                    </span>
+                  )}
+                  {developerMaintenanceProtection.status === 'ready' && (
+                    <span data-testid='opl-developer-profile-protection'>
+                      {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
+                      {t('settings.capabilitiesPage.developerSource.protectionSummary', {
+                        dirty:
+                          developerDirtyProtection.requires_isolated_worktree === true
+                            ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
+                            : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                        branch:
+                          developerBranchProtection.direct_push_to_protected_branch === false
+                            ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
+                            : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
+                      })}
+                    </span>
+                  )}
+                  {!developerInspectionPending && developerInactiveReason && (
+                    <span data-testid='opl-developer-profile-inactive-reason'>
+                      {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
+                      {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
+                        defaultValue: t('settings.capabilitiesPage.developerSource.inactiveReasons.other'),
+                      })}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div
-                className='opl-settings-agent-summary grid min-w-0 gap-x-18px gap-y-8px py-10px text-12px text-t-secondary sm:grid-cols-2'
-                data-testid='settings-agents-developer-summary'
-              >
-                <span className='min-w-0'>
-                  {t('settings.capabilitiesPage.developerSource.workspace')}:{' '}
-                  {developerWorkspacePath ?? t('settings.capabilitiesPage.detailValues.notReported')}
-                </span>
-                <span className='min-w-0'>
-                  {t('settings.capabilitiesPage.developerSource.configurationSource')}:{' '}
-                  {t(`settings.capabilitiesPage.developerSource.configurationSources.${developerConfigSource}`, {
-                    defaultValue: t('settings.capabilitiesPage.developerSource.configurationSources.other'),
-                  })}
-                </span>
-                {developerInspectionPending && (
-                  <span data-testid='opl-developer-profile-inspection-pending'>
-                    {t('settings.capabilitiesPage.developerSource.inspectionPending')}
-                  </span>
-                )}
-                {!developerInspectionPending && showDeveloperIdentity && (
-                  <span>
-                    {t('settings.capabilitiesPage.developerSource.identity')}: {developerIdentityLogin}
-                  </span>
-                )}
-                {!developerInspectionPending && showDeveloperAuthority && (
-                  <span>
-                    {t('settings.capabilitiesPage.developerSource.authority')}:{' '}
-                    {t('settings.capabilitiesPage.developerSource.authoritySummary', {
-                      direct: String(directWriteRepoCount),
-                      pullRequest: String(prRouteRepoCount),
-                      total: String(requiredRepoCount),
-                    })}
-                  </span>
-                )}
-                {developerMaintenanceProtection.status === 'ready' && (
-                  <span data-testid='opl-developer-profile-protection'>
-                    {t('settings.capabilitiesPage.developerSource.protection')}:{' '}
-                    {t('settings.capabilitiesPage.developerSource.protectionSummary', {
-                      dirty:
-                        developerDirtyProtection.requires_isolated_worktree === true
-                          ? t('settings.capabilitiesPage.developerSource.protectionValues.isolatedWorktree')
-                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                      branch:
-                        developerBranchProtection.direct_push_to_protected_branch === false
-                          ? t('settings.capabilitiesPage.developerSource.protectionValues.topicBranch')
-                          : t('settings.capabilitiesPage.developerSource.protectionValues.notReported'),
-                    })}
-                  </span>
-                )}
-                {!developerInspectionPending && developerInactiveReason && (
-                  <span data-testid='opl-developer-profile-inactive-reason'>
-                    {t('settings.capabilitiesPage.developerSource.inactiveReason')}:{' '}
-                    {t(`settings.capabilitiesPage.developerSource.inactiveReasons.${developerInactiveReason}`, {
-                      defaultValue: t('settings.capabilitiesPage.developerSource.inactiveReasons.other'),
-                    })}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+            )}
+          </section>
+        )}
       </div>
     </div>
   );
@@ -2704,10 +2716,21 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const appStateQuery = useOplAppState('fast');
   const [flowSyncing, setFlowSyncing] = useState(false);
   const [managedCompanionBusy, setManagedCompanionBusy] = useState<string | null>(null);
+  const [companionFeedback, setCompanionFeedback] = useState('');
   const managedComputerUse = React.useMemo(
     () => readManagedComputerUse(appStateQuery.appState),
     [appStateQuery.appState]
   );
+  const primaryCompanionActionId = managedComputerUse
+    ? managedComputerUse.permission === 'required'
+      ? 'settings_request_computer_use_permissions'
+      : ['unknown', 'health_not_checked'].includes(managedComputerUse.status) ||
+          managedComputerUse.permission === 'unknown'
+        ? 'settings_recheck_computer_use'
+        : managedComputerUse.ready
+          ? 'settings_recheck_computer_use'
+          : 'settings_repair_computer_use'
+    : null;
   const flowManagedCatalog = React.useMemo(() => {
     const summaries = readPackageCapabilityDependencySummaries(appStateQuery.appState, 'workflow_profile');
     const dependencies = summaries.map((dependency) => ({
@@ -2753,6 +2776,7 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
   const executeManagedCompanionAction = async (actionId: string) => {
     if (managedCompanionBusy) return;
     setManagedCompanionBusy(actionId);
+    setCompanionFeedback(t('settings.usability.running'));
     try {
       const result = await ipcBridge.oplRuntime.executeAction.invoke({
         actionId,
@@ -2763,8 +2787,10 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
       if (!refreshedState) {
         throw new Error(t('settings.capabilitiesPage.groups.managedComputerUse.refreshFailed'));
       }
+      setCompanionFeedback(t('settings.capabilitiesPage.groups.managedComputerUse.actionComplete'));
       Message.success(t('settings.capabilitiesPage.groups.managedComputerUse.actionComplete'));
     } catch (error) {
+      setCompanionFeedback(error instanceof Error ? error.message : String(error));
       Message.error(error instanceof Error ? error.message : String(error));
     } finally {
       setManagedCompanionBusy(null);
@@ -2803,15 +2829,9 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
           }}
           type='line'
         >
-          <Tabs.TabPane
-            key='opl_flow_managed'
-            title={
-              <span className={activeTab === 'opl_flow_managed' ? 'text-t-primary' : 'text-t-secondary'}>
-                {t('settings.capabilitiesTab.oplFlowManaged', { defaultValue: 'Recommended by OPL Flow' })}
-              </span>
-            }
-          >
-            <div id='opl-flow-managed' data-testid='settings-capabilities-opl-flow-managed'>
+          <Tabs.TabPane key='desktop' title={t('settings.usability.desktop')}>
+            <div id='opl-managed-companion'>
+              <span id='computer-use' aria-hidden='true' />{' '}
               {managedComputerUse && (
                 <section
                   className='opl-settings-flat-section opl-settings-flat-section--first'
@@ -2864,44 +2884,82 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                             })}
                       </Typography.Text>
                     </div>
-                    <Space size='small' wrap>
-                      {managedComputerUse.actions.map((action) => {
-                        const isReinstall = action.actionId === 'settings_reinstall_computer_use';
-                        const isPermission = action.actionId === 'settings_request_computer_use_permissions';
-                        const isDanger = action.dangerLevel === 'medium' || action.dangerLevel === 'high';
-                        const label = isReinstall
-                          ? t('settings.capabilitiesPage.groups.managedComputerUse.reinstall')
-                          : isPermission
-                            ? t('settings.capabilitiesPage.groups.managedComputerUse.allowPermissions')
-                            : action.actionId === 'settings_recheck_computer_use'
-                              ? t('settings.capabilitiesPage.groups.managedComputerUse.recheck')
-                              : t('settings.capabilitiesPage.groups.managedComputerUse.repair');
-                        const icon = isPermission ? (
-                          <Key />
-                        ) : action.actionId === 'settings_recheck_computer_use' ? (
-                          <Refresh />
-                        ) : (
-                          <Toolkit />
+                    <div className='flex flex-wrap items-center gap-8px'>
+                      {[true, false].map((primary) => {
+                        const actions = managedComputerUse.actions.filter(
+                          (action) => (action.actionId === primaryCompanionActionId) === primary
                         );
-                        return (
-                          <Button
-                            key={action.actionId}
-                            size='small'
-                            status={isDanger ? 'danger' : 'default'}
-                            loading={managedCompanionBusy === action.actionId}
-                            disabled={managedCompanionBusy !== null}
-                            icon={icon}
-                            onClick={() => requestManagedCompanionAction(action.actionId, action.confirmationRequired)}
-                            data-testid={`settings-managed-computer-use-action-${action.actionId}`}
-                          >
-                            {label}
-                          </Button>
+                        if (!actions.length) return null;
+                        const controls = (
+                          <Space size='small' wrap>
+                            {actions.map((action) => {
+                              const isReinstall = action.actionId === 'settings_reinstall_computer_use';
+                              const isPermission = action.actionId === 'settings_request_computer_use_permissions';
+                              const isDanger = action.dangerLevel === 'medium' || action.dangerLevel === 'high';
+                              const label = isReinstall
+                                ? t('settings.capabilitiesPage.groups.managedComputerUse.reinstall')
+                                : isPermission
+                                  ? t('settings.capabilitiesPage.groups.managedComputerUse.allowPermissions')
+                                  : action.actionId === 'settings_recheck_computer_use'
+                                    ? t('settings.capabilitiesPage.groups.managedComputerUse.recheck')
+                                    : t('settings.capabilitiesPage.groups.managedComputerUse.repair');
+                              const icon = isPermission ? (
+                                <Key />
+                              ) : action.actionId === 'settings_recheck_computer_use' ? (
+                                <Refresh />
+                              ) : (
+                                <Toolkit />
+                              );
+                              return (
+                                <Button
+                                  key={action.actionId}
+                                  size='small'
+                                  type={primary ? 'primary' : 'default'}
+                                  status={isDanger ? 'danger' : 'default'}
+                                  loading={managedCompanionBusy === action.actionId}
+                                  disabled={managedCompanionBusy !== null}
+                                  icon={icon}
+                                  onClick={() =>
+                                    requestManagedCompanionAction(action.actionId, action.confirmationRequired)
+                                  }
+                                  data-testid={`settings-managed-computer-use-action-${action.actionId}`}
+                                >
+                                  {label}
+                                </Button>
+                              );
+                            })}
+                          </Space>
+                        );
+                        return primary ? (
+                          <React.Fragment key='primary'>{controls}</React.Fragment>
+                        ) : (
+                          <details key='more' className='opl-settings-details'>
+                            <summary>{t('settings.usability.moreActions')}</summary>
+                            {controls}
+                          </details>
                         );
                       })}
-                    </Space>
+                    </div>
                   </div>
                 </section>
               )}
+              {!managedComputerUse && <p>{t('settings.usability.desktopUnavailable')}</p>}
+              {companionFeedback && (
+                <p role='status' aria-live='polite'>
+                  {companionFeedback}
+                </p>
+              )}
+            </div>
+          </Tabs.TabPane>
+          <Tabs.TabPane
+            key='opl_flow_managed'
+            title={
+              <span className={activeTab === 'opl_flow_managed' ? 'text-t-primary' : 'text-t-secondary'}>
+                {t('settings.usability.skillsPlugins')}
+              </span>
+            }
+          >
+            <div id='opl-flow-managed' data-testid='settings-capabilities-opl-flow-managed'>
               <div data-testid='settings-capabilities-technical-details'>
                 <SkillsHubSettings
                   withWrapper={false}
@@ -2913,21 +2971,6 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   onSyncFlow={() => void syncFlowCapabilities()}
                 />
               </div>
-            </div>
-          </Tabs.TabPane>
-          <Tabs.TabPane
-            key='manual_and_third_party'
-            title={
-              <span className={activeTab === 'manual_and_third_party' ? 'text-t-primary' : 'text-t-secondary'}>
-                {t('settings.capabilitiesTab.manualAndThirdParty', { defaultValue: 'Manually added' })}
-              </span>
-            }
-          >
-            <div
-              id='third-party'
-              className='opl-settings-flat-capabilities'
-              data-testid='settings-capabilities-third-party'
-            >
               <section
                 className='opl-settings-flat-section opl-settings-flat-section--first'
                 data-testid='settings-capabilities-manual-skills'
@@ -2938,12 +2981,40 @@ export const CapabilitiesSettingsContent: React.FC<CapabilitiesSettingsContentPr
                   flowManagedSkillIds={flowManagedCatalog.skillIds}
                 />
               </section>
+            </div>
+          </Tabs.TabPane>
+          <Tabs.TabPane
+            key='manual_and_third_party'
+            title={
+              <span className={activeTab === 'manual_and_third_party' ? 'text-t-primary' : 'text-t-secondary'}>
+                {t('settings.usability.connections')}
+              </span>
+            }
+          >
+            <div
+              id='third-party'
+              className='opl-settings-flat-capabilities'
+              data-testid='settings-capabilities-third-party'
+            >
               <section className='opl-settings-flat-section' data-testid='settings-capabilities-manual-tools'>
-                <ToolsModalContent />
+                <ToolsModalContent surface='connections' />
               </section>
+            </div>
+          </Tabs.TabPane>
+          <Tabs.TabPane key='image_voice' title={t('settings.usability.imageVoice')}>
+            <div id='image-generation'>
+              <ToolsModalContent surface='image' />
+            </div>
+            <div id='voice-input'>
+              {' '}
               <section className='opl-settings-flat-section' data-testid='settings-capabilities-voice-input'>
                 <VoiceInputSection />
               </section>
+            </div>
+          </Tabs.TabPane>
+          <Tabs.TabPane key='packages' title={t('settings.usability.supportingPackages')}>
+            <div id='packages' data-testid='settings-capabilities-packages'>
+              <AgentPackagesSettingsContent supporting />
             </div>
           </Tabs.TabPane>
         </Tabs>
@@ -2964,12 +3035,7 @@ const CapabilitiesSettings: React.FC = () => {
 
   useEffect(() => {
     const tabParam = searchParams.get('tab');
-    if (
-      tabParam === 'skills' ||
-      tabParam === 'tools' ||
-      tabParam === 'assistants' ||
-      searchParams.get('section') === 'custom-assistants'
-    ) {
+    if (tabParam === 'tools' || tabParam === 'assistants' || searchParams.get('section') === 'custom-assistants') {
       const next = new URLSearchParams(searchParams);
       next.set('tab', 'manual_and_third_party');
       next.delete('section');

@@ -43,4 +43,12 @@ describe('renderer language persistence authority', () => {
     expect(configServiceMocks.set).toHaveBeenCalledWith('language', 'en-US');
     expect(bridgeMocks.invoke).toHaveBeenCalledWith({ language: 'en-US' });
   });
+  it('retries persistence explicitly when the failed selection is already visible', async () => {
+    configServiceMocks.set.mockRejectedValueOnce(new Error('offline'));
+    await expect(changeLanguage('en-US')).rejects.toThrow('offline');
+    expect(i18n.language).toBe('en-US');
+    await changeLanguage('en-US', { retryPersistence: true });
+    expect(configServiceMocks.set).toHaveBeenCalledTimes(2);
+    expect(bridgeMocks.invoke).toHaveBeenCalledWith({ language: 'en-US' });
+  });
 });

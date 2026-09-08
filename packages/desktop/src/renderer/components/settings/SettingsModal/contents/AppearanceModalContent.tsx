@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Button, Typography } from '@arco-design/web-react';
 import { Text } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
@@ -93,8 +93,35 @@ const AppearanceModalContent: React.FC = () => {
   const { appearanceMode, setAppearanceMode, fontSizes, setFontSize } = useThemeContext();
   const isPageMode = useSettingsViewMode() === 'page';
 
+  const [saveStates, setSaveStates] = useState<Record<string, 'saving' | 'saved' | 'error'>>({});
+  const pending = useRef(new Set<string>());
+  const save = async (key: string, apply: () => Promise<void>) => {
+    if (pending.current.has(key)) return;
+    pending.current.add(key);
+    setSaveStates((state) => ({ ...state, [key]: 'saving' }));
+    try {
+      await apply();
+      setSaveStates((state) => ({ ...state, [key]: 'saved' }));
+    } catch {
+      setSaveStates((state) => ({ ...state, [key]: 'error' }));
+    } finally {
+      pending.current.delete(key);
+    }
+  };
+  const feedback = (key: string) =>
+    saveStates[key] ? (
+      <span role='status' className='block mt-4px text-12px text-t-secondary'>
+        {saveStates[key] === 'saving'
+          ? t('settings.preferenceSave.saving', { defaultValue: 'Saving…' })
+          : saveStates[key] === 'saved'
+            ? t('settings.preferenceSave.saved', { defaultValue: 'Saved' })
+            : t('settings.preferenceSave.error', {
+                defaultValue: 'Could not save. Previous value restored. Try again.',
+              })}
+      </span>
+    ) : null;
   const selectAppearanceMode = (mode: ThemeAppearanceMode) => {
-    void setAppearanceMode(mode);
+    void save('appearance', () => setAppearanceMode(mode));
   };
 
   const handleAppearanceModeKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
@@ -128,8 +155,6 @@ const AppearanceModalContent: React.FC = () => {
           </div>
 
           <div className='flex min-w-0 flex-col gap-12px' data-testid='preferences-card-grid'>
-            <PersonalPreferenceSettings />
-
             <section className='opl-settings-section' id='display' data-testid='preferences-display-section'>
               <span id='display-fonts' aria-hidden='true' />
               <SectionHeading
@@ -159,6 +184,7 @@ const AppearanceModalContent: React.FC = () => {
                       <Button
                         key={mode}
                         type='text'
+                        disabled={saveStates.appearance === 'saving'}
                         htmlType='button'
                         role='radio'
                         aria-checked={selected}
@@ -185,6 +211,7 @@ const AppearanceModalContent: React.FC = () => {
                     );
                   })}
                 </div>
+                {feedback('appearance')}
               </div>
               <div className='opl-settings-list border-0 border-t border-solid border-[var(--border-base)]'>
                 <PreferenceRow label={t('settings.language')}>
@@ -193,21 +220,45 @@ const AppearanceModalContent: React.FC = () => {
                 {FONT_SIZE_KEYS.map((key) => (
                   <PreferenceRow key={key} label={t(FONT_SIZE_LABEL_KEY[key])}>
                     <FontSizeStepper
+                      disabled={saveStates[key] === 'saving'}
                       value={fontSizes[key]}
                       min={FONT_SIZE_SPECS[key].min}
                       max={FONT_SIZE_SPECS[key].max}
                       step={FONT_SIZE_STEP}
                       defaultValue={FONT_SIZE_SPECS[key].default}
                       resetLabel={t('settings.fontSizeStepperReset')}
-                      onChange={(px) => void setFontSize(key, px)}
+                      onChange={(px) => void save(key, () => setFontSize(key, px))}
                     />
+                    {feedback(key)}
                   </PreferenceRow>
                 ))}
                 <PreferenceRow label={t('settings.scale')}>
                   <ScaleControl />
                 </PreferenceRow>
               </div>
+              <div
+                className='border-0 border-t border-solid border-[var(--border-base)] px-16px py-14px'
+                data-testid='preferences-font-preview'
+              >
+                <div className='mb-8px text-12px text-t-secondary'>
+                  {t('settings.preferencePreview.title', { defaultValue: 'Live preview' })}
+                </div>
+                <p className='my-4px text-t-primary' style={{ fontSize: `${fontSizes.chat}px` }}>
+                  {t('settings.preferencePreview.chat', { defaultValue: 'Your next conversation starts here.' })}
+                </p>
+                <p className='my-4px text-t-primary' style={{ fontSize: `${fontSizes.markdown}px` }}>
+                  <strong>
+                    {t('settings.preferencePreview.markdown', {
+                      defaultValue: 'A clear heading and comfortable reading.',
+                    })}
+                  </strong>
+                </p>
+                <code className='block my-4px text-t-secondary' style={{ fontSize: `${fontSizes.code}px` }}>
+                  const answer = 42;
+                </code>
+              </div>
             </section>
+            <PersonalPreferenceSettings />
           </div>
         </div>
       </AionScrollArea>

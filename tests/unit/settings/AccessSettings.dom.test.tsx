@@ -379,6 +379,7 @@ vi.mock('@/renderer/hooks/system/useOplAppState', () => ({
               codex: {
                 status: accessSettingsMocks.codexStatus,
                 default_model: accessSettingsMocks.codexDefaultModel,
+                default_reasoning_effort: 'high',
                 model: accessSettingsMocks.codexModel,
                 default_profile: {
                   model: accessSettingsMocks.codexDefaultProfileModel,
@@ -677,6 +678,11 @@ vi.mock('react-i18next', () => ({
         'settings.accessPage.gatewayAccount.bootstrap.projectionUnavailable':
           'The current App state did not include Gateway status. No account changes are available.',
         'settings.accessPage.actions.fix': 'Fix issue',
+        'settings.accessPage.modelPreference.currentReasoning': `Current reasoning effort: ${options?.effort}`,
+        'settings.accessPage.modelPreference.automaticallyManaged': 'Automatically managed',
+        'settings.accessPage.modelPreference.chooseManualModel': 'Choose a model to customize',
+        'settings.accessPage.modelPreference.saving': 'Saving…',
+        'settings.accessPage.gatewayAccount.metrics.history': 'Lifetime usage',
         'settings.accessPage.modelPreference.autoCurrent': `Auto (current: ${options?.model})`,
         'common.cancel': 'Cancel',
         'settings.oplEnvironmentPage.status.ready': 'ready',
@@ -773,7 +779,12 @@ describe('AccessSettingsContent', () => {
     expect(view.getByTestId('settings-models-codex-cli')).toHaveTextContent('Default model: gpt-5.5');
     expect(view.getByTestId('settings-models-model-preference')).toBeTruthy();
     expect(view.getByTestId('settings-models-preferred-model')).toHaveValue('__auto');
-    expect(view.getByTestId('settings-models-preferred-reasoning')).toBeDisabled();
+    expect(view.queryByTestId('settings-models-preferred-reasoning')).toBeNull();
+    expect(view.getByTestId('settings-models-auto-reasoning')).toHaveTextContent('Automatically managed');
+    expect(view.getByTestId('settings-models-auto-reasoning')).toHaveTextContent('Current reasoning effort: High');
+    fireEvent.click(view.getByRole('button', { name: 'Choose a model to customize' }));
+    expect(view.getByTestId('settings-models-preferred-model')).toHaveFocus();
+    expect(getMocks().configSet).not.toHaveBeenCalled();
     expect(view.getByTestId('settings-models-gateway-link')).toBeTruthy();
     expect(view.queryByTestId('settings-gateway-primary')).toBeNull();
     const recheck = view.getByRole('button', { name: 'Recheck' });
@@ -799,6 +810,27 @@ describe('AccessSettingsContent', () => {
     );
   });
 
+  it('shows saving then saved in place without enabling concurrent preference writes', async () => {
+    let finishSave!: () => void;
+    getMocks().configSet.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve;
+        })
+    );
+    const view = render(<AccessSettingsContent />);
+    fireEvent.change(view.getByTestId('settings-models-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
+    expect(view.getByTestId('settings-models-preference-feedback')).toHaveTextContent('Saving…');
+    expect(view.getByTestId('settings-models-preferred-model')).toBeDisabled();
+    finishSave();
+    await waitFor(() =>
+      expect(view.getByTestId('settings-models-preference-feedback')).toHaveTextContent(
+        'Default model preference saved.'
+      )
+    );
+    expect(view.getByTestId('settings-models-preferred-model')).not.toBeDisabled();
+  });
+
   it('restores the previous model selection when persistence fails', async () => {
     getMocks().configSet.mockRejectedValueOnce(new Error('write failed'));
     const view = render(<AccessSettingsContent />);
@@ -806,7 +838,9 @@ describe('AccessSettingsContent', () => {
     fireEvent.change(view.getByTestId('settings-models-preferred-model'), { target: { value: 'gpt-5.6-sol' } });
 
     await waitFor(() => expect(view.getByTestId('settings-models-preferred-model')).toHaveValue('__auto'));
-    expect(document.body.textContent).toContain('Could not save model preference.');
+    expect(view.getByTestId('settings-models-preference-feedback')).toHaveTextContent(
+      'Could not save model preference.'
+    );
   });
 
   it('does not repeat already visible access facts in a diagnostics modal', async () => {
@@ -1073,9 +1107,12 @@ describe('AccessSettingsContent', () => {
     expect(account).toHaveTextContent('Active');
     expect(account.className).not.toContain('border');
     expect(metrics).toHaveTextContent('57,909.35 USD');
-    expect(metrics).toHaveTextContent('212.96B');
+    const history = view.getByTestId('settings-gateway-history');
+    expect(history).not.toHaveAttribute('open');
+    expect(metrics).not.toHaveTextContent('212.96B');
+    expect(history).toHaveTextContent('212.96B');
     expect(metrics).toHaveTextContent('--');
-    expect(metrics).toHaveTextContent('210,545.39 USD');
+    expect(history).toHaveTextContent('210,545.39 USD');
     expect(metrics.className).not.toContain('border');
     for (const testId of [
       'settings-gateway-balance-value',

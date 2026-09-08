@@ -40,12 +40,13 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
   const layout = useLayoutContext();
   const isMobile = layout?.isMobile ?? false;
   const navigate = useNavigate();
-  const { pathname, search } = useLocation();
+  const { pathname, search, key: locationKey } = useLocation();
   const { t, i18n } = useTranslation();
   const language = i18n?.resolvedLanguage ?? i18n?.language ?? 'en';
   const activeAnchor = useMemo(() => new URLSearchParams(search).get('section'), [search]);
   const isDesktop = isElectronDesktop();
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(0);
   const [anchorFocusFailed, setAnchorFocusFailed] = useState(false);
   const [mobileGroupId, setMobileGroupId] = useState<SettingsNavigationGroup['id'] | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -136,7 +137,7 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
       cancelAnimationFrame(frame);
       if (retryTimer !== undefined) window.clearTimeout(retryTimer);
     };
-  }, [activeAnchor, pathname]);
+  }, [activeAnchor, pathname, locationKey]);
 
   const selectSearchResult = React.useCallback(
     (path: string) => {
@@ -154,7 +155,18 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
     >
       <Input
         value={searchQuery}
-        onChange={setSearchQuery}
+        onChange={(value) => {
+          setSearchQuery(value);
+          setSelectedSearchIndex(0);
+        }}
+        role='combobox'
+        aria-expanded={searchQuery.trim().length > 0 && searchResults.length > 0}
+        aria-controls='settings-search-options'
+        aria-activedescendant={
+          searchQuery && searchResults[selectedSearchIndex]
+            ? `settings-search-option-${selectedSearchIndex}`
+            : undefined
+        }
         allowClear
         prefix={<OplIcon name='search' aria-hidden='true' />}
         placeholder={t('settings.searchPlaceholder', { defaultValue: 'Search settings' })}
@@ -162,9 +174,22 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         data-opl-visual-source='deepseek-harness'
         data-opl-visual-pattern='input'
         onKeyDown={(event) => {
-          if (event.key !== 'Enter' || searchResults.length === 0) return;
-          event.preventDefault();
-          selectSearchResult(searchResults[0].path);
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (event.key === 'Escape') {
+            setSearchQuery('');
+            setSelectedSearchIndex(0);
+            return;
+          }
+          if (searchResults.length === 0) return;
+          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            setSelectedSearchIndex(
+              (index) => (index + (event.key === 'ArrowDown' ? 1 : -1) + searchResults.length) % searchResults.length
+            );
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            selectSearchResult(searchResults[selectedSearchIndex]?.path ?? searchResults[0].path);
+          }
         }}
       />
       {searchQuery.trim().length > 0 && searchResults.length === 0 && (
@@ -173,12 +198,21 @@ const SettingsPageWrapper: React.FC<SettingsPageWrapperProps> = ({ children, cla
         </div>
       )}
       {searchQuery.trim().length > 0 && searchResults.length > 0 && (
-        <div className='settings-search-results' data-testid='settings-search-results'>
-          {searchResults.map((item) => (
+        <div
+          className='settings-search-results'
+          data-testid='settings-search-results'
+          id='settings-search-options'
+          role='listbox'
+        >
+          {searchResults.map((item, index) => (
             <Button
               key={item.id}
               htmlType='button'
               className='settings-search-result'
+              id={`settings-search-option-${index}`}
+              role='option'
+              aria-selected={index === selectedSearchIndex}
+              onMouseEnter={() => setSelectedSearchIndex(index)}
               data-testid='settings-search-result'
               onClick={() => selectSearchResult(item.path)}
             >

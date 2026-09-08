@@ -172,11 +172,13 @@ ipcBridge.systemSettings.languageChanged.on(async ({ language }) => {
 /**
  * Change language with lazy loading.
  */
-export async function changeLanguage(lang: string): Promise<void> {
+export async function changeLanguage(lang: string, options?: { retryPersistence?: boolean }): Promise<void> {
   const normalized = normalizeLanguageCode(lang);
-  if (isSameLanguageCode(i18n.language, normalized)) return;
-
-  await ensureAndSwitch(i18n, normalized, loadLocaleModules);
+  if (isSameLanguageCode(i18n.language, normalized) && !options?.retryPersistence) return;
+  // A failed save can leave the new language visible; an explicit retry must finish persistence.
+  if (!isSameLanguageCode(i18n.language, normalized)) {
+    await ensureAndSwitch(i18n, normalized, loadLocaleModules);
+  }
   await configService.set('language', normalized);
   // Keep localStorage in sync so WebUI can use it as a fast hint on next load
   if (typeof localStorage !== 'undefined') {

@@ -113,8 +113,14 @@ const useTheme = (): [
   }, []);
 
   const selectAppearanceMode = useCallback(async (mode: ThemeAppearanceMode) => {
-    await setThemeAppearanceMode(mode);
-    setAppearanceModeState(mode);
+    const previous = getPersistedAppearanceMode();
+    try {
+      await setThemeAppearanceMode(mode);
+      setAppearanceModeState(mode);
+    } catch (error) {
+      configService.setLocal('theme.appearanceMode', previous);
+      throw error;
+    }
   }, []);
 
   return [active, select, activeId, appearanceMode, selectAppearanceMode];

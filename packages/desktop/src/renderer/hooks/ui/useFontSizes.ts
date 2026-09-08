@@ -72,6 +72,7 @@ export const useFontSizes = (): UseFontSizes => {
 
   const setFontSize = useCallback(async (key: FontSizeKey, px: number) => {
     const clamped = clampFontSize(key, px);
+    const previous = readFontSizes()[key];
     // Single update path: configService.set writes the cache and notifies
     // subscribers synchronously (before its await), so the key subscription
     // registered in the effect immediately re-reads + re-applies. No optimistic
@@ -79,9 +80,8 @@ export const useFontSizes = (): UseFontSizes => {
     try {
       await configService.set(fontSizeConfigKey(key), clamped);
     } catch (error) {
-      // Persistence failed: the synchronous notify already updated state + CSS
-      // vars, so the last-applied value stays in effect — only durability is lost.
-      console.error('Failed to persist font size:', error);
+      configService.setLocal(fontSizeConfigKey(key), previous);
+      throw error;
     }
   }, []);
 

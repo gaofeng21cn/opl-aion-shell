@@ -262,7 +262,7 @@ const ModalMcpManagementSection: React.FC<{
   );
 };
 
-const ToolsModalContent: React.FC = () => {
+const ToolsModalContent: React.FC<{ surface?: 'connections' | 'image' | 'all' }> = ({ surface = 'all' }) => {
   const { t } = useTranslation();
   const [mcpMessage, mcpMessageContext] = Message.useMessage({ maxCount: 10 });
   const [imageGenerationModel, setImageGenerationModel] = useState<
@@ -486,136 +486,140 @@ const ToolsModalContent: React.FC = () => {
       <AionScrollArea className='flex-1 min-h-0 pb-16px' disableOverflow={isPageMode}>
         <div className='flex flex-col'>
           {/* MCP 工具配置 */}
-          <section className='flex min-h-0 flex-col py-12px' data-testid='settings-capabilities-manual-mcp'>
-            <div className='flex-1 min-h-0'>
-              <AionScrollArea
-                className={classNames('h-full', isPageMode && 'overflow-visible')}
-                disableOverflow={isPageMode}
-              >
-                <ModalMcpManagementSection
-                  message={mcpMessage}
-                  mcpServers={mcpServers}
-                  extensionMcpServers={extensionMcpServers}
-                  setMcpServers={setMcpServers}
-                  saveMcpServers={saveMcpServers}
-                  isPageMode={isPageMode}
-                />
-              </AionScrollArea>
-            </div>
-          </section>
+          {surface !== 'image' && (
+            <section className='flex min-h-0 flex-col py-12px' data-testid='settings-capabilities-manual-mcp'>
+              <div className='flex-1 min-h-0'>
+                <AionScrollArea
+                  className={classNames('h-full', isPageMode && 'overflow-visible')}
+                  disableOverflow={isPageMode}
+                >
+                  <ModalMcpManagementSection
+                    message={mcpMessage}
+                    mcpServers={mcpServers}
+                    extensionMcpServers={extensionMcpServers}
+                    setMcpServers={setMcpServers}
+                    saveMcpServers={saveMcpServers}
+                    isPageMode={isPageMode}
+                  />
+                </AionScrollArea>
+              </div>
+            </section>
+          )}
           {/* 图像生成 */}
-          <section
-            className='border-0 border-t border-solid border-border-1 py-16px'
-            data-testid='settings-capabilities-image-generation'
-          >
-            <div className='flex items-center justify-between mb-16px'>
-              <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
-              <Switch
-                aria-label={t('settings.imageGeneration')}
-                disabled={
-                  isUpdatingImageGeneration ||
-                  isImageGenerationServerLoading ||
-                  !builtinImageGenServer ||
-                  (!builtinImageGenServer.enabled && isImageGenerationModelUnavailable)
-                }
-                checked={Boolean(builtinImageGenServer?.enabled) && !isImageGenerationServerLoading}
-                loading={isImageGenerationServerLoading}
-                onChange={handleImageGenerationToggle}
-              />
-            </div>
+          {surface !== 'connections' && (
+            <section
+              className='border-0 border-t border-solid border-border-1 py-16px'
+              data-testid='settings-capabilities-image-generation'
+            >
+              <div className='flex items-center justify-between mb-16px'>
+                <span className='text-14px text-t-primary'>{t('settings.imageGeneration')}</span>
+                <Switch
+                  aria-label={t('settings.imageGeneration')}
+                  disabled={
+                    isUpdatingImageGeneration ||
+                    isImageGenerationServerLoading ||
+                    !builtinImageGenServer ||
+                    (!builtinImageGenServer.enabled && isImageGenerationModelUnavailable)
+                  }
+                  checked={Boolean(builtinImageGenServer?.enabled) && !isImageGenerationServerLoading}
+                  loading={isImageGenerationServerLoading}
+                  onChange={handleImageGenerationToggle}
+                />
+              </div>
 
-            <Form layout='horizontal' labelAlign='left' className='mt-14px space-y-12px'>
-              <Form.Item
-                label={t('settings.imageGenerationModel')}
-                tooltip={
-                  <div className='space-y-4px'>
-                    <div>{t('settings.imageGenSupportedTooltipTitle')}</div>
-                    <ul className='list-disc pl-16px m-0'>
-                      <li>{t('settings.imageGenSupportedTooltipGemini')}</li>
-                      <li>{t('settings.imageGenSupportedTooltipOpenRouter')}</li>
-                      <li>{t('settings.imageGenSupportedTooltipAntigravity')}</li>
-                    </ul>
-                    <div>{t('settings.imageGenUnsupportedTooltip')}</div>
-                  </div>
-                }
-              >
-                {imageGenerationModelList.length > 0 ? (
-                  <AionSelect
-                    value={
-                      imageGenerationModel?.id && imageGenerationModel?.use_model
-                        ? `${imageGenerationModel.id}|${imageGenerationModel.use_model}`
-                        : undefined
-                    }
-                    onChange={(value) => {
-                      const [platformId, modelName] = value.split('|');
-                      const platform = imageGenerationModelList.find((p) => p.id === platformId);
-                      if (platform) {
-                        handleImageGenerationModelChange({
-                          ...platform,
-                          use_model: modelName,
-                        });
+              <Form layout='horizontal' labelAlign='left' className='mt-14px space-y-12px'>
+                <Form.Item
+                  label={t('settings.imageGenerationModel')}
+                  tooltip={
+                    <div className='space-y-4px'>
+                      <div>{t('settings.imageGenSupportedTooltipTitle')}</div>
+                      <ul className='list-disc pl-16px m-0'>
+                        <li>{t('settings.imageGenSupportedTooltipGemini')}</li>
+                        <li>{t('settings.imageGenSupportedTooltipOpenRouter')}</li>
+                        <li>{t('settings.imageGenSupportedTooltipAntigravity')}</li>
+                      </ul>
+                      <div>{t('settings.imageGenUnsupportedTooltip')}</div>
+                    </div>
+                  }
+                >
+                  {imageGenerationModelList.length > 0 ? (
+                    <AionSelect
+                      value={
+                        imageGenerationModel?.id && imageGenerationModel?.use_model
+                          ? `${imageGenerationModel.id}|${imageGenerationModel.use_model}`
+                          : undefined
                       }
-                    }}
-                  >
-                    {imageGenerationModelList.map(({ models, ...platform }) => (
-                      <AionSelect.OptGroup label={platform.name} key={platform.id}>
-                        {models.map((modelName) => (
-                          <AionSelect.Option key={platform.id + modelName} value={platform.id + '|' + modelName}>
-                            {modelName}
-                          </AionSelect.Option>
-                        ))}
-                      </AionSelect.OptGroup>
-                    ))}
-                  </AionSelect>
-                ) : (
-                  <div className='text-t-secondary flex items-center gap-4px'>
-                    <span>{t('settings.noAvailable')}</span>
-                    {navigateToSettingsTab ? (
-                      <Button
-                        htmlType='button'
-                        type='text'
-                        size='mini'
-                        className='!h-auto !bg-transparent !p-0 !text-[rgb(var(--primary-6))] !underline !underline-offset-2 hover:!bg-transparent hover:!text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
-                        onClick={() => navigateToSettingsTab('model')}
-                      >
-                        {t('settings.goToModelSettings')}
-                      </Button>
-                    ) : (
-                      <span>{t('settings.goToModelSettings')}</span>
-                    )}
-                    <Tooltip
-                      content={
-                        <div>
-                          {t('settings.needHelpTooltip')}
-                          <a
-                            href='https://github.com/iOfficeAI/AionUi/wiki/AionUi-Image-Generation-Tool-Model-Configuration-Guide'
-                            target='_blank'
-                            rel='noopener noreferrer'
-                            className='text-[rgb(var(--primary-6))] hover:text-[rgb(var(--primary-5))] underline ml-4px'
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {t('settings.configGuide')}
-                          </a>
-                        </div>
-                      }
+                      onChange={(value) => {
+                        const [platformId, modelName] = value.split('|');
+                        const platform = imageGenerationModelList.find((p) => p.id === platformId);
+                        if (platform) {
+                          handleImageGenerationModelChange({
+                            ...platform,
+                            use_model: modelName,
+                          });
+                        }
+                      }}
                     >
-                      <a
-                        href='https://github.com/iOfficeAI/AionUi/wiki/AionUi-Image-Generation-Tool-Model-Configuration-Guide'
-                        target='_blank'
-                        rel='noopener noreferrer'
-                        className='ml-4px inline-flex size-32px items-center justify-center text-[rgb(var(--primary-6))] rd-6px hover:bg-fill-2 hover:text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
-                        aria-label={t('settings.imageGenerationHelpLabel')}
-                        title={t('settings.imageGenerationHelpLabel')}
-                        onClick={(e) => e.stopPropagation()}
+                      {imageGenerationModelList.map(({ models, ...platform }) => (
+                        <AionSelect.OptGroup label={platform.name} key={platform.id}>
+                          {models.map((modelName) => (
+                            <AionSelect.Option key={platform.id + modelName} value={platform.id + '|' + modelName}>
+                              {modelName}
+                            </AionSelect.Option>
+                          ))}
+                        </AionSelect.OptGroup>
+                      ))}
+                    </AionSelect>
+                  ) : (
+                    <div className='text-t-secondary flex items-center gap-4px'>
+                      <span>{t('settings.noAvailable')}</span>
+                      {navigateToSettingsTab ? (
+                        <Button
+                          htmlType='button'
+                          type='text'
+                          size='mini'
+                          className='!h-auto !bg-transparent !p-0 !text-[rgb(var(--primary-6))] !underline !underline-offset-2 hover:!bg-transparent hover:!text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                          onClick={() => navigateToSettingsTab('model')}
+                        >
+                          {t('settings.goToModelSettings')}
+                        </Button>
+                      ) : (
+                        <span>{t('settings.goToModelSettings')}</span>
+                      )}
+                      <Tooltip
+                        content={
+                          <div>
+                            {t('settings.needHelpTooltip')}
+                            <a
+                              href='https://github.com/iOfficeAI/AionUi/wiki/AionUi-Image-Generation-Tool-Model-Configuration-Guide'
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className='text-[rgb(var(--primary-6))] hover:text-[rgb(var(--primary-5))] underline ml-4px'
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {t('settings.configGuide')}
+                            </a>
+                          </div>
+                        }
                       >
-                        <Help aria-hidden='true' theme='outline' size='16' />
-                      </a>
-                    </Tooltip>
-                  </div>
-                )}
-              </Form.Item>
-            </Form>
-          </section>
+                        <a
+                          href='https://github.com/iOfficeAI/AionUi/wiki/AionUi-Image-Generation-Tool-Model-Configuration-Guide'
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className='ml-4px inline-flex size-32px items-center justify-center text-[rgb(var(--primary-6))] rd-6px hover:bg-fill-2 hover:text-[rgb(var(--primary-5))] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)]'
+                          aria-label={t('settings.imageGenerationHelpLabel')}
+                          title={t('settings.imageGenerationHelpLabel')}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Help aria-hidden='true' theme='outline' size='16' />
+                        </a>
+                      </Tooltip>
+                    </div>
+                  )}
+                </Form.Item>
+              </Form>
+            </section>
+          )}
         </div>
       </AionScrollArea>
     </div>

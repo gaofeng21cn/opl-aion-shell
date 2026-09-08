@@ -26,7 +26,10 @@ import {
 import { useNavigate } from 'react-router-dom';
 import type { OplGatewayAccountActionId, OplGatewayAccountReadModel } from '@/common/types/opl/appState';
 import type { IOplGatewayAccountErrorCode } from '@/common/adapter/ipcBridge';
-import { formatOplCodexModelDisplay } from '@/renderer/utils/model/oplCodexModelDisplay';
+import {
+  formatOplCodexModelDisplay,
+  formatOplCodexReasoningMenuLabel,
+} from '@/renderer/utils/model/oplCodexModelDisplay';
 
 type OplCommandResult = Awaited<ReturnType<typeof ipcBridge.oplRuntime.executeAction.invoke>>;
 
@@ -124,7 +127,9 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   const [preferredReasoning, setPreferredReasoning] = useState(
     codexPreference?.preferredReasoningEffort?.trim() || modelOptions.default_reasoning_effort
   );
-  const [preferenceSaving, setPreferenceSaving] = useState(false);
+  const [preferenceStatus, setPreferenceStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const preferenceSaving = preferenceStatus === 'saving';
+  const modelSelectorRef = useRef<HTMLDivElement>(null);
   const [codexApiKey, setCodexApiKey] = useState('');
   const [gatewayFormVisible, setGatewayFormVisible] = useState(false);
   const [gatewayMode, setGatewayMode] = useState<'account' | 'manual_key'>('account');
@@ -198,7 +203,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
   }));
 
   const persistPreference = async (modelId: string, reasoningEffort: string): Promise<boolean> => {
-    setPreferenceSaving(true);
+    setPreferenceStatus('saving');
     try {
       const config = configService.get('acp.config') ?? {};
       const backendConfig = config.codex ?? {};
@@ -211,17 +216,11 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
         nextCodex.preferredReasoningEffort = reasoningEffort;
       }
       await configService.set('acp.config', { ...config, codex: nextCodex });
-      Message.success(
-        t('settings.accessPage.modelPreference.saved', { defaultValue: 'Default model preference saved.' })
-      );
+      setPreferenceStatus('saved');
       return true;
     } catch {
-      Message.error(
-        t('settings.accessPage.modelPreference.saveFailed', { defaultValue: 'Could not save model preference.' })
-      );
+      setPreferenceStatus('error');
       return false;
-    } finally {
-      setPreferenceSaving(false);
     }
   };
 
@@ -671,7 +670,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                 </div>
 
                 <div
-                  className='grid grid-cols-2 gap-x-24px gap-y-14px py-10px md:grid-cols-3 xl:grid-cols-5'
+                  className='grid grid-cols-2 gap-x-24px gap-y-14px py-10px md:grid-cols-3'
                   data-testid='settings-gateway-metrics'
                 >
                   <div className='min-w-0'>
@@ -702,25 +701,32 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                       {t('settings.accessPage.gatewayAccount.metrics.todayCost')}
                     </Typography.Text>
                   </div>
-                  <div className='min-w-0'>
-                    <Typography.Text className='block text-16px font-600 leading-22px text-t-primary xl:min-h-44px'>
-                      {formatGatewayTokenCount(gatewayAccount.usage?.total_tokens ?? null, i18n.resolvedLanguage)}
-                    </Typography.Text>
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.metrics.totalTokens')}
-                    </Typography.Text>
-                  </div>
-                  <div className='min-w-0'>
-                    <GatewayAmountValue
-                      amount={gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}
-                      currency={gatewayAccount.usage?.currency ?? ''}
-                      testId='settings-gateway-total-cost-value'
-                    />
-                    <Typography.Text className='block text-12px text-t-secondary'>
-                      {t('settings.accessPage.gatewayAccount.metrics.totalCost')}
-                    </Typography.Text>
-                  </div>
                 </div>
+                <details className='py-10px' data-testid='settings-gateway-history'>
+                  <summary className='cursor-pointer text-12px text-t-secondary'>
+                    {t('settings.accessPage.gatewayAccount.metrics.history')}
+                  </summary>
+                  <div className='grid grid-cols-2 gap-x-24px gap-y-14px pt-12px'>
+                    <div className='min-w-0'>
+                      <Typography.Text className='block text-16px font-600 leading-22px text-t-primary xl:min-h-44px'>
+                        {formatGatewayTokenCount(gatewayAccount.usage?.total_tokens ?? null, i18n.resolvedLanguage)}
+                      </Typography.Text>
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t('settings.accessPage.gatewayAccount.metrics.totalTokens')}
+                      </Typography.Text>
+                    </div>
+                    <div className='min-w-0'>
+                      <GatewayAmountValue
+                        amount={gatewayNumber(gatewayAccount.usage?.total_actual_cost ?? null)}
+                        currency={gatewayAccount.usage?.currency ?? ''}
+                        testId='settings-gateway-total-cost-value'
+                      />
+                      <Typography.Text className='block text-12px text-t-secondary'>
+                        {t('settings.accessPage.gatewayAccount.metrics.totalCost')}
+                      </Typography.Text>
+                    </div>
+                  </div>
+                </details>
 
                 <div className='mt-2px py-12px' data-testid='settings-gateway-account-footer'>
                   <div className='min-w-0'>
@@ -896,8 +902,9 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                     {t('settings.accessPage.modelPreference.modelLabel', { defaultValue: 'Default model' })}
                   </Typography.Text>
                 </div>
-                <div className='opl-settings-row__meta min-w-220px'>
+                <div className='opl-settings-row__meta min-w-220px' ref={modelSelectorRef}>
                   <Select
+                    aria-label={t('settings.accessPage.modelPreference.modelLabel')}
                     value={preferredModel}
                     options={preferredModelOptions}
                     loading={preferenceSaving}
@@ -912,25 +919,69 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   <Typography.Text className='font-500 text-t-primary'>
                     {t('settings.accessPage.modelPreference.reasoningLabel', { defaultValue: 'Reasoning effort' })}
                   </Typography.Text>
-                  {preferredModel === modelOptions.auto_option.id && (
-                    <Typography.Text className='text-12px text-t-secondary'>
-                      {t('settings.accessPage.modelPreference.autoReasoning', {
-                        defaultValue: 'Auto uses the App reasoning policy for the selected model.',
-                      })}
-                    </Typography.Text>
-                  )}
                 </div>
                 <div className='opl-settings-row__meta min-w-220px'>
-                  <Select
-                    value={preferredReasoning}
-                    options={preferredReasoningOptions}
-                    disabled={preferenceSaving || preferredModel === modelOptions.auto_option.id}
-                    loading={preferenceSaving}
-                    onChange={(value) => handlePreferredReasoningChange(String(value))}
-                    data-testid='settings-models-preferred-reasoning'
-                  />
+                  {preferredModel === modelOptions.auto_option.id ? (
+                    <div className='flex flex-col items-start gap-4px' data-testid='settings-models-auto-reasoning'>
+                      <Typography.Text className='text-t-primary'>
+                        {t('settings.accessPage.modelPreference.automaticallyManaged')}
+                        {currentModelResolution.reasoningEffort && (
+                          <>
+                            {' '}
+                            ·{' '}
+                            {t('settings.accessPage.modelPreference.currentReasoning', {
+                              effort: formatOplCodexReasoningMenuLabel(
+                                currentModelResolution.reasoningEffort,
+                                localeKey
+                              ),
+                            })}
+                          </>
+                        )}
+                      </Typography.Text>
+                      <Typography.Text className='text-12px text-t-secondary'>
+                        {t('settings.accessPage.modelPreference.autoReasoning')}
+                      </Typography.Text>
+                      <Button
+                        type='text'
+                        size='small'
+                        className='px-0'
+                        disabled={preferenceSaving}
+                        onClick={() =>
+                          modelSelectorRef.current?.querySelector<HTMLElement>('[role="combobox"], select')?.focus()
+                        }
+                      >
+                        {t('settings.accessPage.modelPreference.chooseManualModel')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <Select
+                      aria-label={t('settings.accessPage.modelPreference.reasoningLabel')}
+                      value={preferredReasoning}
+                      options={preferredReasoningOptions}
+                      disabled={preferenceSaving}
+                      loading={preferenceSaving}
+                      onChange={(value) => handlePreferredReasoningChange(String(value))}
+                      data-testid='settings-models-preferred-reasoning'
+                    />
+                  )}
                 </div>
               </div>
+            </div>
+            <div
+              role='status'
+              aria-live='polite'
+              data-testid='settings-models-preference-feedback'
+              className='text-12px text-t-secondary'
+            >
+              {preferenceStatus === 'saving'
+                ? t('settings.accessPage.modelPreference.saving')
+                : preferenceStatus === 'saved'
+                  ? t('settings.accessPage.modelPreference.saved', { defaultValue: 'Default model preference saved.' })
+                  : preferenceStatus === 'error'
+                    ? t('settings.accessPage.modelPreference.saveFailed', {
+                        defaultValue: 'Could not save model preference.',
+                      })
+                    : null}
             </div>
           </section>
 
@@ -950,7 +1001,7 @@ export const AccessSettingsContent: React.FC<AccessSettingsContentProps> = ({ su
                   data-testid={modelAccessNeedsAttention ? 'settings-models-primary-action' : undefined}
                   onClick={() => navigate('/settings/gateway')}
                 >
-                  {t('common.open')}
+                  {t('settings.overviewPage.actions.manageAccount')}
                 </Button>
               </div>
             </div>

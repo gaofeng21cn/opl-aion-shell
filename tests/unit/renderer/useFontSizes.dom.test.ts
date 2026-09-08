@@ -25,6 +25,10 @@ vi.mock('@/common/config/configService', () => {
           }
         }
       }),
+      setLocal: (k: string, v: unknown) => {
+        store.set(k, v);
+        subscribers.get(k)?.forEach((cb) => cb(v));
+      },
       subscribe: (k: string, cb: (value: unknown) => void) => {
         if (!subscribers.has(k)) {
           subscribers.set(k, new Set());
@@ -71,5 +75,19 @@ describe('useFontSizes', () => {
     expect(result.current.fontSizes.chat).toBe(22); // clamped to max
     expect(configService.set).toHaveBeenCalledWith('ui.fontSize.chat', 22);
     expect(document.documentElement.style.getPropertyValue('--chat-font-size')).toBe('22px');
+  });
+  it('restores the persisted size and rejects when a write fails', async () => {
+    const { result } = renderHook(() => useFontSizes());
+    await waitFor(() => expect(result.current.fontSizes.chat).toBe(15));
+    vi.mocked(configService.set).mockImplementationOnce(async (key, value) => {
+      configService.setLocal(key, value);
+      throw new Error('offline');
+    });
+    await act(async () => {
+      await expect(result.current.setFontSize('chat', 18)).rejects.toThrow('offline');
+    });
+    expect(result.current.fontSizes.chat).toBe(15);
+    expect(store.get('ui.fontSize.chat')).toBe(15);
+    expect(document.documentElement.style.getPropertyValue('--chat-font-size')).toBe('15px');
   });
 });

@@ -11,7 +11,7 @@ import { notifyManualRestartRequired } from '@/renderer/utils/appRestart';
 import { isElectronDesktop } from '@/renderer/utils/platform';
 import { InputNumber, Message, Modal, Switch } from '@arco-design/web-react';
 import { SettingConfig } from '@icon-park/react';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import PreferenceRow from './PreferenceRow';
 
@@ -42,6 +42,39 @@ const PersonalPreferenceSettings: React.FC = () => {
   const [agentIdleTimeout, setAgentIdleTimeout] = useState<number>(5);
   const [saveUploadToWorkspace, setSaveUploadToWorkspace] = useState(false);
   const [autoPreviewOfficeFiles, setAutoPreviewOfficeFiles] = useState(true);
+  const [saveStates, setSaveStates] = useState<Record<string, 'saving' | 'saved' | 'error' | 'dirty'>>({});
+  const savingKeys = useRef(new Set<string>());
+  const savedTimeouts = useRef({ promptTimeout: 300, agentIdleTimeout: 5 });
+
+  const savePreference = useCallback(async (key: string, apply: () => Promise<unknown>, rollback: () => void) => {
+    if (savingKeys.current.has(key)) return;
+    savingKeys.current.add(key);
+    setSaveStates((states) => ({ ...states, [key]: 'saving' }));
+    try {
+      await apply();
+      setSaveStates((states) => ({ ...states, [key]: 'saved' }));
+    } catch {
+      rollback();
+      setSaveStates((states) => ({ ...states, [key]: 'error' }));
+    } finally {
+      savingKeys.current.delete(key);
+    }
+  }, []);
+
+  const saveFeedback = (key: string) =>
+    saveStates[key] ? (
+      <span role='status' aria-live='polite' className='block mt-4px text-12px text-t-secondary'>
+        {saveStates[key] === 'dirty'
+          ? t('settings.personalization.unsaved')
+          : saveStates[key] === 'saving'
+            ? t('settings.preferenceSave.saving', { defaultValue: 'Saving…' })
+            : saveStates[key] === 'saved'
+              ? t('settings.preferenceSave.saved', { defaultValue: 'Saved' })
+              : t('settings.preferenceSave.error', {
+                  defaultValue: 'Could not save. Previous value restored. Try again.',
+                })}
+      </span>
+    ) : null;
 
   useEffect(() => {
     if (!isDesktop) {
@@ -91,32 +124,33 @@ const PersonalPreferenceSettings: React.FC = () => {
     setSaveUploadToWorkspace(configService.get('upload.saveToWorkspace') ?? false);
     setAutoPreviewOfficeFiles(configService.get('system.autoPreviewOfficeFiles') ?? true);
     const pt = configService.get('acp.promptTimeout');
-    if (pt && pt > 0) setPromptTimeout(pt);
+    if (pt && pt > 0) {
+      setPromptTimeout(pt);
+      savedTimeouts.current.promptTimeout = pt;
+    }
     const ait = configService.get('acp.agentIdleTimeout');
-    if (ait && ait > 0) setAgentIdleTimeout(ait);
+    if (ait && ait > 0) {
+      setAgentIdleTimeout(ait);
+      savedTimeouts.current.agentIdleTimeout = ait;
+    }
   }, [isDesktop]);
 
-  const handleCloseToTrayChange = useCallback(
-    (checked: boolean) => {
-      const previous = closeToTray;
-      setCloseToTray(checked);
-      configService.setLocal('system.closeToTray', checked);
-
-      if (!isDesktop) {
-        configService.set('system.closeToTray', checked).catch(() => {
-          setCloseToTray(previous);
-          configService.setLocal('system.closeToTray', previous);
-        });
-        return;
-      }
-
-      ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked }).catch(() => {
+  const handleCloseToTrayChange = (checked: boolean) => {
+    const previous = closeToTray;
+    setCloseToTray(checked);
+    configService.setLocal('system.closeToTray', checked);
+    void savePreference(
+      'closeToTray',
+      () =>
+        isDesktop
+          ? ipcBridge.systemSettings.setCloseToTray.invoke({ enabled: checked })
+          : configService.set('system.closeToTray', checked),
+      () => {
         setCloseToTray(previous);
         configService.setLocal('system.closeToTray', previous);
-      });
-    },
-    [closeToTray, isDesktop]
-  );
+      }
+    );
+  };
 
   const handleHardwareAccelerationChange = useCallback(
     (checked: boolean) => {
@@ -129,26 +163,25 @@ const PersonalPreferenceSettings: React.FC = () => {
       };
       setGpuStatus(optimistic);
 
-      const apply = () => {
-        ipcBridge.application.setGpuOverride
-          .invoke({ override: checked ? 'force-on' : 'force-off' })
-          .then((result) => {
-            if (result.success && result.data) {
-              setGpuStatus(result.data);
-              ipcBridge.application.restart
-                .invoke()
-                .then((restartResult) => notifyManualRestartRequired(restartResult, t))
-                .catch(() => {});
-            } else {
-              setGpuStatus(previous);
-              Message.error(t('settings.hardwareAccelerationUpdateFailed'));
-            }
-          })
-          .catch(() => {
+      const apply = () =>
+        savePreference(
+          'hardwareAcceleration',
+          async () => {
+            const result = await ipcBridge.application.setGpuOverride.invoke({
+              override: checked ? 'force-on' : 'force-off',
+            });
+            if (!result.success || !result.data) throw new Error(result.msg);
+            setGpuStatus(result.data);
+            void ipcBridge.application.restart
+              .invoke()
+              .then((restartResult) => notifyManualRestartRequired(restartResult, t))
+              .catch(() => {});
+          },
+          () => {
             setGpuStatus(previous);
             Message.error(t('settings.hardwareAccelerationUpdateFailed'));
-          });
-      };
+          }
+        );
 
       modal.confirm({
         title: t('settings.updateConfirm'),
@@ -157,93 +190,138 @@ const PersonalPreferenceSettings: React.FC = () => {
         onCancel: () => setGpuStatus(previous),
       });
     },
-    [gpuStatus, modal, t]
+    [gpuStatus, modal, t, savePreference]
   );
 
-  const handleKeepAwakeChange = useCallback((checked: boolean) => {
+  const handleKeepAwakeChange = (checked: boolean) => {
+    const previous = keepAwake;
     setKeepAwake(checked);
     configService.setLocal('system.keepAwake', checked);
-    ipcBridge.systemSettings.setKeepAwake.invoke({ enabled: checked }).catch(() => {
-      setKeepAwake(!checked);
-      configService.setLocal('system.keepAwake', !checked);
-    });
-  }, []);
+    void savePreference(
+      'keepAwake',
+      () => ipcBridge.systemSettings.setKeepAwake.invoke({ enabled: checked }),
+      () => {
+        setKeepAwake(previous);
+        configService.setLocal('system.keepAwake', previous);
+      }
+    );
+  };
 
-  const handleStartOnBootChange = useCallback(
-    (checked: boolean) => {
-      const previousStatus = startOnBoot;
-      setStartOnBoot((prev) => ({ ...prev, enabled: checked }));
+  const handleStartOnBootChange = (checked: boolean) => {
+    const previous = startOnBoot;
+    setStartOnBoot((status) => ({ ...status, enabled: checked }));
+    void savePreference(
+      'startOnBoot',
+      async () => {
+        const result = await ipcBridge.application.setStartOnBoot.invoke({ enabled: checked });
+        if (!result.success || !result.data) throw new Error(result.msg);
+        setStartOnBoot(result.data);
+      },
+      () => setStartOnBoot(previous)
+    );
+  };
 
-      ipcBridge.application.setStartOnBoot
-        .invoke({ enabled: checked })
-        .then((result) => {
-          if (result.success && result.data) {
-            setStartOnBoot(result.data);
-            return;
-          }
-
-          setStartOnBoot(previousStatus);
-          Message.error(result.msg || t('settings.startOnBootUpdateFailed'));
-        })
-        .catch(() => {
-          setStartOnBoot(previousStatus);
-          Message.error(t('settings.startOnBootUpdateFailed'));
-        });
-    },
-    [startOnBoot, t]
-  );
-
-  const handleNotificationEnabledChange = useCallback((checked: boolean) => {
+  const handleNotificationEnabledChange = (checked: boolean) => {
+    const previous = notificationEnabled;
     setNotificationEnabled(checked);
-    configService.set('system.notificationEnabled', checked).catch(() => {
-      setNotificationEnabled(!checked);
-      configService.setLocal('system.notificationEnabled', !checked);
-    });
-  }, []);
+    void savePreference(
+      'notificationEnabled',
+      () => configService.set('system.notificationEnabled', checked),
+      () => {
+        setNotificationEnabled(previous);
+        configService.setLocal('system.notificationEnabled', previous);
+      }
+    );
+  };
 
-  const handleCronNotificationEnabledChange = useCallback((checked: boolean) => {
+  const handleCronNotificationEnabledChange = (checked: boolean) => {
+    const previous = cronNotificationEnabled;
     setCronNotificationEnabled(checked);
-    configService.set('system.cronNotificationEnabled', checked).catch(() => {
-      setCronNotificationEnabled(!checked);
-      configService.setLocal('system.cronNotificationEnabled', !checked);
-    });
-  }, []);
+    void savePreference(
+      'cronNotificationEnabled',
+      () => configService.set('system.cronNotificationEnabled', checked),
+      () => {
+        setCronNotificationEnabled(previous);
+        configService.setLocal('system.cronNotificationEnabled', previous);
+      }
+    );
+  };
 
-  const handlePromptTimeoutChange = useCallback((val: number | undefined) => {
+  const handlePromptTimeoutChange = (val: number | undefined) => {
     setPromptTimeout(val as number);
-  }, []);
-
-  const handlePromptTimeoutBlur = useCallback(() => {
+    setSaveStates((states) => ({ ...states, promptTimeout: 'dirty' }));
+  };
+  const handlePromptTimeoutBlur = () => {
     const clamped = Math.max(30, Math.min(3600, promptTimeout || 300));
+    const previous = savedTimeouts.current.promptTimeout;
     setPromptTimeout(clamped);
-    configService.set('acp.promptTimeout', clamped).catch(() => {});
-  }, [promptTimeout]);
+    if (clamped === previous) {
+      setSaveStates((states) => ({ ...states, promptTimeout: 'saved' }));
+      return;
+    }
+    void savePreference(
+      'promptTimeout',
+      async () => {
+        await configService.set('acp.promptTimeout', clamped);
+        savedTimeouts.current.promptTimeout = clamped;
+      },
+      () => {
+        setPromptTimeout(previous);
+        configService.setLocal('acp.promptTimeout', previous);
+      }
+    );
+  };
 
-  const handleAgentIdleTimeoutChange = useCallback((val: number | undefined) => {
+  const handleAgentIdleTimeoutChange = (val: number | undefined) => {
     setAgentIdleTimeout(val as number);
-  }, []);
-
-  const handleAgentIdleTimeoutBlur = useCallback(() => {
+    setSaveStates((states) => ({ ...states, agentIdleTimeout: 'dirty' }));
+  };
+  const handleAgentIdleTimeoutBlur = () => {
     const clamped = Math.max(1, Math.min(60, agentIdleTimeout || 5));
+    const previous = savedTimeouts.current.agentIdleTimeout;
     setAgentIdleTimeout(clamped);
-    configService.set('acp.agentIdleTimeout', clamped).catch(() => {});
-  }, [agentIdleTimeout]);
+    if (clamped === previous) {
+      setSaveStates((states) => ({ ...states, agentIdleTimeout: 'saved' }));
+      return;
+    }
+    void savePreference(
+      'agentIdleTimeout',
+      async () => {
+        await configService.set('acp.agentIdleTimeout', clamped);
+        savedTimeouts.current.agentIdleTimeout = clamped;
+      },
+      () => {
+        setAgentIdleTimeout(previous);
+        configService.setLocal('acp.agentIdleTimeout', previous);
+      }
+    );
+  };
 
-  const handleSaveUploadToWorkspaceChange = useCallback((checked: boolean) => {
+  const handleSaveUploadToWorkspaceChange = (checked: boolean) => {
+    const previous = saveUploadToWorkspace;
     setSaveUploadToWorkspace(checked);
-    configService.set('upload.saveToWorkspace', checked).catch(() => {
-      setSaveUploadToWorkspace(!checked);
-      configService.setLocal('upload.saveToWorkspace', !checked);
-    });
-  }, []);
+    void savePreference(
+      'saveUploadToWorkspace',
+      () => configService.set('upload.saveToWorkspace', checked),
+      () => {
+        setSaveUploadToWorkspace(previous);
+        configService.setLocal('upload.saveToWorkspace', previous);
+      }
+    );
+  };
 
-  const handleAutoPreviewOfficeFilesChange = useCallback((checked: boolean) => {
+  const handleAutoPreviewOfficeFilesChange = (checked: boolean) => {
+    const previous = autoPreviewOfficeFiles;
     setAutoPreviewOfficeFiles(checked);
-    configService.set('system.autoPreviewOfficeFiles', checked).catch(() => {
-      setAutoPreviewOfficeFiles(!checked);
-      configService.setLocal('system.autoPreviewOfficeFiles', !checked);
-    });
-  }, []);
+    void savePreference(
+      'autoPreviewOfficeFiles',
+      () => configService.set('system.autoPreviewOfficeFiles', checked),
+      () => {
+        setAutoPreviewOfficeFiles(previous);
+        configService.setLocal('system.autoPreviewOfficeFiles', previous);
+      }
+    );
+  };
 
   const appBehaviorPreferenceItems: PreferenceItem[] = [
     {
@@ -251,32 +329,56 @@ const PersonalPreferenceSettings: React.FC = () => {
       label: t('settings.startOnBoot'),
       description: startOnBoot.supported ? t('settings.startOnBootDesc') : t('settings.startOnBootUnsupported'),
       component: (
-        <Switch checked={startOnBoot.enabled} onChange={handleStartOnBootChange} disabled={!startOnBoot.supported} />
+        <Switch
+          checked={startOnBoot.enabled}
+          onChange={handleStartOnBootChange}
+          disabled={!startOnBoot.supported || saveStates.startOnBoot === 'saving'}
+        />
       ),
     },
     {
       key: 'closeToTray',
       label: t('settings.closeToTray'),
       description: t('settings.closeToTrayDesc'),
-      component: <Switch checked={closeToTray} onChange={handleCloseToTrayChange} />,
+      component: (
+        <Switch
+          disabled={saveStates.closeToTray === 'saving'}
+          checked={closeToTray}
+          onChange={handleCloseToTrayChange}
+        />
+      ),
     },
     {
       key: 'keepAwake',
       label: t('settings.keepAwake'),
       description: t('settings.keepAwakeDesc'),
       testId: 'settings-keep-awake',
-      component: <Switch checked={keepAwake} onChange={handleKeepAwakeChange} />,
+      component: (
+        <Switch disabled={saveStates.keepAwake === 'saving'} checked={keepAwake} onChange={handleKeepAwakeChange} />
+      ),
     },
     {
       key: 'saveUploadToWorkspace',
       label: t('settings.saveUploadToWorkspace'),
-      component: <Switch checked={saveUploadToWorkspace} onChange={handleSaveUploadToWorkspaceChange} />,
+      component: (
+        <Switch
+          disabled={saveStates.saveUploadToWorkspace === 'saving'}
+          checked={saveUploadToWorkspace}
+          onChange={handleSaveUploadToWorkspaceChange}
+        />
+      ),
     },
     {
       key: 'autoPreviewOfficeFiles',
       label: t('settings.autoPreviewOfficeFiles'),
       description: t('settings.autoPreviewOfficeFilesDesc'),
-      component: <Switch checked={autoPreviewOfficeFiles} onChange={handleAutoPreviewOfficeFilesChange} />,
+      component: (
+        <Switch
+          disabled={saveStates.autoPreviewOfficeFiles === 'saving'}
+          checked={autoPreviewOfficeFiles}
+          onChange={handleAutoPreviewOfficeFilesChange}
+        />
+      ),
     },
   ];
 
@@ -287,6 +389,8 @@ const PersonalPreferenceSettings: React.FC = () => {
       description: t('settings.promptTimeoutDesc'),
       component: (
         <InputNumber
+          disabled={saveStates.promptTimeout === 'saving'}
+          aria-label={t('settings.promptTimeout')}
           value={promptTimeout}
           onChange={handlePromptTimeoutChange}
           onBlur={handlePromptTimeoutBlur}
@@ -307,6 +411,7 @@ const PersonalPreferenceSettings: React.FC = () => {
               : t('settings.hardwareAccelerationDesc'),
             component: (
               <Switch
+                disabled={saveStates.hardwareAcceleration === 'saving'}
                 checked={gpuStatus.userOverride !== 'force-off' && !gpuStatus.autoDisabled}
                 onChange={handleHardwareAccelerationChange}
               />
@@ -323,6 +428,8 @@ const PersonalPreferenceSettings: React.FC = () => {
       description: t('settings.agentIdleTimeoutDesc'),
       component: (
         <InputNumber
+          disabled={saveStates.agentIdleTimeout === 'saving'}
+          aria-label={t('settings.agentIdleTimeout')}
           value={agentIdleTimeout}
           onChange={handleAgentIdleTimeoutChange}
           onBlur={handleAgentIdleTimeoutBlur}
@@ -364,45 +471,62 @@ const PersonalPreferenceSettings: React.FC = () => {
           {appBehaviorPreferenceItems.map((item) => (
             <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
               {item.component}
+              {saveFeedback(item.key)}
             </PreferenceRow>
           ))}
-          <PreferenceRow label={t('settings.notification')} description={t('settings.notificationPreferencesDesc')}>
-            <Switch checked={notificationEnabled} onChange={handleNotificationEnabledChange} />
+          <PreferenceRow
+            testId='settings-notification'
+            label={t('settings.notification')}
+            description={t('settings.notificationPreferencesDesc')}
+          >
+            <Switch
+              disabled={saveStates.notificationEnabled === 'saving'}
+              checked={notificationEnabled}
+              onChange={handleNotificationEnabledChange}
+            />
+            {saveFeedback('notificationEnabled')}
           </PreferenceRow>
           <PreferenceRow label={t('settings.cronNotificationEnabled')}>
             <Switch
               checked={cronNotificationEnabled}
-              disabled={!notificationEnabled}
+              disabled={!notificationEnabled || saveStates.cronNotificationEnabled === 'saving'}
               onChange={handleCronNotificationEnabledChange}
             />
+            {saveFeedback('cronNotificationEnabled')}
           </PreferenceRow>
         </div>
       </section>
 
-      <section className='opl-settings-section' id='models-performance' data-testid='preferences-performance-section'>
-        <span id='hardware' aria-hidden='true' />
-        <div className='opl-settings-section__header'>
-          <div className='flex min-w-0 items-start gap-12px'>
-            <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
-              <SettingConfig theme='outline' size='16' />
-            </span>
-            <div className='min-w-0'>
-              <div className='text-14px font-medium text-t-primary leading-22px'>
-                {t('settings.performancePreferencesTitle')}
-              </div>
-              <div className='mt-2px text-12px text-t-tertiary leading-18px'>
-                {t('settings.timeoutPreferencesDesc')}
+      <section className='opl-settings-section' data-testid='preferences-performance-section'>
+        <details className='group'>
+          <summary className='opl-settings-section__header cursor-pointer'>
+            <div className='flex min-w-0 items-start gap-12px'>
+              <span className='flex h-28px w-28px shrink-0 items-center justify-center text-t-secondary'>
+                <SettingConfig theme='outline' size='16' />
+              </span>
+              <div className='min-w-0'>
+                <div className='text-14px font-medium text-t-primary leading-22px'>
+                  {t('settings.performancePreferencesTitle')}
+                </div>
+                <div className='mt-2px text-12px text-t-tertiary leading-18px'>
+                  {t('settings.timeoutPreferencesDesc')}
+                </div>
               </div>
             </div>
+            <span aria-hidden='true' className='text-20px text-t-secondary transition-transform group-open:rotate-90'>
+              ›
+            </span>
+          </summary>
+          <div className='opl-settings-list' id='models-performance'>
+            <span id='hardware' aria-hidden='true' />
+            {[...performancePreferenceItems, ...backgroundPreferenceItems].map((item) => (
+              <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
+                {item.component}
+                {saveFeedback(item.key)}
+              </PreferenceRow>
+            ))}
           </div>
-        </div>
-        <div className='opl-settings-list'>
-          {[...performancePreferenceItems, ...backgroundPreferenceItems].map((item) => (
-            <PreferenceRow key={item.key} label={item.label} description={item.description} testId={item.testId}>
-              {item.component}
-            </PreferenceRow>
-          ))}
-        </div>
+        </details>
       </section>
     </>
   );

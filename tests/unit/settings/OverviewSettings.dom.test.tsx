@@ -166,6 +166,9 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: Record<string, unknown>) => {
       const labels: Record<string, string> = {
         'common.open': 'Open',
+        'settings.overviewPage.actions.manageModels': 'Manage models',
+        'settings.overviewPage.actions.manageAccount': 'Manage account',
+        'settings.overviewPage.actions.viewBackgroundTasks': 'View background tasks',
         'common.technical_details': 'Technical details',
         'settings.overviewPage.title': 'Overview',
         'settings.overviewPage.description': 'Check Codex, usage, and anything that needs attention.',
@@ -445,9 +448,11 @@ describe('OverviewSettings', () => {
     expect(screen.getByTestId('settings-overview-summary-grid')).not.toHaveClass('grid', 'md:grid-cols-2');
     expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
 
-    fireEvent.click(within(screen.getByTestId('settings-overview-card-codex')).getByRole('button', { name: 'Open' }));
+    fireEvent.click(
+      within(screen.getByTestId('settings-overview-card-codex')).getByRole('button', { name: 'Manage models' })
+    );
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/access');
-    fireEvent.click(within(backgroundTasks).getByRole('button', { name: 'Open' }));
+    fireEvent.click(within(backgroundTasks).getByRole('button', { name: 'View background tasks' }));
     expect(mocks.navigate).toHaveBeenLastCalledWith('/settings/environment?section=services');
   });
 
@@ -520,6 +525,8 @@ describe('OverviewSettings', () => {
     const exception = screen.getByTestId('settings-overview-exception');
     expect(exception).toHaveTextContent('Background tasks');
     expect(exception).toHaveTextContent('Temporal server and worker are not configured');
+    expect(screen.queryByTestId('settings-overview-background-tasks')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Background tasks')).toHaveLength(1);
     expect(exception).not.toHaveTextContent('attention_needed');
     expect(exception).not.toHaveTextContent('provider_code_landed_unconfigured');
     expect(screen.queryByTestId('settings-overview-technical-details')).not.toBeInTheDocument();
@@ -692,12 +699,21 @@ describe('OverviewSettings', () => {
     fireEvent.click(screen.getByTestId('settings-overview-primary-action'));
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/gateway');
     expect(screen.getAllByTestId('settings-overview-primary-action')).toHaveLength(1);
+    fireEvent.click(
+      within(screen.getByTestId('settings-overview-attention-list')).getByRole('button', {
+        name: 'View background tasks',
+      })
+    );
+    expect(mocks.navigate).toHaveBeenLastCalledWith('/settings/environment?section=services');
+    expect(screen.queryByTestId('settings-overview-background-tasks')).not.toBeInTheDocument();
   });
 
   it('opens Gateway management from the Gateway summary card', () => {
     render(<OverviewSettings withWrapper={false} />);
 
-    fireEvent.click(within(screen.getByTestId('settings-overview-card-gateway')).getByRole('button', { name: 'Open' }));
+    fireEvent.click(
+      within(screen.getByTestId('settings-overview-card-gateway')).getByRole('button', { name: 'Manage account' })
+    );
     expect(mocks.navigate).toHaveBeenCalledWith('/settings/gateway');
   });
 });

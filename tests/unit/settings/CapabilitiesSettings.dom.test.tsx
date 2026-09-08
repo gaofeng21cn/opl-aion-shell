@@ -166,8 +166,9 @@ const projectedPackageMetadataById: Record<
 const withProjectedPackageMetadata = (entry: Record<string, unknown>) => {
   const packageId = typeof entry.package_id === 'string' ? entry.package_id : '';
   const metadata = projectedPackageMetadataById[packageId];
-  if (!metadata) return entry;
+  if (!metadata) return { package_role: 'standard_agent', ...entry };
   return {
+    package_role: 'standard_agent',
     display_name_i18n: metadata.displayNameI18n,
     description_i18n: metadata.descriptionI18n,
     ...(metadata.shortcut
@@ -851,6 +852,11 @@ vi.mock('react-i18next', () => ({
     i18n: { language: translationMocks.language },
     t: (key: string, options?: Record<string, string | undefined> & { defaultValue?: string }) => {
       const labels: Record<string, string> = {
+        'settings.usability.skillsPlugins': 'Skills & plugins',
+        'settings.usability.connections': 'Tool connections',
+        'settings.usability.desktop': 'Desktop',
+        'settings.usability.imageVoice': 'Image & voice',
+        'settings.usability.moreActions': 'More actions',
         'settings.agentsPage.title': 'Agents',
         'settings.agentsPage.description': 'Manage runnable agents.',
         'settings.agentsPage.addAgent': 'Add agent',
@@ -1211,8 +1217,7 @@ describe('Agents and capabilities settings', () => {
         const developerMode = snapshot.developer_mode as Record<string, unknown> | undefined;
         const settingsControlCenter = snapshot.settings_control_center as Record<string, unknown> | undefined;
         const configurationCatalog = settingsControlCenter?.configuration_catalog as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         const configurationItems = configurationCatalog?.items as Record<string, unknown>[] | undefined;
         const developerConfiguration = configurationItems?.find(
           (item) => item.configuration_id === 'developer_supervisor'
@@ -1284,9 +1289,9 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('settings-agents-catalog-filters').className).not.toMatch(/\bborder(?:-|\b)/);
     expect(screen.getByTestId('capability-summary-grid')).toHaveClass('flex', 'flex-wrap');
     expect(screen.getByTestId('capability-summary-grid')).not.toHaveClass('md:grid-cols-3');
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 5 / 5');
     expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
-      'Runnable agents 5 · Workflows 0 · Supporting capabilities 1'
+      'Runnable agents 5 · Workflows 0 · Supporting capabilities 0'
     );
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent('2 / 5');
     expect(screen.getByTestId('capability-summary-home')).toHaveTextContent('5 / 5');
@@ -1296,8 +1301,8 @@ describe('Agents and capabilities settings', () => {
     for (const anchor of ['catalog', 'package-role', 'availability', 'source', 'home-visibility']) {
       expect(document.getElementById(anchor)).not.toBeNull();
     }
-    expect(within(catalog).getAllByText('Current availability')).toHaveLength(6);
-    expect(within(catalog).getAllByText('Show on Home')).toHaveLength(6);
+    expect(within(catalog).getAllByText('Current availability')).toHaveLength(5);
+    expect(within(catalog).getAllByText('Show on Home')).toHaveLength(5);
     const refreshRegistryButton = screen.getByTestId('agent-package-refresh-registry');
     expect(refreshRegistryButton).toHaveAccessibleName('Refresh registry');
     expect(refreshRegistryButton).toHaveTextContent('');
@@ -1315,7 +1320,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByText('OPL Meta Agent')).toBeInTheDocument();
     expect(screen.queryByText('Local developer source')).not.toBeInTheDocument();
     expect(screen.getAllByText('Update required').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Repair required').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Repair required')).not.toBeInTheDocument();
     expect(screen.getAllByText('Available for conversations').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sync required').length).toBeGreaterThan(0);
 
@@ -1341,9 +1346,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('settings-agents-group-otherAgents')).toContainElement(
       screen.getByTestId('capability-purpose-mag')
     );
-    expect(screen.getByTestId('settings-agents-group-otherCapabilities')).toContainElement(
-      screen.getByTestId('capability-purpose-example-agent')
-    );
+    expect(screen.queryByTestId('capability-purpose-example-agent')).not.toBeInTheDocument();
     const omaHomeSwitch = within(oma).getByTestId('agent-package-home-toggle-details-oma');
     expect(omaHomeSwitch).toHaveClass('arco-switch-checked');
     expect(omaHomeSwitch).not.toBeDisabled();
@@ -1534,12 +1537,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('capability-summary-conversation')).toHaveTextContent(
       'Professional agents ready for conversation: 1 / 2'
     );
-    expect(screen.getByTestId('capability-conversation-mas-scholar-skills')).toHaveTextContent(
-      'Available as a supporting capability without a standalone conversation entry'
-    );
-    expect(screen.getByTestId('capability-conversation-mas-scholar-skills')).not.toHaveTextContent(
-      'Temporarily unavailable'
-    );
+    expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('agent-package-enable-github'));
     await waitFor(() =>
@@ -1576,15 +1574,15 @@ describe('Agents and capabilities settings', () => {
 
     const search = screen.getByTestId('settings-agents-catalog-search');
     fireEvent.change(search, { target: { value: 'research planning' } });
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 5');
     expect(screen.getByTestId('capability-purpose-mas')).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: 'application planning' } });
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 5');
     expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: 'grant' } });
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 6');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 1 / 5');
     expect(screen.getByTestId('capability-purpose-mag')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
 
@@ -1592,7 +1590,7 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('settings-agents-filter-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-empty')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
-    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 6 / 6');
+    expect(screen.getByTestId('capability-summary-catalog')).toHaveTextContent('Showing 5 / 5');
     expect(screen.queryByTestId('settings-agents-filter-empty')).not.toBeInTheDocument();
   });
 
@@ -1614,22 +1612,20 @@ describe('Agents and capabilities settings', () => {
         status: 'ready',
       },
     ]);
-    renderCapabilities(<AgentPackagesSettingsContent />);
+    renderCapabilities(<AgentPackagesSettingsContent supporting />);
 
     const search = screen.getByTestId('settings-agents-catalog-search');
     expect(screen.getByTestId('capability-description-mas-scholar-skills')).toHaveTextContent(
       '供医学科研智能体使用的可复用医学科研能力。'
     );
-    expect(screen.getByTestId('capability-description-opl-flow')).toHaveTextContent(
-      'OPL 推荐工作流配置与受管 Codex 策略。'
-    );
+    expect(screen.queryByTestId('capability-description-opl-flow')).not.toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: '可复用医学科研' } });
     expect(screen.getByTestId('capability-purpose-mas-scholar-skills')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-opl-flow')).not.toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: '推荐工作流' } });
-    expect(screen.getByTestId('capability-purpose-opl-flow')).toBeInTheDocument();
+    expect(screen.queryByTestId('capability-purpose-opl-flow')).not.toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
@@ -1739,29 +1735,16 @@ describe('Agents and capabilities settings', () => {
     const rowOrder = Array.from(groups.querySelectorAll<HTMLElement>("[data-testid^='capability-purpose-']")).map(
       (row) => row.dataset.testid?.replace('capability-purpose-', '')
     );
-    expect(rowOrder).toEqual(['mag', 'mas', 'mas-scholar-skills', 'obf', 'oma', 'rca', 'opl-flow']);
+    expect(rowOrder).toEqual(['mag', 'mas', 'obf', 'oma', 'rca', 'opl-flow']);
     expect(screen.getByTestId('settings-agents-group-oplManaged')).toHaveTextContent('OPL Managed6');
     expect(screen.queryByTestId('settings-agents-group-otherAgents')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-agents-group-otherCapabilities')).not.toBeInTheDocument();
     expect(screen.getByTestId('capability-summary-composition')).toHaveTextContent(
-      'Runnable agents 5 · Workflows 1 · Supporting capabilities 1'
+      'Runnable agents 5 · Workflows 1 · Supporting capabilities 0'
     );
 
-    const scholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
-    expect(scholarSkills).toHaveClass('opl-settings-capability-row--dependent');
-    expect(scholarSkills).toHaveAttribute('data-parent-capability', 'mas');
-    expect(scholarSkills).toHaveTextContent('Supports Med Auto Science');
-    expect(scholarSkills).not.toHaveTextContent('Supporting capability');
-    expect(groups).not.toHaveTextContent('standard_agent');
-    expect(groups).not.toHaveTextContent('workflow_profile');
+    expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
     expect(groups).not.toHaveTextContent('framework_capability_package');
-
-    await chooseSelectOption('settings-agents-role-filter', 'Supporting capability');
-    const filteredScholarSkills = screen.getByTestId('capability-purpose-mas-scholar-skills');
-    expect(filteredScholarSkills).not.toHaveClass('opl-settings-capability-row--dependent');
-    expect(filteredScholarSkills).not.toHaveAttribute('data-parent-capability');
-    expect(screen.getByTestId('settings-agents-group-otherCapabilities')).toBeInTheDocument();
-    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
   });
 
   it('keeps ownership grouping while a nested dependency requires repair', () => {
@@ -1798,22 +1781,13 @@ describe('Agents and capabilities settings', () => {
       }
     );
 
-    renderCapabilities(<AgentPackagesSettingsContent />);
+    renderCapabilities(<AgentPackagesSettingsContent supporting />);
 
     const oplManaged = screen.getByTestId('settings-agents-group-oplManaged');
-    const parent = screen.getByTestId('capability-purpose-mas');
+    expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
     const dependent = screen.getByTestId('capability-purpose-mas-scholar-skills');
-    expect(oplManaged).toContainElement(parent);
     expect(oplManaged).toContainElement(dependent);
     expect(within(dependent).getByText('Temporarily unavailable')).toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId('settings-agents-catalog-search'), {
-      target: { value: 'research planning' },
-    });
-    expect(screen.getByTestId('settings-agents-group-oplManaged')).toContainElement(
-      screen.getByTestId('capability-purpose-mas')
-    );
-    expect(screen.queryByTestId('capability-purpose-mas-scholar-skills')).not.toBeInTheDocument();
   });
 
   it('filters canonical package roles, statuses, and source explanation kinds', async () => {
@@ -1845,7 +1819,7 @@ describe('Agents and capabilities settings', () => {
       },
       {
         package_id: 'oma',
-        package_role: 'framework_capability_package',
+        package_role: 'workflow_profile',
         installed: true,
         installed_version: '1.0.0',
         readiness: {
@@ -1883,7 +1857,7 @@ describe('Agents and capabilities settings', () => {
     fireEvent.click(screen.getByTestId('capability-details-close'));
 
     expect(screen.getByTestId('agent-package-catalog')).not.toHaveTextContent('framework_capability_package');
-    await chooseSelectOption('settings-agents-role-filter', 'Supporting capability');
+    await chooseSelectOption('settings-agents-role-filter', 'Workflow profile');
     expect(screen.getByTestId('capability-purpose-oma')).toBeInTheDocument();
     expect(screen.queryByTestId('capability-purpose-mas')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('settings-agents-reset-filters'));
@@ -2474,19 +2448,15 @@ describe('Agents and capabilities settings', () => {
     expect(screen.getByTestId('settings-capabilities-opl-flow-managed')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-technical-details')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-primary-action')).toBeInTheDocument();
-    expect(screen.getByTestId('skills-detail')).toBeInTheDocument();
-    expect(
-      screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).closest('.settings-capabilities-tabs')
-    ).not.toBeNull();
-    expect(
-      screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).querySelector('.text-t-primary')
-    ).not.toBeNull();
-    expect(screen.getByRole('tab', { name: 'Manually added' }).querySelector('.text-t-secondary')).not.toBeNull();
-    expect(screen.getByTestId('skills-detail')).toHaveAttribute(
+    expect(screen.getAllByTestId('skills-detail')[0]).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Skills & plugins' }).closest('.settings-capabilities-tabs')).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Skills & plugins' }).querySelector('.text-t-primary')).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Tool connections' }).querySelector('.text-t-secondary')).not.toBeNull();
+    expect(screen.getAllByTestId('skills-detail')[0]).toHaveAttribute(
       'data-flow-skills',
       'opl-flow,officecli-pptx,officecli-docx'
     );
-    expect(screen.getByTestId('skills-detail')).toHaveAttribute(
+    expect(screen.getAllByTestId('skills-detail')[0]).toHaveAttribute(
       'data-flow-skill-statuses',
       'opl-flow:true,officecli-pptx:true,officecli-docx:true'
     );
@@ -2501,19 +2471,18 @@ describe('Agents and capabilities settings', () => {
       })
     );
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Manually added' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Tool connections' }));
     expect(onTabChange).toHaveBeenCalledWith('manual_and_third_party');
-    expect(screen.getByRole('tab', { name: 'Manually added' }).closest('.settings-capabilities-tabs')).not.toBeNull();
-    expect(
-      screen.getByRole('tab', { name: 'Recommended by OPL Flow' }).querySelector('.text-t-secondary')
-    ).not.toBeNull();
-    expect(screen.getByRole('tab', { name: 'Manually added' }).querySelector('.text-t-primary')).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Tool connections' }).closest('.settings-capabilities-tabs')).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Skills & plugins' }).querySelector('.text-t-secondary')).not.toBeNull();
+    expect(screen.getByRole('tab', { name: 'Tool connections' }).querySelector('.text-t-primary')).not.toBeNull();
     await waitFor(() => expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument());
     expect(screen.getByTestId('settings-capabilities-primary-action').closest('[role="tabpanel"]')).toHaveAttribute(
       'aria-hidden',
       'true'
     );
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Image & voice' }));
     expect(screen.getByTestId('settings-capabilities-voice-input')).toBeInTheDocument();
     expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
   });
@@ -2586,13 +2555,15 @@ describe('Agents and capabilities settings', () => {
     appStateOverrides.appState = appState;
     bridgeMocks.currentAppState = appState;
 
-    renderCapabilities(<CapabilitiesSettingsContent activeTab='opl_flow_managed' onTabChange={vi.fn()} />);
+    renderCapabilities(<CapabilitiesSettingsContent activeTab='desktop' onTabChange={vi.fn()} />);
 
     expect(screen.getByTestId('settings-capabilities-opl-managed-companion')).toHaveTextContent('KimiCU 0.5.4');
     expect(screen.getByTestId('settings-managed-computer-use-status')).toHaveTextContent('Permission required');
     expect(screen.getByTestId('settings-capabilities-opl-managed-companion')).toHaveTextContent(
       'Installed: Yes · Registered: Yes · Enabled: Yes'
     );
+    expect(screen.getByTestId('settings-managed-computer-use-action-settings_recheck_computer_use')).not.toBeVisible();
+    fireEvent.click(screen.getByText('More actions'));
     expect(screen.getByTestId('settings-managed-computer-use-action-settings_recheck_computer_use')).toBeVisible();
     expect(screen.getByTestId('settings-managed-computer-use-action-settings_repair_computer_use')).toBeVisible();
     expect(screen.getByTestId('settings-managed-computer-use-action-settings_reinstall_computer_use')).toBeVisible();
@@ -2630,20 +2601,16 @@ describe('Agents and capabilities settings', () => {
     renderCapabilities(<CapabilitiesSettings />, false, '/settings/capabilities?section=third-party');
 
     await waitFor(() =>
-      expect(screen.getByRole('tab', { name: 'Manually added' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('tab', { name: 'Tool connections' })).toHaveAttribute('aria-selected', 'true')
     );
     expect(screen.getByTestId('settings-capabilities-third-party')).toBeInTheDocument();
     expect(screen.getByTestId('settings-capabilities-third-party')).toHaveClass('opl-settings-flat-capabilities');
-    for (const testId of [
-      'settings-capabilities-manual-skills',
-      'settings-capabilities-manual-tools',
-      'settings-capabilities-voice-input',
-    ]) {
+    for (const testId of ['settings-capabilities-manual-tools']) {
       expect(screen.getByTestId(testId)).toHaveClass('opl-settings-flat-section');
       expect(screen.getByTestId(testId).className).not.toMatch(/\brounded|\bshadow/);
     }
     expect(screen.getByTestId('tools-detail')).toBeInTheDocument();
-    expect(screen.getByTestId('voice-input-detail')).toBeInTheDocument();
+    expect(screen.queryByTestId('voice-input-detail')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-capabilities-opl-flow-managed')).not.toBeInTheDocument();
   });
 
@@ -2850,7 +2817,7 @@ describe('Agents and capabilities settings', () => {
         ],
       }
     );
-    renderCapabilities(<AgentPackagesSettingsContent />);
+    renderCapabilities(<AgentPackagesSettingsContent supporting />);
 
     fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
     const readiness = screen.getByTestId('capability-readiness-example-agent');
@@ -3359,7 +3326,7 @@ describe('Agents and capabilities settings', () => {
   });
 
   it('renders generic dependency repair and dependent guards', async () => {
-    renderCapabilities(<AgentPackagesSettingsContent />);
+    renderCapabilities(<AgentPackagesSettingsContent supporting />);
 
     fireEvent.click(screen.getByTestId('capability-open-details-example-agent'));
     const readiness = screen.getByTestId('capability-readiness-example-agent');

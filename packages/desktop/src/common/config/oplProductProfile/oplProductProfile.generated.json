@@ -367,6 +367,18 @@
       "implementation_id": "opl-studio",
       "completion_rule": "all_required_user_outcomes_have_owner_backed_state_action_and_post_action_readback_without_a_second_runtime_or_truth_store",
       "feature_inventory_ref": "docs/product/gui/feature-inventory.md#b0-codex-necessary-baseline",
+      "startup_history_continuity": {
+        "source_owner": "aionui_sqlite_or_legacy_json_read_only",
+        "canonical_native_threads": "reuse_same_codex_home_and_public_app_server_identity_without_copy",
+        "legacy_only_conversations": "retain_private_source_snapshot_link_to_new_codex_thread_display_imported_history_and_supply_context_on_continuation",
+        "new_turn_owner": "codex_core_app_server",
+        "ui_metadata": "merge_persisted_pins_order_and_available_locale_theme_without_overwriting_studio_choices",
+        "unsent_draft_limit": "current_aionui_composer_drafts_are_memory_only_not_recoverable_after_source_process_exit",
+        "docker_source": "existing_legacy_volume_must_be_mounted_read_only_or_selected_by_OPL_AIONUI_DATA_DIR",
+        "source_preserved": true,
+        "direct_database_copy": false,
+        "second_runtime_or_backend_restart": false
+      },
       "functional_baseline_scope": {
         "first_qualification_platform": "macos",
         "macos_full_functional_baseline_required_before_cutover": true,
@@ -449,8 +461,8 @@
         },
         {
           "feature_id": "B0-07",
-          "capability_id": "files_changes_artifacts_and_common_renderers",
-          "owner": "codex_app_server_artifacts_and_opl_studio_renderers",
+          "capability_id": "workspace_file_browse_search_and_external_open_or_download",
+          "owner": "canonical_thread_workspace_and_opl_studio_host_file_access",
           "disposition": "required",
           "cutover_blocking": true
         },
@@ -458,12 +470,13 @@
           "feature_id": "B0-08",
           "capability_id": "git_diff_review_commit_push_and_pull_request_context",
           "owner": "git_and_codex_app_server_review",
-          "disposition": "required",
-          "cutover_blocking": true
+          "disposition": "deferred",
+          "cutover_blocking": false,
+          "deferral_boundary": "prefer_existing_DSH_ecosystem_git_plugin_before_any_dedicated_implementation"
         },
         {
           "feature_id": "B0-09",
-          "capability_id": "terminal_browser_and_environment_details",
+          "capability_id": "canonical_terminal_browser_tools_and_environment_context",
           "owner": "codex_app_server_and_canonical_codex_tools",
           "disposition": "required",
           "cutover_blocking": true
@@ -600,7 +613,7 @@
         },
         {
           "feature_id": "U1-06",
-          "capability_id": "opl_data_inventory_and_guarded_cleanup",
+          "capability_id": "opl_data_inventory_and_owner_directory_visibility",
           "owner": "framework_owner_inventory_and_actions",
           "disposition": "required",
           "cutover_blocking": true
@@ -680,13 +693,17 @@
         "second_currentness_authority_allowed": false,
         "second_state_or_action_truth_allowed": false
       },
+      "generic_capability_reuse_policy": "discover_official_and_community_DSH_plugins_first_keep_upstream_current_adapt_canonical_OPL_interfaces_maintain_custom_plugins_for_OPL_specific_outcomes",
       "explicit_non_goals": [
         "AionCore",
         "AionUI_multi_backend_or_provider_abstraction",
         "AionUI_custom_assistant_catalog",
         "AionUI_Team_or_shell_owned_agent_orchestration",
-        "generic_arbitrary_code_GUI_plugins",
-        "full_AionUI_feature_or_page_parity"
+        "unreviewed_arbitrary_code_GUI_plugins",
+        "full_AionUI_feature_or_page_parity",
+        "built_in_rich_artifact_preview_plugin_can_supply_it",
+        "dedicated_git_workbench_is_not_an_initial_cutover_gate",
+        "destructive_storage_cleanup_ui_for_initial_cutover"
       ],
       "cutover_policy": {
         "strategy": "establish_then_replace",
@@ -2246,7 +2263,7 @@
       "model": "access",
       "agent": "agents",
       "assistants": "capabilities#third-party",
-      "skills-hub": "capabilities#third-party",
+      "skills-hub": "capabilities#opl-flow-managed",
       "tools": "capabilities#third-party",
       "display": "appearance",
       "webui": "resources",
@@ -3579,7 +3596,7 @@
         "model": "access",
         "agent": "agents",
         "assistants": "capabilities#third-party",
-        "skills-hub": "capabilities#third-party",
+        "skills-hub": "capabilities#opl-flow-managed",
         "tools": "capabilities#third-party",
         "display": "appearance",
         "webui": "resources",
@@ -3640,7 +3657,7 @@
           "component_key": "CapabilitiesSettingsContent",
           "wrapper_policy": "host_provides_wrapper",
           "subroute_query_param": "section",
-          "declared_subroutes": ["opl-flow-managed", "third-party"]
+          "declared_subroutes": ["desktop", "opl-flow-managed", "third-party", "image_voice", "packages", "computer-use", "opl-managed-companion", "image-generation", "voice-input"]
         },
         "settings_environment": {
           "component_key": "RuntimeSettings",
@@ -5035,6 +5052,17 @@
           "shell_transport_hint": "hash_router_uses_query_param_section"
         }
       },
+      "interaction_presentation_policy": {
+        "search_labels": "derive_visible_group_and_destination_from_navigation_projection_never_carrier_page_name",
+        "agent_directory": "show_standard_agent_and_workflow_profile_only_supporting_packages_belong_to_capabilities",
+        "capability_navigation": "user_facing_destinations_desktop_skills_plugins_connections_image_voice_with_source_as_metadata_preserve_legacy_deep_links",
+        "managed_companion_actions": "choose_one_owner_projected_primary_action_from_current_state_recheck_unknown_request_missing_permissions_repair_failure_put_remaining_actions_in_more_menu",
+        "automatic_reasoning": "readable_policy_summary_and_explicit_manual_model_entry_not_disabled_select",
+        "overview": "show_each_background_exception_once_keep_compact_healthy_summary_and_specific_destination_actions",
+        "gateway_statistics": "balance_and_today_primary_historical_totals_in_disclosure",
+        "feedback": "local_controls_show_inline_saving_saved_or_error_text_editors_show_unsaved_state_maintenance_actions_keep_progress_and_fresh_owner_readback",
+        "typography": "preserve_page_title_hierarchy_and_readable_secondary_text_without_globally_dimming_controls"
+      },
       "experience_contract": {
         "schema": "settings_codex_quiet_experience.v2",
         "owner": "one-person-lab-app",
@@ -5150,10 +5178,10 @@
           "empty_state_testid": "settings-search-empty",
           "index_granularity": "item",
           "languages": ["zh-CN", "en"],
-          "result_label_format": "{page_label} > {entry_label}",
+          "result_label_format": "{group_label} > {destination_label} > {entry_label}",
           "result_navigation": "route_id_plus_anchor",
-          "keyboard_activation_policy": "enter_activates_first_visible_result",
-          "destination_focus_policy": "scroll_and_focus_declared_anchor",
+          "keyboard_activation_policy": "arrow_keys_select_result_enter_activates_selected_escape_clears_query",
+          "destination_focus_policy": "open_ancestor_disclosures_scroll_focus_and_highlight_declared_anchor",
           "anchor_query_param": "section",
           "hash_router_policy": "use_route_query_section_when_a_second_hash_fragment_is_not_supported",
           "compatibility_index_policy": "index_update_theme_local_services_and_personalization_under_their_owner_page_anchors",
@@ -5652,7 +5680,7 @@
             "tab_contract": {
               "surface_label_zh": "能力",
               "surface_label_en": "Capabilities",
-              "tab_order": ["opl_flow_managed", "opl_managed_companion", "manual_and_third_party"],
+              "tab_order": ["desktop", "opl_flow_managed", "manual_and_third_party", "image_voice", "packages"],
               "default_tab": "opl_flow_managed",
               "on_demand_tab_ids": []
             },
@@ -5665,23 +5693,21 @@
             "exception_state": "highlight failed sync or owner attention without mutating third-party items",
             "technical_details_boundary": "raw registry paths, package closure refs, and receipts stay collapsed",
             "required_dom": {
-              "always": [
-                "settings-page-capabilities",
-                "settings-capabilities-primary",
-                "settings-capabilities-opl-flow-managed",
-                "settings-capabilities-opl-managed-companion",
-                "settings-capabilities-third-party",
-                "settings-capabilities-voice-input"
-              ],
-              "conditional": [
+              "always": ["settings-page-capabilities", "settings-capabilities-primary"],
+        "conditional": [
+          {"testid": "settings-capabilities-opl-flow-managed", "when": "skills_tab_active"},
+          {"testid": "settings-capabilities-opl-managed-companion", "when": "desktop_tab_active_and_owner_projection_present"},
+          {"testid": "settings-capabilities-third-party", "when": "connections_tab_active"},
+          {"testid": "settings-capabilities-voice-input", "when": "image_voice_tab_active"},
+          {"testid": "settings-capabilities-packages", "when": "packages_tab_active"},
                 {
                   "testid": "settings-capabilities-exception",
                   "when": "attention_required"
                 }
               ]
             },
-            "required_anchors": ["opl-flow-managed", "opl-managed-companion", "third-party"],
-            "search_entry_ids": ["capabilities.opl_flow_managed", "capabilities.opl_managed_companion", "capabilities.third_party"]
+            "required_anchors": ["opl-flow-managed", "opl-managed-companion", "third-party", "voice-input", "packages"],
+            "search_entry_ids": ["capabilities.opl_flow_managed", "capabilities.opl_managed_companion", "capabilities.third_party", "capabilities.image_voice", "capabilities.packages"]
           },
           "agents": {
             "product_page_id": "agents",
@@ -5690,7 +5716,7 @@
             "label_zh": "智能体",
             "label_en": "Agents",
             "primary_information": [
-              "all discoverable Agent, Framework capability, and workflow profile packages from app_state.agent_packages.directory.entries",
+              "standard_agent and workflow_profile packages from app_state.agent_packages.directory.entries; supporting package roles remain managed under Capabilities",
               "dedicated package catalog search with package role, availability status, and source filters",
               "visible dynamic directory reload from fresh App state and projected per-row non-activation lifecycle actions",
               "Settings, new conversation, and ordinary composer send never execute package activation; selected project directories establish session cwd and future domain workspace identity only",
@@ -6448,9 +6474,8 @@
               "appearance mode including hardware acceleration where relevant"
             ],
             "first_viewport_groups": [
-              "application_behavior_and_notifications",
-              "performance_and_waiting",
-              "display_and_themes"
+              "display_and_themes",
+              "application_behavior_and_notifications"
             ],
             "surface_inventory": {
               "configuration": [
@@ -6485,9 +6510,10 @@
               "appearance_mode_values": ["system", "light", "dark"],
               "visual_baseline": "single_governed_opl_codex_aligned_baseline",
               "interactive_controls_inside_diagnostic_surface_allowed": false,
-              "performance_and_waiting_policy": "advanced_but_persistent_controls_use_a_named_configuration_group_not_a_technical_details_disclosure",
+              "performance_and_waiting_policy": "named_configuration_disclosure_collapsed_by_default_search_reveals_controls",
               "voice_input_configuration_allowed": false,
-              "voice_input_configuration_owner": "capabilities"
+              "voice_input_configuration_owner": "capabilities",
+          "display_preview": "live_sample_uses_current_chat_markdown_and_code_font_sizes_and_interface_scale"
             },
             "primary_action": {
               "id": "none",
@@ -6714,8 +6740,8 @@
               "id": "capabilities.opl_managed_companion",
               "page_id": "capabilities",
               "anchor": "opl-managed-companion",
-              "label_zh": "OPL 托管",
-              "label_en": "Managed by OPL",
+              "label_zh": "桌面操作",
+          "label_en": "Desktop automation",
               "keywords_zh": ["OPL 托管", "Computer Use", "桌面操作", "KimiCU", "权限"],
               "keywords_en": ["managed by OPL", "computer use", "desktop automation", "KimiCU", "permission"]
             },
@@ -6723,11 +6749,13 @@
               "id": "capabilities.third_party",
               "page_id": "capabilities",
               "anchor": "third-party",
-              "label_zh": "本机能力",
-              "label_en": "Local capabilities",
+              "label_zh": "工具连接",
+          "label_en": "Tool connections",
               "keywords_zh": ["本机", "内置", "用户安装", "第三方", "Skill", "插件", "MCP"],
               "keywords_en": ["local", "built in", "user installed", "third party", "skill", "plugin", "mcp"]
             },
+            {"id": "capabilities.image_voice", "page_id": "capabilities", "anchor": "voice-input", "label_zh": "图像与语音", "label_en": "Image and voice", "keywords_zh": ["图像", "图片", "语音", "声音", "转录"], "keywords_en": ["image", "voice", "speech", "transcription"]},
+            {"id": "capabilities.packages", "page_id": "capabilities", "anchor": "packages", "label_zh": "配套能力", "label_en": "Supporting capabilities", "keywords_zh": ["配套", "能力包", "依赖"], "keywords_en": ["supporting", "capability package", "dependency"]},
             {
               "id": "resources.local_browser_access",
               "page_id": "resources",
