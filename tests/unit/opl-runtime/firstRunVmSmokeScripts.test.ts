@@ -1382,6 +1382,20 @@ describe('OPL first-run VM smoke scripts', () => {
     }
   });
 
+  it('does not accept Gateway login while the confirmed model-access operation has not completed', () => {
+    const initialize = {
+      core_engines: { codex: { model_access_ready: false, model_access_source: 'missing' } },
+      setup_flow: { blocking_items: ['codex_config'] },
+    };
+    expect(vmSmoke.gatewayModelAccessReady({ system_initialize: initialize })).toBe(false);
+    initialize.core_engines.codex = { model_access_ready: true, model_access_source: 'opl_gateway' };
+    expect(vmSmoke.gatewayModelAccessReady({ system_initialize: initialize })).toBe(false);
+    initialize.setup_flow.blocking_items = [];
+    expect(vmSmoke.gatewayModelAccessReady({ system_initialize: initialize })).toBe(true);
+    initialize.core_engines.codex.model_access_source = 'codex_login';
+    expect(vmSmoke.gatewayModelAccessReady({ system_initialize: initialize })).toBe(false);
+  });
+
   it('passes Gateway credentials to the guest by protected file path without exposing their values', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-gateway-account-command-'));
     const email = 'clean-vm-account@example.com';

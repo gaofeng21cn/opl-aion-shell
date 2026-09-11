@@ -6639,10 +6639,10 @@ const GATEWAY_ACCOUNT_FORM_SUBMIT_FUNCTION = `function(emailValue, passwordValue
   return { status: 'submitted' };
 }`;
 
-function gatewayAccountConfirmationExpression() {
+function gatewayAccountConfirmationExpression(retrySettledFailure = false) {
   return `(() => {
     const error = document.querySelector('[data-testid="opl-first-run-user-error"], [data-testid="opl-first-run-technical-error"]');
-    if (error && String(error.textContent || '').trim()) {
+    if (!${retrySettledFailure} && error && String(error.textContent || '').trim()) {
       return { status: 'failed', error: String(error.textContent || '').replace(/\\s+/g, ' ').trim().slice(0, 500) };
     }
     const confirm = document.querySelector('[data-testid="opl-first-run-gateway-model-access-confirm"]');
@@ -6658,7 +6658,16 @@ function gatewayAccountProjection(payload) {
   return payload?.app_state?.settings_control_center?.app_settings_read_model?.opl_gateway_account ?? null;
 }
 
-async function waitForGatewayAccountConnected(options) {
+function gatewayModelAccessReady(payload) {
+  const initialize = payload?.system_initialize ?? payload;
+  return (
+    initialize?.core_engines?.codex?.model_access_ready === true &&
+    initialize.core_engines.codex.model_access_source === 'opl_gateway' &&
+    !listStringValues(initialize?.setup_flow?.blocking_items).includes('codex_config')
+  );
+}
+
+async function waitForGatewayAccountConnected(options, client) {
   const started = Date.now();
   let lastProjection = null;
   while (Date.now() - started < options.timeoutMs) {
@@ -6666,6 +6675,28 @@ async function waitForGatewayAccountConnected(options) {
       const args = ['app', 'state', '--profile', 'fast', '--json'];
       const payload = parseOplJsonResult(runOplJson(args, options), args);
       lastProjection = gatewayAccountProjection(payload);
+      if (
+        lastProjection?.status === 'reauth_required' ||
+        lastProjection?.freshness?.last_error_code === 'reauth_required'
+      ) {
+        const action = await evaluateCdp(
+          client,
+          `(() => {
+          const button = document.querySelector('[data-testid="opl-first-run-gateway-model-access-confirm"]');
+          const error = document.querySelector('[data-testid="opl-first-run-user-error"], [data-testid="opl-first-run-technical-error"]');
+          return { settled_failure: Boolean(button && !button.disabled && button.getAttribute('aria-disabled') !== 'true' && error && String(error.textContent || '').trim()) };
+        })()`
+        );
+        if (!action?.settled_failure) {
+          await sleep(1_000);
+          continue;
+        }
+        const error = new Error(
+          'Gateway model-access activation requires a new session after a settled request failure.'
+        );
+        error.code = 'OPL_GATEWAY_REAUTH_REQUIRED';
+        throw error;
+      }
       if (
         lastProjection?.surface_kind === 'opl_gateway_account_read_model.v1' &&
         lastProjection.status === 'connected' &&
@@ -6675,15 +6706,24 @@ async function waitForGatewayAccountConnected(options) {
         lastProjection.freshness?.stale === false &&
         !lastProjection.freshness?.last_error_code
       ) {
+        const initializeArgs = ['system', 'initialize', '--json'];
+        const initialize = parseOplJsonResult(runOplJson(initializeArgs, options), initializeArgs);
+        if (!gatewayModelAccessReady(initialize)) {
+          await sleep(1_000);
+          continue;
+        }
         return {
           status: 'connected',
           connection_mode: 'account',
           account_card_visible: true,
           managed_key_present: true,
           freshness: 'fresh',
+          model_access_ready: true,
         };
       }
-    } catch (_) {}
+    } catch (error) {
+      if (error?.code === 'OPL_GATEWAY_REAUTH_REQUIRED') throw error;
+    }
     await sleep(1_000);
   }
   throw new Error(
@@ -6720,16 +6760,32 @@ async function loginGatewayAccountViaCdp(options, credentials) {
       credentials.password,
     ]);
     if (submit?.status !== 'submitted') throw new Error('Gateway account login form was not submitted.');
-    const confirmation = await waitForCdpPredicate(
-      client,
-      gatewayAccountConfirmationExpression(),
-      options.timeoutMs,
-      'Gateway account login did not expose model-access confirmation'
-    );
-    if (confirmation?.status === 'failed') {
-      throw new Error(`Gateway account login failed: ${confirmation.error || 'unknown error'}`);
+    let confirmation;
+    let readback;
+    let modelAccessAttempts = 0;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      modelAccessAttempts += 1;
+      confirmation = await waitForCdpPredicate(
+        client,
+        gatewayAccountConfirmationExpression(attempt > 0),
+        Math.min(options.timeoutMs, 60_000),
+        'Gateway account login did not expose model-access confirmation'
+      );
+      if (confirmation?.status === 'failed') {
+        throw new Error(`Gateway account login failed: ${confirmation.error || 'unknown error'}`);
+      }
+      try {
+        readback = await waitForGatewayAccountConnected(
+          { ...options, timeoutMs: Math.min(options.timeoutMs, 60_000) },
+          client
+        );
+        break;
+      } catch (error) {
+        // Retry only the explicit, settled UI action. Framework reconciles the
+        // session and managed key; never replay its private HTTP mutations here.
+        if (attempt !== 0 || error?.code !== 'OPL_GATEWAY_REAUTH_REQUIRED') throw error;
+      }
     }
-    const readback = await waitForGatewayAccountConnected(options);
     const receipt = {
       schema: 'opl_gateway_account_clean_vm_login.v1',
       status: 'passed',
@@ -6738,6 +6794,7 @@ async function loginGatewayAccountViaCdp(options, credentials) {
       form,
       login_submitted: true,
       model_access_confirmed: confirmation?.status === 'confirmed',
+      model_access_attempts: modelAccessAttempts,
       readback,
     };
     writeJsonArtifact(path.join(options.artifacts, 'gateway-account-login-summary.json'), receipt, [
@@ -9172,6 +9229,7 @@ export const __test =
         gatewayAccountFormReadinessExpression,
         gatewayAccountConfirmationExpression,
         gatewayAccountProjection,
+        gatewayModelAccessReady,
         collectOfficialProfileFirstInstallProof,
         createCodexWizardState,
         observeCodexConfigWizard,
