@@ -54,6 +54,7 @@ export function initCodexAppServerBridge(adapter?: CodexAppServerAdapter): void 
   activeAdapterFactory = adapter ? () => adapter : createDefaultAdapter;
 
   ipcBridge.codexThreads.list.provider((request) => getActiveAdapter().listThreads(request));
+  ipcBridge.codexThreads.models.provider(() => getActiveAdapter().listModels());
   ipcBridge.codexThreads.read.provider(({ threadId, conversationId }) =>
     getActiveAdapter().readThread(threadId, conversationId)
   );

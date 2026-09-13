@@ -11,6 +11,7 @@ const bridgeMocks = vi.hoisted(() => {
     appWhenReady: vi.fn(async () => undefined),
     createProductionAdapter: vi.fn(),
     providers: {
+      models: provider('models'),
       list: provider('list'),
       read: provider('read'),
       start: provider('start'),
@@ -64,11 +65,15 @@ describe('codexAppServerBridge', () => {
 
   it('starts the App Server adapter without activating the Framework channel-provider Host', async () => {
     const adapter = {
+      listModels: vi.fn(async () => [{ id: 'gpt-6-astra' }]),
       listThreads: vi.fn(async () => ({ schema: 'opl_codex_thread_directory.v1', threads: [] })),
       setEventSink: vi.fn(),
       dispose: vi.fn(),
     };
     initCodexAppServerBridge(adapter as never);
+
+    await expect(bridgeMocks.handlers.get('models')?.(undefined)).resolves.toEqual([{ id: 'gpt-6-astra' }]);
+    expect(adapter.listModels).toHaveBeenCalledOnce();
 
     const list = bridgeMocks.handlers.get('list');
     expect(list).toBeTypeOf('function');

@@ -192,6 +192,25 @@ describe('CodexAppServerAdapter', () => {
     expect(detail.models?.[1]).toMatchObject({ isDefault: true, supportedReasoningEfforts: ['max'] });
   });
 
+  it('reads the complete model catalog without starting or resuming a conversation', async () => {
+    request
+      .mockResolvedValueOnce({ data: [{ id: 'gpt-5.6-sol' }], nextCursor: 'page-2' })
+      .mockResolvedValueOnce({ data: [{ id: 'gpt-6-astra', isDefault: true }], nextCursor: null });
+
+    expect((await adapter.listModels()).map((model) => model.id)).toEqual(['gpt-5.6-sol', 'gpt-6-astra']);
+    expect(request.mock.calls).toEqual([
+      ['model/list', { limit: 100, includeHidden: false }],
+      ['model/list', { limit: 100, includeHidden: false, cursor: 'page-2' }],
+    ]);
+  });
+
+  it('rejects a repeated model cursor rather than hanging the homepage refresh', async () => {
+    request.mockResolvedValue({ data: [{ id: 'gpt-5.6-sol' }], nextCursor: 'page-2' });
+
+    await expect(adapter.listModels()).rejects.toThrow('Codex model catalog cursor repeated');
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
   it('starts remote tasks in the projected desktop workspace while omitting app-server defaults', async () => {
     request.mockImplementation(async (method: string, params: unknown) => {
       if (method === 'thread/start') return { thread: rawThread('remote-thread', { cwd: '/workspace/selected' }) };

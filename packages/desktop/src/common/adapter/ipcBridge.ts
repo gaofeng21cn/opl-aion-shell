@@ -77,6 +77,7 @@ import type {
   CodexThreadDirectory,
   CodexThreadDirectoryRequest,
   CodexThreadIdRequest,
+  CodexThreadModelDescriptor,
   CodexThreadPendingApprovalRequest,
   CodexThreadProjectAffinityAssignRequest,
   CodexThreadReadRequest,
@@ -920,6 +921,10 @@ export const oplRuntime = {
 // ---------------------------------------------------------------------------
 
 export const codexThreads = {
+  models: electronProviderWithWebFallback<CodexThreadModelDescriptor[] | null, void>(
+    'codex-threads.models',
+    () => null
+  ),
   list: electronProviderWithWebFallback<CodexThreadDirectory, CodexThreadDirectoryRequest>(
     'codex-threads.list',
     () => ({

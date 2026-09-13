@@ -5,6 +5,7 @@
  */
 
 import { ipcBridge } from '@/common';
+import type { CodexThreadModelDescriptor } from '@/common/types/codex/appServerThreads';
 import type { TFunction } from 'i18next';
 
 /** SWR key for the Agent settings management catalog. */
@@ -146,7 +147,25 @@ export async function fetchManagedAgents(): Promise<ManagedAgent[]> {
   if (!Array.isArray(agents)) {
     throw new TypeError('Managed agent catalog must be an array');
   }
-  return agents;
+  const usesCanonicalCodex = (agent: ManagedAgent) =>
+    agent.backend === 'codex' && (agent.agent_source === 'builtin' || agent.agent_source === 'internal');
+  if (!agents.some(usesCanonicalCodex)) return agents;
+  // Desktop Auto must use the current CLI catalog, never a persisted ACP handshake.
+  // Null identifies WebUI, where the native desktop transport is not available.
+  const models = await ipcBridge.codexThreads.models.invoke().catch((): CodexThreadModelDescriptor[] => []);
+  if (models === null) return agents;
+  return agents.map((agent) =>
+    usesCanonicalCodex(agent)
+      ? {
+          ...agent,
+          available_models: {
+            available_models: models,
+            catalog_models: models,
+            current_model_id: models.find((model) => model.isDefault)?.id ?? null,
+          },
+        }
+      : agent
+  );
 }
 
 const getAgentManagementErrorDetails = (details: unknown): AgentManagementErrorDetails => {

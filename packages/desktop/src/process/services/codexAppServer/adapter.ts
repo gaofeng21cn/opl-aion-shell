@@ -1282,6 +1282,27 @@ export class CodexAppServerAdapter {
     };
   }
 
+  async listModels(): Promise<CodexThreadModelDescriptor[]> {
+    const catalog: CodexThreadModelDescriptor[] = [];
+    const cursors = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const response = requiredRecord(
+        await this.rpc.request('model/list', {
+          limit: 100,
+          includeHidden: false,
+          ...(cursor ? { cursor } : {}),
+        }),
+        'model list response'
+      );
+      catalog.push(...modelsFromResponse(response));
+      cursor = optionalString(response.nextCursor) ?? undefined;
+      if (cursor && cursors.has(cursor)) throw new Error('Codex model catalog cursor repeated');
+      if (cursor) cursors.add(cursor);
+    } while (cursor);
+    return [...new Map(catalog.map((model) => [model.id, model])).values()];
+  }
+
   async readThread(threadId: string, conversationId?: string): Promise<CodexThreadDetail> {
     const previousContext = this.activeConversations.get(threadId);
     const context = conversationId
@@ -1303,24 +1324,7 @@ export class CodexAppServerAdapter {
         this.writableThreads.add(threadId);
         settings = settingsFromResponse(resumed.response);
         try {
-          const catalog: CodexThreadModelDescriptor[] = [];
-          const cursors = new Set<string>();
-          let cursor: string | undefined;
-          do {
-            const response = requiredRecord(
-              await this.rpc.request('model/list', {
-                limit: 100,
-                includeHidden: false,
-                ...(cursor ? { cursor } : {}),
-              }),
-              'model list response'
-            );
-            catalog.push(...modelsFromResponse(response));
-            cursor = optionalString(response.nextCursor) ?? undefined;
-            if (cursor && cursors.has(cursor)) throw new Error('Codex model catalog cursor repeated');
-            if (cursor) cursors.add(cursor);
-          } while (cursor);
-          models = [...new Map(catalog.map((model) => [model.id, model])).values()];
+          models = await this.listModels();
         } catch {
           // A current thread remains usable when an older app-server cannot list models.
         }

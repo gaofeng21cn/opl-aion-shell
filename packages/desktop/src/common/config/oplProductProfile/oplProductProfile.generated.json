@@ -1840,6 +1840,16 @@
       "configured_default_role": "app_default_with_catalog_compatibility_fallback",
       "mode_default": "auto",
       "model_catalog_source": "codex_cli_model_list",
+      "desktop_catalog_refresh": {
+        "entrypoint": "managed_agent_catalog_read",
+        "transport": "existing_canonical_codex_app_server_adapter",
+        "scope": "builtin_and_internal_codex_executor",
+        "persisted_handshake_is_live_catalog": false,
+        "refresh_creates_conversation": false,
+        "failure": "app_catalog_unavailable_fallback_without_stale_handshake",
+        "fixed_user_selection": "preserve",
+        "backend_registry_mutation": "none"
+      },
       "catalog_response_models_field": "data",
       "catalog_default_model_field": "isDefault",
       "catalog_supported_reasoning_efforts_field": "supportedReasoningEfforts",
