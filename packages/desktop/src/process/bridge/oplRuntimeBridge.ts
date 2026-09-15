@@ -216,7 +216,10 @@ type ResolvedOplCli = {
 
 type OplFrameworkCarrierReceipt = {
   selected_carrier:
-    'developer_checkout' | 'packaged_full_runtime' | 'system_homebrew_formula' | 'framework_managed_install';
+    | 'developer_checkout'
+    | 'packaged_full_runtime'
+    | 'system_homebrew_formula'
+    | 'framework_managed_install';
   framework_version: string;
   framework_api_version: string;
   app_required_api_range: string;
