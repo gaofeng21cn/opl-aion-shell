@@ -276,6 +276,29 @@ describe('useGuidSend OPL ordinary capability policy', () => {
     expect(mocks.emit).toHaveBeenCalledWith('chat.history.refresh', { id: 'conversation-1' });
   });
 
+  it.each(['mas', 'oma'])('binds the %s shortcut explicitly in an ordinary Codex conversation', async (packageId) => {
+    mocks.appState = buildPackageAppState(packageId, { operational_ready: true, launch_allowed: true });
+    const deps = buildDeps();
+    deps.selectedAgentInfo = undefined;
+    deps.is_presetAgent = false;
+    deps.activeShortcut = resolveOplActiveShortcut(packageId, mocks.appState);
+    deps.guidEnabledSkills = [];
+    const { result } = renderHook(() => useGuidSend(deps));
+
+    await act(async () => {
+      await result.current.handleSend();
+    });
+
+    const payload = mocks.createConversation.mock.calls[0][0];
+    expect(payload.type).toBe('acp');
+    expect(payload.extra.backend).toBe('codex');
+    expect(payload.extra.preset_enabled_skills).toEqual([packageId === 'mas' ? 'med-autoscience' : 'opl-meta-agent']);
+    expect(payload.extra.preset_context).toContain(
+      `本次会话已由用户明确选择 ${packageId.toUpperCase()}（${packageId}）`
+    );
+    expect(payload.extra.preset_context).toContain('请使用该 Agent/Skill 推进本任务');
+  });
+
   it('preserves the Home draft when conversation creation returns no conversation', async () => {
     mocks.createConversation.mockResolvedValue(null);
     const deps = buildDeps();

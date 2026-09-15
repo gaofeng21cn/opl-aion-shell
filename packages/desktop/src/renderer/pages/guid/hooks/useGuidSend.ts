@@ -488,6 +488,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
           exclude_auto_inject_skills: excludeBuiltinSkills,
           selected_mcp_server_ids: selectedUserMcpServerIds,
           selected_session_mcp_servers: selectedSessionMcpServers,
+          ...(!is_preset && activeShortcut ? { preset_context: preset_rules } : {}),
           // Non-preset agents still forward user-selected custom skills via the
           // shared backend slot. For preset assistants this is already wired
           // through `preset_resources.enabled_skills` above.
