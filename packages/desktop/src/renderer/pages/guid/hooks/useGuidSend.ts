@@ -206,7 +206,7 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
 
     const { agent_type: effectiveAgentType } = getEffectiveAgentType(agentInfo);
 
-    const { rules: preset_rules } = await resolvePresetRulesAndSkills(agentInfo);
+    const { rules: presetRules } = await resolvePresetRulesAndSkills(agentInfo);
     // Guid page's per-conversation skill overrides take precedence over the
     // assistant's saved defaults. The combined skills menu lets the user pick
     // any custom skill — not just preset-declared ones — so for non-preset
@@ -235,6 +235,17 @@ export const useGuidSend = (deps: GuidSendDeps): GuidSendResult => {
       : filteredGuidEnabledSkills.length
         ? filteredGuidEnabledSkills
         : undefined;
+    // A Home shortcut is an explicit per-conversation selection. Keep Codex as
+    // the executor, but tell the session which domain package must drive the
+    // work; merely making a Skill available leaves the choice implicit.
+    const preset_rules = activeShortcut
+      ? [
+          presetRules,
+          `本次会话已由用户明确选择 ${activeShortcut.package_short_name}（${activeShortcut.package_id}）。请使用该 Agent/Skill 推进本任务，并按其领域流程、证据和交付要求工作；不要把它仅当作可选参考。`,
+        ]
+          .filter((value): value is string => Boolean(value?.trim()))
+          .join('\n\n')
+      : presetRules;
     const excludeBuiltinSkills = guidDisabledBuiltinSkills ?? resolveDisabledBuiltinSkills(agentInfo);
     const selectedMcpServerIdSet = new Set(selectedMcpServerIds ?? []);
     const visibleMcpServers = filterOplOrdinaryMcpServers(availableMcpServers);
