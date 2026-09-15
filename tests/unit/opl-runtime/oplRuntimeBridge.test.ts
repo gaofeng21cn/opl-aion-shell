@@ -1257,6 +1257,71 @@ describe('OPL runtime bridge command whitelist', () => {
     ]);
   });
 
+  it('retries failed early maintenance once after core readiness without overlapping the initial owner', async () => {
+    let settleInitial!: (result: IOplRuntimeCommandResult) => void;
+    const success: IOplRuntimeCommandResult = {
+      surface: 'startup_maintenance',
+      command: 'opl system startup-maintenance --json',
+      stdout: '',
+      ok: true,
+      parsed: { system_action: { status: 'completed' } },
+    };
+    const runCommand = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<IOplRuntimeCommandResult>((resolve) => {
+            settleInitial = resolve;
+          })
+      )
+      .mockResolvedValue(success);
+    const dependencies = { runCommand, emitCompleted: vi.fn(), logWarn: vi.fn(), logInfo: vi.fn() };
+    void runStartupMaintenanceForHost('desktop', dependencies);
+    const readiness: IOplRuntimeCommandResult = {
+      surface: 'system_initialize',
+      command: 'opl system initialize --json',
+      stdout: '',
+      ok: true,
+      parsed: { system_initialize: { setup_flow: { ready_to_launch: true } } },
+    };
+    const retry = __oplRuntimeBridgeTest.retryDesktopStartupMaintenanceAfterInitialize(readiness, dependencies);
+    await __oplRuntimeBridgeTest.retryDesktopStartupMaintenanceAfterInitialize(readiness, dependencies);
+    expect(runCommand).toHaveBeenCalledTimes(1);
+    settleInitial({
+      ...success,
+      ok: false,
+      parsed: null,
+      error: { code: 'configured_codex_plugin_carrier_action_failed', message: 'Plugin discovery not ready' },
+    });
+    await retry;
+    expect(runCommand).toHaveBeenCalledTimes(2);
+    await __oplRuntimeBridgeTest.retryDesktopStartupMaintenanceAfterInitialize(readiness, dependencies);
+    expect(runCommand).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not retry successful initial maintenance at core readiness', async () => {
+    const runCommand = vi.fn(async () => ({
+      surface: 'startup_maintenance' as const,
+      command: '',
+      stdout: '',
+      ok: true,
+      parsed: { system_action: { status: 'completed' } },
+    }));
+    const dependencies = { runCommand, emitCompleted: vi.fn(), logInfo: vi.fn() };
+    await runStartupMaintenanceForHost('desktop', dependencies);
+    await __oplRuntimeBridgeTest.retryDesktopStartupMaintenanceAfterInitialize(
+      {
+        surface: 'system_initialize',
+        command: '',
+        stdout: '',
+        ok: true,
+        parsed: { system_initialize: { setup_flow: { ready_to_launch: true } } },
+      },
+      dependencies
+    );
+    expect(runCommand).toHaveBeenCalledTimes(1);
+  });
+
   it('emits one completion event after Desktop maintenance and captures command rejection', async () => {
     const events: unknown[] = [];
     const warnings: string[] = [];

@@ -107,6 +107,7 @@ const OFFICIAL_PROFILE_FIRST_INSTALL_MARKER = '.official-profile-first-install-c
 let standardBootstrapCompleted = false;
 let standardBootstrapInFlight: Promise<void> | null = null;
 let desktopStartupMaintenanceTask: Promise<IOplRuntimeCommandResult> | null = null;
+let desktopStartupMaintenanceReadinessRetryScheduled = false;
 const officialProfileFirstInstallTasks = new Map<string, Promise<IOplRuntimeCommandResult>>();
 let oplAppProcessInstanceId = randomUUID();
 let cachedDeveloperModeGithubIdentity: {
@@ -215,10 +216,7 @@ type ResolvedOplCli = {
 
 type OplFrameworkCarrierReceipt = {
   selected_carrier:
-    | 'developer_checkout'
-    | 'packaged_full_runtime'
-    | 'system_homebrew_formula'
-    | 'framework_managed_install';
+    'developer_checkout' | 'packaged_full_runtime' | 'system_homebrew_formula' | 'framework_managed_install';
   framework_version: string;
   framework_api_version: string;
   app_required_api_range: string;
@@ -2390,8 +2388,24 @@ export function runStartupMaintenanceForHost(
   return desktopStartupMaintenanceTask;
 }
 
+async function retryDesktopStartupMaintenanceAfterInitialize(
+  result: IOplRuntimeCommandResult,
+  dependencies: DesktopStartupMaintenanceDependencies = {}
+): Promise<void> {
+  const initialTask = desktopStartupMaintenanceTask;
+  if (!initialTask || desktopStartupMaintenanceReadinessRetryScheduled || !initializeReadyToLaunch(result)) return;
+  desktopStartupMaintenanceReadinessRetryScheduled = true;
+  const initialResult = await initialTask;
+  const action = isRecord(initialResult.parsed) ? initialResult.parsed.system_action : null;
+  if (initialResult.ok && isRecord(action) && action.status === 'completed') return;
+  if (desktopStartupMaintenanceTask !== initialTask) return;
+  desktopStartupMaintenanceTask = null;
+  await runStartupMaintenanceForHost('desktop', dependencies);
+}
+
 function resetDesktopStartupMaintenanceForTest(): void {
   desktopStartupMaintenanceTask = null;
+  desktopStartupMaintenanceReadinessRetryScheduled = false;
 }
 
 export function initOplRuntimeBridge(): void {
@@ -2399,6 +2413,7 @@ export function initOplRuntimeBridge(): void {
   ipcBridge.oplRuntime.readDomainDetailView.provider((request) => runOplCommand(buildDomainDetailViewCommand(request)));
   ipcBridge.oplRuntime.getInitialize.provider(async () => {
     const result = await runOplCommand(buildInitializeCommand());
+    void retryDesktopStartupMaintenanceAfterInitialize(result);
     startOfficialProfileFirstInstallAfterInitialize(result);
     return result;
   });
@@ -2424,6 +2439,7 @@ export function initOplRuntimeBridge(): void {
 }
 
 export const __oplRuntimeBridgeTest = {
+  retryDesktopStartupMaintenanceAfterInitialize,
   OPL_RUNTIME_BRIDGE_ADAPTER_CONTRACT,
   assertActionId,
   assertPackageContributionId,
