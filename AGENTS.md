@@ -9,7 +9,7 @@
 - 新建模块前读取 `docs/contributing/file-structure.md`。组件使用 Arco；已迁移的 OPL Titlebar、navigation rail、Home、composer 与 Settings navigation 图标统一使用 pinned DSH cohort 的 `OplIcon`，DSH 缺失的语义 glyph 只能登记在 `OplVisualProvider` 兼容表，未迁移 upstream surface 才继续直接使用 IconPark。样式优先 UnoCSS；TypeScript 保持 strict，用户可见文本必须使用 i18n keys。
 - Main process 不使用 DOM API，Renderer 不使用 Node.js API，跨进程只走 preload IPC bridge。
 - 默认验证入口是 `bun run test`；按影响补 DOM/integration/full、i18n、lint、format 或 `bunx tsc --noEmit`。测试通过不等于 App release-ready。
-- GitHub 上对外可见的文本用英文书写：commit subject/body、PR 标题与正文、Release Notes。产品名、代码标识、路径、命令与原始引用除外；历史中已有的非英文 commit 保持原样，App 生成的公开正文会直接省略非英文条目。
+- GitHub 上自己新建的对外文本用英文书写：commit subject/body、PR 标题与正文、Issue、comment、Release Notes。产品名、代码标识、路径、命令与原始引用除外。他人写的 Issue、PR 或 comment，无论对方用什么语言，回复沿用对方的语言；历史中已有的非英文 commit 保持原样，App 生成的公开正文会直接省略非英文条目。
 - 文档职责和生命周期由 `docs/README.md` 归口；已完成清单并入当前实现参考，失效步骤从现行文档删除。上游 PRD、翻译、历史与工具规范不构成 OPL 产品或发布 authority。
 
 <!-- CODEGRAPH_START -->
