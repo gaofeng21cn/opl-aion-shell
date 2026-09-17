@@ -15,7 +15,5 @@ bunx playwright test tests/e2e/specs/hub-backend-install.e2e.ts --config playwri
 运行前按 `tests/e2e/README.md` 准备隔离环境。这个入口不能证明每个实际 Agent
 可调用，也不能替代真实安装、协议交互和 App 产品验收。
 
-旧的 `hub-install-flow.test.ts`、`acp-smoke.test.ts` 及其描述的 Electron
-主进程安装链路已经退出当前实现，不再保留 L1/L3 操作步骤或 CLI 白名单。
 现存 fake fixtures 只有在被实际测试调用时才构成测试输入；其文件存在不代表
 已经执行完整安装链路。

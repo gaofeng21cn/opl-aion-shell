@@ -5,13 +5,15 @@
 Purpose-first shell work starts from the App contract and then lands in this repository as implementation. Upstream AionUI behavior, shell-local defaults, candidate shell experiments, packaged runtime details, and renderer implementation APIs must not become product authority by existing here.
 
 Current GUI policy is fixed at the App layer: this repository is the active
-AionUI Stable Shell implementation. `opl-studio` is the DSH-derived
-foreground/developer candidate and is developed in its own shell repo. The
-Hermes Desktop / `hermes-codex` GUI candidate is retired and has no current App
-registry, adapter, validator, command, or runbook. AGUI / `agui-codex` is
-archived technical proof only; do not port it into the AionUI mainline, use it
-as a validation baseline, or continue AGUI polish from this repository unless
-the user explicitly requests AGUI replay.
+AionUI Stable Shell implementation, and `opl-studio` is the App-owned foreground
+candidate Shell developed in its own repository under its candidate adapter
+(`contracts/shell-adapters/opl-studio.json`). Studio becomes the release carrier
+only through an explicit App adoption decision; source completion, package
+output, or Preview success cannot perform that switch. The Hermes Desktop /
+`hermes-codex` GUI candidate is retired and has no current App registry, adapter,
+validator, command, or runbook. AGUI / `agui-codex` is archived technical proof
+only; do not port it into the AionUI mainline or use it as a validation
+baseline.
 
 The three-repository relationship is one App product with two replaceable
 Shells: `one-person-lab-app` owns product behavior, navigation, page state,
@@ -127,21 +129,23 @@ transport context; they are not product state or Package lifecycle evidence.
 
 ## Renderer Consumption
 
-Runtime pages should consume `opl_app_state.v1` directly. Legacy `runtime_visualization_projection` parsing is kept as an isolated adapter for historical full-detail payloads and tests. New GUI work should not add top-level `runtime_visualization_projection` fallback to the main renderer path.
+Runtime pages consume the App-owned read models directly: `opl_app_state.v1` for
+App state and `work-item-projection.v2` for work items. The renderer has no
+legacy projection fallback, and new GUI work must not add one.
 
 App canonical component ids, package ids, and action ids / refs are the only machine-semantic identifiers the shell may submit back to OPL. Shell fallback or compatibility labels may be displayed, but must not mint action ids, mark fallback ids as ready / synced, or make fallback-derived routes executable.
 
-Runtime task display states use Framework/App-owned `primary_state` and
-`automation_state` when present. Legacy `state` / `status` fields may only
-downgrade uncertain data to idle or attention states; they must not upgrade a
-task into running, delivered, package-ready, or terminalized semantics.
+Work-item display state comes from the Framework/App-owned `primary_state`.
+Missing or incomplete state degrades to `sync_pending`; the shell must never
+upgrade uncertain data into running, delivered, package-ready, or terminalized
+semantics.
 
-Runtime scope controls are a user-facing filter, not a runtime-diagnostics
-index. The default selector should show only all projects, agent, and project
-scopes. Workspace binding ids, single work-item/task scopes, autopush names,
-stage-attempt ids, workflow ids, and provider refs belong in task detail or
-advanced diagnostics. A project scope represents the registered domain project
-workspace, while the task list shows one work item per paper or deliverable.
+Runtime scope controls are a user-facing agent/project filter, not a
+runtime-diagnostics index; each selector defaults to its all-scope option.
+Workspace binding ids, single work-item/task scopes, autopush names, stage-attempt
+ids, workflow ids, and provider refs belong in task detail or advanced
+diagnostics. A project scope represents the registered domain project workspace,
+while the task list shows one work item per paper or deliverable.
 
 Token usage is evidence-backed telemetry. When Framework reports missing,
 unreported, or zero-without-observed-count usage, the renderer must display
@@ -151,8 +155,6 @@ stage or task totals may be rendered as token counts.
 `app_state.operator.default_read_surface_policy` is the shell-visible guard for
 the default Runtime page. The normal page must treat
 `current_owner_delta` / `opl_current_owner_delta` as the first-screen payload.
-The normal page must not accept `compact_owner_delta_projection` or
-`opl_compact_owner_delta_projection` as active/default compatibility aliases.
 The normal page must keep `runtime_tray_snapshot`, raw evidence envelopes, stage
 replay body, private residue inventory, and provider internal ledgers out of the
 default state. Those refs may appear only through explicit full-state or
@@ -200,10 +202,13 @@ turning a Shell-local assistant list into product truth.
 
 ## Upstream Intake Policy
 
-AionUI upstream releases are implementation input, not App product authority. Each
-intake must record accepted, rejected, and redirected surfaces in
-`docs/history/` before a large upstream delta is absorbed. Upstream defaults for
-assistants, Settings, model selection, updater behavior, Team surfaces, or
+AionUI upstream releases are implementation input, not App product authority.
+Intake is selective and review-recorded: do not fast-forward or merge upstream
+history into this shell's mainline, and treat layouts, worktrees, patches, or
+commands named in superseded intake records as historical, with no compatibility
+obligation. Each intake must record accepted, rejected, and redirected surfaces
+in `docs/history/` before a large upstream delta is absorbed. Upstream defaults
+for assistants, Settings, model selection, updater behavior, Team surfaces, or
 diagnostics may be copied only after the App or Framework owner surface has
 accepted the corresponding product, runtime, release, or evidence boundary.
 

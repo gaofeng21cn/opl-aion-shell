@@ -19,8 +19,5 @@ curl http://127.0.0.1:9230/json
 Use the returned target with the browser/debugging tool already configured for
 the task, or add the address in Chrome's `chrome://inspect`. Keep CDP local;
 it grants inspection and interaction with the target process.
-
-The old Developer Debug Settings component is not a current routed OPL page.
-Do not use its former navigation instructions as a production enablement path.
 When debugging an installed App, follow the App owner's exact bundle/runtime
 acceptance procedure and use the actual process-bound endpoint.

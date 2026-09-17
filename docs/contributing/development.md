@@ -48,7 +48,7 @@ WebUI port, data isolation, and authentication are covered in
 
 `start:multi` sets `AIONUI_MULTI_INSTANCE=1`, bypasses the single-instance
 lock, and uses the separate product development data/config paths selected by
-`platform/index.ts` and `common/config/appEnv.ts`. Ports may advance when
+`common/platform/index.ts` and `common/config/appEnv.ts`. Ports may advance when
 occupied; use startup logs as the actual connection address.
 
 Separate browser profiles avoid mixing cookies between WebUI instances. Do not
