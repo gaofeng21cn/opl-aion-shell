@@ -31,21 +31,56 @@ function isRecord(value: unknown): value is JsonRecord {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function safeFailureMessage(message: string): string {
+  // Package failures are diagnostics, not a transport for raw command output or credentials.
+  let safe = message;
+  for (const [key, value] of Object.entries(process.env)) {
+    if (
+      value &&
+      value.length >= 4 &&
+      /token|secret|password|passwd|credential|api.?key|authorization|cookie/i.test(key)
+    ) {
+      safe = safe.split(value).join('<redacted>');
+    }
+  }
+  return safe
+    .replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g, '<redacted>')
+    .replace(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+/gi, '<redacted-url>')
+    .replace(/\b(?:Bearer|Basic)\s+[^\s,;]+/gi, '<redacted>')
+    .replace(/\b(?:sk-[a-z0-9_-]+|gh[pousr]_[a-z0-9_]+|github_pat_[a-z0-9_]+)\b/gi, '<redacted>')
+    .replace(
+      /((?:[a-z0-9_.-]*(?:key|token|secret|password|passwd|credential|authorization|cookie))["']?\s*(?:=|:)\s*)(?:\[REDACTED\]|"[^"\r\n]*"|'[^'\r\n]*'|[^\s,;&}\]]+)/gi,
+      '$1<redacted>'
+    )
+    .replace(
+      /((?:--?)[a-z0-9_.-]*(?:key|token|secret|password|passwd|credential)\s+)(?:"[^"\r\n]*"|'[^'\r\n]*'|\S+)/gi,
+      '$1<redacted>'
+    )
+    .split(/\r?\n/, 1)[0]
+    .trim()
+    .slice(0, 1024);
+}
+
 function parseJsonResult(result: OplExecution, args: string[]) {
-  if (result.error || result.status !== 0) {
-    throw new Error(
-      result.error?.message ??
-        result.stderr.trim() ??
-        `opl ${args.join(' ')} exited with status ${String(result.status)}`
-    );
-  }
+  let parsed: unknown;
   try {
-    return JSON.parse(result.stdout) as JsonRecord;
-  } catch (error) {
+    parsed = JSON.parse(result.stdout);
+  } catch {
+    // Non-JSON output must never become the diagnostic body.
+  }
+  const command = `opl ${args.slice(0, args[1] === 'action' ? 3 : 2).join(' ')}`;
+  if (result.error || result.status !== 0) {
+    const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : null;
+    const message = error && typeof error.message === 'string' ? error.message.trim() : '';
     throw new Error(
-      `opl ${args.join(' ')} returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`
+      result.error?.message ||
+        message ||
+        result.stderr.trim() ||
+        `${command} exited with status ${String(result.status)}`
     );
   }
+  if (!isRecord(parsed)) throw new Error(`${command} returned invalid JSON.`);
+  return parsed;
 }
 
 function fastAppState(runtime: OfficialProfileApplyRuntime) {
@@ -257,7 +292,7 @@ export function applyOfficialProfilePackages(input: {
         action: null,
         action_ref: null,
         changed: false,
-        error: { message: error instanceof Error ? error.message : String(error) },
+        error: { message: safeFailureMessage(error instanceof Error ? error.message : String(error)) },
       });
     }
   }

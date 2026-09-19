@@ -883,6 +883,155 @@ describe('OPL runtime bridge command whitelist', () => {
     }
   });
 
+  it('preserves bounded Package failures from the real helper process without recording completion', async () => {
+    const root = fs.realpathSync(makeTempRoot('opl-official-profile-json-failure'));
+    const resourcesPath = path.join(root, 'resources');
+    const markerPath = path.join(root, 'completion');
+    const fakeOpl = path.join(root, 'opl');
+    fs.mkdirSync(resourcesPath);
+    fs.copyFileSync(
+      path.resolve('resources/official-profile-package-apply.ts'),
+      path.join(resourcesPath, 'official-profile-package-apply.ts')
+    );
+    fs.writeFileSync(
+      fakeOpl,
+      `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ error: { message: 'Native plugin inventory failed; password=fixture-secret', body: 'private-response-body' }, raw: 'private-response-body' })); process.exitCode = 1;\n`,
+      { mode: 0o700 }
+    );
+    const runCommand = vi.fn((command) =>
+      __oplRuntimeBridgeTest.runSpawnJsonCommand({
+        ...command,
+        command: process.execPath,
+        env: { ...command.env, OPL_BIN: fakeOpl },
+      })
+    );
+    const result = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+      { intent: 'first_install' },
+      { markerPath, resourcesPath, runCommand }
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error?.message).toContain('Native plugin inventory failed');
+    expect(result.parsed).toMatchObject({
+      official_profile_package_apply: {
+        status: 'failed',
+        intent: 'first_install',
+        items: expect.arrayContaining([
+          expect.objectContaining({
+            status: 'failed',
+            error: { message: 'Native plugin inventory failed; password=[REDACTED]' },
+          }),
+        ]),
+      },
+    });
+    expect(JSON.stringify(result)).not.toContain('fixture-secret');
+    expect(JSON.stringify(result)).not.toContain('private-response-body');
+    expect(fs.existsSync(markerPath)).toBe(false);
+    const warn = vi.fn();
+    __oplRuntimeBridgeTest.startOfficialProfileFirstInstallAfterInitialize(
+      {
+        surface: 'system_initialize',
+        command: 'fixture',
+        stdout: '',
+        ok: true,
+        parsed: { system_initialize: { setup_flow: { ready_to_launch: true } } },
+      },
+      { platform: 'darwin', runApply: async () => result, logWarn: warn }
+    );
+    await vi.waitFor(() =>
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Native plugin inventory failed'))
+    );
+
+    const retry = await __oplRuntimeBridgeTest.runOfficialProfileApplyRequest(
+      { intent: 'first_install' },
+      {
+        markerPath,
+        resourcesPath,
+        runCommand: (command) =>
+          __oplRuntimeBridgeTest.runSpawnJsonCommand({
+            ...command,
+            command: process.execPath,
+            args: ['-e', 'process.stdout.write(JSON.stringify({official_profile_package_apply:{status:"completed"}}))'],
+          }),
+      }
+    );
+    expect(retry.ok).toBe(true);
+    expect(fs.existsSync(markerPath)).toBe(true);
+  });
+
+  it('drops unrelated failure bodies and limits Profile Package diagnostics on nonzero exit', async () => {
+    const resourcesPath = makeTempRoot('opl-official-profile-diagnostic-limit');
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// fixture');
+    const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand(
+      { intent: 'explicit_restore' },
+      resourcesPath
+    );
+    const payload = {
+      official_profile_package_apply: {
+        surface_kind: 'opl_app_official_profile_package_apply.v1',
+        status: 'partial_failure',
+        intent: 'explicit_restore',
+        action_readback: 'private-response-body',
+        items: Array.from({ length: 70 }, (_, index) => ({
+          package_id: `package-${index}`,
+          status: 'failed',
+          action_readback: 'private-response-body',
+          error: { message: `token=fixture-secret failure ${'x'.repeat(1500)}`, body: 'private-response-body' },
+        })),
+      },
+    };
+    const result = await __oplRuntimeBridgeTest.runSpawnJsonCommand({
+      ...command,
+      command: process.execPath,
+      args: [
+        '-e',
+        `process.stdout.write(${JSON.stringify(JSON.stringify(payload))}); process.stderr.write('private-stderr'); process.exitCode=1`,
+      ],
+    });
+    expect(result.ok).toBe(false);
+    const profile = (
+      result.parsed as {
+        official_profile_package_apply: {
+          items: Array<{ error: { message: string } }>;
+          truncated: boolean;
+          summary: { failed: number };
+        };
+      }
+    ).official_profile_package_apply;
+    expect(profile.items).toHaveLength(64);
+    expect(profile.truncated).toBe(true);
+    expect(profile.summary.failed).toBe(70);
+    expect(profile.items[0].error.message.length).toBeLessThanOrEqual(1024);
+    expect(result.error?.message.length).toBeLessThanOrEqual(4096);
+    for (const value of ['fixture-secret', 'private-response-body', 'private-stderr']) {
+      expect(JSON.stringify(result)).not.toContain(value);
+    }
+    await expect(
+      __oplRuntimeBridgeTest.runSpawnJsonCommand({
+        ...command,
+        command: process.execPath,
+        args: ['-e', `process.stdout.write(${JSON.stringify(JSON.stringify(payload))}); process.exitCode=1`],
+        maxStdoutBytes: 64,
+      })
+    ).rejects.toThrow('output exceeded 64 bytes');
+  });
+
+  it('does not expose unrecognized Profile stdout or treat nonzero success-shaped JSON as success', async () => {
+    const resourcesPath = makeTempRoot('opl-official-profile-invalid-failure');
+    fs.writeFileSync(path.join(resourcesPath, 'official-profile-package-apply.ts'), '// fixture');
+    const command = __oplRuntimeBridgeTest.buildOfficialProfileApplyCommand({ intent: 'first_install' }, resourcesPath);
+    await Promise.all(
+      ['private-response-body', '{"official_profile_package_apply":{"status":"completed"}}'].map(async (stdout) => {
+        await expect(
+          __oplRuntimeBridgeTest.runSpawnJsonCommand({
+            ...command,
+            command: process.execPath,
+            args: ['-e', `process.stdout.write(${JSON.stringify(stdout)}); process.exitCode=1`],
+          })
+        ).rejects.toThrow(`OPL runtime command failed (1): ${command.redactedCommand}`);
+      })
+    );
+  });
+
   it('runs first-install Official Profile once across concurrent callers and skips later automatic reapply', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-completion-'));
     const resourcesPath = path.join(root, 'resources');
