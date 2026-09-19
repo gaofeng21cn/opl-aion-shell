@@ -13,6 +13,7 @@ import { ipcBridge } from '@/common';
 import { OPL_PRODUCT_PROFILE } from '@/common/config/oplProductProfile';
 import { resolveUpdaterReleaseChannel, type UpdaterReleaseChannel } from '@/common/update/updateChannel';
 import { getWindowsWslRuntime, type WindowsWslRuntimeExecution } from '@/process/services/runtime-execution';
+import { redactFeedbackLogContent } from '@/process/feedback/logs';
 import type {
   IOplConfigureCodexRequest,
   IOplDomainDetailViewRequest,
@@ -200,6 +201,7 @@ type SpawnCommandSpec = {
   command: string;
   args: string[];
   redactedCommand: string;
+  parseFailureOutput?: (stdout: string) => { parsed: unknown; message: string } | null;
   launch?: () => {
     child: ChildProcessWithoutNullStreams;
     terminate: (graceMs?: number) => Promise<void>;
@@ -621,6 +623,57 @@ async function runRuntimeActionRequest(request: IOplRuntimeActionRequest): Promi
   return runOplCommand(buildActionCommand(request));
 }
 
+function parseOfficialProfileFailureOutput(stdout: string): { parsed: unknown; message: string } | null {
+  let payload: unknown;
+  try {
+    payload = parseJson(stdout);
+  } catch {
+    return null;
+  }
+  const profile = isRecord(payload) ? payload.official_profile_package_apply : null;
+  if (
+    !isRecord(profile) ||
+    profile.surface_kind !== 'opl_app_official_profile_package_apply.v1' ||
+    !['failed', 'partial_failure'].includes(String(profile.status)) ||
+    !['first_install', 'explicit_restore'].includes(String(profile.intent)) ||
+    !Array.isArray(profile.items)
+  )
+    return null;
+
+  // Keep only the bounded per-Package failure projection, never action readbacks or raw output.
+  const failures = profile.items.filter((item: unknown) => isRecord(item) && item.status === 'failed');
+  if (failures.length === 0) return null;
+  const items = failures.slice(0, 64).map((item) => ({
+    package_id:
+      typeof item.package_id === 'string' && /^[a-z0-9][a-z0-9._-]{0,127}$/i.test(item.package_id)
+        ? item.package_id
+        : 'unknown',
+    status: 'failed',
+    error: {
+      message:
+        isRecord(item.error) && typeof item.error.message === 'string' && item.error.message.trim()
+          ? redactFeedbackLogContent(item.error.message).slice(0, 1024)
+          : 'Package apply failed.',
+    },
+  }));
+  return {
+    parsed: {
+      official_profile_package_apply: {
+        surface_kind: profile.surface_kind,
+        status: profile.status,
+        intent: profile.intent,
+        summary: { failed: failures.length },
+        items,
+        truncated: failures.length > items.length,
+      },
+    },
+    message: `Official Profile failed for ${failures.length} Package(s): ${items
+      .slice(0, 8)
+      .map((item) => `${item.package_id}: ${item.error.message}`)
+      .join('; ')}`.slice(0, 4096),
+  };
+}
+
 function buildOfficialProfileApplyCommand(
   request: IOplOfficialProfileApplyRequest,
   resourcesPath?: string
@@ -647,6 +700,7 @@ function buildOfficialProfileApplyCommand(
     ],
     env: nodeCommand.env,
     timeoutMs: OPL_OFFICIAL_PROFILE_BOOTSTRAP_TIMEOUT_MS,
+    parseFailureOutput: parseOfficialProfileFailureOutput,
     redactedCommand: `node <official-profile-package-apply.ts> --intent ${request.intent} --root-package-id <profile-roots>`,
   };
 }
@@ -772,13 +826,12 @@ function startOfficialProfileFirstInstallAfterInitialize(
   dependencies: OfficialProfileFirstInstallStartDependencies = {}
 ): void {
   if ((dependencies.platform ?? process.platform) !== 'darwin' || !initializeReadyToLaunch(result)) return;
-  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))().catch(
-    (error) => {
-      (dependencies.logWarn ?? console.warn)(
-        `[AionUi:opl-official-profile] ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  );
+  const warn = (message: string) => (dependencies.logWarn ?? console.warn)(`[AionUi:opl-official-profile] ${message}`);
+  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))()
+    .then((applyResult) => {
+      if (!applyResult.ok) warn(applyResult.error?.message ?? 'Official Profile apply failed.');
+    })
+    .catch((error) => warn(error instanceof Error ? error.message : String(error)));
 }
 
 function resetOfficialProfileFirstInstallForTest(): void {
@@ -1964,7 +2017,22 @@ async function runSpawnJsonCommand(
         try {
           await launched.finalize?.();
           if (code !== 0) {
-            reject(new Error(`OPL runtime command failed (${code}): ${stderr.trim() || displayCommand}`));
+            const failure = commandSpec.parseFailureOutput?.(stdout);
+            if (failure) {
+              resolve({
+                surface: commandSpec.surface,
+                command: displayCommand,
+                stdout: JSON.stringify(failure.parsed),
+                parsed: failure.parsed,
+                ok: false,
+                error: { message: failure.message },
+              });
+              return;
+            }
+            const detail = commandSpec.parseFailureOutput
+              ? redactFeedbackLogContent(stderr.trim()).slice(0, 1024)
+              : stderr.trim();
+            reject(new Error(`OPL runtime command failed (${code}): ${detail || displayCommand}`));
             return;
           }
           resolve({
