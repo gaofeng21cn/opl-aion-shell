@@ -5098,6 +5098,16 @@ it('projects only runner-trusted CA certificates into the transient guest withou
     expect(command).toContain('launchctl setenv NODE_EXTRA_CA_CERTS');
     expect(command).toContain('export SSL_CERT_FILE=');
     expect(command).not.toContain('NODE_TLS_REJECT_UNAUTHORIZED');
+    const launchEnv = vmSmoke.buildPackagedAppLaunchBaseEnv({
+      NODE_EXTRA_CA_CERTS: bundle,
+      SSL_CERT_FILE: bundle,
+      NODE_TLS_REJECT_UNAUTHORIZED: '0',
+      NODE_OPTIONS: '--require /tmp/injected.js',
+    });
+    expect(launchEnv.NODE_EXTRA_CA_CERTS).toBe(bundle);
+    expect(launchEnv.SSL_CERT_FILE).toBe(bundle);
+    expect(launchEnv).not.toHaveProperty('NODE_TLS_REJECT_UNAUTHORIZED');
+    expect(launchEnv).not.toHaveProperty('NODE_OPTIONS');
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
