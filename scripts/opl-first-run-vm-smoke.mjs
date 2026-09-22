@@ -1314,6 +1314,7 @@ function launchApp(appPath, options) {
   const stdout = fs.openSync(stdoutPath, 'a');
   const stderr = fs.openSync(stderrPath, 'a');
   let child;
+  const launchStartedAt = new Date().toISOString();
   try {
     child = spawn(executablePath, launchArgs, {
       cwd: path.dirname(executablePath),
@@ -1328,6 +1329,7 @@ function launchApp(appPath, options) {
   child.unref();
   writeJsonArtifact(path.join(launchLogDir, 'launch.json'), {
     schema: 'opl_packaged_gui_launch.v1',
+    started_at: launchStartedAt,
     strategy: 'direct_app_executable',
     app_path: appPath,
     executable_path: executablePath,
@@ -3040,6 +3042,85 @@ function officialProfileConvergenceFromFastState(payload, desiredRoots) {
   };
 }
 
+function officialProfileTerminalFailureFromLog(text, launch, now = Date.now()) {
+  const started = Date.parse(launch?.started_at);
+  if (!Number.isSafeInteger(launch?.pid) || launch.pid <= 0 || !Number.isFinite(started)) return null;
+  const prefix = '[AionUi:opl-official-profile] ';
+  for (const line of String(text).split('\n')) {
+    const index = line.indexOf(prefix);
+    if (index < 0) continue;
+    let event;
+    try {
+      event = JSON.parse(line.slice(index + prefix.length));
+    } catch {
+      continue;
+    }
+    const recorded = Date.parse(event?.recorded_at);
+    if (
+      event?.schema === 'opl_official_profile_first_install_terminal.v1' &&
+      event.intent === 'first_install' &&
+      event.status === 'failed' &&
+      event.app_process_id === launch.pid &&
+      Number.isFinite(recorded) &&
+      recorded >= started &&
+      recorded <= now
+    )
+      return event;
+  }
+  return null;
+}
+
+function readOfficialProfileTerminalFailure(options, logRoots) {
+  const launchPath = path.join(options.artifacts, 'launch-app', 'launch.json');
+  let launch;
+  try {
+    launch = JSON.parse(fs.readFileSync(launchPath, 'utf8'));
+  } catch {
+    return null;
+  }
+  const started = Date.parse(launch.started_at);
+  if (!Number.isFinite(started)) return null;
+  const now = Date.now();
+  const roots = logRoots ?? [
+    ...new Set([
+      path.dirname(defaultFirstRunLogPath()),
+      path.join(userHomeDir(), 'Library', 'Logs', options.processName || DEFAULT_PROCESS_NAME),
+    ]),
+  ];
+  // Read only daily log files from this launch; old runs cannot fail this qualification.
+  const dates = new Set(
+    [new Date(started), new Date(now)].map((date) =>
+      [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join(
+        '/'
+      )
+    )
+  );
+  for (const root of roots) {
+    for (const date of dates) {
+      const directory = path.join(root, date);
+      let names;
+      try {
+        names = fs.readdirSync(directory);
+      } catch {
+        continue;
+      }
+      for (const name of names) {
+        if (!name.endsWith('.log')) continue;
+        const file = path.join(directory, name);
+        try {
+          const stat = fs.lstatSync(file);
+          if (!stat.isFile() || stat.isSymbolicLink()) continue;
+          const failure = officialProfileTerminalFailureFromLog(fs.readFileSync(file, 'utf8'), launch, now);
+          if (failure) return failure;
+        } catch {
+          // Log rotation or unavailable diagnostics are not a Package failure.
+        }
+      }
+    }
+  }
+  return null;
+}
+
 async function collectOfficialProfileFirstInstallProof(options, secret) {
   if (options.officialProfileRoots.length === 0) {
     throw new Error('Release clean-VM smoke requires Official Profile roots.');
@@ -3050,6 +3131,24 @@ async function collectOfficialProfileFirstInstallProof(options, secret) {
   let officialProfile = null;
   let lastError = null;
   while (Date.now() - started < options.timeoutMs) {
+    const terminalFailure = (
+      options.__testHooks?.readOfficialProfileTerminalFailure ?? readOfficialProfileTerminalFailure
+    )(options);
+    if (terminalFailure) {
+      writeJsonArtifact(
+        path.join(options.artifacts, 'official-profile-first-install-summary.json'),
+        {
+          schema: 'opl_official_profile_clean_vm_first_install.v1',
+          status: 'failed',
+          terminal_failure: terminalFailure,
+          restore_action_invoked: false,
+        },
+        secret
+      );
+      throw new Error(
+        `Official Profile first install terminated: ${String(terminalFailure.message || 'Package apply failed.').slice(0, 4096)}`
+      );
+    }
     try {
       const appState = parseOplJsonResult(
         runOplJsonImpl(args, { ...options, timeoutMs: resolveOplProbeTimeoutMs(options.timeoutMs) }),
@@ -9332,6 +9431,9 @@ export const __test =
         collectHomebrewStandardCaskProof,
         collectTemporalServiceSupervisorProof,
         officialProfileConvergenceFromFastState,
+        officialProfileTerminalFailureFromLog,
+        readOfficialProfileTerminalFailure,
+        collectOfficialProfileFirstInstallProof,
         reloadTemporalSupervisorSession,
         assertAppActionExecution,
         assertTemporalSupervisorReady,

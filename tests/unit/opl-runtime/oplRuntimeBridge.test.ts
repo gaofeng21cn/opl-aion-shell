@@ -1121,6 +1121,46 @@ describe('OPL runtime bridge command whitelist', () => {
     expect(runApply).toHaveBeenCalledTimes(1);
   });
 
+  it('records launch-bound terminal diagnostics for returned failures and thrown bootstrap errors', async () => {
+    const ready = {
+      surface: 'system_initialize' as const,
+      command: 'fixture',
+      stdout: '',
+      ok: true as const,
+      parsed: { system_initialize: { setup_flow: { ready_to_launch: true } } },
+    };
+    for (const runApply of [
+      async () => ({
+        surface: 'app_action' as const,
+        command: 'fixture',
+        stdout: '',
+        ok: false as const,
+        error: { code: 'TIMEOUT', message: 'Apply deadline exceeded; password=fixture-secret' },
+      }),
+      () => {
+        throw new Error('Missing helper; password=fixture-secret');
+      },
+    ]) {
+      const logWarn = vi.fn();
+      const started = Date.now();
+      __oplRuntimeBridgeTest.startOfficialProfileFirstInstallAfterInitialize(ready, {
+        platform: 'darwin',
+        runApply,
+        logWarn,
+      });
+      await vi.waitFor(() => expect(logWarn).toHaveBeenCalledTimes(1));
+      const event = JSON.parse(logWarn.mock.calls[0][0].split('[AionUi:opl-official-profile] ')[1]);
+      expect(event).toMatchObject({
+        schema: 'opl_official_profile_first_install_terminal.v1',
+        status: 'failed',
+        intent: 'first_install',
+        app_process_id: process.pid,
+      });
+      expect(Date.parse(event.recorded_at)).toBeGreaterThanOrEqual(started);
+      expect(JSON.stringify(event)).not.toContain('fixture-secret');
+    }
+  });
+
   it('leaves no Official Profile completion marker after failure so first install can retry', async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-official-profile-retry-'));
     const resourcesPath = path.join(root, 'resources');

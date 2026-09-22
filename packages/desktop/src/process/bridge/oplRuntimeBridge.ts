@@ -650,6 +650,11 @@ function parseOfficialProfileFailureOutput(stdout: string): { parsed: unknown; m
         : 'unknown',
     status: 'failed',
     error: {
+      ...(isRecord(item.error) &&
+      typeof item.error.code === 'string' &&
+      /^[a-z][a-z0-9_.-]{0,127}$/i.test(item.error.code)
+        ? { code: redactFeedbackLogContent(item.error.code) }
+        : {}),
       message:
         isRecord(item.error) && typeof item.error.message === 'string' && item.error.message.trim()
           ? redactFeedbackLogContent(item.error.message).slice(0, 1024)
@@ -826,10 +831,24 @@ function startOfficialProfileFirstInstallAfterInitialize(
   dependencies: OfficialProfileFirstInstallStartDependencies = {}
 ): void {
   if ((dependencies.platform ?? process.platform) !== 'darwin' || !initializeReadyToLaunch(result)) return;
-  const warn = (message: string) => (dependencies.logWarn ?? console.warn)(`[AionUi:opl-official-profile] ${message}`);
-  void (dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))()
+  const warn = (message: string, parsed?: unknown) => {
+    const failure = parsed ? parseOfficialProfileFailureOutput(JSON.stringify(parsed)) : null;
+    // This is a bounded diagnostic event in the existing App log, not Package state.
+    const event = {
+      schema: 'opl_official_profile_first_install_terminal.v1',
+      intent: 'first_install',
+      status: 'failed',
+      app_process_id: process.pid,
+      recorded_at: new Date().toISOString(),
+      message: redactFeedbackLogContent(message).slice(0, 4096),
+      ...(failure ? { failure: failure.parsed } : {}),
+    };
+    (dependencies.logWarn ?? console.warn)(`[AionUi:opl-official-profile] ${JSON.stringify(event)}`);
+  };
+  void Promise.resolve()
+    .then(dependencies.runApply ?? (() => runOfficialProfileApplyRequest({ intent: 'first_install' })))
     .then((applyResult) => {
-      if (!applyResult.ok) warn(applyResult.error?.message ?? 'Official Profile apply failed.');
+      if (!applyResult.ok) warn(applyResult.error?.message ?? 'Official Profile apply failed.', applyResult.parsed);
     })
     .catch((error) => warn(error instanceof Error ? error.message : String(error)));
 }

@@ -5112,3 +5112,104 @@ it('projects only runner-trusted CA certificates into the transient guest withou
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+describe('Official Profile terminal failure diagnostics', () => {
+  const launch = { pid: 4321, started_at: '2026-09-22T11:00:00.000Z' };
+  const event = {
+    schema: 'opl_official_profile_first_install_terminal.v1',
+    intent: 'first_install',
+    status: 'failed',
+    app_process_id: launch.pid,
+    recorded_at: '2026-09-22T11:01:00.000Z',
+    message: 'obf: Native inventory unavailable',
+  };
+  const line = (value: unknown) =>
+    `[2026-09-22 11:01:00] [warn] [AionUi:opl-official-profile] ${JSON.stringify(value)}\n`;
+
+  it('matches only this launch terminal failure and ignores old, foreign, incomplete and restore events', () => {
+    const now = Date.parse('2026-09-22T11:02:00Z');
+    expect(vmSmoke.officialProfileTerminalFailureFromLog(line(event), launch, now)).toEqual(event);
+    for (const invalid of [
+      { ...event, app_process_id: 1234 },
+      { ...event, recorded_at: '2026-09-22T10:59:59Z' },
+      { ...event, recorded_at: '2026-09-22T11:03:00Z' },
+      { ...event, intent: 'explicit_restore' },
+      { ...event, status: 'running' },
+      { ...event, schema: 'different' },
+    ])
+      expect(vmSmoke.officialProfileTerminalFailureFromLog(line(invalid), launch, now)).toBeNull();
+    expect(vmSmoke.officialProfileTerminalFailureFromLog(line(event), { pid: launch.pid }, now)).toBeNull();
+    expect(vmSmoke.officialProfileTerminalFailureFromLog('[AionUi:opl-official-profile] {', launch, now)).toBeNull();
+  });
+
+  it('reads the launch receipt and existing dated App log without treating missing diagnostics as failure', () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-profile-log-'));
+    const logRoot = path.join(artifacts, 'logs');
+    const launchFile = path.join(artifacts, 'launch-app', 'launch.json');
+    const date = new Date();
+    const liveLaunch = { pid: 4321, started_at: new Date(date.getTime() - 2000).toISOString() };
+    const liveEvent = { ...event, recorded_at: new Date(date.getTime() - 1000).toISOString() };
+    const logFile = path.join(
+      logRoot,
+      String(date.getFullYear()),
+      String(date.getMonth() + 1).padStart(2, '0'),
+      String(date.getDate()).padStart(2, '0'),
+      'app.log'
+    );
+    try {
+      expect(vmSmoke.readOfficialProfileTerminalFailure({ artifacts }, [logRoot])).toBeNull();
+      writeFile(launchFile, JSON.stringify(liveLaunch));
+      expect(vmSmoke.readOfficialProfileTerminalFailure({ artifacts }, [logRoot])).toBeNull();
+      writeFile(logFile, line({ ...liveEvent, app_process_id: 123 }) + line(liveEvent));
+      expect(vmSmoke.readOfficialProfileTerminalFailure({ artifacts }, [logRoot])).toEqual(liveEvent);
+      writeFile(launchFile, '{');
+      expect(vmSmoke.readOfficialProfileTerminalFailure({ artifacts }, [logRoot])).toBeNull();
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('ends on terminal failure before probing or waiting and persists the failed attempt', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-profile-terminal-'));
+    const runOplJson = vi.fn();
+    try {
+      await expect(
+        vmSmoke.collectOfficialProfileFirstInstallProof({
+          artifacts,
+          officialProfileRoots: ['obf'],
+          timeoutMs: 3_600_000,
+          __testHooks: { runOplJson, readOfficialProfileTerminalFailure: () => event },
+        })
+      ).rejects.toThrow('obf: Native inventory unavailable');
+      expect(runOplJson).not.toHaveBeenCalled();
+      expect(
+        JSON.parse(fs.readFileSync(path.join(artifacts, 'official-profile-first-install-summary.json'), 'utf8'))
+      ).toMatchObject({ status: 'failed', terminal_failure: event, restore_action_invoked: false });
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+
+  it('still requires the configured carrier readback when no terminal failure exists', async () => {
+    const artifacts = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-profile-converged-'));
+    const runOplJson = vi.fn(() => ({
+      app_state: {
+        agent_packages: {
+          directory: { entries: [{ package_id: 'obf', installed: true }] },
+        },
+      },
+    }));
+    try {
+      const result = await vmSmoke.collectOfficialProfileFirstInstallProof({
+        artifacts,
+        officialProfileRoots: ['obf'],
+        timeoutMs: 10_000,
+        __testHooks: { runOplJson, readOfficialProfileTerminalFailure: () => null },
+      });
+      expect(result.status).toBe('passed');
+      expect(runOplJson).toHaveBeenCalledTimes(1);
+    } finally {
+      fs.rmSync(artifacts, { recursive: true, force: true });
+    }
+  });
+});
