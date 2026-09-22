@@ -83,7 +83,8 @@ function parseJsonResult(result: OplExecution, args: string[]) {
       .map((payload) => payload.error)
       .find((candidate) => isRecord(candidate) && typeof candidate.message === 'string' && candidate.message.trim());
     const failure = new OplCommandFailure(
-      error?.message || result.error?.message ||
+      error?.message ||
+        result.error?.message ||
         (stderrJson === null ? result.stderr.trim() : '') ||
         `${command} exited with status ${String(result.status)}`
     );
