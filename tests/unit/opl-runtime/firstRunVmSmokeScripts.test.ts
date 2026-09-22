@@ -5075,3 +5075,30 @@ describe('OPL first-run VM smoke scripts', () => {
     ).toBe(false);
   });
 });
+
+it('projects only runner-trusted CA certificates into the transient guest without disabling TLS', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'opl-vm-system-ca-'));
+  try {
+    const bundle = tartSmoke.prepareRunnerSystemCaBundle({ artifacts: root }, (kind: string) =>
+      kind === 'system' ? ['system-ca'] : ['public-ca', 'system-ca']
+    );
+    expect(fs.readFileSync(bundle, 'utf8')).toBe('public-ca\nsystem-ca');
+    const receipt = JSON.parse(fs.readFileSync(path.join(root, 'runner-system-ca-receipt.json'), 'utf8'));
+    expect(receipt.certificate_count).toBe(2);
+    expect(receipt.tls_verification_disabled).toBe(false);
+    expect(tartSmoke.prepareRunnerSystemCaBundle({ artifacts: root }, () => [])).toBeNull();
+    const command = tartSmoke.guestSmokeCommand(
+      { guestWorkdir: '/tmp/clean guest', runnerSystemCaBundle: bundle, runtimeProfile: 'standard', timeoutMs: 10000 },
+      '/tmp/app.dmg',
+      '/tmp/smoke.mjs',
+      '/tmp/artifacts',
+      '/usr/bin/node'
+    );
+    expect(command).toContain('export NODE_EXTRA_CA_CERTS=');
+    expect(command).toContain('launchctl setenv NODE_EXTRA_CA_CERTS');
+    expect(command).toContain('export SSL_CERT_FILE=');
+    expect(command).not.toContain('NODE_TLS_REJECT_UNAUTHORIZED');
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

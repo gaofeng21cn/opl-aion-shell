@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import tls from 'node:tls';
 
 const requireFromShell = createRequire(import.meta.url);
 
@@ -2239,6 +2240,12 @@ function guestSmokeCommand(
   return [
     'set -euo pipefail',
     providerCredentialRequested ? '' : 'unset OPL_FIRST_RUN_CODEX_API_KEY_FILE',
+    ...(options.runnerSystemCaBundle
+      ? ['NODE_EXTRA_CA_CERTS', 'SSL_CERT_FILE'].flatMap((name) => {
+          const file = shellQuote(`${options.guestWorkdir}/${path.basename(options.runnerSystemCaBundle)}`);
+          return [`export ${name}=${file}`, `launchctl setenv ${name} ${file}`];
+        })
+      : []),
     ...sourceArchiveEnv,
     compiledExpectationsPath
       ? `export OPL_FIRST_RUN_COMPILED_EXPECTATIONS=${shellQuote(compiledExpectationsPath)}`
@@ -2901,6 +2908,24 @@ function writeTerminalFailureSummary(
   return terminalError;
 }
 
+function prepareRunnerSystemCaBundle(options, getCertificates = tls.getCACertificates) {
+  const system = getCertificates('system');
+  if (system.length === 0) return null;
+  const certificates = [...new Set([...getCertificates('default'), ...system])];
+  const contents = certificates.join('\n');
+  const file = path.join(options.artifacts, 'runner-system-ca.pem');
+  fs.writeFileSync(file, contents, { mode: 0o600 });
+  const receipt = {
+    source: 'runner_node_system_and_default_trust',
+    certificate_count: certificates.length,
+    sha256: createHash('sha256').update(contents).digest('hex'),
+    tls_verification_disabled: false,
+    scope: 'transient_guest_process_environment',
+  };
+  fs.writeFileSync(path.join(options.artifacts, 'runner-system-ca-receipt.json'), JSON.stringify(receipt, null, 2));
+  return file;
+}
+
 async function main() {
   assertMacOSHost();
   const options = parseArgs(process.argv.slice(2));
@@ -2914,6 +2939,7 @@ async function main() {
   }
   assertTartAvailable();
   fs.mkdirSync(options.artifacts, { recursive: true });
+  options.runnerSystemCaBundle = prepareRunnerSystemCaBundle(options);
 
   const vmLogPath = path.join(options.artifacts, 'tart-run.log');
   runtimeState.vmLogPath = vmLogPath;
@@ -2961,6 +2987,7 @@ async function main() {
     const guestFrameworkArchivePath = guestFrameworkSourceArchivePath(options);
     const guestFrameworkInstallerPath = guestFrameworkInstallScriptPath(options);
     const guestInputs = [resolveGuestSmokeScriptPath()];
+    if (options.runnerSystemCaBundle) guestInputs.push(options.runnerSystemCaBundle);
     if (codexApiKeyFile) guestInputs.push(codexApiKeyFile.path);
     if (options.gatewayAccountEmailFile) guestInputs.push(options.gatewayAccountEmailFile);
     if (options.gatewayAccountPasswordFile) guestInputs.push(options.gatewayAccountPasswordFile);
@@ -3093,6 +3120,7 @@ export const __test =
         guestSmokeHostTimeoutMs,
         guestSmokeCommand,
         prepareHostCodexApiKeyFile,
+        prepareRunnerSystemCaBundle,
         resolveHostCodexProviderCredential,
         copyMasProvisioningWorkspaceToGuest,
         homebrewTrustedCaskRefs,
