@@ -895,7 +895,7 @@ describe('OPL runtime bridge command whitelist', () => {
     );
     fs.writeFileSync(
       fakeOpl,
-      `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ error: { message: 'Native plugin inventory failed; password=fixture-secret', body: 'private-response-body' }, raw: 'private-response-body' })); process.exitCode = 1;\n`,
+      `#!${process.execPath}\nprocess.stderr.write(JSON.stringify({ error: { code: 'native_install_failed', message: 'Native plugin inventory failed; password=fixture-secret', body: 'private-response-body' }, raw: 'private-response-body' }, null, 2)); process.exitCode = 1;\n`,
       { mode: 0o700 }
     );
     const runCommand = vi.fn((command) =>
@@ -918,7 +918,7 @@ describe('OPL runtime bridge command whitelist', () => {
         items: expect.arrayContaining([
           expect.objectContaining({
             status: 'failed',
-            error: { message: 'Native plugin inventory failed; password=[REDACTED]' },
+            error: { code: 'native_install_failed', message: 'Native plugin inventory failed; password=[REDACTED]' },
           }),
         ]),
       },

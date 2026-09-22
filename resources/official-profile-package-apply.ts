@@ -61,23 +61,36 @@ function safeFailureMessage(message: string): string {
     .slice(0, 1024);
 }
 
-function parseJsonResult(result: OplExecution, args: string[]) {
-  let parsed: unknown;
+class OplCommandFailure extends Error {
+  code?: string;
+}
+
+function parseJsonOutput(output: string): unknown {
   try {
-    parsed = JSON.parse(result.stdout);
+    return JSON.parse(output);
   } catch {
-    // Non-JSON output must never become the diagnostic body.
+    return null;
   }
+}
+
+function parseJsonResult(result: OplExecution, args: string[]) {
+  const parsed = parseJsonOutput(result.stdout);
   const command = `opl ${args.slice(0, args[1] === 'action' ? 3 : 2).join(' ')}`;
   if (result.error || result.status !== 0) {
-    const error = isRecord(parsed) && isRecord(parsed.error) ? parsed.error : null;
-    const message = error && typeof error.message === 'string' ? error.message.trim() : '';
-    throw new Error(
-      result.error?.message ||
-        message ||
-        result.stderr.trim() ||
+    const stderrJson = parseJsonOutput(result.stderr);
+    const error = [parsed, stderrJson]
+      .filter(isRecord)
+      .map((payload) => payload.error)
+      .find((candidate) => isRecord(candidate) && typeof candidate.message === 'string' && candidate.message.trim());
+    const failure = new OplCommandFailure(
+      error?.message || result.error?.message ||
+        (stderrJson === null ? result.stderr.trim() : '') ||
         `${command} exited with status ${String(result.status)}`
     );
+    if (typeof error?.code === 'string' && /^[a-z][a-z0-9_.-]{0,127}$/i.test(error.code)) {
+      failure.code = safeFailureMessage(error.code);
+    }
+    throw failure;
   }
   if (!isRecord(parsed)) throw new Error(`${command} returned invalid JSON.`);
   return parsed;
@@ -292,7 +305,10 @@ export function applyOfficialProfilePackages(input: {
         action: null,
         action_ref: null,
         changed: false,
-        error: { message: safeFailureMessage(error instanceof Error ? error.message : String(error)) },
+        error: {
+          ...(error instanceof OplCommandFailure && error.code ? { code: error.code } : {}),
+          message: safeFailureMessage(error instanceof Error ? error.message : String(error)),
+        },
       });
     }
   }

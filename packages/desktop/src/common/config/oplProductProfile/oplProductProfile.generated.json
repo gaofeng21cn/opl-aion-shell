@@ -138,8 +138,8 @@
       "implementation_repo": "gaofeng21cn/opl-studio",
       "role": "deepseek_harness_cordis_application_host",
       "implementation_status": "source_implemented_release_admission_separate",
-      "upstream_version": "0.1.1-rc.2",
-      "upstream_ref": "b150a551b8d465e31e418e1b2eaf5e79bbb7d28e",
+      "upstream_version": "0.1.6-alpha.1",
+      "upstream_ref": "0a15e36e7f82b6ed45af6fa9759f29b40dcd965d",
       "profile": "opl-studio",
       "profile_source": "scripts/webui-host/dsh/cordis.yml",
       "web_overlay": "scripts/webui-host/dsh/web.patch.yml",
@@ -759,7 +759,16 @@
       "guid_navigation_blocking": false,
       "failure_scope": "package_local_nonblocking",
       "unknown_or_timeout_policy": "keep_guid_entry_available_and_report_background_attention",
-      "retry_policy": "explicit_first_run_retry_or_settings_agents"
+      "retry_policy": "explicit_first_run_retry_or_settings_agents",
+      "failure_diagnostics": {
+        "source": "framework_json_error_from_stdout_or_stderr",
+        "fields": ["package_id", "status", "error.code", "error.message"],
+        "redacted_and_bounded": true,
+        "terminal_log_schema": "opl_official_profile_first_install_terminal.v1",
+        "qualification_binding": ["app_process_id", "launch_started_at"],
+        "qualification_terminal_failure_policy": "fail_immediately_without_retry_or_mutation",
+        "package_lifecycle_authority": false
+      }
     },
     "user_removal_policy": {
       "explicit_uninstall_is_persistent_preference": true,
@@ -877,6 +886,8 @@
           "permission_access_visible": true,
           "executor_selector_visible": false,
           "active_shortcut_changes_executor": false,
+          "active_shortcut_requires_explicit_session_binding": true,
+          "active_shortcut_must_emit_domain_instruction": true,
           "default_visibility_governs_execution": false,
           "single_home_root": true,
           "single_composer_shell": true,
