@@ -1110,20 +1110,28 @@ describe('OPL generated product profile', () => {
   });
 
   it('selects Astra with max reasoning when the live catalog supports it', () => {
-    expect(
-      resolveOplCodexAutoSelection({
-        current_model_id: 'gpt-6-astra',
-        current_model_label: 'GPT-6 Astra',
-        available_models: [
-          {
-            id: 'gpt-6-astra',
-            label: 'GPT-6 Astra',
-            isDefault: true,
-            supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
-          },
-        ],
-      })
-    ).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+    const info = {
+      current_model_id: 'gpt-6-astra',
+      current_model_label: 'GPT-6 Astra',
+      available_models: [
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          isDefault: true,
+          supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
+        },
+        {
+          id: 'gpt-6-sol',
+          label: 'GPT-6-Sol',
+          supportedReasoningEfforts: [{ reasoningEffort: 'high' }, { reasoningEffort: 'max' }],
+        },
+      ],
+    };
+    expect(resolveOplCodexAutoSelection(info)).toEqual({ modelId: 'gpt-6-astra', reasoningEffort: 'max' });
+    expect(normalizeCodexModelInfo(info).available_models).toContainEqual({
+      id: 'gpt-6-sol',
+      label: 'GPT-6-Sol',
+    });
   });
 
   it('does not let an older native default or Flow recommendation downgrade supported Astra', () => {

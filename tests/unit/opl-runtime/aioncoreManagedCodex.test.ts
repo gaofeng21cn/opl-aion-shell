@@ -10,7 +10,7 @@ import {
 } from '@/process/backend/oplCodexRuntimeIdentity';
 
 const RUNTIME_KEY = 'darwin-arm64';
-const CODEX_VERSION = '0.153.4';
+const CODEX_VERSION = '0.156.1';
 const CODEX_ROOT = `cli/codex/${CODEX_VERSION}/${RUNTIME_KEY}`;
 const CODEX_EXECUTABLE = 'codex-aarch64-apple-darwin/codex-aarch64-apple-darwin';
 const REQUIRED_ABSENT_PATHS = [
@@ -238,7 +238,7 @@ describe('resolveAioncoreManagedCodex', () => {
     const emptyVersion = makeManifest();
     emptyVersion.clis.find((entry) => entry.name === 'codex')!.version = ' ';
     const versionBundle = writeBundle(emptyVersion);
-    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/Codex version must be 0\.153\.4/);
+    expect(() => resolve(versionBundle.resourcesPath)).toThrow(/Codex version must be 0\.156\.1/);
   });
 
   it.each(['../escape', '/absolute', 'cli\\codex', 'cli//codex', './cli'])(

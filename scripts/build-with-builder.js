@@ -464,6 +464,7 @@ function buildWithDmgRetry(cmd, targetArch) {
     execSync(cmd, { stdio: 'inherit', shell: process.platform === 'win32' });
     return;
   } catch (error) {
+    if (dirOnly) throw error;
     // Only a complete product app proves packaging finished before DMG creation failed.
     const appDir = isMac ? findAppDir(outDir) : null;
     const appPath = appDir ? findCompletePackagedMacApp(appDir) : null;
