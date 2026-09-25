@@ -2,7 +2,7 @@
 
 提交 PR 前遵循 [CONTRIBUTING.md](CONTRIBUTING.md)；中文说明见 [CONTRIBUTING.zh.md](CONTRIBUTING.zh.md)。
 
-- 本仓是 One Person Lab App 当前 AionUI Shell 的实现仓与 upstream intake 边界，承载 renderer、process、package metadata、测试和 Shell release hooks。
+- 本仓是 One Person Lab App 已退役的 AionUI 实现，只保留历史源码、旧版迁移基线与固定测试夹具。当前 Desktop、Nightly 和 Docker WebUI 生产构建由 `opl-studio` 提供；不得从本仓恢复生产发布或 upstream intake。
 - GUI 产品 authority 在 `one-person-lab-app`；产品行为、页面状态、模型/引导策略、截图、发布与用户文档由 App contracts 定义，本仓只实现并验证这些边界。
 - Upstream fork body 默认只读；OPL-owned adapter/overlay 变更必须以 App contract 为依据。不得把 upstream 默认值、候选取舍或产品 truth 下沉到 Shell。
 - Shell 只渲染 Framework/App projection 并提交已授权 action；不得维护固定 Package/Agent/Skill/Tool 清单、依赖图、版本解析、lock、payload、receipt 或 currentness 镜像。
