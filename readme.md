@@ -1,15 +1,18 @@
 # OPL Aion Shell
 
-This repository implements the AionUI-based Stable carrier for
+This repository is the retired AionUI implementation of
 [One Person Lab App](https://github.com/gaofeng21cn/one-person-lab-app).
-It contains the renderer, Electron process, standalone WebUI adapter, packaging
-hooks, and tests. App owns the product, platform support, model policy, release,
-and selected carrier; Framework owns runtime and Package state.
+The current desktop, Nightly, and Docker WebUI releases are implemented in
+[OPL Studio](https://github.com/gaofeng21cn/opl-studio), on DeepSeek Harness/Cordis.
+Install and update through the [App releases](https://github.com/gaofeng21cn/one-person-lab-app/releases/latest).
 
-Studio is an independent DSH/Cordis Application Host with a separate process
-scope. Both carriers consume public App/Framework contracts. Hermes is retired
-read-only provenance. Neither this repository nor its upstream feature lists
-can change those product decisions.
+This source remains available for historical provenance, pinned validation
+fixtures, and migration from older signed App releases. Its tags and releases
+must remain reachable. It is no longer a production build source or an active
+upstream intake target. App owns product and release policy; Framework owns
+runtime and Package state.
+
+The development instructions below describe the historical implementation.
 
 ## Development
 
